@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local development. .dev.vars is never committed or deployed.
+GM_PASSWORD=pick-anything-for-local-testing
