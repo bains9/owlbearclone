@@ -121,6 +121,11 @@ export class Room extends DurableObject<Env> {
   private lastPlayerInitiative = "";
   private assets = new Map<string, Asset>();
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
+  /**
+   * The part of the live scene the GM last showed table displays, for a display that
+   * connects later. Only in memory: if it's lost, displays show the whole scene.
+   */
+  private displayView: Extract<Ephemeral, { k: "view" }> | null = null;
   /** Browser tab -> the last seq applied from it (a cache of the sessions table). */
   private sessionSeqs = new Map<string, number>();
 
@@ -351,23 +356,37 @@ export class Room extends DurableObject<Env> {
 
     const url = new URL(request.url);
     // The Worker sets this header after checking the GM cookie; browsers can't reach this object directly.
-    const role: Role = request.headers.get("X-Tabletop-Role") === "gm" ? "gm" : "player";
+    const display = request.headers.get("X-Tabletop-Display") === "1";
+    const role: Role = !display && request.headers.get("X-Tabletop-Role") === "gm" ? "gm" : "player";
     const uid = url.searchParams.get("uid");
     const sid = url.searchParams.get("sid");
-    const conn: Conn = {
-      connId: randomId(10),
-      // Every GM connection shares one identity no player id can equal, so a player
-      // who copies the GM's browser id gets nothing of the GM's.
-      userId: role === "gm" ? GM_OWNER : isId(uid) ? uid : randomId(16),
-      name: cleanText(url.searchParams.get("name"), LIMITS.playerName) || (role === "gm" ? "GM" : "Player"),
-      color: cleanColor(url.searchParams.get("color")) ?? "#4f9dde",
-      role,
-      // A tab that doesn't say which it is gets a fresh identity: nothing is deduplicated for it.
-      sid: isId(sid) ? sid : randomId(16),
-    };
+    const conn: Conn = display
+      ? {
+          connId: randomId(10),
+          userId: randomId(16),
+          name: "Table display",
+          color: "#8a8f98",
+          role: "player",
+          sid: randomId(16),
+          display: true,
+        }
+      : {
+          connId: randomId(10),
+          // Every GM connection shares one identity no player id can equal, so a player
+          // who copies the GM's browser id gets nothing of the GM's.
+          userId: role === "gm" ? GM_OWNER : isId(uid) ? uid : randomId(16),
+          name: cleanText(url.searchParams.get("name"), LIMITS.playerName) || (role === "gm" ? "GM" : "Player"),
+          color: cleanColor(url.searchParams.get("color")) ?? "#4f9dde",
+          role,
+          // A tab that doesn't say which it is gets a fresh identity: nothing is deduplicated for it.
+          sid: isId(sid) ? sid : randomId(16),
+        };
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(conn);
     this.send(server, this.hello(conn));
+    if (display && this.displayView && this.displayView.sceneId === this.activeSceneId) {
+      this.send(server, { t: "eph", from: "", e: this.displayView });
+    }
     this.broadcastPlayers();
     if (role === "gm") {
       this.env.DIRECTORY.getByName("main")
@@ -388,6 +407,8 @@ export class Room extends DurableObject<Env> {
       return;
     }
     if (!msg || typeof msg !== "object") return;
+    // A table display only watches.
+    if (conn.display) return;
     const raw = msg.t === "eph" ? undefined : (msg as { seq?: unknown }).seq;
     const seq = typeof raw === "number" && Number.isSafeInteger(raw) && raw > 0 ? raw : undefined;
     if (seq !== undefined) {
@@ -990,6 +1011,26 @@ export class Room extends DurableObject<Env> {
     const e = raw as Ephemeral | null;
     if (!e || typeof e !== "object" || !isId(e.sceneId)) return;
     const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+    if (e.k === "view") {
+      // The GM pointing the table displays at part of the live scene (or all of it).
+      // Only for the scene players see: a scene the GM is previewing never moves them.
+      if (conn.role !== "gm" || e.sceneId !== this.activeSceneId) return;
+      let rect: [number, number, number, number] | null = null;
+      if (e.rect !== null) {
+        const r = e.rect;
+        if (!Array.isArray(r) || r.length !== 4 || !r.every(finite)) return;
+        if (!(r[2] > 0 && r[3] > 0) || r.some((v) => Math.abs(v) > LIMITS.coord)) return;
+        rect = [r[0], r[1], r[2], r[3]];
+      }
+      const view: Extract<Ephemeral, { k: "view" }> = { k: "view", sceneId: e.sceneId, rect };
+      this.displayView = view;
+      const data = JSON.stringify({ t: "eph", from: conn.connId, e: view } satisfies ServerMsg);
+      for (const target of this.ctx.getWebSockets()) {
+        const c = target.deserializeAttachment() as Conn | null;
+        if (c?.display) this.sendRaw(target, data);
+      }
+      return;
+    }
     let clean: Ephemeral;
     if (e.k === "drag") {
       if (!Array.isArray(e.moves)) return;
@@ -1212,6 +1253,8 @@ export class Room extends DurableObject<Env> {
   }
 
   private broadcastActive(): void {
+    // A new live scene: displays show all of it until the GM points them somewhere.
+    this.displayView = null;
     const scene = this.activeSceneId ? (this.scenes.get(this.activeSceneId) ?? null) : null;
     const items = [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId));
     const forGm = JSON.stringify({ t: "scene.active", id: this.activeSceneId } satisfies ServerMsg);

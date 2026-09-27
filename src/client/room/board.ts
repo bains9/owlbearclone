@@ -214,6 +214,13 @@ export class Board implements BoardApi {
   private anim: Konva.Animation;
   private cleanup: (() => void)[] = [];
   private zoomReport = 0;
+  /** A table display: the part of the scene the GM last pointed it at (null: all of it). */
+  private followRect: [number, number, number, number] | null = null;
+  /** GM: whether this tab is steering table displays, on which scene, and how many there were. */
+  private steering = false;
+  private steeredScene: string | null = null;
+  private displayCount = 0;
+  private viewTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private el: HTMLDivElement,
@@ -269,12 +276,20 @@ export class Board implements BoardApi {
 
     const ro = new ResizeObserver(() => {
       this.stage.size({ width: el.clientWidth, height: el.clientHeight });
-      if (this.needsFit) this.scheduleSync();
+      if (this.room.display) this.applyDisplayView();
+      else if (this.needsFit) this.scheduleSync();
       this.stage.batchDraw();
     });
     ro.observe(el);
     this.cleanup.push(() => ro.disconnect());
     this.cleanup.push(room.store.subscribe(this.scheduleSync));
+    // Steering table displays reacts at once, not on the next frame: a tab in the
+    // background gets few frames, and switching "follow my view" off must still land.
+    this.cleanup.push(
+      room.store.subscribe(() => {
+        if (this.room.isGm) this.updateSteering(this.room.state);
+      }),
+    );
     this.cleanup.push(room.onEph(this.onEph));
 
     room.board = this;
@@ -282,6 +297,7 @@ export class Board implements BoardApi {
   }
 
   destroy(): void {
+    if (this.viewTimer) clearTimeout(this.viewTimer);
     for (const fn of this.cleanup) fn();
     this.anim.stop();
     this.stage.destroy();
@@ -299,6 +315,7 @@ export class Board implements BoardApi {
     this.stage.position({ x, y });
     this.stage.scale({ x: s, y: s });
     if (this.renderedSceneId) this.cameras.set(this.renderedSceneId, { x, y, scale: s });
+    if (this.steering) this.sendViewSoon();
     this.renderRulers();
     if (this.poly) this.poly.start.radius(6 / s);
     this.stage.batchDraw();
@@ -331,14 +348,69 @@ export class Board implements BoardApi {
       this.needsFit = true;
       return;
     }
-    const pad = Math.min(40, w * 0.05);
-    // Keep the scene clear of the toolbar on the left.
-    const left = 64;
+    // A table display uses the whole screen; otherwise keep clear of the toolbar on the left.
+    const pad = this.room.display ? 0 : Math.min(40, w * 0.05);
+    const left = this.room.display ? 0 : 64;
     const availW = Math.max(40, w - left - pad);
     const availH = Math.max(40, h - pad * 2);
     const scale = clampScale(Math.min(availW / scene.width, availH / scene.height));
     this.setCam(left + (availW - scene.width * scale) / 2, (h - scene.height * scale) / 2, scale);
     this.needsFit = false;
+  }
+
+  /** Fits part of the scene, [x, y, width, height], to the screen, centred. */
+  private showRect(r: [number, number, number, number]): void {
+    const w = this.stage.width();
+    const h = this.stage.height();
+    if (w < 10 || h < 10) return;
+    const scale = clampScale(Math.min(w / r[2], h / r[3]));
+    this.setCam(w / 2 - (r[0] + r[2] / 2) * scale, h / 2 - (r[1] + r[3] / 2) * scale, scale);
+    this.needsFit = false;
+  }
+
+  /** A table display: where the GM pointed it, or the whole scene. */
+  private applyDisplayView(): void {
+    if (this.followRect) this.showRect(this.followRect);
+    else this.fit();
+  }
+
+  /**
+   * GM: tells table displays what this tab is looking at (at most every 120 ms while
+   * the view moves). Only for the live scene, and only while "follow my view" is on.
+   */
+  private sendViewSoon(): void {
+    if (this.viewTimer) return;
+    this.viewTimer = setTimeout(() => {
+      this.viewTimer = null;
+      const s = this.room.state;
+      if (!this.steering || !s.activeSceneId || this.renderedSceneId !== s.activeSceneId) return;
+      if (!s.players.some((p) => p.display)) return;
+      const a = this.toWorld({ x: 0, y: 0 });
+      const b = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
+      this.room.sendEph({
+        k: "view",
+        sceneId: s.activeSceneId,
+        rect: [round2(a.x), round2(a.y), round2(b.x - a.x), round2(b.y - a.y)],
+      });
+    }, 120);
+  }
+
+  /** GM: starts or stops steering table displays as the settings and the viewed scene change. */
+  private updateSteering(s: RoomState): void {
+    const displays = s.players.filter((p) => p.display).length;
+    const steering = s.displayFollow && !!s.activeSceneId && s.viewSceneId === s.activeSceneId;
+    if (steering && (!this.steering || displays > this.displayCount || this.steeredScene !== s.activeSceneId)) {
+      this.steering = true;
+      this.sendViewSoon();
+    }
+    if (!steering && this.steering && !s.displayFollow && s.activeSceneId) {
+      // "Follow my view" switched off: displays go back to the whole scene. (Looking at
+      // another scene just leaves them where they are.)
+      this.room.sendEph({ k: "view", sceneId: s.activeSceneId, rect: null });
+    }
+    this.steering = steering;
+    this.steeredScene = steering ? s.activeSceneId : null;
+    this.displayCount = displays;
   }
 
   zoomBy(factor: number): void {
@@ -388,6 +460,7 @@ export class Board implements BoardApi {
       this.renderedSceneId = sceneId;
       this.renderedScene = null;
       this.needsFit = true;
+      this.followRect = null;
       force = true;
     }
 
@@ -407,7 +480,8 @@ export class Board implements BoardApi {
     }
 
     if (this.needsFit && scene) {
-      const saved = this.cameras.get(scene.id);
+      // A table display always starts on the whole scene.
+      const saved = this.room.display ? undefined : this.cameras.get(scene.id);
       if (saved) {
         this.setCam(saved.x, saved.y, saved.scale);
         this.needsFit = false;
@@ -1029,6 +1103,12 @@ export class Board implements BoardApi {
 
   private onEph = (from: string, e: Ephemeral): void => {
     if (e.sceneId !== this.renderedSceneId) return;
+    if (e.k === "view") {
+      if (!this.room.display) return;
+      this.followRect = e.rect;
+      this.applyDisplayView();
+      return;
+    }
     if (e.k === "pointer") {
       this.addTrail(from, this.colorOf(from), e);
       return;
@@ -1099,6 +1179,11 @@ export class Board implements BoardApi {
       return;
     }
     if (this.pointers.size > 2) return;
+    // A table display can be panned and zoomed, and nothing else.
+    if (this.room.display) {
+      this.startPan(e.pointerId, pos);
+      return;
+    }
 
     if (e.pointerType === "mouse" && (e.button === 1 || e.button === 2)) {
       const hit = e.button === 2 && !this.fogged(pos) ? this.itemAt(pos) : null;
@@ -2015,6 +2100,7 @@ export class Board implements BoardApi {
   };
 
   private onDragOver = (e: DragEvent): void => {
+    if (this.room.display) return;
     const types = e.dataTransfer ? [...e.dataTransfer.types] : [];
     if (types.includes("application/x-tabletop-asset") || types.includes("Files")) {
       e.preventDefault();
@@ -2024,6 +2110,7 @@ export class Board implements BoardApi {
 
   private onDrop = (e: DragEvent): void => {
     e.preventDefault();
+    if (this.room.display) return;
     if (!this.renderedScene) {
       // Nothing on the board yet: a map can still start a scene.
       if (this.isGm) void this.takeFiles([...(e.dataTransfer?.files ?? [])], null);
@@ -2040,6 +2127,7 @@ export class Board implements BoardApi {
 
   /** An image pasted from the clipboard: a map for a new scene, or a token in the middle of the view. */
   private onPaste = (e: ClipboardEvent): void => {
+    if (this.room.display) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     if (document.querySelector(".modal-backdrop") || !this.renderedScene) return;
@@ -2066,6 +2154,7 @@ export class Board implements BoardApi {
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (this.room.display) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
     if (document.querySelector(".modal-backdrop")) return;

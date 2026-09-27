@@ -38,6 +38,9 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
   and the GM see them). `/r 2d6+3` works in chat.
 - **Initiative** tracker with rounds and turns, linked to tokens. Entries for hidden tokens aren't shown to
   players. Changes are sent as operations, so two people adding themselves at once both land.
+- **Table display** for a second screen or a TV at the table: the GM opens it from the monitor button (the
+  link carries a key only the GM can get). It shows just the map, exactly as players see it, can't change
+  anything, and either fits the whole live scene or follows the GM's view of it. It also shows whose turn it is.
 - **Undo/redo** of your own changes on the scene you're looking at, keyboard shortcuts (the ? button in the
   top bar lists them), touch and pinch zoom on phones and tablets, automatic reconnection that resends
   anything that didn't get through (and never applies anything twice).

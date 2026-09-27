@@ -34,8 +34,8 @@ function check(cond, label) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rid = () => Math.random().toString(36).slice(2, 12);
 
-function connect(roomId, { cookie, uid, name, sid }) {
-  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}`;
+function connect(roomId, { cookie, uid, name, sid, display }) {
+  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}${display !== undefined ? `&display=${encodeURIComponent(display)}` : ""}`;
   const ws = new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined);
   const c = { ws, msgs: [], closeCode: null, seq: 0 };
   ws.onmessage = (e) => {
@@ -539,6 +539,63 @@ async function main() {
   );
   tab2.ws.close();
 
+  // Table displays: only the GM can get the link; a display sees what players see and changes nothing.
+  r = await fetch(`${BASE}/api/rooms/${room.id}/display`);
+  check(r.status === 401, "only the GM can get the table display link");
+  r = await fetch(`${BASE}/api/rooms/${room.id}/display`, { headers: { Cookie: cookie } });
+  const { key: displayKey } = await r.json();
+  r = await fetch(`${BASE}/api/rooms/${room.id}/display?key=${encodeURIComponent(displayKey)}`);
+  const linkOk = (await r.json()).valid;
+  r = await fetch(`${BASE}/api/rooms/${room.id}/display?key=nope`);
+  check(linkOk === true && (await r.json()).valid === false, "the display link checks out, and a made-up one doesn't");
+  const fake = connect(room.id, { uid: "fake" + rid(), name: "Fake", display: "nope" });
+  const fakeDisplayHello = await fake.waitFor((m) => m.t === "hello", 1500);
+  check(!fakeDisplayHello, "a made-up display link can't connect");
+  const secret = { ...base, sceneId: scene2.id, id: "sec" + rid(), x: 105, y: 105, label: "Lurker", hidden: true };
+  gm.items({ upsert: [secret] });
+  await gm.waitFor((m) => m.t === "items" && m.seq === gm.seq);
+  // Opened with the GM's own cookie, as a display window on the GM's computer would be.
+  const screen = connect(room.id, { cookie, uid: "screen" + rid(), name: "Screen", display: displayKey });
+  const screenHello = await screen.waitFor((m) => m.t === "hello");
+  check(
+    screenHello?.you.role === "player" && screenHello.you.display === true && screenHello.you.name === "Table display",
+    "a display joins as a display, never as the GM, even in the GM's browser",
+  );
+  check(
+    screenHello && !screenHello.items.some((i) => i.id === secret.id) && screenHello.scenes.length === 1,
+    "a display gets only what players see",
+  );
+  const gmPlayers = await gm.waitFor((m) => m.t === "players" && m.players.some((p) => p.display));
+  check(Boolean(gmPlayers), "the GM sees that a display is connected");
+  gm.clear();
+  screen.send({ t: "items", seq: 1, patch: [{ id: dungeonToken.id, set: { x: 999 } }] });
+  screen.send({ t: "chat", seq: 2, text: "from the screen" });
+  await sleep(300);
+  check(
+    !gm.msgs.some((m) => (m.t === "items" && m.patch?.some((p) => p.id === dungeonToken.id)) || m.t === "chat"),
+    "nothing a display sends is applied",
+  );
+  alice.clear();
+  screen.clear();
+  gm.send({ t: "eph", e: { k: "view", sceneId: scene2.id, rect: [10, 20, 300, 200] } });
+  const view = await screen.waitFor((m) => m.t === "eph" && m.e.k === "view");
+  await sleep(150);
+  check(
+    view?.e.rect?.join() === "10,20,300,200" && !alice.msgs.some((m) => m.t === "eph" && m.e.k === "view"),
+    "the GM's view reaches displays, and never players",
+  );
+  screen.clear();
+  gm.send({ t: "eph", e: { k: "view", sceneId: sceneId, rect: [0, 0, 50, 50] } });
+  alice.send({ t: "eph", e: { k: "view", sceneId: scene2.id, rect: [0, 0, 50, 50] } });
+  await sleep(300);
+  check(!screen.msgs.some((m) => m.t === "eph"), "views of a scene players can't see, or from a player, don't reach displays");
+  const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey });
+  const lateView = await late.waitFor((m) => m.t === "eph" && m.e.k === "view");
+  check(lateView?.e.rect?.join() === "10,20,300,200", "a display that connects later starts where the GM pointed");
+  gm.items({ delete: [secret.id] });
+  late.ws.close();
+  fake.ws.close();
+
   // reconnect
   const alice2 = connect(room.id, { uid: "alice" + rid(), name: "Alice again" });
   const hello2 = await alice2.waitFor((m) => m.t === "hello");
@@ -580,7 +637,7 @@ async function main() {
     check(wrong <= 10 && tries.filter((c) => c === 429).length >= 15, `25 guesses at once get at most 10 tries (got ${wrong})`);
   }
 
-  for (const c of [gm, alice, bob, ghost, faker]) {
+  for (const c of [gm, alice, bob, ghost, faker, screen]) {
     try {
       c.ws.close();
     } catch {

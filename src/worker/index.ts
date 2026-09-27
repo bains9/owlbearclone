@@ -6,7 +6,7 @@
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, AssetKind, Role } from "../shared/types";
-import { clearCookie, isGm, passwordMatches, sessionCookie } from "./auth";
+import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
 
@@ -36,6 +36,19 @@ function json(data: unknown, status = 200, headers: Record<string, string> = {})
 
 function fail(status: number, message: string): Response {
   return json({ error: message }, status);
+}
+
+/**
+ * The key in a room's table display link. Only the GM can get it, so someone with
+ * just the room link can't turn their screen into a display (and see where the GM
+ * is looking).
+ */
+function displayKey(env: Env, roomId: string): Promise<string> {
+  return signWith(env, `display-link|${roomId}`, roomId);
+}
+
+async function displayKeyValid(env: Env, roomId: string, key: string): Promise<boolean> {
+  return key.length > 0 && key.length < 100 && verifyWith(env, `display-link|${roomId}`, roomId, key);
 }
 
 /** Local development (vite dev, player.localhost tabs) runs over plain HTTP. */
@@ -193,11 +206,27 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
         return fail(426, "Expected a WebSocket upgrade.");
       }
-      const role: Role = (await isGm(request, env)) ? "gm" : "player";
+      // A table display joins as a display even in the GM's own browser: it only ever
+      // gets what players see.
+      const key = url.searchParams.get("display");
+      if (key !== null && !(await displayKeyValid(env, roomId, key))) {
+        return fail(403, "That display link isn't valid.");
+      }
+      const role: Role = key === null && (await isGm(request, env)) ? "gm" : "player";
       const headers = new Headers(request.headers);
-      // Always overwritten here, so a browser can't claim to be the GM by sending it.
+      // Always overwritten here, so a browser can't claim to be the GM, or a display, by sending them.
       headers.set("X-Tabletop-Role", role);
+      headers.delete("X-Tabletop-Display");
+      if (key !== null) headers.set("X-Tabletop-Display", "1");
       return stub.fetch(new Request(request, { headers }));
+    }
+
+    if (sub === "/display" && method === "GET") {
+      // With a key: is this display link good? (Asked by the display page, before it connects.)
+      const key = url.searchParams.get("key");
+      if (key !== null) return json({ valid: await displayKeyValid(env, roomId, key) });
+      if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+      return json({ key: await displayKey(env, roomId) });
     }
 
     if (sub === "/assets" && method === "POST") {

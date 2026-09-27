@@ -30,6 +30,10 @@ export const api = {
   me: () => call<{ gm: boolean; configured: boolean; google: boolean }>("/api/me"),
   login: (password: string) => call<{ gm: boolean }>("/api/login", { method: "POST", body: JSON.stringify({ password }) }),
   logout: () => call<{ gm: boolean }>("/api/logout", { method: "POST", body: "{}" }),
+  /** GM only: the key in this room's table display link. */
+  displayKey: (roomId: string) => call<{ key: string }>(`/api/rooms/${roomId}/display`),
+  checkDisplayKey: (roomId: string, key: string) =>
+    call<{ valid: boolean }>(`/api/rooms/${roomId}/display?key=${encodeURIComponent(key)}`),
   listRooms: () => call<RoomSummary[]>("/api/rooms"),
   createRoom: (name: string) => call<RoomInfo>("/api/rooms", { method: "POST", body: JSON.stringify({ name }) }),
   deleteRoom: (id: string) => call<{ deleted: string }>(`/api/rooms/${id}`, { method: "DELETE" }),
@@ -41,6 +45,11 @@ export function fileUrl(roomId: string, assetId: string): string {
 
 export function roomUrl(roomId: string): string {
   return `${location.origin}/r/${roomId}`;
+}
+
+/** The link that opens a room as a table display (it needs the GM's display key). */
+export function displayUrl(roomId: string, key: string): string {
+  return `${location.origin}/r/${roomId}?display=${encodeURIComponent(key)}`;
 }
 
 const LIMITS: Record<AssetKind, { maxDim: number; maxBytes: number }> = {

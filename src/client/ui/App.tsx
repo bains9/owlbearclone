@@ -1,11 +1,15 @@
 import { isRoomId } from "../../shared/ids";
 import { Home } from "./Home";
 import { RoomPage } from "./RoomPage";
+import { DisplayPage } from "./TableDisplay";
 
 export function App() {
   const path = location.pathname;
   const m = path.match(/^\/r\/([^/]*)\/?$/);
-  if (m && isRoomId(m[1])) return <RoomPage roomId={m[1]} />;
+  if (m && isRoomId(m[1])) {
+    const displayKey = new URLSearchParams(location.search).get("display");
+    return displayKey !== null ? <DisplayPage roomId={m[1]} displayKey={displayKey} /> : <RoomPage roomId={m[1]} />;
+  }
   if (path === "/" || path === "") return <Home />;
   return (
     <div class="center-page">

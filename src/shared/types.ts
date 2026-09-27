@@ -168,6 +168,8 @@ export interface Player {
   name: string;
   color: string;
   role: Role;
+  /** A table display: a screen showing the map to the table. Sees what players see, changes nothing. */
+  display?: boolean;
 }
 
 export interface DieRoll {

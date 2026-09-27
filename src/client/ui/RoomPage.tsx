@@ -6,6 +6,7 @@ import {
   Layers,
   Link,
   MessageSquare,
+  Monitor,
   Settings,
   Swords,
   WifiOff,
@@ -24,6 +25,7 @@ import { Logo } from "./Logo";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
+import { TableDisplayDialog } from "./TableDisplay";
 import { ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
 import { Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
 
@@ -171,7 +173,7 @@ function RoomShell() {
   );
 }
 
-function BoardView() {
+export function BoardView() {
   const room = useRoom();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -196,9 +198,13 @@ function TopBar() {
   const sceneName = useRoomState((s) => (s.viewSceneId ? (s.scenes[s.viewSceneId]?.name ?? "") : ""));
   const panel = useRoomState((s) => s.panel);
   const unread = useRoomState((s) => s.unread);
-  const players = useRoomState((s) => s.players);
+  // Table displays aren't people: they're counted on the display button instead.
+  const allPlayers = useRoomState((s) => s.players);
+  const players = allPlayers.filter((p) => !p.display);
+  const displays = allPlayers.length - players.length;
   const [copied, setCopied] = useState(false);
   const [help, setHelp] = useState(false);
+  const [display, setDisplay] = useState(false);
 
   return (
     <header class="topbar">
@@ -239,6 +245,17 @@ function TopBar() {
       >
         {copied ? <span class="small">Copied</span> : <Link size={18} />}
       </button>
+      {gm && (
+        <button
+          class="icon-btn hide-narrow display-btn"
+          title={displays ? `Table display (${displays} connected)` : "Table display: show the map on a second screen"}
+          aria-label="Table display"
+          onClick={() => setDisplay(true)}
+        >
+          <Monitor size={18} />
+          {displays > 0 && <span class="live-dot" />}
+        </button>
+      )}
       <button class="icon-btn hide-narrow" title="Help & shortcuts" aria-label="Help and shortcuts" onClick={() => setHelp(true)}>
         <CircleQuestionMark size={18} />
       </button>
@@ -257,6 +274,7 @@ function TopBar() {
         </button>
       ))}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
+      {display && <TableDisplayDialog onClose={() => setDisplay(false)} />}
     </header>
   );
 }
@@ -484,6 +502,7 @@ function HelpDialog(props: { onClose: () => void }) {
       <p class="muted small">
         Drag token images from the Tokens panel onto the map, or drop image files from your computer straight onto it.
         As the GM, dropping a map (a big image, or a Dungeondraft or other Universal VTT file) starts a new scene with it.
+        The monitor button (GM) opens a table display: the map alone, as players see it, for a second screen or a TV.
       </p>
     </Modal>
   );

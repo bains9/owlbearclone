@@ -1078,6 +1078,101 @@ button:disabled {
 .import-notes li {
   margin: 4px 0;
 }
+/* Table display: the map alone, on a second screen. */
+.display-room {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.display-room.idle,
+.display-room.idle .board,
+.display-room.idle canvas {
+  cursor: none !important;
+}
+.display-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 20px;
+  pointer-events: none;
+}
+.display-turn {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--border);
+  font-size: 20px;
+  pointer-events: none;
+}
+.display-turn-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.display-turn .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.display-hint,
+.display-status {
+  position: absolute;
+  top: 16px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+.display-hint {
+  left: 50%;
+  transform: translateX(-50%);
+  animation: display-hint-fade 8s forwards;
+}
+.display-status {
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+@keyframes display-hint-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.display-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+.display-btn {
+  position: relative;
+}
+.live-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5bba6f;
+}
+
 .import-kinds {
   margin: 4px 0 0;
   padding-left: 18px;

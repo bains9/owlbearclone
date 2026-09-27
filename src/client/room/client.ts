@@ -93,6 +93,8 @@ export interface RoomState {
   gridAlign: { cells: number } | null;
   /** Map files dropped or pasted onto the board, waiting in the new-scene dialog. */
   mapImport: File[] | null;
+  /** GM: table displays follow this tab's view of the live scene (otherwise they show all of it). */
+  displayFollow: boolean;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -215,10 +217,15 @@ export class RoomClient {
   private ephListeners = new Set<(from: string, e: Ephemeral) => void>();
   private toastSeq = 0;
 
+  /** A table display: shows the live scene as players see it, and never changes anything. */
+  readonly display: boolean;
+
   constructor(
     readonly roomId: string,
     private profile: Profile,
+    private readonly displayKey: string | null = null,
   ) {
+    this.display = displayKey !== null;
     this.store = new Store<RoomState>({
       status: "connecting",
       me: null,
@@ -237,9 +244,10 @@ export class RoomClient {
       measureOpts: { shape: "ruler", keep: false },
       textPrompt: null,
       mapImport: null,
+      displayFollow: false,
       gridAlign: null,
       selection: [],
-      panel: typeof window !== "undefined" && window.innerWidth >= 900 ? "chat" : null,
+      panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
       unread: 0,
       canUndo: false,
       canRedo: false,
@@ -269,6 +277,7 @@ export class RoomClient {
     const p = this.profile;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color, sid: this.sid });
+    if (this.displayKey !== null) qs.set("display", this.displayKey);
     const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/ws?${qs}`);
     this.ws = ws;
     this.ready = false;
@@ -399,6 +408,7 @@ export class RoomClient {
    * next connection), and keeps it until the server confirms it.
    */
   private submit(action: ClientAction, seq = ++this.seq): void {
+    if (this.display) return;
     this.unacked.push({ seq, action });
     this.effect(action, seq);
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
@@ -478,6 +488,7 @@ export class RoomClient {
   }
 
   sendEph(e: Ephemeral): void {
+    if (this.display) return;
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "eph", e }));
   }
 
