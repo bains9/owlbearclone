@@ -21,7 +21,7 @@ import { ChatPanel, RollView } from "./ChatPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
-import { ScenesPanel } from "./ScenesPanel";
+import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
@@ -158,6 +158,7 @@ function RoomShell() {
           <ZoomControls />
           <Toasts />
           <NoteDialog />
+          <MapImportDialog />
           {status === "reconnecting" && (
             <div class="reconnecting">
               <WifiOff size={16} /> Connection lost. Reconnecting…
@@ -342,6 +343,24 @@ function Toasts() {
   );
 }
 
+/** Maps dropped or pasted onto the board go through the new-scene dialog. */
+function MapImportDialog() {
+  const room = useRoom();
+  const files = useRoomState((s) => s.mapImport);
+  if (!files) return null;
+  const close = () => room.store.set({ mapImport: null });
+  return (
+    <NewSceneDialog
+      files={files}
+      onClose={close}
+      onCreated={() => {
+        close();
+        room.setPanel("scenes");
+      }}
+    />
+  );
+}
+
 function NoteDialog() {
   const at = useRoomState((s) => s.textPrompt);
   if (!at) return null;
@@ -431,9 +450,9 @@ const SHORTCUTS: [string, string][] = [
   ["Mouse wheel, pinch", "Zoom"],
   ["+ / − / 0", "Zoom in, out, fit the scene"],
   ["Shift+click, Shift+drag", "Add to the selection, select with a box"],
-  ["Drag a selected token", "Move the whole selection"],
+  ["Drag something selected", "Move the whole selection: tokens, drawings and notes"],
   ["Alt while dropping a token", "Don't snap to the grid"],
-  ["Arrow keys", "Move the selected tokens one square"],
+  ["Arrow keys", "Move the selected tokens one square (or hex)"],
   ["[ and ]", "Rotate the selected token (Shift: 15°)"],
   ["Fog brush: [ and ]", "Smaller or bigger brush (Shift: bigger steps)"],
   ["H / L", "Hide or lock the selected token (GM)"],
@@ -444,6 +463,7 @@ const SHORTCUTS: [string, string][] = [
   ["Measure tool", "Ruler or spell areas: circle, cone, cube, line (tick Pin to map to keep one)"],
   ["Draw tool, then the T button", "Text note: click where it goes"],
   ["Chat: /r 2d6+3", "Roll dice (also 4d6dl1, 2d20kh1, d%, 4dF)"],
+  ["Ctrl+V", "Paste an image: a big one starts a new scene (GM), a small one becomes a token"],
 ];
 
 function HelpDialog(props: { onClose: () => void }) {
@@ -463,6 +483,7 @@ function HelpDialog(props: { onClose: () => void }) {
       </table>
       <p class="muted small">
         Drag token images from the Tokens panel onto the map, or drop image files from your computer straight onto it.
+        As the GM, dropping a map (a big image, or a Dungeondraft or other Universal VTT file) starts a new scene with it.
       </p>
     </Modal>
   );

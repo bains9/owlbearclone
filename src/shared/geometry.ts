@@ -114,6 +114,47 @@ export function snapTokenCenter(p: Point, size: number, grid: GridSettings): Poi
   };
 }
 
+/** Whether a token's centre is where snapping would put it (to within half a pixel). */
+export function isOnGrid(p: Point, size: number, grid: GridSettings): boolean {
+  const q = snapTokenCenter(p, size, grid);
+  return Math.abs(q.x - p.x) < 0.5 && Math.abs(q.y - p.y) < 0.5;
+}
+
+/**
+ * The hex `dx` steps right and `dy` steps down from `h`. Pointy-top hexes have no
+ * neighbour straight above, so going up or down zigzags between the two, keeping to
+ * one column instead of drifting sideways; flat-top hexes do the same going left or right.
+ */
+export function hexStep(h: Hex, dx: number, dy: number, grid: GridSettings): Hex {
+  let { q, r } = h;
+  const half = (n: number) => Math.floor(n / 2);
+  if (gridType(grid) === "hex-flat") {
+    r += dy;
+    for (let i = 0; i < Math.abs(dx); i++) {
+      const row = r + half(q);
+      q += Math.sign(dx);
+      r = row - half(q);
+    }
+  } else {
+    q += dx;
+    for (let i = 0; i < Math.abs(dy); i++) {
+      const col = q + half(r);
+      r += Math.sign(dy);
+      q = col - half(r);
+    }
+  }
+  return { q, r };
+}
+
+/** A point moved by whole cells, `dx` across and `dy` down, keeping where it sits within its cell. */
+export function stepByCells(p: Point, dx: number, dy: number, grid: GridSettings): Point {
+  if (!isHex(grid)) return { x: p.x + dx * grid.size, y: p.y + dy * grid.size };
+  const h = pointToHex(p, grid);
+  const from = hexCenter(h, grid);
+  const to = hexCenter(hexStep(h, dx, dy, grid), grid);
+  return { x: p.x + to.x - from.x, y: p.y + to.y - from.y };
+}
+
 /** Nearest grid intersection (on hex grids, the nearest hex corner). */
 export function snapToVertex(p: Point, grid: GridSettings): Point {
   if (isHex(grid)) {

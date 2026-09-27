@@ -1,5 +1,10 @@
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
+/** Room ids are 12 base62 characters; a room link with anything else is mistyped or cut short. */
+export function isRoomId(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9]{12}$/.test(v);
+}
+
 /** Random base62 id from the platform CSPRNG. 12 characters is about 71 bits. */
 export function randomId(length = 12): string {
   const out: string[] = [];

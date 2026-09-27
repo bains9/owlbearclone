@@ -6,6 +6,12 @@ import type { Item, ItemPatch, MutableFields } from "./types";
 
 export type ItemMap = Record<string, Item>;
 
+/**
+ * What an optional field means when it's missing, so undoing a change to it (making
+ * a token a prop, hiding a note) has a value to go back to.
+ */
+const MISSING: Partial<Record<keyof MutableFields, unknown>> = { layer: "character", hidden: false, locked: false };
+
 export function applyOps(items: ItemMap, ops: ItemOps): ItemMap {
   const next = { ...items };
   for (const item of ops.upsert ?? []) next[item.id] = item;
@@ -32,9 +38,10 @@ export function inverseOps(items: ItemMap, ops: ItemOps): ItemOps {
     if (!before) continue;
     const set: Partial<MutableFields> = {};
     for (const key of Object.keys(p.set) as (keyof MutableFields)[]) {
-      (set as Record<string, unknown>)[key] = (before as unknown as Record<string, unknown>)[key];
+      const old = (before as unknown as Record<string, unknown>)[key] ?? MISSING[key];
+      if (old !== undefined) (set as Record<string, unknown>)[key] = old;
     }
-    patch.push({ id: p.id, set });
+    if (Object.keys(set).length) patch.push({ id: p.id, set });
   }
   for (const id of ops.delete ?? []) {
     const before = items[id];

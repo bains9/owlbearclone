@@ -45,6 +45,17 @@ import type {
   Scene,
 } from "../shared/types";
 
+/** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
+interface Conn extends Player {
+  sid: string;
+}
+
+/** The player as others see them. */
+function publicPlayer(c: Conn): Player {
+  const { sid: _sid, ...p } = c;
+  return p;
+}
+
 interface Change {
   id: string;
   before: Item | null;
@@ -80,6 +91,9 @@ const MAX_PLAYER_ASSET_BYTES = 250 * 1024 * 1024;
 const MAX_ALL_PLAYERS_ASSET_BYTES = 1024 * 1024 * 1024;
 /** How long a deleted item's id stays reserved. */
 const TOMBSTONE_MS = 30 * 86400_000;
+/** How long the server remembers a browser tab's last seq, and for how many tabs at most. */
+const SESSION_KEEP_MS = 7 * 86400_000;
+const MAX_SESSIONS = 2000;
 
 export function fileKey(roomId: string, assetId: string): string {
   return `rooms/${roomId}/${assetId}`;
@@ -107,6 +121,8 @@ export class Room extends DurableObject<Env> {
   private lastPlayerInitiative = "";
   private assets = new Map<string, Asset>();
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
+  /** Browser tab -> the last seq applied from it (a cache of the sessions table). */
+  private sessionSeqs = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -137,6 +153,7 @@ export class Room extends DurableObject<Env> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS assets (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (seq INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, owner TEXT NOT NULL, at INTEGER NOT NULL)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL, at INTEGER NOT NULL)`);
   }
 
   private load(): void {
@@ -166,6 +183,8 @@ export class Room extends DurableObject<Env> {
       this.countBytes(i.owner, r.data.length);
     }
     this.sql.exec(`DELETE FROM tombstones WHERE at < ?`, Date.now() - TOMBSTONE_MS);
+    this.sql.exec(`DELETE FROM sessions WHERE at < ?`, Date.now() - SESSION_KEEP_MS);
+    this.sessionSeqs.clear();
     this.tombstones.clear();
     for (const r of this.sql.exec<{ id: string; owner: string }>(`SELECT id, owner FROM tombstones`)) {
       this.tombstones.set(r.id, r.owner);
@@ -308,6 +327,7 @@ export class Room extends DurableObject<Env> {
     this.totalItemBytes = 0;
     this.playerItemBytes = 0;
     this.tombstones.clear();
+    this.sessionSeqs.clear();
     this.lastPlayerInitiative = "";
     this.assets.clear();
     this.initiative = { entries: [], turn: 0, round: 1 };
@@ -333,7 +353,8 @@ export class Room extends DurableObject<Env> {
     // The Worker sets this header after checking the GM cookie; browsers can't reach this object directly.
     const role: Role = request.headers.get("X-Tabletop-Role") === "gm" ? "gm" : "player";
     const uid = url.searchParams.get("uid");
-    const conn: Player = {
+    const sid = url.searchParams.get("sid");
+    const conn: Conn = {
       connId: randomId(10),
       // Every GM connection shares one identity no player id can equal, so a player
       // who copies the GM's browser id gets nothing of the GM's.
@@ -341,6 +362,8 @@ export class Room extends DurableObject<Env> {
       name: cleanText(url.searchParams.get("name"), LIMITS.playerName) || (role === "gm" ? "GM" : "Player"),
       color: cleanColor(url.searchParams.get("color")) ?? "#4f9dde",
       role,
+      // A tab that doesn't say which it is gets a fresh identity: nothing is deduplicated for it.
+      sid: isId(sid) ? sid : randomId(16),
     };
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(conn);
@@ -355,7 +378,7 @@ export class Room extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    const conn = ws.deserializeAttachment() as Player | null;
+    const conn = ws.deserializeAttachment() as Conn | null;
     if (!conn || !this.info || typeof message !== "string") return;
     let msg: ClientMsg;
     try {
@@ -365,12 +388,103 @@ export class Room extends DurableObject<Env> {
       return;
     }
     if (!msg || typeof msg !== "object") return;
+    const raw = msg.t === "eph" ? undefined : (msg as { seq?: unknown }).seq;
+    const seq = typeof raw === "number" && Number.isSafeInteger(raw) && raw > 0 ? raw : undefined;
+    if (seq !== undefined) {
+      if (seq <= this.lastSeq(conn)) {
+        // Already applied: it came on an earlier connection too. Just tell the tab how things stand.
+        this.resync(ws, conn, msg, seq);
+        return;
+      }
+      // Recorded before handling, so a handler that waits on I/O can't let a copy in meanwhile.
+      this.recordSeq(conn, seq);
+    }
     try {
-      await this.handle(ws, conn, msg);
+      await this.handle(ws, conn, msg, seq);
     } catch (err) {
       console.error(JSON.stringify({ message: "message handler failed", t: msg.t, error: String(err) }));
       this.send(ws, { t: "error", message: "Something went wrong on the server." });
+      if (seq !== undefined) this.resync(ws, conn, msg, seq);
+      return;
     }
+    // Item changes are confirmed by their echo; everything else gets an ack.
+    if (seq !== undefined && msg.t !== "items") this.send(ws, { t: "ack", seq });
+  }
+
+  private sessionKey(conn: Conn): string {
+    return `${conn.userId}|${conn.sid}`;
+  }
+
+  private lastSeq(conn: Conn): number {
+    const key = this.sessionKey(conn);
+    let v = this.sessionSeqs.get(key);
+    if (v === undefined) {
+      v = this.sql.exec<{ last_seq: number }>(`SELECT last_seq FROM sessions WHERE id = ?`, key).toArray()[0]?.last_seq ?? 0;
+      if (this.sessionSeqs.size >= MAX_SESSIONS) this.sessionSeqs.clear();
+      this.sessionSeqs.set(key, v);
+    }
+    return v;
+  }
+
+  private recordSeq(conn: Conn, seq: number): void {
+    const key = this.sessionKey(conn);
+    const known = (this.sessionSeqs.get(key) ?? 0) > 0;
+    this.sessionSeqs.set(key, seq);
+    this.sql.exec(
+      `INSERT INTO sessions (id, last_seq, at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET last_seq = excluded.last_seq, at = excluded.at`,
+      key,
+      seq,
+      Date.now(),
+    );
+    if (!known) {
+      this.sql.exec(
+        `DELETE FROM sessions WHERE id NOT IN (SELECT id FROM sessions ORDER BY at DESC LIMIT ?)`,
+        MAX_SESSIONS,
+      );
+    }
+  }
+
+  /**
+   * Answers a change that won't be applied (a copy of one already applied, or one
+   * whose handler failed) with the current state of what it touched, so the sender's
+   * unconfirmed copy is settled and corrected.
+   */
+  private resync(ws: WebSocket, conn: Conn, msg: ClientMsg, seq: number): void {
+    const gm = conn.role === "gm";
+    if (msg.t === "items") {
+      const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+      const idOf = (v: unknown): unknown => (typeof v === "string" ? v : (v as { id?: unknown } | null)?.id);
+      const ids = new Set<string>();
+      for (const v of [...list(msg.upsert), ...list(msg.patch), ...list(msg.delete)]) {
+        const id = idOf(v);
+        if (isId(id) && ids.size < MAX_OPS_PER_MESSAGE) ids.add(id);
+      }
+      const upsert: Item[] = [];
+      const del: string[] = [];
+      for (const id of ids) {
+        const item = this.items.get(id);
+        if (item && (gm || visibleToPlayer(item, this.activeSceneId))) upsert.push(item);
+        else del.push(id);
+      }
+      const out: Extract<ServerMsg, { t: "items" }> = { t: "items", by: conn.connId, seq };
+      if (upsert.length) out.upsert = upsert;
+      if (del.length) out.delete = del;
+      const sceneId = (msg.scene as { id?: unknown } | undefined)?.id;
+      const scene = gm && isId(sceneId) ? this.scenes.get(sceneId) : undefined;
+      if (scene) out.scene = scene;
+      this.send(ws, out);
+      return;
+    }
+    if (msg.t === "scene.upsert" && gm) {
+      const id = (msg.scene as { id?: unknown } | undefined)?.id;
+      const scene = isId(id) ? this.scenes.get(id) : undefined;
+      if (scene) this.send(ws, { t: "scene.upsert", scene, by: conn.connId, seq });
+      else if (isId(id)) this.send(ws, { t: "scene.delete", id, by: conn.connId, seq });
+    } else if (msg.t === "initiative.op") {
+      this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId, seq });
+    }
+    this.send(ws, { t: "ack", seq });
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -383,30 +497,32 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- message handling
 
-  private async handle(ws: WebSocket, conn: Player, msg: ClientMsg): Promise<void> {
+  private async handle(ws: WebSocket, conn: Conn, msg: ClientMsg, seq: number | undefined): Promise<void> {
     const gm = conn.role === "gm";
     switch (msg.t) {
       case "items":
-        this.handleItems(ws, conn, msg);
+        this.handleItems(ws, conn, msg, seq);
         return;
 
       case "scene.upsert": {
         if (!gm) return this.deny(ws);
         const id = (msg.scene as Scene | undefined)?.id;
         const existing = isId(id) ? this.scenes.get(id) : undefined;
-        const refuse = (message: string) => {
-          this.send(ws, { t: "error", message });
+        const refuse = (message?: string) => {
+          if (message) this.send(ws, { t: "error", message });
           // Put the sender's copy back: remove a scene it created, or restore the stored one.
-          if (existing) this.send(ws, { t: "scene.upsert", scene: existing, by: conn.connId });
-          else if (isId(id)) this.send(ws, { t: "scene.delete", id, by: conn.connId });
+          if (existing) this.send(ws, { t: "scene.upsert", scene: existing, by: conn.connId, seq });
+          else if (isId(id)) this.send(ws, { t: "scene.delete", id, by: conn.connId, seq });
         };
+        // An edit to a scene someone has deleted since: it stays deleted.
+        if (!existing && !msg.create) return refuse();
         if (!existing && this.scenes.size >= MAX_SCENES) return refuse(`A room can hold at most ${MAX_SCENES} scenes.`);
         const scene = sanitizeScene(msg.scene, existing);
         if (!scene) return refuse("That scene couldn't be saved.");
         this.saveScene(scene);
         this.scenes.set(scene.id, scene);
         this.broadcast(
-          { t: "scene.upsert", scene, by: conn.connId },
+          { t: "scene.upsert", scene, by: conn.connId, seq },
           (c) => c.role === "gm" || scene.id === this.activeSceneId,
         );
         return;
@@ -433,7 +549,7 @@ export class Room extends DurableObject<Env> {
           this.itemBytes.delete(id);
         }
         this.scenes.delete(scene.id);
-        this.broadcast({ t: "scene.delete", id: scene.id, by: conn.connId }, (c) => c.role === "gm");
+        this.broadcast({ t: "scene.delete", id: scene.id, by: conn.connId, seq }, (c) => c.role === "gm");
         if (nextActive !== this.activeSceneId) {
           this.activeSceneId = nextActive;
           this.broadcastActive();
@@ -499,19 +615,19 @@ export class Room extends DurableObject<Env> {
         const op = this.cleanInitOp(msg.op, conn);
         if (op === "stale") {
           // Someone ended that turn first; just put the sender's copy right.
-          this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId });
+          this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId, seq });
           return;
         }
         if (!op) {
           this.send(ws, { t: "error", message: "That initiative change wasn't allowed." });
           // Put the sender's copy back to what's stored.
-          this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId });
+          this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId, seq });
           return;
         }
         const next = applyInitOp(this.initiative, op);
         this.setMeta("initiative", next);
         this.initiative = next;
-        this.broadcastInitiative(conn.connId);
+        this.broadcastInitiative(conn.connId, seq);
         return;
       }
 
@@ -560,7 +676,7 @@ export class Room extends DurableObject<Env> {
         const color = cleanColor(msg.color) ?? conn.color;
         // Every tab of the same person gets the new name, so the player list agrees.
         for (const other of this.ctx.getWebSockets()) {
-          const c = other.deserializeAttachment() as Player | null;
+          const c = other.deserializeAttachment() as Conn | null;
           if (c && c.userId === conn.userId && c.role === conn.role) other.serializeAttachment({ ...c, name, color });
         }
         this.broadcastPlayers();
@@ -576,9 +692,8 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  private handleItems(ws: WebSocket, conn: Player, msg: Extract<ClientMsg, { t: "items" }>): void {
+  private handleItems(ws: WebSocket, conn: Conn, msg: Extract<ClientMsg, { t: "items" }>, seq: number | undefined): void {
     const settings = this.info!.settings;
-    const seq = typeof msg.seq === "number" ? msg.seq : undefined;
     const isGm = conn.role === "gm";
     const changes: Change[] = [];
     const refused = new Set<string>();
@@ -594,6 +709,31 @@ export class Room extends DurableObject<Env> {
     const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
     const idOf = (v: unknown): unknown => (typeof v === "string" ? v : (v as { id?: unknown } | null)?.id);
     const ops = { upsert: list(msg.upsert), patch: list(msg.patch), delete: list(msg.delete) };
+    // A change to the scene itself that goes with these items (covering it in fog, a new
+    // map). Both happen or neither does: fog removed without the cover that should
+    // replace it would show players the map.
+    let scene: Scene | null = null;
+    let sceneCorrection: Scene | null = null;
+    /** The scene change itself was refused (not the GM, or the scene is gone): already answered. */
+    let sceneInvalid = false;
+    if (msg.scene !== undefined) {
+      const sceneId = (msg.scene as { id?: unknown } | null)?.id;
+      const existing = isGm && isId(sceneId) ? this.scenes.get(sceneId) : undefined;
+      scene = existing ? sanitizeScene(msg.scene, existing) : null;
+      if (!scene) {
+        sceneInvalid = true;
+        for (const v of [...ops.upsert, ...ops.patch, ...ops.delete]) {
+          const id = idOf(v);
+          if (isId(id)) refused.add(id);
+        }
+        ops.upsert = [];
+        ops.patch = [];
+        ops.delete = [];
+        if (!isGm) this.deny(ws);
+        else if (existing) sceneCorrection = existing;
+        else if (isId(sceneId)) this.send(ws, { t: "scene.delete", id: sceneId, by: conn.connId, seq });
+      }
+    }
     // Never drop operations silently: anything past the cap is refused and corrected.
     let room = MAX_OPS_PER_MESSAGE;
     for (const key of ["upsert", "patch", "delete"] as const) {
@@ -731,8 +871,21 @@ export class Room extends DurableObject<Env> {
       changes.push({ id, before: existing, after: null, set: null });
     }
 
-    if (staged.size) {
+    if (scene && (refused.size || full)) {
+      // Part of a scene change was refused (the room is full, say): none of it happens.
+      // Uncovering a scene without the hide shapes that came back with it would show
+      // players what those shapes covered.
+      for (const ch of changes) refused.add(ch.id);
+      changes.length = 0;
+      staged.clear();
+      stagedBytes.clear();
+      sceneCorrection = this.scenes.get(scene.id) ?? null;
+      scene = null;
+    }
+
+    if (staged.size || scene) {
       this.ctx.storage.transactionSync(() => {
+        if (scene) this.saveScene(scene);
         for (const [id, item] of staged) {
           if (item) {
             this.sql.exec(
@@ -747,6 +900,7 @@ export class Room extends DurableObject<Env> {
           }
         }
       });
+      if (scene) this.scenes.set(scene.id, scene);
       const now = Date.now();
       for (const [id, item] of staged) {
         const old = this.items.get(id);
@@ -772,9 +926,11 @@ export class Room extends DurableObject<Env> {
     }
 
     for (const target of this.ctx.getWebSockets()) {
-      const c = target.deserializeAttachment() as Player | null;
+      const c = target.deserializeAttachment() as Conn | null;
       if (!c) continue;
       const isSender = target === ws;
+      const sceneFor =
+        scene && (c.role === "gm" || scene.id === this.activeSceneId) ? scene : isSender ? sceneCorrection : null;
       const upsert: Item[] = [];
       const patch: ItemPatch[] = [];
       const del: string[] = [];
@@ -799,12 +955,13 @@ export class Room extends DurableObject<Env> {
           else del.push(id);
         }
         del.push(...gone);
-      } else if (!upsert.length && !patch.length && !del.length) {
+      } else if (!upsert.length && !patch.length && !del.length && !sceneFor) {
         continue;
       }
       const out: Extract<ServerMsg, { t: "items" }> = { t: "items", by: conn.connId };
       if (isSender && seq !== undefined) out.seq = seq;
       if (isSender && refused.size) out.refused = [...refused];
+      if (sceneFor) out.scene = sceneFor;
       if (upsert.length) out.upsert = upsert;
       if (patch.length) out.patch = patch;
       if (del.length) out.delete = del;
@@ -816,7 +973,7 @@ export class Room extends DurableObject<Env> {
         t: "error",
         message: "This room is full. Delete some drawings or fog shapes (or old scenes) to make room.",
       });
-    } else if (refused.size) {
+    } else if (refused.size && !sceneInvalid) {
       this.send(ws, { t: "error", message: "Some of that wasn't allowed, so it was undone." });
     }
 
@@ -829,7 +986,7 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  private handleEph(ws: WebSocket, conn: Player, raw: unknown): void {
+  private handleEph(ws: WebSocket, conn: Conn, raw: unknown): void {
     const e = raw as Ephemeral | null;
     if (!e || typeof e !== "object" || !isId(e.sceneId)) return;
     const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -958,15 +1115,16 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  private broadcastInitiative(by?: string): void {
-    const forGm = JSON.stringify({ t: "initiative", initiative: this.initiative, by } satisfies ServerMsg);
+  private broadcastInitiative(by?: string, seq?: number): void {
+    const forGm = JSON.stringify({ t: "initiative", initiative: this.initiative, by, seq } satisfies ServerMsg);
     // Every player sees the same view. When a change only touched entries hidden from
     // them, their view is the same as before: sending it anyway would tell them
     // something happened. Only the player who made the change gets their echo.
     const view = JSON.stringify(this.initiativeFor({ connId: "", userId: "", name: "", color: "", role: "player" }));
     const changed = view !== this.lastPlayerInitiative;
     this.lastPlayerInitiative = view;
-    const forPlayers = `{"t":"initiative","initiative":${view}${by ? `,"by":${JSON.stringify(by)}` : ""}}`;
+    const echo = by ? `,"by":${JSON.stringify(by)}${seq !== undefined ? `,"seq":${seq}` : ""}` : "";
+    const forPlayers = `{"t":"initiative","initiative":${view}${echo}}`;
     for (const ws of this.ctx.getWebSockets()) {
       const c = ws.deserializeAttachment() as Player | null;
       if (!c) continue;
@@ -981,12 +1139,12 @@ export class Room extends DurableObject<Env> {
     return c.role === "gm" || (a.owner !== GM_OWNER && a.owner === c.userId);
   }
 
-  private hello(conn: Player): ServerMsg {
+  private hello(conn: Conn): ServerMsg {
     const gm = conn.role === "gm";
     const active = this.activeSceneId ? this.scenes.get(this.activeSceneId) : undefined;
     return {
       t: "hello",
-      you: conn,
+      you: publicPlayer(conn),
       room: this.info!,
       scenes: gm ? [...this.scenes.values()] : active ? [active] : [],
       activeSceneId: this.activeSceneId,
@@ -997,6 +1155,7 @@ export class Room extends DurableObject<Env> {
       messages: this.recentMessages(conn),
       initiative: this.initiativeFor(conn),
       players: this.players(),
+      lastSeq: this.lastSeq(conn),
     };
   }
 
@@ -1039,10 +1198,10 @@ export class Room extends DurableObject<Env> {
     const seen = new Set<string>();
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === exclude) continue;
-      const c = ws.deserializeAttachment() as Player | null;
+      const c = ws.deserializeAttachment() as Conn | null;
       if (!c || seen.has(c.userId)) continue;
       seen.add(c.userId);
-      out.push(c);
+      out.push(publicPlayer(c));
     }
     return out;
   }

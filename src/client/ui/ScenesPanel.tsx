@@ -11,6 +11,9 @@ const GRID_TYPES: { id: GridType; label: string }[] = [
   { id: "hex-flat", label: "Hex (columns)" },
 ];
 import { fileUrl } from "../api";
+import { importFiles, sceneFromMap } from "../importScenes";
+import type { ImportResult } from "../importScenes";
+import { MAP_FILE_ACCEPT } from "../mapImport";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
 
 export function ScenesPanel() {
@@ -106,23 +109,18 @@ export function ScenesPanel() {
   );
 }
 
-function sceneFromMap(asset: Asset, name: string, order: number, fogCover: boolean): Scene {
-  const size = guessGridSize(asset.width, asset.height);
-  return {
-    id: randomId(12),
-    name,
-    order,
-    mapAssetId: asset.id,
-    width: asset.width,
-    height: asset.height,
-    background: "#1b1e24",
-    grid: { ...DEFAULT_GRID, size },
-    fogCover,
-    createdAt: Date.now(),
-  };
+/** How a new scene's grid was set, for the message after creating it. */
+function gridNote(scene: Scene, fromFile: boolean): string {
+  const unit = cellSpacing({ ...scene.grid, size: 1 });
+  const cols = Math.round((scene.width / (scene.grid.size * unit.x)) * 10) / 10;
+  const rows = Math.round((scene.height / (scene.grid.size * unit.y)) * 10) / 10;
+  const cells = isHex(scene.grid) ? "hexes" : "squares";
+  return fromFile
+    ? `Grid set from the file: ${cols} × ${rows} ${cells}.`
+    : `Grid guessed at ${cols} × ${rows} ${cells}: check it with Edit scene.`;
 }
 
-function NewSceneDialog(props: { onClose: () => void; onCreated: (id: string) => void }) {
+export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: string) => void; files?: File[] }) {
   const room = useRoom();
   const assets = useRoomState((s) => s.assets);
   const scenes = useRoomState((s) => s.scenes);
@@ -140,23 +138,85 @@ function NewSceneDialog(props: { onClose: () => void; onCreated: (id: string) =>
   const order = Math.max(0, ...Object.values(scenes).map((s) => s.order + 1));
 
   const create = (scene: Scene) => {
-    room.upsertScene(scene);
+    room.createScene(scene);
     room.viewSceneLocally(scene.id);
     props.onCreated(scene.id);
   };
 
+  const [dragOver, setDragOver] = useState(false);
+  const [working, setWorking] = useState<string | null>(null);
+  const [report, setReport] = useState<ImportResult | null>(null);
+  const busy = useRef(false);
+  // Files dropped or pasted elsewhere open this dialog with them.
+  const started = useRef(false);
+
   const onFiles = async (files: File[]) => {
-    if (!files.length) return;
-    const assets = await room.upload(files, "map");
-    if (!assets.length) return;
-    // One scene per map. A typed name only makes sense for a single map; several use their file names.
-    const scenes = assets.map((a, i) =>
-      sceneFromMap(a, assets.length === 1 ? name.trim() || a.name : a.name, order + i, covered),
-    );
-    for (const sc of scenes.slice(1)) room.upsertScene(sc);
-    create(scenes[0]);
-    if (scenes.length > 1) room.toast(`Created ${scenes.length} scenes, one per map.`);
+    if (!files.length || busy.current) return;
+    busy.current = true;
+    setWorking("Reading…");
+    try {
+      const r = await importFiles(room, files, { name: name.trim(), order, covered, onProgress: setWorking });
+      if (!r.scenes.length) {
+        for (const n of r.notes) room.toast(n, "error");
+        return;
+      }
+      room.viewSceneLocally(r.scenes[0].id);
+      if (r.owlbear || r.notes.length) {
+        // Worth a proper look: what came in, and what didn't.
+        setReport(r);
+        return;
+      }
+      props.onCreated(r.scenes[0].id);
+      room.toast(
+        r.scenes.length > 1
+          ? `Created ${r.scenes.length} scenes, one per map. ${r.gridFromFile} had their grid in the file.`
+          : gridNote(r.scenes[0], r.gridFromFile > 0),
+      );
+    } finally {
+      busy.current = false;
+      setWorking(null);
+    }
   };
+
+  if (props.files?.length && !started.current) {
+    started.current = true;
+    queueMicrotask(() => void onFiles(props.files!));
+  }
+
+  if (report) {
+    return (
+      <Modal title="Maps brought in" onClose={() => props.onCreated(report.scenes[0].id)} width={480}>
+        <p>
+          {report.scenes.length === 1 ? "One new scene" : `${report.scenes.length} new scenes`}:{" "}
+          <strong>{report.scenes.map((s) => s.name).join(", ")}</strong>.{" "}
+          {report.scenes.length === 1
+            ? report.gridFromFile
+              ? "Its grid came from the file."
+              : "Its grid was guessed: check it with Edit scene."
+            : report.gridFromFile === report.scenes.length
+              ? "Their grids came from the files."
+              : `${report.gridFromFile} of them had their grid in the file; check the others with Edit scene.`}
+          {report.owlbear && " Fog and tokens from Owlbear came too."}
+        </p>
+        {report.notes.length > 0 && (
+          <>
+            <p class="small muted">Left out:</p>
+            <ul class="import-notes small">
+              {report.notes.map((n, i) => (
+                <li key={i}>{n}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onClick={() => props.onCreated(report.scenes[0].id)}>
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
 
   return (
     <Modal title="New scene" onClose={props.onClose} width={480}>
@@ -187,14 +247,41 @@ function NewSceneDialog(props: { onClose: () => void; onCreated: (id: string) =>
         </label>
       )}
       {mode === "upload" && (
-        <div class="upload-drop" onClick={() => fileRef.current?.click()}>
+        <div
+          class={cx("upload-drop", dragOver && "over")}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => {
+            if (![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            void onFiles([...(e.dataTransfer?.files ?? [])]);
+          }}
+        >
           <ImagePlus size={28} />
-          <span>{uploading ? `Uploading ${uploading}…` : "Choose one or more map images (PNG, JPEG, WebP)"}</span>
-          <span class="small muted">Large images are resized to 6144 px on the long side.</span>
+          <span>
+            {working ?? (uploading ? `Uploading ${uploading}…` : "Choose or drop maps")}
+          </span>
+          <ul class="import-kinds small muted">
+            <li>
+              <strong>Images</strong> (PNG, JPEG, WebP). A size in the name, like “Crypt 30x20”, sets the grid.
+            </li>
+            <li>
+              <strong>Dungeondraft</strong> and other Universal VTT files (.dd2vtt, .uvtt, .df2vtt), with their grid.
+            </li>
+            <li>
+              <strong>Owlbear Rodeo backups</strong> (.ob2), with grid, fog and tokens. In Owlbear: Manage Storage, Export
+              Backup, and tick the scenes and their maps.
+            </li>
+          </ul>
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept={MAP_FILE_ACCEPT}
             multiple
             hidden
             onChange={(e) => {
@@ -271,7 +358,7 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const [alignCells, setAlignCells] = useState(3);
   const [fogReset, setFogReset] = useState<null | "cover" | "clear">(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const update = (patch: Partial<Scene>) => room.upsertScene({ ...s, ...patch });
+  const update = (patch: Partial<Scene>) => room.updateScene(s.id, patch);
   const grid = (patch: Partial<GridSettings>) => update({ grid: { ...g, ...patch } });
   // How far apart cells are per unit of grid size (1 for squares; hexes are staggered).
   const unit = cellSpacing({ ...g, size: 1 });
@@ -283,7 +370,6 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const setMap = (asset: Asset) => {
     const sameSize = !!s.mapAssetId && asset.width === s.width && asset.height === s.height;
     const next = {
-      ...s,
       mapAssetId: asset.id,
       width: asset.width,
       height: asset.height,
@@ -291,14 +377,14 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
     };
     if (sameSize) {
       // Another version of the same map (day and night, say): the fog still lines up.
-      room.upsertScene(next);
+      room.changeScene(s.id, next, {});
       return;
     }
     // A new map starts covered, and fog drawn for the old one wouldn't line up with it.
     const fog = Object.values(room.state.items)
       .filter((i) => i.kind === "fog" && i.sceneId === s.id)
       .map((i) => i.id);
-    room.changeScene({ ...next, fogCover: true }, fog.length ? { delete: fog } : {});
+    room.changeScene(s.id, { ...next, fogCover: true }, fog.length ? { delete: fog } : {});
     room.toast("The map starts covered in fog. Reveal areas with the fog tool.");
   };
 

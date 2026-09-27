@@ -1,7 +1,7 @@
 // Actions on the current selection, shared by the keyboard shortcuts and the
 // selection bar.
 
-import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
+import { stepByCells } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { ItemPatch, TokenItem } from "../../shared/types";
@@ -27,19 +27,24 @@ export function deleteSelection(room: RoomClient): void {
   room.select([]);
 }
 
-/** "Goblin" -> "Goblin 2", "Goblin 2" -> the next free number among `taken`. */
+/**
+ * The label for a copy: "Goblin" -> "Goblin 2", "Goblin 2" -> the next number not
+ * among `taken`, "Goblin #2" -> "Goblin #3", "7" -> "8".
+ */
 export function numberedCopy(label: string, taken: string[]): string {
   if (!label.trim()) return label;
-  const m = /^(.*?)\s*(\d+)$/.exec(label);
-  const base = (m ? m[1] : label).trim() || label;
-  let max = m ? Number(m[2]) : 1;
+  const m = /^(.*?)(\s*)(\d+)$/.exec(label);
+  // What comes before the number, and whatever separated it (a space, or nothing).
+  const base = m ? m[1] : label.trimEnd();
+  const sep = m ? m[2] : " ";
+  let max = m ? Number(m[3]) : 1;
   const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`^${escaped}\\s*(\\d+)$`);
   for (const t of taken) {
     const mm = re.exec(t);
     if (mm) max = Math.max(max, Number(mm[1]));
   }
-  return `${base} ${max + 1}`.slice(0, 60);
+  return `${base}${sep}${max + 1}`.slice(0, 60);
 }
 
 export function duplicateSelection(room: RoomClient): void {
@@ -49,7 +54,7 @@ export function duplicateSelection(room: RoomClient): void {
   if (!tokens.length) return;
   if (!room.isGm && !s.room?.settings.playersCanAddTokens) return;
   const scene = room.viewScene;
-  const step = scene?.grid.size ?? 70;
+  if (!scene) return;
   let z = room.nextZ(tokens[0].sceneId, "token");
   const taken = Object.values(s.items)
     .filter((i): i is TokenItem => i.kind === "token" && i.sceneId === tokens[0].sceneId)
@@ -57,13 +62,15 @@ export function duplicateSelection(room: RoomClient): void {
   const copies: TokenItem[] = tokens.map((t) => {
     const label = numberedCopy(t.label, taken);
     taken.push(label);
+    // One cell to the right (on hex grids, the next hex over).
+    const p = stepByCells(t, 1, 0, scene.grid);
     return {
       ...t,
       id: randomId(12),
       owner: s.me!.userId,
       label,
-      x: t.x + step,
-      y: t.y,
+      x: Math.round(p.x * 100) / 100,
+      y: Math.round(p.y * 100) / 100,
       z: z++,
       // Players can't create hidden or locked tokens; copies of GM tokens come out plain.
       ...(room.isGm ? {} : { hidden: false, locked: false }),
@@ -106,15 +113,12 @@ export function rotateSelection(room: RoomClient, degrees: number): void {
 export function nudgeSelection(room: RoomClient, dx: number, dy: number): void {
   const scene = room.viewScene;
   if (!scene) return;
-  const step = cellSpacing(scene.grid);
-  const hex = isHex(scene.grid);
   const patches = selectedTokens(room)
     .filter((t) => room.canMoveItem(t))
     .map((t) => {
-      const raw = { x: t.x + dx * step.x, y: t.y + dy * step.y };
-      // Hex rows are staggered, so land on the nearest hex centre.
-      const p = hex ? snapTokenCenter(raw, t.size, scene.grid) : raw;
-      return { id: t.id, set: { x: p.x, y: p.y } };
+      // On hex grids, to a neighbouring hex (zigzagging where there's none straight up or across).
+      const p = stepByCells(t, dx, dy, scene.grid);
+      return { id: t.id, set: { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 } };
     });
   if (patches.length) room.change({ patch: patches });
 }

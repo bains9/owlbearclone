@@ -34,7 +34,7 @@ export function Home() {
 
 function roomIdFrom(text: string): string | null {
   const t = text.trim();
-  const m = t.match(/\/r\/([A-Za-z0-9]{1,64})/) ?? t.match(/^([A-Za-z0-9]{6,64})$/);
+  const m = t.match(/\/r\/([A-Za-z0-9]{12})(?![A-Za-z0-9])/) ?? t.match(/^([A-Za-z0-9]{12})$/);
   return m ? m[1] : null;
 }
 

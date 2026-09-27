@@ -186,7 +186,7 @@ export async function importBackup(room: RoomClient, file: File, onProgress: (te
   scenes.forEach((sc, n) => {
     const id = randomId(12);
     sceneIds.set(sc.id, id);
-    room.upsertScene({
+    room.createScene({
       ...sc,
       id,
       order: firstOrder + n,

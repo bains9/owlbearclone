@@ -54,11 +54,14 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
-/** Shrinks and re-encodes an image when it's larger than needed. */
+/**
+ * Shrinks and re-encodes an image when it's larger than needed. Also says how big
+ * the original was, so a grid measured on it can be scaled to match.
+ */
 export async function prepareImage(
   file: Blob,
   kind: AssetKind,
-): Promise<{ blob: Blob; width: number; height: number }> {
+): Promise<{ blob: Blob; width: number; height: number; sourceWidth: number; sourceHeight: number }> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file);
@@ -69,7 +72,7 @@ export async function prepareImage(
   const { maxDim, maxBytes } = LIMITS[kind];
   if (PASSTHROUGH.includes(file.type) && Math.max(width, height) <= maxDim && file.size <= maxBytes) {
     bitmap.close();
-    return { blob: file, width, height };
+    return { blob: file, width, height, sourceWidth: width, sourceHeight: height };
   }
   const scale = Math.min(1, maxDim / Math.max(width, height));
   const w = Math.max(1, Math.round(width * scale));
@@ -88,7 +91,7 @@ export async function prepareImage(
     blob = await canvasToBlob(canvas, kind === "map" ? "image/jpeg" : "image/png", 0.9);
   }
   if (!blob) throw new Error("This browser couldn't process the image.");
-  return { blob, width: w, height: h };
+  return { blob, width: w, height: h, sourceWidth: width, sourceHeight: height };
 }
 
 /** Uploads image bytes as they are (already prepared, or restored from a backup). */
@@ -118,8 +121,20 @@ export async function uploadBlob(
   return data;
 }
 
-export async function uploadImage(roomId: string, file: File, kind: AssetKind, uid: string): Promise<Asset> {
-  const { blob, width, height } = await prepareImage(file, kind);
-  const name = file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 60) || "Image";
-  return uploadBlob(roomId, blob, kind, name, width, height, uid);
+export interface Uploaded {
+  asset: Asset;
+  /** The size of the image before it was shrunk for upload. */
+  source: { width: number; height: number };
+}
+
+export async function uploadImage(
+  roomId: string,
+  file: File,
+  kind: AssetKind,
+  uid: string,
+  name = file.name.replace(/\.[a-z0-9]+$/i, ""),
+): Promise<Uploaded> {
+  const { blob, width, height, sourceWidth, sourceHeight } = await prepareImage(file, kind);
+  const asset = await uploadBlob(roomId, blob, kind, name.slice(0, 60) || "Image", width, height, uid);
+  return { asset, source: { width: sourceWidth, height: sourceHeight } };
 }

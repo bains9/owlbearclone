@@ -1052,8 +1052,29 @@ button:disabled {
   cursor: pointer;
   text-align: center;
 }
-.upload-drop:hover {
+.upload-drop:hover,
+.upload-drop.over {
   border-color: var(--accent);
+}
+.upload-drop.over {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.import-notes {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.import-notes li {
+  margin: 4px 0;
+}
+.import-kinds {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  text-align: left;
+}
+.import-kinds li {
+  margin: 3px 0;
 }
 
 .quick-tokens {

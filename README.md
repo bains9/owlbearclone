@@ -7,9 +7,20 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
 
 - **Rooms.** The GM signs in with a password, creates rooms, and shares the room link. Players open the
   link, pick a name and colour, and they're in. No player accounts.
-- **Scenes.** Upload battle maps (several at once: one scene each, named after the file), or start from
-  a blank grid. Square grids or hex grids (rows or columns), lined up with the map by cells across/down,
-  cell size and offset. The GM previews any scene privately and chooses which one players see.
+- **Scenes.** Upload battle maps (several at once: one scene each, named after the file), drop or paste
+  them straight onto the board, or start from a blank grid. Square grids or hex grids (rows or columns),
+  lined up with the map by cells across/down, cell size and offset, or by drawing a box over a few cells.
+  The GM previews any scene privately and chooses which one players see.
+- **Bringing maps in.** Besides plain images:
+  - **Owlbear Rodeo backups** (`.ob2`: in Owlbear, Manage Storage, Export Backup, tick the scenes *and*
+    their map images). Each scene comes over with its map, grid (square or hex), fog (the base cover and
+    every cut) and the tokens whose images were in the backup, hidden ones still hidden. Drawings, text,
+    walls and lights stay behind; the importer lists anything it left out. An old Owlbear Rodeo 1 export
+    (`.owlbear`) needs converting first with Owlbear's own converter at 1to2.owlbear.app.
+  - **Universal VTT files** from Dungeondraft, DungeonFog, Dungeon Alchemist, Arkenforge and others
+    (`.dd2vtt`, `.df2vtt`, `.uvtt`): the map and its exact grid.
+  - **Grid sizes in file names**, the way map makers label them (`Crypt 30x20.jpg`, `[22x30]`, `140ppi`).
+  Big images are shrunk to 6144 px on the long side; grids are scaled to match.
 - **Tokens.** Coloured quick tokens or uploaded images, drag and drop (snaps to the grid; hold Alt to
   place freely), names, sizes ½ to 6 squares, rotation, status rings, props (sit under characters),
   layer order, duplicate (copies are numbered), delete. Shift+click or Shift+drag selects several and they
@@ -29,7 +40,7 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
   players. Changes are sent as operations, so two people adding themselves at once both land.
 - **Undo/redo** of your own changes on the scene you're looking at, keyboard shortcuts (the ? button in the
   top bar lists them), touch and pinch zoom on phones and tablets, automatic reconnection that resends
-  anything that didn't get through.
+  anything that didn't get through (and never applies anything twice).
 
 Not included: lighting and line of sight, audio/video.
 
@@ -48,6 +59,12 @@ The Room object is the single authority. Browsers apply their own changes immedi
 validates and permission-checks every change and sends the sender back either the accepted change or a
 correction. Each browser tracks, per field, which of its changes are unconfirmed, so everyone converges on
 the same state even when two people edit the same token at once.
+
+Every change a browser tab makes carries a number that counts up within that tab. The Room remembers the
+last number it applied from each tab, so after a dropped connection the tab resends exactly what the server
+never got, and a change that arrives twice is applied once. A change to a scene that goes with its fog
+(Cover all, Clear all, a new map, and undoing them) travels in one message with it and is applied
+completely or not at all, so players never see a map between the two halves.
 
 **Security.**
 - One GM password (the `GM_PASSWORD` secret). Signing in sets an HttpOnly, Secure, SameSite=Lax cookie
@@ -82,13 +99,14 @@ different host name, so it doesn't share the GM cookie.
 
 ```bash
 npm run typecheck   # client, worker and tests
-npm test            # unit tests: dice, grid and hex maths, templates, validation, permissions, undo, initiative
+npm test            # unit tests: dice, grid and hex maths, templates, validation, permissions, undo,
+                    # initiative, backups, map files (Universal VTT, Owlbear Rodeo backups, file names)
 npm run smoke       # end-to-end: API + WebSocket protocol against a running server
 ```
 
 The smoke test signs in, creates a throwaway room, connects a GM and two players over WebSockets, checks
-permissions, hidden tokens, private rolls, the GM's identity, uploads, initiative, scene switching and
-deletion, then deletes the room. Against the live site:
+permissions, hidden tokens, private rolls, the GM's identity, uploads, initiative, scene switching,
+resending after a reconnect, all-or-nothing fog changes and deletion, then deletes the room. Against the live site:
 
 ```bash
 BASE=https://table.parhome.ca GM_PASSWORD=... npm run smoke

@@ -30,8 +30,8 @@ function check(cond, label) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rid = () => Math.random().toString(36).slice(2, 12);
 
-function connect(roomId, { cookie, uid, name }) {
-  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde`;
+function connect(roomId, { cookie, uid, name, sid }) {
+  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}`;
   const ws = new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined);
   const c = { ws, msgs: [], closeCode: null, seq: 0 };
   ws.onmessage = (e) => {
@@ -320,7 +320,7 @@ async function main() {
   gm.clear();
   alice.clear();
   const scene2 = { ...gmHello.scenes[0], id: "sc" + rid(), name: "Dungeon", order: 1 };
-  gm.send({ t: "scene.upsert", scene: scene2 });
+  gm.send({ t: "scene.upsert", scene: scene2, create: true });
   await gm.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id);
   await sleep(100);
   check(!alice.msgs.some((m) => m.t === "scene.upsert" && m.scene.id === scene2.id), "players don't hear about scenes they aren't on");
@@ -337,6 +337,71 @@ async function main() {
     switched?.id === scene2.id && switched.scene?.name === "Dungeon" && switched.items.length === 1,
     "switching scenes sends players the new scene and its tokens",
   );
+
+  // Changes carry a seq per browser tab: a copy of one already applied is answered, not applied again.
+  const sid = "tab" + rid();
+  const tab = connect(room.id, { cookie, uid: "x", name: "GM tab", sid });
+  const tabHello = await tab.waitFor((m) => m.t === "hello");
+  check(tabHello?.lastSeq === 0 && !("sid" in tabHello.you), "a new tab starts at seq 0, and its tab id isn't shown to anyone");
+  check(!tabHello?.players.some((p) => "sid" in p), "the player list doesn't carry tab ids");
+  const once = { ...base, sceneId: scene2.id, id: "once" + rid(), x: 35, y: 35, label: "Once", hidden: false };
+  tab.send({ t: "items", seq: 1, upsert: [once] });
+  await tab.waitFor((m) => m.t === "items" && m.seq === 1);
+  tab.clear();
+  tab.send({ t: "items", seq: 1, upsert: [{ ...once, x: 999 }] });
+  const again = await tab.waitFor((m) => m.t === "items" && m.seq === 1);
+  check(again?.upsert?.[0]?.x === 35, "a change sent twice is applied once, and the repeat is answered with the stored copy");
+  tab.send({ t: "chat", seq: 2, text: "said once" });
+  tab.send({ t: "chat", seq: 2, text: "said once" });
+  const ack = await tab.waitFor((m) => m.t === "ack" && m.seq === 2);
+  await sleep(200);
+  check(Boolean(ack) && tab.msgs.filter((m) => m.t === "chat" && m.message.text === "said once").length === 1, "a chat message resent after a reconnect appears once");
+  tab.ws.close();
+  const tab2 = connect(room.id, { cookie, uid: "x", name: "GM tab", sid });
+  const tab2Hello = await tab2.waitFor((m) => m.t === "hello");
+  check(tab2Hello?.lastSeq === 2, "reconnecting, the tab learns which of its changes the server already has");
+
+  // Fog and the scene's cover change together in one message, so players never see the map in between.
+  const reveal = { id: "rv" + rid(), sceneId: scene2.id, kind: "fog", z: 0, mode: "reveal", shape: "rect", points: [0, 0, 100, 100] };
+  tab2.send({ t: "items", seq: 3, upsert: [reveal] });
+  await alice.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === reveal.id));
+  alice.clear();
+  tab2.send({ t: "items", seq: 4, delete: [reveal.id], scene: { id: scene2.id, fogCover: true } });
+  const covered = await alice.waitFor((m) => m.t === "items" && m.delete?.includes(reveal.id));
+  check(covered?.scene?.fogCover === true && covered.scene.name === "Dungeon", "players get Cover all's fog and cover in one message");
+  alice.clear();
+  alice.items({ delete: [dungeonToken.id], scene: { id: scene2.id, fogCover: false } });
+  const denied = await alice.waitFor((m) => m.t === "items" && m.seq === alice.seq);
+  check(denied?.refused?.includes(dungeonToken.id) && !denied.scene, "a player can't change the scene, and nothing sent with it happens");
+  tab2.clear();
+  tab2.send({ t: "items", seq: 5, patch: [{ id: once.id, set: { x: 105 } }], scene: { id: "gone" + rid(), fogCover: false } });
+  const goneEcho = await tab2.waitFor((m) => m.t === "items" && m.seq === 5);
+  check(goneEcho?.refused?.includes(once.id), "item changes tied to a scene that's gone are refused with it");
+
+  // Editing a scene that no longer exists doesn't bring it back; creating one needs create.
+  tab2.clear();
+  const ghostScene = "gs" + rid();
+  tab2.send({ t: "scene.upsert", seq: 6, scene: { id: ghostScene, name: "Ghost" } });
+  const noGhost = await tab2.waitFor((m) => m.t === "scene.delete" && m.id === ghostScene);
+  check(noGhost?.seq === 6, "an edit to a deleted scene is answered with its deletion");
+  tab2.send({ t: "scene.upsert", seq: 7, scene: { id: scene2.id, name: "Dungeon, level 2" } });
+  const renamed = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 7);
+  check(renamed?.scene.name === "Dungeon, level 2" && renamed.scene.fogCover === true, "a scene edit changes only the settings it names");
+
+  // Uncovering together with fog shapes, one of which is refused: none of it happens.
+  alice.clear();
+  tab2.clear();
+  const good = { ...reveal, id: "ok" + rid() };
+  const broken = { ...reveal, id: "bad" + rid(), points: [0, 0] };
+  tab2.send({ t: "items", seq: 8, upsert: [good, broken], scene: { id: scene2.id, fogCover: false } });
+  const partial = await tab2.waitFor((m) => m.t === "items" && m.seq === 8);
+  await sleep(200);
+  check(
+    partial?.refused?.includes(good.id) && partial.refused.includes(broken.id) && partial.scene?.fogCover === true &&
+      !alice.msgs.some((m) => m.t === "items" && (m.scene || m.upsert?.some((i) => i.id === good.id))),
+    "a scene change with any part refused changes nothing, and the map stays covered",
+  );
+  tab2.ws.close();
 
   // reconnect
   const alice2 = connect(room.id, { uid: "alice" + rid(), name: "Alice again" });

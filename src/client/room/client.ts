@@ -8,7 +8,7 @@ import type { InitOp } from "../../shared/initiative";
 import { applyOps, inverseOps, isEmptyOps } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
 import { canMove } from "../../shared/permissions";
-import type { ClientMsg, Ephemeral, ItemOps, MeasureShape, ServerMsg } from "../../shared/protocol";
+import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND } from "../../shared/protocol";
 import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
 import type { Point } from "../../shared/geometry";
@@ -28,6 +28,8 @@ import type {
   TokenItem,
 } from "../../shared/types";
 import { uploadImage } from "../api";
+import type { Uploaded } from "../api";
+import type { MapFile } from "../mapImport";
 import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
@@ -89,6 +91,8 @@ export interface RoomState {
    * squares across the box will cover.
    */
   gridAlign: { cells: number } | null;
+  /** Map files dropped or pasted onto the board, waiting in the new-scene dialog. */
+  mapImport: File[] | null;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -122,11 +126,12 @@ interface UndoEntry {
   sceneId: string | null;
   redo: ItemOps;
   undo: ItemOps;
-  /** A change to the scene itself that belongs to the same step (covering it in fog, a new map). */
-  scene?: { before: Scene; after: Scene };
+  /**
+   * A change to the scene itself that belongs to the same step (covering it in fog, a
+   * new map): just the settings it changed, as they were before and after.
+   */
+  scene?: { before: ScenePatch; after: ScenePatch };
 }
-
-type Outgoing = { kind: "items"; ops: ItemOps } | { kind: "msg"; msg: ClientMsg };
 
 const MAX_MESSAGES = 300;
 const MAX_UNDO = 200;
@@ -134,6 +139,11 @@ const MAX_UNDO = 200;
 const OPS_PER_MESSAGE = 1000;
 /** How long a ping may go unanswered before the connection is treated as dead. */
 const PING_TIMEOUT_MS = 20_000;
+/**
+ * How long to wait for a connection to open and the room to arrive. Generous: the
+ * room can be several megabytes, and a slow connection may take a while to fetch it.
+ */
+const HELLO_TIMEOUT_MS = 120_000;
 
 /** Splits operations into pieces, keeping their order (upserts, then patches, then deletes). */
 function chunkOps(ops: ItemOps, size: number): ItemOps[] {
@@ -151,6 +161,19 @@ function chunkOps(ops: ItemOps, size: number): ItemOps[] {
   return out;
 }
 
+/**
+ * The settings that say which map a scene shows: what fog covers or uncovers. (Not the
+ * grid, so undoing Cover all doesn't also undo a later grid alignment.)
+ */
+const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height"];
+
+/** A scene with some settings changed. A scene we don't have is only added when it's new. */
+function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: boolean): Record<string, Scene> {
+  const cur = scenes[patch.id];
+  if (cur) return { ...scenes, [patch.id]: { ...cur, ...patch } };
+  return create ? { ...scenes, [patch.id]: patch as Scene } : scenes;
+}
+
 function toMap<T extends { id: string }>(list: T[]): Record<string, T> {
   const out: Record<string, T> = {};
   for (const x of list) out[x.id] = x;
@@ -165,17 +188,27 @@ export class RoomClient {
   private ready = false;
   private disposed = false;
   private attempts = 0;
+  /** Connections in a row that timed out waiting for the room: each waits twice as long as the last. */
+  private helloTimeouts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private lastPong = 0;
   private pingSentAt = 0;
+  private connectedAt = 0;
+  /** Names this browser tab to the server, which remembers the last seq it applied from it. */
+  private readonly sid = randomId(16);
   private seq = 0;
   private pending = new Map<string, Pending>();
-  /** Sent but not yet echoed, by seq: re-sent after a reconnect in case they were lost. */
-  private inflight = new Map<number, ItemOps>();
-  private outbox: Outgoing[] = [];
-  /** Scene edits and initiative edits of ours the server hasn't echoed yet. */
+  /**
+   * Every change we've sent, or will send once connected, that the server hasn't
+   * confirmed yet, in seq order. After a reconnect the server says which of them it
+   * already has; the rest are applied again on top of the fresh state and resent
+   * under the same seq, so none is lost and none is applied twice.
+   */
+  private unacked: { seq: number; action: ClientAction }[] = [];
+  /** Scene id -> seq of our latest change to it that the server hasn't echoed yet. */
   private scenePending = new Map<string, number>();
+  /** Seq of our latest initiative change the server hasn't echoed yet (0: none). */
   private initPending = 0;
   private undoStack: UndoEntry[] = [];
   private redoStack: UndoEntry[] = [];
@@ -203,6 +236,7 @@ export class RoomClient {
       fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false },
       measureOpts: { shape: "ruler", keep: false },
       textPrompt: null,
+      mapImport: null,
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 ? "chat" : null,
@@ -234,10 +268,12 @@ export class RoomClient {
     if (this.disposed) return;
     const p = this.profile;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color });
+    const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color, sid: this.sid });
     const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/ws?${qs}`);
     this.ws = ws;
     this.ready = false;
+    this.connectedAt = Date.now();
+    this.pingSentAt = 0;
     ws.onopen = () => {
       this.lastPong = Date.now();
     };
@@ -306,11 +342,22 @@ export class RoomClient {
 
   /**
    * Runs every 15 s, or as rarely as once a minute in a background tab. A quiet
-   * room isn't a dead one, so only an unanswered ping counts as dead.
+   * room isn't a dead one, so only an unanswered ping counts as dead. Until the room
+   * has arrived there's no pinging: a pong would queue behind a big room on a slow
+   * connection, so only the (much longer) hello timeout applies.
    */
   private checkHeartbeat(): void {
     const ws = this.ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws) return;
+    if (!this.ready) {
+      const wait = HELLO_TIMEOUT_MS * 2 ** Math.min(this.helloTimeouts, 4);
+      if (ws.readyState <= WebSocket.OPEN && Date.now() - this.connectedAt > wait) {
+        this.helloTimeouts++;
+        this.restart();
+      }
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) return;
     if (this.pingUnanswered()) return this.restart();
     if (this.lastPong >= this.pingSentAt) this.ping(ws);
   }
@@ -325,9 +372,10 @@ export class RoomClient {
       this.reconnectTimer = null;
       this.attempts = 0;
       this.connect();
-    } else if (ws.readyState === WebSocket.OPEN) {
+    } else if (ws.readyState === WebSocket.OPEN && this.ready) {
       // Back from sleep, the socket may be dead without knowing it. Ask, and give up
-      // on it quickly if there's no answer.
+      // on it quickly if there's no answer. (Still loading the room: the hello
+      // timeout looks after that.)
       this.ping(ws);
       const sent = this.pingSentAt;
       setTimeout(() => {
@@ -346,12 +394,87 @@ export class RoomClient {
     this.ws = null;
   }
 
-  private send(msg: ClientMsg): void {
+  /**
+   * Makes a change: shows it here at once, sends it (or, offline, keeps it for the
+   * next connection), and keeps it until the server confirms it.
+   */
+  private submit(action: ClientAction, seq = ++this.seq): void {
+    this.unacked.push({ seq, action });
+    this.effect(action, seq);
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg));
-    } else {
-      this.outbox.push({ kind: "msg", msg });
+      this.ws.send(JSON.stringify({ ...action, seq } as ClientMsg));
     }
+  }
+
+  /** What a change looks like here before the server has confirmed it. */
+  private effect(action: ClientAction, seq: number): void {
+    switch (action.t) {
+      case "items": {
+        const { scene } = action;
+        this.markPending(action, seq);
+        if (scene) this.scenePending.set(scene.id, seq);
+        this.store.set((s) => {
+          const items = applyOps(s.items, action);
+          const selection = s.selection.filter((id) => items[id]);
+          return {
+            items,
+            selection: selection.length === s.selection.length ? s.selection : selection,
+            ...(scene ? { scenes: mergeScene(s.scenes, scene, false) } : {}),
+          };
+        });
+        return;
+      }
+      case "scene.upsert":
+        this.scenePending.set(action.scene.id, seq);
+        this.store.set((s) => ({ scenes: mergeScene(s.scenes, action.scene, !!action.create) }));
+        return;
+      case "initiative.op":
+        this.initPending = seq;
+        this.store.set((s) => ({ initiative: applyInitOp(s.initiative, action.op) }));
+        return;
+      case "room.update": {
+        const room = this.state.room;
+        if (room) {
+          this.store.set({
+            room: { ...room, name: action.name ?? room.name, settings: { ...room.settings, ...action.settings } },
+          });
+        }
+        return;
+      }
+      case "asset.rename": {
+        const asset = this.state.assets[action.id];
+        if (asset) this.store.set((s) => ({ assets: { ...s.assets, [action.id]: { ...asset, name: action.name } } }));
+        return;
+      }
+      case "asset.delete":
+        this.store.set((s) => {
+          const assets = { ...s.assets };
+          delete assets[action.id];
+          return { assets };
+        });
+        return;
+      default:
+        return;
+    }
+  }
+
+  /** The server has handled every change up to and including `seq`. */
+  private confirm(seq: number): void {
+    let n = 0;
+    while (n < this.unacked.length && this.unacked[n].seq <= seq) n++;
+    if (n) this.unacked.splice(0, n);
+  }
+
+  /**
+   * Whether a scene from the server should replace ours: not while a change of ours to
+   * it is unconfirmed, unless this is the echo of (or correction to) that change.
+   */
+  private sceneSettled(id: string, echoSeq: number | undefined): boolean {
+    const waiting = this.scenePending.get(id);
+    if (waiting === undefined) return true;
+    if (echoSeq === undefined || echoSeq < waiting) return false;
+    this.scenePending.delete(id);
+    return true;
   }
 
   sendEph(e: Ephemeral): void {
@@ -370,6 +493,7 @@ export class RoomClient {
     switch (msg.t) {
       case "hello": {
         this.attempts = 0;
+        this.helloTimeouts = 0;
         const scenes = toMap(msg.scenes);
         const items = toMap(msg.items);
         const gm = msg.you.role === "gm";
@@ -378,10 +502,10 @@ export class RoomClient {
         this.pending.clear();
         this.scenePending.clear();
         this.initPending = 0;
-        // Changes sent on the old connection that were never confirmed may have been
-        // lost with it: apply them again on top of the fresh state and resend them.
-        const unconfirmed = [...this.inflight.values()];
-        this.inflight.clear();
+        // Changes the server never got (lost with the old connection, or made offline):
+        // apply them again on top of the fresh state and send them.
+        const replay = this.unacked.filter((u) => u.seq > (msg.lastSeq ?? 0));
+        this.unacked = [];
         this.store.set({
           status: "open",
           me: msg.you,
@@ -399,13 +523,7 @@ export class RoomClient {
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
-        for (const ops of unconfirmed) this.applyLocal(ops);
-        const queued = this.outbox;
-        this.outbox = [];
-        for (const out of queued) {
-          if (out.kind === "items") this.applyLocal(out.ops);
-          else this.send(out.msg);
-        }
+        for (const u of replay) this.submit(u.action, u.seq);
         this.refreshUndoFlags();
         return;
       }
@@ -417,14 +535,8 @@ export class RoomClient {
       case "scene.upsert": {
         // While an edit of ours to this scene is unconfirmed, older versions (our own
         // earlier edits, or someone else's the server ordered before ours) are stale.
-        const waiting = this.scenePending.get(msg.scene.id) ?? 0;
-        if (msg.by === s.me?.connId) {
-          if (waiting > 1) this.scenePending.set(msg.scene.id, waiting - 1);
-          else this.scenePending.delete(msg.scene.id);
-          if (waiting > 1) return;
-        } else if (waiting > 0) {
-          return;
-        }
+        const echo = msg.by === s.me?.connId ? msg.seq : undefined;
+        if (!this.sceneSettled(msg.scene.id, echo)) return;
         this.store.set({ scenes: { ...s.scenes, [msg.scene.id]: msg.scene } });
         return;
       }
@@ -476,14 +588,19 @@ export class RoomClient {
         document.title = `${msg.room.name} · Tabletop`;
         return;
 
-      case "initiative":
-        if (msg.by === s.me?.connId) {
-          this.initPending = Math.max(0, this.initPending - 1);
-          if (this.initPending > 0) return;
-        } else if (this.initPending > 0) {
-          return;
+      case "initiative": {
+        // As with scenes: keep our own unconfirmed change until its echo arrives.
+        if (this.initPending) {
+          const echo = msg.by === s.me?.connId ? msg.seq : undefined;
+          if (echo === undefined || echo < this.initPending) return;
+          this.initPending = 0;
         }
         this.store.set({ initiative: msg.initiative });
+        return;
+      }
+
+      case "ack":
+        this.confirm(msg.seq);
         return;
 
       case "chat": {
@@ -534,9 +651,8 @@ export class RoomClient {
     const next: ItemMap = { ...s.items };
     // A refused change is corrected by the server's copy, whatever else we have in flight.
     for (const id of msg.refused ?? []) this.pending.delete(id);
-    if (mine) {
-      for (const k of this.inflight.keys()) if (k <= seq) this.inflight.delete(k);
-    }
+    if (mine) this.confirm(seq);
+    const scene = msg.scene && this.sceneSettled(msg.scene.id, mine ? seq : undefined) ? msg.scene : null;
 
     const wholeProtected = (id: string) => (this.pending.get(id)?.all ?? 0) > seq;
     const protectedFields = (id: string): string[] => {
@@ -574,7 +690,12 @@ export class RoomClient {
       for (const id of touched) this.settle(id, seq);
     }
     const selection = s.selection.filter((id) => next[id]);
-    this.store.set({ items: next, selection: selection.length === s.selection.length ? s.selection : selection });
+    this.store.set({
+      items: next,
+      selection: selection.length === s.selection.length ? s.selection : selection,
+      // In the same update as the items, so the map never shows between the two.
+      ...(scene ? { scenes: { ...s.scenes, [scene.id]: scene } } : {}),
+    });
   }
 
   /** Forgets the parts of our pending changes to an item that the echo for `seq` confirmed. */
@@ -624,24 +745,17 @@ export class RoomClient {
     return id ?? this.state.viewSceneId;
   }
 
-  private applyLocal(ops: ItemOps): void {
-    const open = this.ready && this.ws?.readyState === WebSocket.OPEN;
-    for (const chunk of chunkOps(ops, OPS_PER_MESSAGE)) {
-      if (!open) {
-        // Offline (or the connection is closing): show it now, send it once we're back.
-        this.outbox.push({ kind: "items", ops: chunk });
-        continue;
-      }
-      const seq = ++this.seq;
-      this.markPending(chunk, seq);
-      this.inflight.set(seq, chunk);
-      this.ws!.send(JSON.stringify({ t: "items", seq, ...chunk } satisfies ClientMsg));
+  /**
+   * Sends item changes: in pieces when there are many, but with a scene change all in
+   * one message, which the server applies completely or not at all. (A scene step only
+   * touches one scene's items, and the server takes a whole scene's worth at once.)
+   */
+  private applyLocal(ops: ItemOps, scene?: ScenePatch): void {
+    if (scene) {
+      this.submit({ t: "items", ...ops, scene });
+      return;
     }
-    this.store.set((s) => {
-      const items = applyOps(s.items, ops);
-      const selection = s.selection.filter((id) => items[id]);
-      return { items, selection: selection.length === s.selection.length ? s.selection : selection };
-    });
+    for (const chunk of chunkOps(ops, OPS_PER_MESSAGE)) this.submit({ t: "items", ...chunk });
   }
 
   private refreshUndoFlags(): void {
@@ -672,27 +786,28 @@ export class RoomClient {
     this.refreshUndoFlags();
   }
 
-  /**
-   * Applies item changes together with a scene change. Whichever half covers more of
-   * the map goes first, so players never glimpse the map in between.
-   */
-  private applyStep(ops: ItemOps, scene?: Scene): void {
-    if (!scene) return this.applyLocal(ops);
-    const covering = scene.fogCover && !this.state.scenes[scene.id]?.fogCover;
-    if (covering) {
-      this.upsertScene(scene);
-      this.applyLocal(ops);
-    } else {
-      this.applyLocal(ops);
-      this.upsertScene(scene);
-    }
+  /** Applies item changes together with a scene change: players never see one without the other. */
+  private applyStep(ops: ItemOps, scene?: ScenePatch): void {
+    if (!scene || !this.state.scenes[scene.id]) return this.applyLocal(ops);
+    this.applyLocal(ops, scene);
   }
 
-  /** Changes a scene and its items as one undoable step. */
-  changeScene(after: Scene, ops: ItemOps): void {
-    const before = this.state.scenes[after.id];
-    if (!before) return;
-    this.undoStack.push({ sceneId: after.id, redo: ops, undo: inverseOps(this.state.items, ops), scene: { before, after } });
+  /** Changes some of a scene's settings and its items as one undoable step. */
+  changeScene(id: string, set: Omit<ScenePatch, "id">, ops: ItemOps): void {
+    const current = this.state.scenes[id];
+    if (!current) return;
+    // Only the settings this changes: undo puts those back and leaves the rest alone.
+    // Covering or uncovering also records the map it was done on, so undoing it after
+    // the map was swapped puts that map back rather than uncovering the new one.
+    const keys = new Set(Object.keys(set) as (keyof Scene)[]);
+    if (keys.has("fogCover")) for (const k of MAP_FIELDS) keys.add(k);
+    const before: ScenePatch = { id };
+    const after: ScenePatch = { id };
+    for (const k of keys) {
+      (before as Record<string, unknown>)[k] = current[k];
+      (after as Record<string, unknown>)[k] = k in set ? (set as Record<string, unknown>)[k] : current[k];
+    }
+    this.undoStack.push({ sceneId: id, redo: ops, undo: inverseOps(this.state.items, ops), scene: { before, after } });
     if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
     this.redoStack = [];
     this.applyStep(ops, after);
@@ -709,7 +824,7 @@ export class RoomClient {
     const ids = Object.values(this.state.items)
       .filter((i) => i.kind === "fog" && i.sceneId === sceneId)
       .map((i) => i.id);
-    this.changeScene({ ...scene, fogCover: cover }, ids.length ? { delete: ids } : {});
+    this.changeScene(sceneId, { fogCover: cover }, ids.length ? { delete: ids } : {});
   }
 
   nextZ(sceneId: string, kind: ItemKind): number {
@@ -841,27 +956,31 @@ export class RoomClient {
     if (!t) return;
     const m = /^\/(?:r|roll)\s+(.+)$/i.exec(t);
     if (m) this.roll(m[1]);
-    else this.send({ t: "chat", text: t });
+    else this.submit({ t: "chat", text: t });
   }
 
   roll(expr: string, opts: { private?: boolean; label?: string } = {}): void {
-    this.send({ t: "roll", expr, ...opts });
+    this.submit({ t: "roll", expr, ...opts });
   }
 
-  upsertScene(scene: Scene): void {
-    this.scenePending.set(scene.id, (this.scenePending.get(scene.id) ?? 0) + 1);
-    this.store.set((s) => ({ scenes: { ...s.scenes, [scene.id]: scene } }));
-    this.send({ t: "scene.upsert", scene });
+  createScene(scene: Scene): void {
+    this.submit({ t: "scene.upsert", scene, create: true });
+  }
+
+  /** Changes some of a scene's settings; the rest stay as they are, whoever else is changing them. */
+  updateScene(id: string, set: Omit<ScenePatch, "id">): void {
+    if (!this.state.scenes[id]) return;
+    this.submit({ t: "scene.upsert", scene: { ...set, id } });
   }
 
   deleteScene(id: string): void {
-    this.send({ t: "scene.delete", id });
+    this.submit({ t: "scene.delete", id });
   }
 
   activateScene(id: string): void {
     this.store.set({ viewSceneId: id, selection: [] });
     this.refreshUndoFlags();
-    this.send({ t: "scene.activate", id });
+    this.submit({ t: "scene.activate", id });
   }
 
   viewSceneLocally(id: string): void {
@@ -870,35 +989,20 @@ export class RoomClient {
   }
 
   updateRoom(update: { name?: string; settings?: Partial<RoomSettings> }): void {
-    const room = this.state.room;
-    if (room) {
-      this.store.set({
-        room: { ...room, name: update.name ?? room.name, settings: { ...room.settings, ...update.settings } },
-      });
-    }
-    this.send({ t: "room.update", ...update });
+    this.submit({ t: "room.update", ...update });
   }
 
   /** Changes initiative: shown at once, confirmed (or corrected) by the server. */
   initiativeOp(op: InitOp): void {
-    this.initPending++;
-    this.store.set((s) => ({ initiative: applyInitOp(s.initiative, op) }));
-    this.send({ t: "initiative.op", op });
+    this.submit({ t: "initiative.op", op });
   }
 
   renameAsset(id: string, name: string): void {
-    const asset = this.state.assets[id];
-    if (asset) this.store.set((s) => ({ assets: { ...s.assets, [id]: { ...asset, name } } }));
-    this.send({ t: "asset.rename", id, name });
+    this.submit({ t: "asset.rename", id, name });
   }
 
   deleteAsset(id: string): void {
-    this.store.set((s) => {
-      const assets = { ...s.assets };
-      delete assets[id];
-      return { assets };
-    });
-    this.send({ t: "asset.delete", id });
+    this.submit({ t: "asset.delete", id });
   }
 
   setProfile(name: string, color: string): void {
@@ -906,7 +1010,7 @@ export class RoomClient {
     saveProfile(this.profile);
     const me = this.state.me;
     if (me) this.store.set({ me: { ...me, name, color } });
-    this.send({ t: "profile", name, color });
+    this.submit({ t: "profile", name, color });
   }
 
   get profileInfo(): Profile {
@@ -914,15 +1018,29 @@ export class RoomClient {
   }
 
   async upload(files: File[], kind: AssetKind): Promise<Asset[]> {
-    const out: Asset[] = [];
-    this.store.set((s) => ({ uploading: s.uploading + files.length }));
-    for (const file of files) {
+    const done = await this.uploadEach(files.map((file) => ({ file })), kind);
+    return done.map((d) => d.asset);
+  }
+
+  /** Uploads map images, keeping each one's map details alongside what was uploaded. */
+  async uploadMaps(maps: MapFile[]): Promise<(Uploaded & { map: MapFile })[]> {
+    const done = await this.uploadEach(maps.map((map) => ({ file: map.image, name: map.name, map })), "map");
+    return done.map((d) => ({ ...d, map: d.map! }));
+  }
+
+  private async uploadEach<T extends { file: File; name?: string; map?: MapFile }>(
+    list: T[],
+    kind: AssetKind,
+  ): Promise<(Uploaded & T)[]> {
+    const out: (Uploaded & T)[] = [];
+    this.store.set((s) => ({ uploading: s.uploading + list.length }));
+    for (const entry of list) {
       try {
-        const asset = await uploadImage(this.roomId, file, kind, this.profile.uid);
-        this.store.set((s) => ({ assets: { ...s.assets, [asset.id]: asset } }));
-        out.push(asset);
+        const up = await uploadImage(this.roomId, entry.file, kind, this.profile.uid, entry.name);
+        this.store.set((s) => ({ assets: { ...s.assets, [up.asset.id]: up.asset } }));
+        out.push({ ...entry, ...up });
       } catch (err) {
-        this.toast(`${file.name}: ${(err as Error).message}`, "error");
+        this.toast(`${entry.name ?? entry.file.name}: ${(err as Error).message}`, "error");
       } finally {
         this.store.set((s) => ({ uploading: s.uploading - 1 }));
       }

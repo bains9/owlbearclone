@@ -203,13 +203,28 @@ export function CommitInput(props: {
   const [draft, setDraft] = useState(props.value);
   const focused = useRef(false);
   const cancelled = useRef(false);
+  const unmounted = useRef(false);
+  const latest = useRef(draft);
+  latest.current = draft;
   // What the field was editing when it got focus. If the selection changes while
   // it's focused, the edit still goes to the item it was typed for.
   const target = useRef({ value: props.value, onCommit: props.onCommit });
   useEffect(() => {
     if (!focused.current) setDraft(props.value);
   }, [props.value]);
+  useEffect(
+    () => () => {
+      // Removed while being typed in (the selection changed, a panel closed): some
+      // browsers, Firefox among them, never send blur then, so save what was typed here.
+      if (focused.current && !cancelled.current && latest.current !== target.current.value) {
+        target.current.onCommit(latest.current);
+      }
+      unmounted.current = true;
+    },
+    [],
+  );
   const commit = () => {
+    if (unmounted.current) return;
     if (cancelled.current) {
       cancelled.current = false;
       setDraft(props.value);

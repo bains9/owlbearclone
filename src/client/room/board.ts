@@ -12,6 +12,7 @@ import {
   hexCenter,
   hexCorners,
   isHex,
+  isOnGrid,
   pointToHex,
   simplify,
   snapToCellCenter,
@@ -36,6 +37,7 @@ import {
 } from "./actions";
 import type { BoardApi, RoomClient, RoomState } from "./client";
 import { getImage, imageFailed } from "./images";
+import { isVttFile, looksLikeMap } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -89,19 +91,20 @@ type Gesture =
   | { kind: "pan"; pointerId: number; start: Point; cam: Camera; moved: boolean; onClick?: () => void }
   | { kind: "pinch"; startDist: number; startMid: Point; cam: Camera }
   | {
-      kind: "drag-token";
+      kind: "drag-items";
       pointerId: number;
-      /** The token under the pointer: the group follows it and snaps by it. */
+      /** The item under the pointer: the group follows it, and snaps by it when it's a token. */
       id: string;
-      /** Every token moving (the whole selection), with where each started. */
+      /** Every token moving (from the selection), with where each started. */
       origs: Map<string, Point>;
+      /** Every drawing and note moving with them. */
+      drawings: string[];
       start: Point;
       startWorld: Point;
       moved: boolean;
       lastEph: number;
     }
   | { kind: "marquee"; pointerId: number; start: Point; node: Konva.Rect; additive: boolean }
-  | { kind: "drag-drawing"; pointerId: number; id: string; start: Point; startWorld: Point; moved: boolean; lastEph: number }
   | {
       kind: "draw";
       pointerId: number;
@@ -256,6 +259,7 @@ export class Board implements BoardApi {
     on(el, "contextmenu", (e) => e.preventDefault());
     on(el, "dragover", this.onDragOver);
     on(el, "drop", this.onDrop);
+    on(window, "paste", this.onPaste as EventListener);
     on(window, "keydown", this.onKeyDown);
     on(window, "keyup", this.onKeyUp);
     on(window, "blur", () => {
@@ -529,8 +533,8 @@ export class Board implements BoardApi {
       }
     }
     drawings.sort(byZ).forEach((d, i) => {
-      const shape = this.drawings.get(d.id)!.shape;
-      if (shape.zIndex() !== i) shape.zIndex(i);
+      const shape = this.drawings.get(d.id)?.shape;
+      if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
 
     fogs.sort(byZ);
@@ -1185,19 +1189,34 @@ export class Board implements BoardApi {
       this.toggleSelected(hit.id);
       return;
     }
-    if (hit?.kind === "token") {
-      // Grabbing a token that's part of the selection moves the whole selection.
+    // Drawings move only once selected, so a big shape doesn't hijack every attempt to pan.
+    if (hit?.kind === "token" || (hit?.kind === "drawing" && s.selection.includes(hit.id))) {
+      // Grabbing something that's part of the selection moves the whole selection:
+      // tokens, drawings and notes together.
       const group = s.selection.includes(hit.id) ? s.selection : [hit.id];
       if (!s.selection.includes(hit.id)) this.room.select([hit.id]);
       const origs = new Map<string, Point>();
+      const drawings: string[] = [];
       for (const id of group) {
         const item = s.items[id];
-        if (item?.kind === "token" && this.room.canMoveItem(item)) origs.set(id, { x: item.x, y: item.y });
+        if (!item || !this.room.canMoveItem(item)) continue;
+        if (item.kind === "token") origs.set(id, { x: item.x, y: item.y });
+        else if (item.kind === "drawing" && this.drawings.has(id)) drawings.push(id);
       }
-      if (origs.has(hit.id)) {
-        this.gesture = { kind: "drag-token", pointerId, id: hit.id, origs, start: pos, startWorld: world, moved: false, lastEph: 0 };
+      if (origs.has(hit.id) || drawings.includes(hit.id)) {
+        this.gesture = {
+          kind: "drag-items",
+          pointerId,
+          id: hit.id,
+          origs,
+          drawings,
+          start: pos,
+          startWorld: world,
+          moved: false,
+          lastEph: 0,
+        };
       } else {
-        this.startPan(pointerId, pos);
+        this.startPan(pointerId, pos, hit.kind === "drawing" ? () => this.room.select([hit.id]) : undefined);
       }
       return;
     }
@@ -1218,12 +1237,7 @@ export class Board implements BoardApi {
       return;
     }
     if (hit?.kind === "drawing") {
-      // Drawings move only once selected, so a big shape doesn't hijack every attempt to pan.
-      if (s.selection.includes(hit.id) && this.room.canMoveItem(hit)) {
-        this.gesture = { kind: "drag-drawing", pointerId, id: hit.id, start: pos, startWorld: world, moved: false, lastEph: 0 };
-      } else {
-        this.startPan(pointerId, pos, () => this.room.select([hit.id]));
-      }
+      this.startPan(pointerId, pos, () => this.room.select([hit.id]));
       return;
     }
     this.startPan(pointerId, pos, () => this.room.select([]));
@@ -1584,8 +1598,8 @@ export class Board implements BoardApi {
         this.setCam(g.cam.x + dx, g.cam.y + dy, g.cam.scale);
         return;
       }
-      case "drag-token": {
-        if (!this.tokens.has(g.id)) {
+      case "drag-items": {
+        if (!this.tokens.has(g.id) && !this.drawings.has(g.id)) {
           this.cancelGesture();
           return;
         }
@@ -1596,9 +1610,13 @@ export class Board implements BoardApi {
             this.dragging.add(id);
             this.tokens.get(id)?.group.moveToTop();
           }
+          // A drawing that vanished before the drag began (erased, or hidden by the GM) stays out of it.
+          g.drawings = g.drawings.filter((id) => this.drawings.has(id));
+          for (const id of g.drawings) this.dragging.add(id);
         }
         const dx = world.x - g.startWorld.x;
         const dy = world.y - g.startWorld.y;
+        // Tokens carry their centre; drawings carry how far they've moved.
         const moves: { id: string; x: number; y: number }[] = [];
         for (const [id, o] of g.origs) {
           const n = this.tokens.get(id);
@@ -1607,7 +1625,14 @@ export class Board implements BoardApi {
           n.group.position(p);
           moves.push({ id, x: round2(p.x), y: round2(p.y) });
         }
-        this.tokenLayer.batchDraw();
+        for (const id of g.drawings) {
+          const n = this.drawings.get(id);
+          if (!n) continue;
+          n.shape.position({ x: n.base.x + dx, y: n.base.y + dy });
+          moves.push({ id, x: round2(dx), y: round2(dy) });
+        }
+        if (g.origs.size) this.tokenLayer.batchDraw();
+        if (g.drawings.length) this.drawLayer.batchDraw();
         if (now - g.lastEph > EPH_INTERVAL) {
           g.lastEph = now;
           this.room.sendEph({ k: "drag", sceneId: scene.id, moves });
@@ -1645,26 +1670,6 @@ export class Board implements BoardApi {
           height: Math.abs(world.y - g.start.y),
         });
         this.uiLayer.batchDraw();
-        return;
-      }
-      case "drag-drawing": {
-        const n = this.drawings.get(g.id);
-        if (!n) {
-          this.gesture = { kind: "none" };
-          return;
-        }
-        if (!g.moved) {
-          if (Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
-          g.moved = true;
-          this.dragging.add(g.id);
-        }
-        const offset = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
-        n.shape.position({ x: n.base.x + offset.x, y: n.base.y + offset.y });
-        this.drawLayer.batchDraw();
-        if (now - g.lastEph > EPH_INTERVAL) {
-          g.lastEph = now;
-          this.room.sendEph({ k: "drag", sceneId: scene.id, moves: [{ id: g.id, x: round2(offset.x), y: round2(offset.y) }] });
-        }
         return;
       }
       case "draw":
@@ -1791,8 +1796,7 @@ export class Board implements BoardApi {
         const x0 = Math.min(g.start.x, g.end.x);
         const y0 = Math.min(g.start.y, g.end.y);
         const mod = (v: number) => Math.round((((v % size) + size) % size) * 100) / 100;
-        this.room.upsertScene({
-          ...scene,
+        this.room.updateScene(scene.id, {
           grid: { ...scene.grid, type: "square", size, offsetX: mod(x0), offsetY: mod(y0), show: true },
         });
         this.room.store.set({ gridAlign: null });
@@ -1808,43 +1812,56 @@ export class Board implements BoardApi {
           this.room.store.set({ textPrompt: { x: round2(g.world.x), y: round2(g.world.y), fontSize } });
         }
         return;
-      case "drag-token": {
+      case "drag-items": {
         if (!g.moved) return;
         for (const id of g.origs.keys()) {
           this.dragging.delete(id);
           const n = this.tokens.get(id);
           if (n) n.dirty = true;
         }
+        // Drawings that vanished during the drag (and perhaps came back) weren't moved on screen: leave them.
+        const moved = new Set(g.drawings.filter((id) => this.dragging.has(id)));
+        for (const id of g.drawings) {
+          this.dragging.delete(id);
+          this.resetDrawing(id);
+        }
         this.itemsDirty = true;
         const items = this.room.state.items;
         const snap = scene.grid.snap && !e.altKey;
-        const hex = isHex(scene.grid);
         let offset = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
         const lead = items[g.id];
-        const leadOrig = g.origs.get(g.id)!;
-        if (snap && !hex && lead?.kind === "token") {
-          // Snap the token being held; the rest keep their places around it.
+        const leadOrig = g.origs.get(g.id);
+        if (snap && lead?.kind === "token" && leadOrig) {
+          // Snap the token being held; everything else keeps its place around it.
           const p = snapTokenCenter({ x: leadOrig.x + offset.x, y: leadOrig.y + offset.y }, lead.size, scene.grid);
           offset = { x: p.x - leadOrig.x, y: p.y - leadOrig.y };
         }
         const patches: ItemPatch[] = [];
+        const finalMoves: { id: string; x: number; y: number }[] = [];
         for (const [id, o] of g.origs) {
           const item = items[id];
           if (!item || item.kind !== "token") continue;
           let p = { x: o.x + offset.x, y: o.y + offset.y };
-          if (snap && hex) p = snapTokenCenter(p, item.size, scene.grid);
+          // A token that sat on the grid stays on it, whatever size the one being held is.
+          if (snap && id !== g.id && isOnGrid(o, item.size, scene.grid)) p = snapTokenCenter(p, item.size, scene.grid);
           const x = round2(p.x);
           const y = round2(p.y);
           if (x !== item.x || y !== item.y) patches.push({ id, set: { x, y } });
+          finalMoves.push({ id, x, y });
+        }
+        if (offset.x || offset.y) {
+          for (const id of g.drawings) {
+            const item = items[id];
+            if (!item || item.kind !== "drawing" || !moved.has(id)) continue;
+            const points = item.points.map((v, i) => round2(v + (i % 2 === 0 ? offset.x : offset.y)));
+            patches.push({ id, set: { points } });
+          }
         }
         if (patches.length) this.room.change({ patch: patches });
         else this.scheduleSync();
-        // Others followed the drag live; tell them where everything ended up.
-        const finalMoves = [...g.origs].map(([id, o]) => {
-          const p = patches.find((x) => x.id === id)?.set;
-          return { id, x: p?.x ?? o.x, y: p?.y ?? o.y };
-        });
-        this.room.sendEph({ k: "drag", sceneId: scene.id, moves: finalMoves });
+        // Others followed the tokens live; tell them where they ended up. (Drawings
+        // settle when the change arrives.)
+        if (finalMoves.length) this.room.sendEph({ k: "drag", sceneId: scene.id, moves: finalMoves });
         return;
       }
       case "marquee": {
@@ -1867,22 +1884,6 @@ export class Board implements BoardApi {
         }
         const base = g.additive ? this.room.state.selection.filter((id) => !picked.includes(id)) : [];
         this.room.select([...base, ...picked]);
-        return;
-      }
-      case "drag-drawing": {
-        if (!g.moved) return;
-        this.dragging.delete(g.id);
-        const item = this.room.state.items[g.id];
-        this.resetDrawing(g.id);
-        this.itemsDirty = true;
-        if (!item || item.kind !== "drawing") {
-          this.scheduleSync();
-          return;
-        }
-        const dx = world.x - g.startWorld.x;
-        const dy = world.y - g.startWorld.y;
-        const points = item.points.map((v, i) => round2(v + (i % 2 === 0 ? dx : dy)));
-        this.room.change({ patch: [{ id: item.id, set: { points } }] });
         return;
       }
       case "draw":
@@ -1937,16 +1938,25 @@ export class Board implements BoardApi {
     const g = this.gesture;
     this.gesture = { kind: "none" };
     switch (g.kind) {
-      case "drag-token": {
+      case "drag-items": {
         for (const id of g.origs.keys()) {
           this.dragging.delete(id);
           const n = this.tokens.get(id);
           if (n) n.dirty = true;
         }
+        for (const id of g.drawings) {
+          this.dragging.delete(id);
+          this.resetDrawing(id);
+        }
         this.itemsDirty = true;
+        this.drawLayer.batchDraw();
         this.scheduleSync();
+        // Others saw them moving: put them back for them too.
         if (g.moved && this.renderedSceneId) {
-          const moves = [...g.origs].map(([id, o]) => ({ id, x: o.x, y: o.y }));
+          const moves = [
+            ...[...g.origs].map(([id, o]) => ({ id, x: o.x, y: o.y })),
+            ...g.drawings.map((id) => ({ id, x: 0, y: 0 })),
+          ];
           this.room.sendEph({ k: "drag", sceneId: this.renderedSceneId, moves });
         }
         break;
@@ -1954,15 +1964,6 @@ export class Board implements BoardApi {
       case "marquee":
         g.node.destroy();
         this.uiLayer.batchDraw();
-        break;
-      case "drag-drawing":
-        this.dragging.delete(g.id);
-        this.resetDrawing(g.id);
-        this.drawLayer.batchDraw();
-        // Others saw it moving: put it back for them too.
-        if (g.moved && this.renderedSceneId) {
-          this.room.sendEph({ k: "drag", sceneId: this.renderedSceneId, moves: [{ id: g.id, x: 0, y: 0 }] });
-        }
         break;
       case "draw":
       case "fog-rect":
@@ -2023,16 +2024,46 @@ export class Board implements BoardApi {
 
   private onDrop = (e: DragEvent): void => {
     e.preventDefault();
-    if (!this.renderedScene) return;
+    if (!this.renderedScene) {
+      // Nothing on the board yet: a map can still start a scene.
+      if (this.isGm) void this.takeFiles([...(e.dataTransfer?.files ?? [])], null);
+      return;
+    }
     const world = this.toWorld(this.localPos(e));
     const assetId = e.dataTransfer?.getData("application/x-tabletop-asset");
     if (assetId) {
       this.room.addToken({ assetId }, world);
       return;
     }
-    const files = [...(e.dataTransfer?.files ?? [])].filter((f) => f.type.startsWith("image/"));
-    if (files.length) void this.room.uploadTokens(files, world);
+    void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
   };
+
+  /** An image pasted from the clipboard: a map for a new scene, or a token in the middle of the view. */
+  private onPaste = (e: ClipboardEvent): void => {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (document.querySelector(".modal-backdrop") || !this.renderedScene) return;
+    const files = [...(e.clipboardData?.files ?? [])];
+    if (!files.length) return;
+    e.preventDefault();
+    void this.takeFiles(files, this.viewCenter());
+  };
+
+  /**
+   * Files dropped or pasted on the board. For the GM, map files and big images start
+   * new scenes (in the new-scene dialog); other images become tokens where they landed.
+   */
+  private async takeFiles(files: File[], at: Point | null): Promise<void> {
+    const maps: File[] = [];
+    const tokens: File[] = [];
+    for (const f of files) {
+      if (this.isGm && (await looksLikeMap(f))) maps.push(f);
+      else if (f.type.startsWith("image/")) tokens.push(f);
+      else if (isVttFile(f) || /\.(ob2|owlbear)$/i.test(f.name)) this.room.toast("Only the GM can add maps.", "error");
+    }
+    if (maps.length) this.room.store.set({ mapImport: maps });
+    if (tokens.length && at) void this.room.uploadTokens(tokens, at);
+  }
 
   private onKeyDown = (e: KeyboardEvent): void => {
     const t = e.target as HTMLElement | null;
