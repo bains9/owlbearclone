@@ -2,6 +2,8 @@ import { isRoomId } from "../../shared/ids";
 import { Home } from "./Home";
 import { RoomPage } from "./RoomPage";
 import { DisplayPage } from "./TableDisplay";
+import { useEffect, useState } from "preact/hooks";
+import type { ComponentType } from "preact";
 
 export function App() {
   const path = location.pathname;
@@ -11,6 +13,7 @@ export function App() {
     return displayKey !== null ? <DisplayPage roomId={m[1]} displayKey={displayKey} /> : <RoomPage roomId={m[1]} />;
   }
   if (path === "/" || path === "") return <Home />;
+  if (path === "/guide" || path === "/guide/") return <GuideRoute />;
   return (
     <div class="center-page">
       <div class="card">
@@ -26,4 +29,13 @@ export function App() {
       </div>
     </div>
   );
+}
+
+/** The guide is big, so it loads only when someone opens it. */
+function GuideRoute() {
+  const [Page, setPage] = useState<ComponentType | null>(null);
+  useEffect(() => {
+    void import("./GuidePage").then((m) => setPage(() => m.GuidePage));
+  }, []);
+  return Page ? <Page /> : <div class="center-page muted">Loading…</div>;
 }

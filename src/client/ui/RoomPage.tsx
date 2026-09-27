@@ -504,6 +504,12 @@ function HelpDialog(props: { onClose: () => void }) {
         As the GM, dropping a map (a big image, or a Dungeondraft or other Universal VTT file) starts a new scene with it.
         The monitor button (GM) opens a table display: the map alone, as players see it, for a second screen or a TV.
       </p>
+      <p class="small">
+        <a href="/guide" target="_blank" rel="noopener">
+          Read the full guide
+        </a>{" "}
+        (opens in a new tab)
+      </p>
     </Modal>
   );
 }

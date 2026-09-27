@@ -90,6 +90,9 @@ function Welcome(props: { configured: boolean; google: boolean; onSignedIn: () =
             <p class="muted">A private virtual tabletop.</p>
           </div>
         </div>
+        <p class="small guide-link">
+          New here? <a href="/guide">How to use Tabletop</a>
+        </p>
 
         <form
           class="card"
@@ -196,7 +199,9 @@ function GmHome(props: { onSignedOut: () => void }) {
           <Logo size={40} />
           <div class="grow">
             <h1>Your rooms</h1>
-            <p class="muted">Signed in as the GM.</p>
+            <p class="muted">
+              Signed in as the GM. <a href="/guide">How to use Tabletop</a>
+            </p>
           </div>
           <button
             class="btn"

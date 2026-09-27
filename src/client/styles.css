@@ -1078,6 +1078,110 @@ button:disabled {
 .import-notes li {
   margin: 4px 0;
 }
+/* The user guide. */
+.guide-page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+  line-height: 1.6;
+}
+.guide-head h1 {
+  margin: 16px 0 6px;
+  font-size: 28px;
+}
+.guide-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.guide-toc {
+  margin: 24px 0 32px;
+}
+.guide-toc h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.guide-toc ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.guide-toc li {
+  margin: 4px 0;
+}
+.guide-toc li .guide-tag {
+  margin-left: 8px;
+}
+.guide-section {
+  padding-top: 12px;
+  margin-bottom: 36px;
+  scroll-margin-top: 16px;
+}
+.guide-section-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.guide-section-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.guide-part h3 {
+  margin: 20px 0 6px;
+  font-size: 17px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+}
+.guide-steps,
+.guide-notes {
+  margin: 6px 0;
+  padding-left: 24px;
+}
+.guide-steps li,
+.guide-notes li {
+  margin: 5px 0;
+}
+.guide-notes {
+  color: var(--muted);
+}
+.guide-page code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  font-size: 0.92em;
+}
+.guide-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.guide-tag.gm {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.guide-tag.player {
+  color: #5bba6f;
+  border-color: color-mix(in srgb, #5bba6f 50%, transparent);
+}
+.guide-top {
+  display: inline-block;
+  margin-top: 12px;
+}
+.guide-link {
+  margin: -4px 0 12px;
+}
+
 /* Table display: the map alone, on a second screen. */
 .display-room {
   position: fixed;
