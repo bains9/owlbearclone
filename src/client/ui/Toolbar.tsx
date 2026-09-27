@@ -31,7 +31,7 @@ import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
   { id: "select", label: "Move & select", key: "V", icon: MousePointer2 },
   { id: "draw", label: "Draw", key: "D", icon: Pencil },
-  { id: "erase", label: "Erase drawings", key: "E", icon: Eraser },
+  { id: "erase", label: "Eraser: drawings, notes and tokens", key: "E", icon: Eraser },
   { id: "fog", label: "Fog of war", key: "F", icon: CloudFog, gm: true },
   { id: "measure", label: "Measure", key: "M", icon: Ruler },
   { id: "pointer", label: "Pointer", key: "P", icon: Pointer },
@@ -248,7 +248,7 @@ function EraseOptions() {
   };
   return (
     <div class="tool-options">
-      <span class="hint">Drag over drawings to erase them.</span>
+      <span class="hint">Drag over drawings, notes or tokens to erase them. Locked tokens stay put.</span>
       <button class="btn btn-sm" onClick={() => setConfirm(true)}>
         {gm ? "Clear all drawings" : "Clear my drawings"}
       </button>

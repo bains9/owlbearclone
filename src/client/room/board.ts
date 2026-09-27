@@ -116,7 +116,7 @@ type Gesture =
       points: number[];
       node: Konva.Shape;
     }
-  | { kind: "erase"; pointerId: number; ids: Set<string> }
+  | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean }
   | { kind: "fog-rect"; pointerId: number; start: Point; end: Point; node: Konva.Rect }
   | { kind: "fog-lasso"; pointerId: number; points: number[]; node: Konva.Line }
   | { kind: "fog-paint"; pointerId: number; points: number[]; pieces: number[][]; width: number; node: Konva.Line }
@@ -1221,7 +1221,7 @@ export class Board implements BoardApi {
         this.drawDown(e.pointerId, world);
         return;
       case "erase":
-        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set() };
+        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set(), warned: false };
         this.eraseAt(this.gesture, pos);
         return;
       case "fog":
@@ -1435,6 +1435,24 @@ export class Board implements BoardApi {
     const r = 6;
     for (const p of [pos, { x: pos.x + r, y: pos.y }, { x: pos.x - r, y: pos.y }, { x: pos.x, y: pos.y + r }, { x: pos.x, y: pos.y - r }]) {
       if (this.fogged(p)) continue;
+      // Tokens sit above drawings, so a token under the eraser is what gets erased there.
+      const token = this.itemAt(p, this.tokenLayer);
+      if (token?.kind === "token") {
+        if (g.ids.has(token.id)) continue;
+        if (token.locked) {
+          // Locked means "leave this alone": the eraser doesn't take locked tokens.
+          if (!g.warned && canDelete(token, me)) {
+            g.warned = true;
+            this.room.toast("Locked tokens aren't erased. Unlock one first (select it, then the lock button or L).");
+          }
+          continue;
+        }
+        if (!canDelete(token, me)) continue;
+        g.ids.add(token.id);
+        this.tokens.get(token.id)?.group.hide();
+        this.tokenLayer.batchDraw();
+        continue;
+      }
       const item = this.itemAt(p, this.drawLayer);
       if (!item || item.kind !== "drawing" || g.ids.has(item.id) || !canDelete(item, me)) continue;
       g.ids.add(item.id);
@@ -2059,8 +2077,12 @@ export class Board implements BoardApi {
         this.uiLayer.batchDraw();
         break;
       case "erase":
-        for (const id of g.ids) this.drawings.get(id)?.shape.show();
+        for (const id of g.ids) {
+          this.drawings.get(id)?.shape.show();
+          this.tokens.get(id)?.group.show();
+        }
         this.drawLayer.batchDraw();
+        this.tokenLayer.batchDraw();
         break;
       case "measure":
         this.localRuler = null;

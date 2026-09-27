@@ -130,7 +130,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "**Move & select (V)**: move tokens, select things, and drag empty space to move around the map.",
           "**Draw (D)**: freehand, lines, rectangles, ellipses and text notes. Players can only draw if the GM allows it. If the GM hasn't, you'll see \"The GM has turned drawing off.\" when you try.",
-          "**Erase drawings (E)**: drag over drawings to erase them. Players can only erase their own drawings. The tool's options also have **Clear my drawings** (for the GM, **Clear all drawings**), which asks you to confirm first. Undo brings them back.",
+          "**Eraser (E)**: drag over drawings, notes or tokens to erase them. Locked tokens stay put. Players can only erase their own drawings and tokens. The tool's options also have **Clear my drawings** (for the GM, **Clear all drawings**), which asks you to confirm first. Undo brings them back.",
           "**Fog of war (F)**: GM only. Hide and reveal parts of the map.",
           "**Measure (M)**: a ruler and spell areas.",
           "**Pointer (P)**: hold and drag to point. Everyone sees the trail.",
@@ -231,7 +231,7 @@ export const GUIDE: GuideSection[] = [
           "Tap an empty part of the map when you're done with a selection."
         ],
         "notes": [
-          "With **Draw**, **Erase drawings**, **Measure**, **Pointer** or (GM) **Fog of war** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
+          "With **Draw**, the **Eraser**, **Measure**, **Pointer** or (GM) **Fog of war** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
           "The zoom buttons work on touch screens too.",
           "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard."
         ]
@@ -385,6 +385,7 @@ export const GUIDE: GuideSection[] = [
           "To remove the selection, click **Delete (Del)** (the bin) or press **Delete**."
         ],
         "notes": [
+          "You can also erase tokens with the **Eraser** (**E**): drag it over them.",
           "Copies appear one square to the right and get numbered names: \"Goblin\" becomes \"Goblin 2\", then \"Goblin 3\", always one higher than the highest number already on the scene. Unnamed tokens stay unnamed.",
           "The copies are selected afterwards, so you can drag them straight away.",
           "When a player copies a GM's token, the copy is never hidden or locked.",
@@ -547,22 +548,24 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
-        "title": "Erase drawings",
+        "title": "Erase drawings and tokens",
         "steps": [
-          "Click **Erase drawings** (the eraser) in the toolbar, or press **E**.",
-          "Drag over the drawings you want to get rid of."
+          "Click the **Eraser** in the toolbar, or press **E**.",
+          "Drag over the drawings, notes or tokens you want to get rid of."
         ],
         "notes": [
-          "The eraser removes whole drawings, notes and pinned spell areas. It never touches tokens or fog.",
-          "Players can only erase their own drawings.",
-          "You can also select a drawing and press **Delete**."
+          "The eraser removes whole drawings, notes, pinned spell areas and tokens. It never touches fog.",
+          "Locked tokens aren't erased; you'll see a message saying so. Unlock one first (select it, then the lock button or **L**) if you really want it gone.",
+          "Players can only erase their own drawings and their own unlocked tokens.",
+          "Each drag is one step for **Undo**, which brings everything back.",
+          "You can also select something and press **Delete**."
         ]
       },
       {
         "title": "Clear all drawings at once",
         "steps": [
-          "Click **Erase drawings**, or press **E**.",
-          "In the eraser's bar, next to the hint **Drag over drawings to erase them.**, click **Clear all drawings** (GM) or **Clear my drawings** (player).",
+          "Click the **Eraser**, or press **E**.",
+          "In the eraser's bar, click **Clear all drawings** (GM) or **Clear my drawings** (player).",
           "Click **Clear** to confirm."
         ],
         "notes": [
@@ -2066,7 +2069,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "**V**: Move & select",
           "**D**: Draw",
-          "**E**: Erase drawings",
+          "**E**: Eraser (drawings, notes and tokens)",
           "**M**: Measure",
           "**P**: Pointer",
           "**F**: Fog of war (GM)"
