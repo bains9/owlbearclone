@@ -2,12 +2,16 @@
 //
 //   node scripts/smoke.mjs                         (local dev server on :5230, password from .dev.vars)
 //   BASE=https://table.parhome.ca GM_PASSWORD=... node scripts/smoke.mjs
+//   GOOGLE=1 node scripts/smoke.mjs                (local only: also checks Google sign-in,
+//                                                   standing in for Google on port 5239)
 //
 // It signs in as the GM, creates a throwaway room, connects a GM and two players
 // over WebSockets, exercises permissions, hidden tokens, dice, uploads and scene
 // switching, then deletes the room again.
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 
 const BASE = process.env.BASE ?? "http://localhost:5230";
 const WS_BASE = BASE.replace(/^http/, "ws");
@@ -63,8 +67,140 @@ const TINY_PNG = Buffer.from(
   "base64",
 );
 
+/**
+ * Google sign-in, end to end, against a local server whose .dev.vars points
+ * GOOGLE_TOKEN_URL at the stand-in for Google's token endpoint started here.
+ */
+async function googleChecks() {
+  const vars = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
+  const value = (k) => new RegExp(`^${k}=(.*)$`, "m").exec(vars)?.[1]?.trim();
+  const clientId = value("GOOGLE_CLIENT_ID");
+  const clientSecret = value("GOOGLE_CLIENT_SECRET");
+  const gmEmail = (value("GM_EMAILS") ?? "").split(/[\s,;]+/)[0];
+  if (!clientId || !clientSecret || !gmEmail) throw new Error("GOOGLE=1 needs the Google values in .dev.vars");
+
+  // What the stand-in answers the next code exchange with, and what it was sent.
+  let nextClaims = null;
+  let lastForm = null;
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      lastForm = new URLSearchParams(body);
+      res.writeHead(nextClaims ? 200 : 400, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify(
+          nextClaims ? { id_token: `${b64({ alg: "RS256" })}.${b64(nextClaims)}.signature`, access_token: "x" } : { error: "invalid_grant" },
+        ),
+      );
+    });
+  });
+  await new Promise((resolve) => server.listen(5239, "127.0.0.1", resolve));
+  try {
+    let r = await fetch(`${BASE}/api/me`);
+    check((await r.json()).google === true, "Google sign-in is offered when it's set up");
+
+    const start = async () => {
+      const res = await fetch(`${BASE}/api/auth/google`, { redirect: "manual" });
+      const loc = new URL(res.headers.get("location"));
+      const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0];
+      const claims = (email, extra = {}) => ({
+        iss: "https://accounts.google.com",
+        aud: clientId,
+        exp: Math.floor(Date.now() / 1000) + 300,
+        email,
+        email_verified: true,
+        nonce: loc.searchParams.get("nonce"),
+        ...extra,
+      });
+      return { res, loc, cookie, state: loc.searchParams.get("state"), claims };
+    };
+    const callback = (state, cookie, extra = "") =>
+      fetch(`${BASE}/api/auth/google/callback?code=abc&state=${state}${extra}`, {
+        redirect: "manual",
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+    const session = (res) => (res.headers.get("set-cookie") ?? "").match(/tt_gm=[^;]+/)?.[0];
+
+    let s = await start();
+    const p = s.loc.searchParams;
+    check(
+      s.res.status === 303 &&
+        s.loc.host === "accounts.google.com" &&
+        p.get("client_id") === clientId &&
+        p.get("redirect_uri") === `${BASE}/api/auth/google/callback` &&
+        p.get("code_challenge_method") === "S256" &&
+        p.get("scope") === "openid email" &&
+        s.cookie.startsWith("tt_oauth=") &&
+        /HttpOnly/i.test(s.res.headers.get("set-cookie") ?? ""),
+      "sign-in sends the browser to Google with a state, a nonce and a PKCE challenge",
+    );
+
+    nextClaims = s.claims(gmEmail.toUpperCase());
+    r = await callback(s.state, s.cookie);
+    const gmCookie = session(r);
+    check(r.status === 303 && r.headers.get("location") === "/" && gmCookie?.startsWith("tt_gm=g1."), "an allowed Google account becomes the GM");
+    check(
+      lastForm?.get("client_secret") === clientSecret &&
+        lastForm.get("grant_type") === "authorization_code" &&
+        createHash("sha256").update(lastForm.get("code_verifier") ?? "").digest("base64url") === p.get("code_challenge"),
+      "the code is traded with the client secret and the PKCE verifier",
+    );
+    r = await fetch(`${BASE}/api/me`, { headers: { Cookie: gmCookie } });
+    check((await r.json()).gm === true, "the Google session makes you the GM");
+    r = await fetch(`${BASE}/api/rooms`, { headers: { Cookie: gmCookie } });
+    check(r.ok, "and lets you list rooms");
+    const [, exp, who, sig] = gmCookie.split(".");
+    const forged = `tt_gm=g1.${Number(exp) + 1}.${who}.${sig}`;
+    r = await fetch(`${BASE}/api/me`, { headers: { Cookie: forged } });
+    check((await r.json()).gm === false, "a Google session with its expiry changed is refused");
+
+    const refused = async (label, reason, setup) => {
+      const t = await start();
+      const res = await setup(t);
+      check(res.status === 303 && res.headers.get("location") === `/?signin=${reason}` && !session(res), label);
+    };
+    await refused("an account that isn't on the GM list is refused", "denied", (t) => {
+      nextClaims = t.claims("stranger@example.test");
+      return callback(t.state, t.cookie);
+    });
+    await refused("a callback with the wrong state is refused", "expired", (t) => {
+      nextClaims = t.claims(gmEmail);
+      return callback("not-the-state", t.cookie);
+    });
+    await refused("a callback without the browser's state cookie is refused", "expired", (t) => {
+      nextClaims = t.claims(gmEmail);
+      return callback(t.state, null);
+    });
+    await refused("a token with the wrong nonce is refused", "failed", (t) => {
+      nextClaims = t.claims(gmEmail, { nonce: "something-else" });
+      return callback(t.state, t.cookie);
+    });
+    await refused("a token for another app is refused", "failed", (t) => {
+      nextClaims = t.claims(gmEmail, { aud: "someone-elses-client" });
+      return callback(t.state, t.cookie);
+    });
+    await refused("an unverified email is refused", "unverified", (t) => {
+      nextClaims = t.claims(gmEmail, { email_verified: false });
+      return callback(t.state, t.cookie);
+    });
+    await refused("a failed code exchange is refused", "failed", (t) => {
+      nextClaims = null;
+      return callback(t.state, t.cookie);
+    });
+    await refused("cancelling at Google comes back as cancelled", "cancelled", (t) => callback(t.state, t.cookie, "&error=access_denied"));
+  } finally {
+    server.close();
+  }
+}
+
 async function main() {
   console.log(`Smoke test against ${BASE}`);
+  if (process.env.GOOGLE === "1") {
+    if (/localhost|127\.0\.0\.1/.test(BASE)) await googleChecks();
+    else console.log("  skip  Google checks only run locally");
+  }
 
   let r = await fetch(`${BASE}/api/me`);
   check(r.ok && (await r.json()).gm === false, "anonymous visitor is not the GM");

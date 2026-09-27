@@ -7,6 +7,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, AssetKind, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie } from "./auth";
+import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
 
 export { Directory } from "./directory";
@@ -125,7 +126,17 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (pathname === "/api/me" && method === "GET") {
-    return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD) });
+    return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD), google: googleConfigured(env) });
+  }
+
+  if (pathname === "/api/auth/google" && method === "GET") {
+    return startGoogleSignIn(env, url, secure);
+  }
+
+  if (pathname === "/api/auth/google/callback" && method === "GET") {
+    // GOOGLE_TOKEN_URL stands in for Google in local tests; it is never used on the real site.
+    const tokenUrl = isLocal(url) && env.GOOGLE_TOKEN_URL ? env.GOOGLE_TOKEN_URL : undefined;
+    return finishGoogleSignIn(request, env, url, secure, tokenUrl);
   }
 
   if (pathname === "/api/login" && method === "POST") {

@@ -1,2 +1,9 @@
 # Copy to .dev.vars for local development. .dev.vars is never committed or deployed.
 GM_PASSWORD=pick-anything-for-local-testing
+
+# Google sign-in for local testing. These made-up values only work with the smoke
+# test's stand-in for Google (GOOGLE=1 npm run smoke), which listens on port 5239.
+GOOGLE_CLIENT_ID=local-test-client.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=local-test-secret
+GM_EMAILS=gm@example.test
+GOOGLE_TOKEN_URL=http://127.0.0.1:5239/token

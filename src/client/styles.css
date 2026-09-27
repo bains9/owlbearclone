@@ -173,6 +173,16 @@ button:disabled {
   width: 100%;
 }
 
+/* Google's own look for its sign-in button: neutral, with the coloured G. */
+.google-btn {
+  padding: 9px 14px;
+  gap: 10px;
+}
+.or-line {
+  text-align: center;
+  margin: 10px 0 8px;
+}
+
 .icon-btn {
   position: relative;
   display: inline-flex;

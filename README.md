@@ -5,8 +5,8 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
 
 ## What it does
 
-- **Rooms.** The GM signs in with a password, creates rooms, and shares the room link. Players open the
-  link, pick a name and colour, and they're in. No player accounts.
+- **Rooms.** The GM signs in with Google (or a password), creates rooms, and shares the room link. Players
+  open the link, pick a name and colour, and they're in. No player accounts.
 - **Scenes.** Upload battle maps (several at once: one scene each, named after the file), drop or paste
   them straight onto the board, or start from a blank grid. Square grids or hex grids (rows or columns),
   lined up with the map by cells across/down, cell size and offset, or by drawing a box over a few cells.
@@ -67,9 +67,13 @@ never got, and a change that arrives twice is applied once. A change to a scene 
 completely or not at all, so players never see a map between the two halves.
 
 **Security.**
-- One GM password (the `GM_PASSWORD` secret). Signing in sets an HttpOnly, Secure, SameSite=Lax cookie
-  signed with a key derived from a random server-side secret *and* the password, so changing the password
-  signs every session out.
+- GM sign-in with Google: only the accounts listed in the `GM_EMAILS` secret become the GM, and taking an
+  address off the list ends its sessions. OpenID Connect code flow with PKCE, a signed state and a nonce; the
+  ID token comes straight from Google's token endpoint and its issuer, audience, expiry, nonce and verified
+  email are checked.
+- Or one GM password (the `GM_PASSWORD` secret). Either way, signing in sets an HttpOnly, Secure,
+  SameSite=Lax cookie signed with a key derived from a random server-side secret; for password sessions the
+  key also mixes in the password, so changing it signs those sessions out.
 - Login attempts are counted before the password is checked: 10 wrong guesses per address (an IPv6 /64
   counts as one) and 60 overall per 15 minutes.
 - The GM is a role, not a browser id, so no player can claim the GM's rolls or images.
@@ -130,6 +134,24 @@ npx wrangler secret put GM_PASSWORD # prompts for the password; sign-in is disab
 change `routes` in `wrangler.jsonc` and `connect-src` in `public/_headers`.
 
 After that, `npm run deploy` is all it takes.
+
+## Google sign-in
+
+1. In Google Cloud Console, create a project, set up the OAuth consent screen (Google Auth Platform:
+   an External app asking only for the basic `openid` and `email` scopes), and create an **OAuth client ID**
+   of type **Web application** with this authorized redirect URI:
+   `https://table.parhome.ca/api/auth/google/callback`
+2. Give the Worker the client and the GM list (each command prompts for the value):
+
+   ```bash
+   npx wrangler secret put GOOGLE_CLIENT_ID
+   npx wrangler secret put GOOGLE_CLIENT_SECRET
+   npx wrangler secret put GM_EMAILS      # e.g. gm@example.com, you@example.com
+   ```
+
+The start page shows **Sign in with Google** once all three are set. The GM password keeps working if
+`GM_PASSWORD` is set, and the sign-in form hides it if not. Locally, `.dev.vars` holds made-up Google values
+that only work with the smoke test's stand-in for Google: `GOOGLE=1 npm run smoke`.
 
 ## Costs
 
