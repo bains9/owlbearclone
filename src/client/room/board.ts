@@ -55,6 +55,9 @@ import {
 import type { Side } from "./build";
 import { drawStamp } from "./buildArt";
 import { getImage, imageFailed } from "./images";
+import { SeasonBaker } from "./seasons";
+import type { SeasonJob } from "./seasons";
+import { ALGO_VERSION, seedFrom } from "./seasonPixels";
 import { isVttFile, looksLikeMap } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -239,6 +242,9 @@ export class Board implements BoardApi {
   /** Build tool: what the next click would do, under the mouse. */
   private buildHover: Konva.Shape;
   private hover: Point | null = null;
+  /** The map picture redrawn for the scene's season (snow, autumn, blossom, drought). */
+  private seasons: SeasonBaker;
+  private renderedSeasonsOff = false;
   /** Alt is held: the Build tool takes away instead of adding. */
   private altDown = false;
   /** Walls being placed corner by corner with a mouse: the corners so far, and the grid lines between them. */
@@ -310,6 +316,20 @@ export class Board implements BoardApi {
       listening: false,
       sceneFunc: (ctx) => this.drawBuild(native(ctx)),
     });
+    this.seasons = new SeasonBaker(() => {
+      // A seasonal picture is ready: show it.
+      const scene = this.renderedScene;
+      if (scene) {
+        this.updateMap(scene);
+        this.bgLayer.batchDraw();
+      }
+      // And how much of the map is outdoors, for the season picker's "indoor map" note.
+      const assetId = scene?.mapAssetId;
+      const frac = assetId ? this.seasons.outdoor(assetId) : undefined;
+      if (assetId && frac !== undefined && room.state.mapOutdoor[assetId] !== frac) {
+        room.store.set((s) => ({ mapOutdoor: { ...s.mapOutdoor, [assetId]: frac } }));
+      }
+    }, room.display);
     this.buildHover = new Konva.Shape({
       listening: false,
       visible: false,
@@ -377,6 +397,7 @@ export class Board implements BoardApi {
 
   destroy(): void {
     if (this.viewTimer) clearTimeout(this.viewTimer);
+    this.seasons.dispose();
     for (const fn of this.cleanup) fn();
     this.anim.stop();
     this.stage.destroy();
@@ -539,6 +560,9 @@ export class Board implements BoardApi {
       this.renderRulers();
       this.wallPath = null;
       this.build.reset();
+      // The last scene's seasonal bake is no longer wanted, even when this scene's map is
+      // still loading or there's no scene at all (the next one starts once it's needed).
+      this.seasons.cancel();
       this.renderedSceneId = sceneId;
       this.renderedScene = null;
       this.needsFit = true;
@@ -546,15 +570,19 @@ export class Board implements BoardApi {
       force = true;
     }
 
-    if (scene !== this.renderedScene) {
+    if (scene !== this.renderedScene || s.seasonsOff !== this.renderedSeasonsOff) {
       const prev = this.renderedScene;
       this.renderedScene = scene;
+      this.renderedSeasonsOff = s.seasonsOff;
       if (scene) {
         this.bgRect.size({ width: scene.width, height: scene.height });
         this.bgRect.fill(scene.background);
         this.updateMap(scene);
         if (!prev || prev.grid.size !== scene.grid.size) force = true;
+      } else {
+        this.seasons.cancel();
       }
+      this.syncBuildSeason(s, scene);
       this.bgLayer.visible(Boolean(scene));
       this.bgLayer.batchDraw();
       this.fogDirty = true;
@@ -620,21 +648,54 @@ export class Board implements BoardApi {
   }
 
   private updateMap(scene: Scene): void {
-    if (!scene.mapAssetId) {
-      this.mapNode.visible(false);
-      return;
-    }
-    const img = getImage(fileUrl(this.room.roomId, scene.mapAssetId), () => {
-      this.renderedScene = null;
-      this.scheduleSync();
-    });
+    // Seasons off on this device: no seasonal picture is wanted at all, so they all go.
+    if (this.room.state.seasonsOff) this.seasons.clear();
+    const img = scene.mapAssetId
+      ? getImage(fileUrl(this.room.roomId, scene.mapAssetId), () => {
+          this.renderedScene = null;
+          this.scheduleSync();
+        })
+      : null;
     if (img) {
-      this.mapNode.image(img);
+      // In season: the seasonal picture once it's made (the plain map, or the last season's, until then).
+      const job = this.seasonJob(scene, img);
+      let shown: HTMLImageElement | HTMLCanvasElement = img;
+      if (job) {
+        shown = this.seasons.image(job.key, job.assetId) ?? img;
+        this.seasons.request(job);
+      } else {
+        this.seasons.cancel();
+      }
+      this.mapNode.image(shown);
       this.mapNode.size({ width: scene.width, height: scene.height });
       this.mapNode.visible(true);
     } else {
+      // No map, or it's still loading: nothing to bake, and an older bake shouldn't carry on.
       this.mapNode.visible(false);
+      this.seasons.cancel();
     }
+    // Seasonal pictures the board has moved on from can be freed now (never the one mapNode holds).
+    this.seasons.release(this.mapNode.image());
+  }
+
+  /** The seasonal bake for a scene's map, or null when it has no season (or this device has seasons off). */
+  private seasonJob(scene: Scene, img: HTMLImageElement): SeasonJob | null {
+    const season = scene.season;
+    if (!season || !scene.mapAssetId || this.room.state.seasonsOff) return null;
+    const seed = season.seed ?? (seedFrom(scene.id) & 0xffff);
+    const long = Math.max(scene.width, scene.height);
+    // Everything (snow drifts, what counts as outdoors) is sized by the grid: keep it sane
+    // when the grid is badly off.
+    const square = Math.min(long / 8, Math.max(long / 160, scene.grid.size));
+    const key = [scene.mapAssetId, season.look, season.level, seed, square, scene.width, scene.height, ALGO_VERSION].join("|");
+    return { key, assetId: scene.mapAssetId, img, sceneW: scene.width, sceneH: scene.height, square, look: season.look, level: season.level, seed };
+  }
+
+  /** The season a scene's build is drawn in (none when this device has seasons off). */
+  private syncBuildSeason(s: RoomState, scene: Scene | null): void {
+    const season = scene && !s.seasonsOff ? (scene.season ?? null) : null;
+    const seed = scene && season ? (season.seed ?? (seedFrom(scene.id) & 0xffff)) : 0;
+    if (this.build.setSeason(season, seed)) this.bgLayer.batchDraw();
   }
 
   private syncItems(s: RoomState, scene: Scene | null, force: boolean, gmView: boolean): void {
@@ -993,7 +1054,8 @@ export class Board implements BoardApi {
       c.translate(X(at.col + n / 2), Y(at.row + n / 2));
       c.rotate((turns * Math.PI) / 2);
       c.scale(n * size, n * size);
-      drawStamp(c, id);
+      // In the scene's season, as it will look once placed (turned the same way).
+      drawStamp(c, id, this.build.stampLook(id, at.col, at.row, n), turns);
       c.restore();
       c.setLineDash([6 / scale, 4 / scale]);
       c.strokeRect(X(at.col), Y(at.row), n * size, n * size);

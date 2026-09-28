@@ -15,8 +15,22 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out late on 27 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 28 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Seasons in one click (28 September 2026)",
+        "steps": [
+          "GM: in the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "Pick **Spring**, **Summer**, **Autumn** or **Winter**, then how drastic."
+        ],
+        "notes": [
+          "Put a scene in season with one click: Winter snow (**Frost**, **Snow**, **Deep snow**), Autumn leaves (**Turning**, **Autumn**, **Late autumn**), Spring blossom (**Budding**, **Blossom**, **Full bloom**) or Summer (**Lush**, **Dry**, **Drought**). **As drawn** puts the map back.",
+          "It works on uploaded maps, Dungeondraft ones included, and on maps you build. Mostly plants, water and open ground change, and in winter things out in the open, like rocks, wells and small roofs, get snow on top: dungeons and rooms stay as drawn, and tokens, drawings and fog never change.",
+          "Autumn trees turn a mix of red, orange, yellow and some green, and lose more leaves the stronger it is.",
+          "The same buttons are in the scene editor, under **Season**. Everything is in **Seasons: snow, autumn leaves, blossom and drought**.",
+          "For everyone: if maps are slow to appear on a device, seasons can be turned off on it, under **Change your name or colour** in **Chat & dice**. A table display always shows the season, even one opened on a computer where they're turned off."
+        ]
+      },
       {
         "title": "Build like Dungeondraft (27 September 2026, night)",
         "steps": [
@@ -1812,6 +1826,66 @@ export const GUIDE: GuideSection[] = [
     ]
   },
   {
+    "id": "seasons",
+    "title": "Seasons: snow, autumn leaves, blossom and drought",
+    "audience": "gm",
+    "intro": "One click puts a scene's map in season: Winter snow, Autumn leaves, Spring blossom or a Summer drought, each at three strengths. It works on uploaded maps and on maps you build. Tokens, drawings, notes, fog and the grid stay exactly as they are.",
+    "parts": [
+      {
+        "title": "Put a scene in season",
+        "steps": [
+          "Go to the scene: the live one, or one you're previewing.",
+          "In the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "Pick **Spring**, **Summer**, **Autumn** or **Winter**.",
+          "Pick how drastic, gentlest first: **Frost**, **Snow** or **Deep snow** for Winter; **Turning**, **Autumn** or **Late autumn**; **Budding**, **Blossom** or **Full bloom**; **Lush**, **Dry** or **Drought**.",
+          "To go back to the map as it was drawn, pick **As drawn**."
+        ],
+        "notes": [
+          "On a phone, or if you prefer, the same buttons are under **Season** in the scene editor (**Edit scene and grid**).",
+          "On the live scene, players see the change straight away. On a scene you're previewing, they see it when you show it to them.",
+          "Each click is one step for **Undo** (Ctrl+Z).",
+          "The shuffle button next to the strengths keeps the season but moves the snow drifts, fallen leaves or flowers to other places.",
+          "Picking a season starts at the strength you last used for it on this device (the middle one the first time).",
+          "The season button in the top bar shows the scene's season: a snowflake for Winter, a leaf for Autumn, a flower for Spring and a sun for Summer.",
+          "The first time a screen shows a season, it redraws the map: a rough version appears first, then the sharp one a moment later. Going back to a season used a moment ago is instant."
+        ]
+      },
+      {
+        "title": "What each season does",
+        "steps": [],
+        "notes": [
+          "Winter: **Frost** frosts the grass and cools the colours. **Snow** covers most open ground in drifts, with snow on the trees and ice along the shores. **Deep snow** turns open ground white and freezes ponds and rivers; big lakes and the sea keep open water in the middle.",
+          "Autumn: trees turn a mix of red, orange, yellow and some green, different on every tree, and grass goes towards straw, with fallen leaves on the ground. The stronger it is, the more trees turn and the thinner their leaves get: **Late autumn** has bare branches showing and leaves everywhere.",
+          "Spring: greens get fresher, with blossom on the trees and wildflowers in the grass. **Full bloom** has the most.",
+          "Summer: **Lush** makes greens deeper. **Dry** browns the grass in patches. **Drought** leaves straw-coloured grass, cracked bare earth and murky water."
+        ]
+      },
+      {
+        "title": "What changes, and what doesn't",
+        "steps": [],
+        "notes": [
+          "On an uploaded map, mainly plants, water and the open ground between them change, and only out in the open, where there are plenty of plants around. Dungeons, caves and sewers keep their water and floors, so an indoor map barely changes. The season box says so when the map looks like an indoor one.",
+          "Ink lines, walls, lava, fires, red roofs, rugs and labels never change. Small roofs and props on grass get snow on top; wide roofs, streets and paved squares keep their colour.",
+          "Snow drifts and leaves are sized by the grid, so line the grid up with the map first (see **The scene editor: grid and map**).",
+          "On a map you built: grass, trees, bushes, and ponds, lakes and rivers that touch grass change, and paths near grass get snow or leaves. In winter, rocks, rubble and wells near grass get frost or snow on top (a well freezes over in **Deep snow**), and the snow melts round a campfire. Rooms with walls stay as they are inside, and walls, doors and lava never change.",
+          "The table display always shows the season, like any player's screen, even when it's opened on a computer where seasons are turned off."
+        ]
+      },
+      {
+        "title": "If maps are slow to appear on a device",
+        "steps": [
+          "Open **Chat & dice**.",
+          "Click the person-and-pencil button (**Change your name or colour**).",
+          "Under **This device**, untick **Show seasons (snow, autumn leaves) on maps**."
+        ],
+        "notes": [
+          "That device then shows every map as drawn. Everyone else still sees the season, and so does a table display, even one you open on this device. Tick it again to see seasons.",
+          "Players can do this too, on their own devices."
+        ]
+      }
+    ]
+  },
+  {
     "id": "fog-tool",
     "title": "Fog of war: the fog tool",
     "audience": "gm",
@@ -2180,6 +2254,7 @@ export const GUIDE: GuideSection[] = [
           "The display always shows the scene players are on. Previewing another scene yourself never moves it.",
           "When you show players a new scene, the display switches to it and shows all of it until you point it somewhere.",
           "During combat, the display shows the round and whose turn it is in the bottom corner.",
+          "The display always shows the scene's season, if it has one, even on a computer where seasons are turned off (see **Seasons: snow, autumn leaves, blossom and drought**).",
           "The mouse pointer on the display hides itself after a few seconds. You can still drag and scroll on the display to move it yourself.",
           "While you use the Build tool, the display stays where it is rather than following you."
         ]

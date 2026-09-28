@@ -24,6 +24,7 @@ import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
+import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
@@ -257,6 +258,7 @@ function TopBar() {
       >
         {copied ? <span class="small">Copied</span> : <Link size={18} />}
       </button>
+      {gm && <SeasonButton />}
       {gm && (
         <button
           class="icon-btn hide-narrow display-btn"
@@ -478,6 +480,7 @@ function NoteForm(props: { at: NonNullable<RoomState["textPrompt"]> }) {
 
 export function ProfileDialog(props: { onClose: () => void }) {
   const room = useRoom();
+  const seasonsOff = useRoomState((s) => s.seasonsOff);
   return (
     <Modal title="Your name and colour" onClose={props.onClose}>
       <ProfileForm
@@ -490,6 +493,16 @@ export function ProfileDialog(props: { onClose: () => void }) {
           props.onClose();
         }}
       />
+      <div class="device-settings">
+        <h3>This device</h3>
+        <label class="check">
+          <input type="checkbox" checked={!seasonsOff} onChange={(e) => room.setSeasonsOff(!e.currentTarget.checked)} />
+          Show seasons (snow, autumn leaves) on maps
+        </label>
+        <p class="small muted">
+          Untick it if maps are slow to appear on this device: you'll see them as drawn. Everyone else still sees the season.
+        </p>
+      </div>
     </Modal>
   );
 }

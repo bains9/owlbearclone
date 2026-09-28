@@ -40,6 +40,15 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
   bar imports Dungeondraft's Universal VTT exports. Each drag or click is one Undo. Players see the
   build under fog like any map; secret doors look like walls to them, and their browsers are never sent
   them. Stored in 16 x 16-square chunks (`src/shared/terrain.ts`), drawn by `src/client/room/build.ts`.
+- **Seasons** (GM, the season button in the top bar, or the scene editor): Spring, Summer, Autumn or
+  Winter at three strengths (Winter: Frost, Snow, Deep snow), per scene, one undo step per click. The
+  scene stores only the look, the strength and a pattern seed; each browser redraws the map for it
+  (`src/client/room/seasonPixels.ts`, in a Web Worker via `seasons.ts`): first a quick version, then a sharp
+  one sized to the device. On uploaded maps mainly plants, water and the open ground between them change
+  (in winter, small roofs and props on grass get snow too), and only where there is plenty of vegetation
+  around, so dungeons, ink, walls and lava stay as drawn. Built maps get seasonal tiles and objects instead
+  (in winter, rocks, rubble and wells near grass get snow too). A device can turn seasons off for itself,
+  except a table display, which always shows the season.
 - **Drawing and notes.** Freehand, line, rectangle, ellipse, text notes; colours, widths, fill; eraser.
 - **Measuring and pointing.** A ruler (5e diagonals, alternating 1-2-1, straight line, or hexes), spell
   areas (circle, cone, cube, line) that can be pinned to the map, and a laser pointer. Everyone sees them live.
@@ -126,7 +135,8 @@ different host name, so it doesn't share the GM cookie.
 npm run typecheck   # client, worker and tests
 npm test            # unit tests: dice, grid and hex maths, templates, validation, permissions, undo,
                     # initiative, backups, map files (Universal VTT, Owlbear Rodeo backups, file names),
-                    # the map builder (chunk ids, walls, doors and secret doors, edits and undo)
+                    # the map builder (chunk ids, walls, doors and secret doors, edits and undo),
+                    # seasons (validation, undo, the recolouring and the built-map art)
 npm run smoke       # end-to-end: API + WebSocket protocol against a running server
 ```
 

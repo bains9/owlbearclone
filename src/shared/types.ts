@@ -26,6 +26,21 @@ export interface GridSettings {
   diagonal: DiagonalRule;
 }
 
+/** A scene's seasonal look: the whole map as it would look in that season. */
+export const SEASON_LOOKS = ["spring", "summer", "autumn", "winter"] as const;
+export type SeasonLook = (typeof SEASON_LOOKS)[number];
+
+export interface SceneSeason {
+  look: SeasonLook;
+  /** How drastic: 1 light, 2 in season, 3 the most. */
+  level: 1 | 2 | 3;
+  /**
+   * Noise seed (0-65535), set when a season is first applied and kept through changes,
+   * so a restored backup (whose scenes get new ids) looks the same. Missing: from the scene id.
+   */
+  seed?: number;
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -38,6 +53,8 @@ export interface Scene {
   /** When true the whole scene starts covered by fog; reveal shapes cut holes in it. */
   fogCover: boolean;
   createdAt: number;
+  /** A seasonal look (snow, autumn leaves...). Missing: the map as drawn. */
+  season?: SceneSeason;
 }
 
 export type AssetKind = "map" | "token";

@@ -557,6 +557,29 @@ async function main() {
       !alice.msgs.some((m) => m.t === "items" && (m.scene || m.upsert?.some((i) => i.id === good.id))),
     "a scene change with any part refused changes nothing, and the map stays covered",
   );
+
+  // Seasons: players on the scene get it, a malformed one changes nothing, and null (what undo sends) turns it off.
+  alice.clear();
+  tab2.send({ t: "scene.upsert", seq: 9, scene: { id: scene2.id, season: { look: "winter", level: 3, seed: 7 } } });
+  const wintry = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.scene.season);
+  check(
+    wintry?.scene.season?.look === "winter" && wintry.scene.season.level === 3 && wintry.scene.name === "Dungeon, level 2",
+    "players on the scene get its season, and nothing else about it changes",
+  );
+  tab2.send({ t: "scene.upsert", seq: 10, scene: { id: scene2.id, season: { look: "monsoon", level: 9 } } });
+  const kept = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 10);
+  // Alice's copy comes on her own socket, maybe later: wait for it before clearing, so it
+  // can't be taken for her answer to the next change.
+  const keptForAlice = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 10);
+  check(
+    kept?.scene.season?.look === "winter" && keptForAlice?.scene.season?.look === "winter",
+    "a malformed season leaves the scene's as it was",
+  );
+  alice.clear();
+  tab2.send({ t: "items", seq: 11, scene: { id: scene2.id, season: null } });
+  // A scene change sent with items reaches players as items (the malformed one above came as scene.upsert).
+  const thawed = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
+  check(Boolean(thawed) && !("season" in thawed.scene), "a season of null turns it off, for players too");
   tab2.ws.close();
 
   // Table displays: only the GM can get the link; a display sees what players see and changes nothing.

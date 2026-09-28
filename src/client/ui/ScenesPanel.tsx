@@ -15,6 +15,7 @@ import { importFiles, sceneFromMap } from "../importScenes";
 import type { ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT } from "../mapImport";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
+import { SeasonPicker } from "./SeasonPicker";
 
 export function ScenesPanel() {
   const room = useRoom();
@@ -461,6 +462,9 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <span>Background</span>
         <input type="color" value={s.background} onChange={(e) => update({ background: e.currentTarget.value })} />
       </label>
+
+      <h3>Season</h3>
+      <SeasonPicker scene={s} />
 
       <h3>Grid</h3>
       <div class="seg full">

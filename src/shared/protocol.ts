@@ -12,6 +12,7 @@ import type {
   RoomInfo,
   RoomSettings,
   Scene,
+  SceneSeason,
 } from "./types";
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
@@ -36,8 +37,8 @@ export interface ItemOps {
   delete?: string[];
 }
 
-/** Some of a scene's settings: the ones left out stay as they are. */
-export type ScenePatch = Partial<Scene> & { id: string };
+/** Some of a scene's settings: the ones left out stay as they are (a season of null turns it off). */
+export type ScenePatch = Partial<Omit<Scene, "season">> & { id: string; season?: SceneSeason | null };
 
 /** Everything a browser can ask the server to change. */
 export type ClientAction =

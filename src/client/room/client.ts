@@ -139,6 +139,10 @@ export interface RoomState {
   displayFollow: boolean;
   /** The server is running a newer Tabletop than this tab: it should reload. */
   outdated: boolean;
+  /** This device shows maps as drawn, without their season (a slow device, say). */
+  seasonsOff: boolean;
+  /** How much of each map (by asset id) is open ground, once a season has analysed it. */
+  mapOutdoor: Record<string, number>;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -218,8 +222,22 @@ const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height"];
 /** A scene with some settings changed. A scene we don't have is only added when it's new. */
 function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: boolean): Record<string, Scene> {
   const cur = scenes[patch.id];
-  if (cur) return { ...scenes, [patch.id]: { ...cur, ...patch } };
-  return create ? { ...scenes, [patch.id]: patch as Scene } : scenes;
+  if (!cur && !create) return scenes;
+  const next = { ...cur, ...patch } as Scene & { season?: Scene["season"] | null };
+  // A season of null means "turned off": the scene simply has none.
+  if (next.season === null) delete next.season;
+  return { ...scenes, [patch.id]: next as Scene };
+}
+
+const SEASONS_OFF_KEY = "tabletop-seasons-off";
+
+/** Whether this device has seasonal looks turned off (remembered in the browser). */
+function loadSeasonsOff(): boolean {
+  try {
+    return localStorage.getItem(SEASONS_OFF_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -321,6 +339,10 @@ export class RoomClient {
       mapImport: null,
       displayFollow: false,
       outdated: false,
+      // A table display always shows the season, like any player's screen: one opened in the
+      // GM's own browser mustn't take on the GM's "seasons off" for this device.
+      seasonsOff: displayKey === null && loadSeasonsOff(),
+      mapOutdoor: {},
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -917,8 +939,10 @@ export class RoomClient {
     const before: ScenePatch = { id };
     const after: ScenePatch = { id };
     for (const k of keys) {
-      (before as Record<string, unknown>)[k] = current[k];
-      (after as Record<string, unknown>)[k] = k in set ? (set as Record<string, unknown>)[k] : current[k];
+      // A setting the scene doesn't have (no season yet) is recorded as null, so undoing it
+      // turns it off again (a missing key would leave it as it was).
+      (before as Record<string, unknown>)[k] = current[k] ?? null;
+      (after as Record<string, unknown>)[k] = (k in set ? (set as Record<string, unknown>)[k] : current[k]) ?? null;
     }
     this.undoStack.push({ sceneId: id, redo: ops, undo: inverseOps(this.state.items, ops), scene: { before, after } });
     if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
@@ -1046,6 +1070,19 @@ export class RoomClient {
   }
 
   // ---------------------------------------------------------------- everything else
+
+  /** Seasonal looks on this device: off shows every map as drawn (players still see seasons). */
+  setSeasonsOff(off: boolean): void {
+    // A table display has no such setting (and mustn't change the one it shares with the GM's tabs).
+    if (this.display) return;
+    try {
+      if (off) localStorage.setItem(SEASONS_OFF_KEY, "1");
+      else localStorage.removeItem(SEASONS_OFF_KEY);
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ seasonsOff: off });
+  }
 
   setTool(tool: ToolId): void {
     if (GM_TOOLS.includes(tool) && !this.isGm) return;

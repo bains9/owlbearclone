@@ -481,6 +481,65 @@ button:disabled {
   background: var(--border);
   margin: 0 4px;
 }
+/* The GM's season button and its pop-up. */
+.season-wrap {
+  position: relative;
+}
+.season-pop {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  z-index: 50;
+  width: min(460px, calc(100vw - 24px));
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.season-pop-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.season-pop-head .small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.season-looks {
+  flex-wrap: wrap;
+}
+.season-looks .seg-btn {
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+.season-levels .seg.full {
+  flex: 1;
+  margin: 0;
+}
+.season-note {
+  margin: 8px 0 0;
+}
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.device-settings {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.device-settings h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
 .player-dots {
   display: flex;
   margin-right: 6px;

@@ -13,7 +13,9 @@ import type {
   MutableFields,
   RoomSettings,
   Scene,
+  SceneSeason,
 } from "./types";
+import { SEASON_LOOKS } from "./types";
 import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 
 export const LIMITS = {
@@ -310,6 +312,21 @@ export const DEFAULT_GRID: GridSettings = {
   diagonal: "chebyshev",
 };
 
+/**
+ * A scene's season. null turns it off; anything malformed is undefined (the caller keeps
+ * what the scene had). Unknown keys are dropped.
+ */
+export function sanitizeSeason(v: unknown): SceneSeason | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const r = v as Record<string, unknown>;
+  const look = SEASON_LOOKS.find((l) => l === r.look);
+  const level = r.level === 1 || r.level === 2 || r.level === 3 ? r.level : undefined;
+  if (!look || !level) return undefined;
+  const seed = typeof r.seed === "number" && Number.isInteger(r.seed) && r.seed >= 0 && r.seed <= 65535 ? r.seed : undefined;
+  return { look, level, ...(seed !== undefined ? { seed } : {}) };
+}
+
 export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -320,6 +337,9 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
   if (width === undefined || height === undefined) return null;
   const mapAssetId =
     r.mapAssetId === null ? null : isId(r.mapAssetId) ? r.mapAssetId : (existing?.mapAssetId ?? null);
+  // A season left out keeps the scene's; null turns it off.
+  const sv = sanitizeSeason(r.season);
+  const season = sv === null ? undefined : (sv ?? existing?.season);
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -331,6 +351,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
     grid: sanitizeGrid(r.grid, existing?.grid ?? DEFAULT_GRID),
     fogCover: bool(r.fogCover) ?? existing?.fogCover ?? false,
     createdAt: existing?.createdAt ?? num(r.createdAt, 0, 1e15) ?? Date.now(),
+    ...(season ? { season } : {}),
   };
 }
 

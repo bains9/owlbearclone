@@ -5,6 +5,9 @@
 // image (like the fog) and only the chunks that change are redrawn. Zoomed in past
 // that image's detail they're drawn straight onto the board. Walls and doors are
 // always drawn as lines, so they stay sharp.
+//
+// In a season, what's outdoors gets seasonal art (buildArt.ts): what counts as outdoors
+// is worked out from the build itself (see computeExposure).
 
 import { randomId } from "../../shared/ids";
 import { applyOps } from "../../shared/ops";
@@ -26,8 +29,9 @@ import {
   terrainId,
 } from "../../shared/terrain";
 import type { FloorId, Stamp, StampId } from "../../shared/terrain";
-import type { ItemPatch, Scene, TerrainItem } from "../../shared/types";
-import { drawStamp, floorPattern } from "./buildArt";
+import type { ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
+import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
+import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
 
 export type Side = "t" | "l";
 
@@ -698,6 +702,233 @@ export function floorChar(floor: FloorId, walls: boolean): string {
   return isWalledFloor(floor) && !walls ? floor.toUpperCase() : floor;
 }
 
+// ---------------------------------------------------------------- seasons
+
+/** How far (in squares) outdoor ground reaches from grass, trees and bushes. */
+export const EXPOSURE_REACH = 6;
+/** A cell no season reaches: indoors, or too far from grass, trees and bushes. */
+export const SHELTERED = 0x7f;
+/** A cell's distance is kept in the low six bits of its byte, all of them set when there's none. */
+const DIST = 0x3f;
+const OPEN_WATER = 0x40;
+const NEAR_TREE = 0x80;
+
+/**
+ * Which built cells are outdoors, for seasons. For each cell, how many squares it is from
+ * grass or from a tree or bush (0 on them), or SHELTERED; packed a byte a cell and a
+ * chunk at a time, the top bit saying a tree or bush is within a square (where more
+ * leaves fall) and the next one that the cell is water joined to water the grass reaches.
+ */
+export class Exposure {
+  readonly chunks = new Map<number, Uint8Array>();
+  // The drawing loops go along rows, so the chunk last looked in is usually the next one.
+  private lastKey = NaN;
+  private last: Uint8Array | undefined;
+
+  private byte(col: number, row: number): number {
+    const k = ckey(chunkOf(col), chunkOf(row));
+    if (k !== this.lastKey) {
+      this.lastKey = k;
+      this.last = this.chunks.get(k);
+    }
+    return this.last ? this.last[idx(col, row)] : DIST;
+  }
+
+  /** Squares from grass, a tree or a bush, or SHELTERED. */
+  dist(col: number, row: number): number {
+    const d = this.byte(col, row) & DIST;
+    return d === DIST ? SHELTERED : d;
+  }
+
+  /** Whether a tree or bush is within a square. */
+  nearTree(col: number, row: number): boolean {
+    return (this.byte(col, row) & NEAR_TREE) !== 0;
+  }
+
+  /**
+   * Whether the cell is water joined (however far away) to water the grass reaches: part
+   * of a lake or river under open sky, which takes the season's colour all over.
+   */
+  openWater(col: number, row: number): boolean {
+    return (this.byte(col, row) & OPEN_WATER) !== 0;
+  }
+
+  /** For computeExposure only (the arrays are made as needed). */
+  chunkFor(col: number, row: number): Uint8Array {
+    const k = ckey(chunkOf(col), chunkOf(row));
+    let a = this.chunks.get(k);
+    if (!a) {
+      a = new Uint8Array(CHUNK_CELLS).fill(DIST);
+      this.chunks.set(k, a);
+      this.lastKey = NaN;
+    }
+    return a;
+  }
+}
+
+/**
+ * Works out which cells are outdoors: a search out from every grass cell and every cell
+ * under a tree or bush, up to EXPOSURE_REACH squares, crossing only open edges (walls,
+ * doors and secret doors stop it; secret doors are walls to everyone, so the GM and the
+ * players get the same answer) into cells with a floor that isn't lava. Walled room floors
+ * (s, w, d) are always indoors, whatever is next to them. Water is outdoors only when
+ * the search reaches it from grass: a river in a built cave with a tree beside it stays
+ * as it is. The rest of a lake or river the grass reaches is marked as open water, however
+ * far from the shore. What an uploaded map under the build shows doesn't count, so every
+ * screen gets the same answer, at once.
+ *
+ * It's worked out from what's stored, not from a stroke still being drawn: new floor gets
+ * its season when it's committed.
+ */
+export function computeExposure(m: BuildModel): Exposure {
+  const out = new Exposure();
+  const draft = m.draft;
+  m.draft = null;
+  try {
+    const grass: number[] = [];
+    const trees: number[] = [];
+    const near: number[] = [];
+    for (const ch of m.index.chunks.values()) {
+      for (let i = 0; i < CHUNK_CELLS; i++) {
+        if (ch.cells[i] === "g") grass.push(cellKey(ch.cx * CHUNK + (i % CHUNK), ch.cy * CHUNK + Math.floor(i / CHUNK)));
+      }
+      for (const [id, sc, sr, , n] of ch.stamps) {
+        if (id !== "tree" && id !== "bush") continue;
+        const ax = ch.cx * CHUNK + sc;
+        const ay = ch.cy * CHUNK + sr;
+        let outdoors = false;
+        for (let dy = 0; dy < n; dy++) {
+          for (let dx = 0; dx < n; dx++) {
+            // Empty cells count: a tree on an uploaded map, with no floor under it, is outdoors.
+            // Water doesn't: only grass makes water outdoors.
+            const cell = m.cell(ax + dx, ay + dy);
+            if (isWalledFloor(cell) || cell === "l" || cell === "a") continue;
+            trees.push(cellKey(ax + dx, ay + dy));
+            outdoors = true;
+          }
+        }
+        if (outdoors) near.push(ax - 1, ay - 1, n + 2);
+      }
+    }
+    const spread = (seeds: number[], water: boolean) => {
+      const queue: number[] = [];
+      for (const k of seeds) {
+        const col = keyCol(k);
+        const row = keyRow(k);
+        out.chunkFor(col, row)[idx(col, row)] = 0;
+        queue.push(k);
+      }
+      // Into (col, row), across the edge (ecol, erow, side), d squares out.
+      const step = (col: number, row: number, ecol: number, erow: number, side: Side, d: number) => {
+        const cell = m.cell(col, row);
+        if (cell === EMPTY || cell === "l" || isWalledFloor(cell) || (cell === "a" && !water)) return;
+        if (out.dist(col, row) <= d || m.state(ecol, erow, side) !== NONE) return;
+        out.chunkFor(col, row)[idx(col, row)] = d;
+        queue.push(cellKey(col, row));
+      };
+      for (let h = 0; h < queue.length; h++) {
+        const col = keyCol(queue[h]);
+        const row = keyRow(queue[h]);
+        const d = out.dist(col, row);
+        if (d >= EXPOSURE_REACH) continue;
+        step(col, row - 1, col, row, "t", d + 1);
+        step(col - 1, row, col, row, "l", d + 1);
+        step(col, row + 1, col, row + 1, "t", d + 1);
+        step(col + 1, row, col + 1, row, "l", d + 1);
+      }
+    };
+    spread(grass, true);
+    // Then from trees and bushes, not into water. What the grass reached nearer stays as it
+    // is, and the search can stop there: whatever lies beyond it the grass reached too.
+    spread(trees, false);
+    // Then on from the water the grass reached, through water only and however far, the
+    // same edges stopping it: a lake or river is one colour all over in a season, not
+    // only near the shore. (Only water the grass reached has a distance by now.)
+    const water: number[] = [];
+    for (const ch of m.index.chunks.values()) {
+      for (let i = 0; i < CHUNK_CELLS; i++) {
+        if (ch.cells[i] !== "a") continue;
+        const col = ch.cx * CHUNK + (i % CHUNK);
+        const row = ch.cy * CHUNK + Math.floor(i / CHUNK);
+        if (out.dist(col, row) > EXPOSURE_REACH) continue;
+        out.chunkFor(col, row)[idx(col, row)] |= OPEN_WATER;
+        water.push(cellKey(col, row));
+      }
+    }
+    const flow = (col: number, row: number, ecol: number, erow: number, side: Side) => {
+      if (m.cell(col, row) !== "a" || out.openWater(col, row) || m.state(ecol, erow, side) !== NONE) return;
+      out.chunkFor(col, row)[idx(col, row)] |= OPEN_WATER;
+      water.push(cellKey(col, row));
+    };
+    for (let h = 0; h < water.length; h++) {
+      const col = keyCol(water[h]);
+      const row = keyRow(water[h]);
+      flow(col, row - 1, col, row, "t");
+      flow(col - 1, row, col, row, "l");
+      flow(col, row + 1, col, row + 1, "t");
+      flow(col + 1, row, col + 1, row, "l");
+    }
+    for (let i = 0; i < near.length; i += 3) {
+      const n = near[i + 2];
+      for (let dy = 0; dy < n; dy++) {
+        for (let dx = 0; dx < n; dx++) out.chunkFor(near[i] + dx, near[i + 1] + dy)[idx(near[i] + dx, near[i + 1] + dy)] |= NEAR_TREE;
+      }
+    }
+  } finally {
+    m.draft = draft;
+  }
+  return out;
+}
+
+/** The ground's winter cover at a distance from grass: 0 bare, 1 frost, 2 patchy snow, 3 deep snow. */
+export function winterCover(dist: number, level: SeasonLevel): 0 | 1 | 2 | 3 {
+  if (dist > EXPOSURE_REACH) return 0;
+  if (level === 1) return dist <= 2 ? 1 : 0;
+  if (level === 2) return dist <= 2 ? 2 : dist <= 4 ? 1 : 0;
+  return dist <= 4 ? 3 : dist <= 5 ? 2 : 1;
+}
+
+/**
+ * The texture a built floor gets in a season (see floorVariant), or "" to leave it as it
+ * is. Grass always changes. Water the grass reaches changes, and so does the rest of the
+ * same lake or river, so its colour doesn't stop in a line six squares out; only ice keeps
+ * near the shore, a big lake staying open (and cold) in the middle. Bare earth changes
+ * near grass, thinning out over the last two squares of the reach rather than stopping in
+ * a line, and the edge of the ice is broken up the same way. `hash` (0 to 1, the cell's
+ * own) picks which squares there change.
+ */
+export function groundVariant(ch: string, dist: number, openWater: boolean, look: SeasonLook, level: SeasonLevel, hash: number): FloorVariant {
+  if (ch === "g") return floorVariant("g", look, level);
+  // Two squares from the end of the reach, two thirds of the squares; at the end, a third.
+  const near = dist <= EXPOSURE_REACH - 2 || (dist <= EXPOSURE_REACH && hash < (EXPOSURE_REACH + 1 - dist) / 3);
+  if (ch === "D") return near ? floorVariant("d", look, level) : "";
+  if (ch !== "a" || !openWater) return "";
+  const v = floorVariant("a", look, level);
+  return v === "winter3" && !near ? floorVariant("a", "winter", 2) : v;
+}
+
+/**
+ * The see-through texture over a cell in a season, if any: frost and snow on outdoor
+ * paving in winter (thinning out away from the grass); fallen leaves in autumn on grass,
+ * on paving within 1, 2 or 3 squares of it and, from level 2, on outdoor water, thicker
+ * near trees; dust on paving in a drought; sprouts between the stones in spring.
+ */
+function overlayFor(ch: string, dist: number, near: boolean, look: SeasonLook, level: SeasonLevel): OverlayId | "" {
+  if (dist > EXPOSURE_REACH) return "";
+  const paving = ch === "S" || ch === "W" || ch === "D";
+  if (look === "winter") {
+    if (!paving) return "";
+    const cover = winterCover(dist, level);
+    return cover === 3 ? "snow2" : cover === 2 ? "snow1" : cover === 1 ? "frost" : "";
+  }
+  if (look === "autumn") {
+    if (ch === "g" || (paving && dist <= level) || (ch === "a" && level > 1)) return near ? `leavesNear${level}` : `leaves${level}`;
+    return "";
+  }
+  if (look === "summer") return paving && ch !== "D" && level === 3 ? "dust" : "";
+  return paving && (level === 3 || (level === 2 && dist <= 3)) ? `sprouts${level === 3 ? 3 : 2}` : "";
+}
+
 // ---------------------------------------------------------------- drawing
 
 /** The cached floor image has at most this many pixels on its long side, and per grid cell. */
@@ -732,8 +963,15 @@ export class BuildRenderer {
   private paintAll = true;
   /** Chunks the current draft has touched, to redraw when it goes. */
   private draftChunks = new Set<number>();
+  /** The scene's season, if any, and its part of the cached image's key ("" with none). */
+  private season: { look: SeasonLook; level: SeasonLevel } | null = null;
+  private seasonSeed = 0;
+  private seasonKey = "";
+  /** What's outdoors (kept while the season is off too), and the index it was worked out for. */
+  private exposure: Exposure | null = null;
+  private exposureOf: TerrainIndex | null = null;
 
-  /** Forgets everything (a different scene). */
+  /** Forgets everything (a different scene; set its season again after). */
   reset(): void {
     this.model.index = { chunks: new Map(), secrets: new Map() };
     this.model.draft = null;
@@ -746,6 +984,77 @@ export class BuildRenderer {
     this.cacheKey = "";
     // The cached image can be big; a scene without a build needn't keep it.
     this.cache = null;
+    this.season = null;
+    this.seasonKey = "";
+    this.exposure = null;
+    this.exposureOf = null;
+  }
+
+  /**
+   * The season the build is drawn in (null: as built), with the scene's noise seed.
+   * Returns whether anything visible changes, so the caller redraws.
+   */
+  setSeason(season: SceneSeason | null, seed: number): boolean {
+    const key = season ? `${season.look}${season.level}|${seed}` : "";
+    if (key === this.seasonKey) return false;
+    this.seasonKey = key;
+    this.season = season ? { look: season.look, level: season.level } : null;
+    this.seasonSeed = seed;
+    // The cached image's key has the season in it, so a different one paints it all again.
+    // What's outdoors is kept while there's no season (it depends only on the build): when
+    // the same one comes back, it's compared with what's outdoors then, and wherever the
+    // build changed it in between is painted again, even if the image wasn't meanwhile.
+    return !this.empty;
+  }
+
+  /**
+   * How an object n squares wide with its top-left cell at (col, row) looks in the
+   * season: null when there's none, the object is indoors, or it looks the same anyway.
+   * (Also for the Build tool's preview of an object about to be placed.)
+   */
+  stampLook(id: StampId, col: number, row: number, n: number): StampLook | null {
+    const s = this.season;
+    const e = this.exposure;
+    if (!s || !hasSeasonalArt(id, s.look)) return null;
+    const plant = id === "tree" || id === "bush";
+    let dist = SHELTERED;
+    for (let dy = 0; dy < n; dy++) {
+      for (let dx = 0; dx < n; dx++) {
+        // A tree or bush makes its own squares outdoors, as computeExposure has it: so the
+        // preview of one not placed yet (or being moved) looks as it will once it's there.
+        const cell = plant ? this.model.storedCell(col + dx, row + dy) : "";
+        if (plant && !isWalledFloor(cell) && cell !== "l" && cell !== "a") dist = 0;
+        else if (e) dist = Math.min(dist, e.dist(col + dx, row + dy));
+      }
+    }
+    if (dist > EXPOSURE_REACH) return null;
+    const cover = s.look === "winter" ? winterCover(dist, s.level) : 0;
+    if (!cover && id !== "tree" && id !== "bush") return null;
+    return { look: s.look, level: s.level, hash: stampHash(col, row, this.seasonSeed), cover };
+  }
+
+  /** Works out what's outdoors again if the build has changed, and repaints where that changed. */
+  private updateExposure(): void {
+    const index = this.model.index;
+    if (this.exposure && this.exposureOf === index) return;
+    const prev = this.exposure;
+    const next = computeExposure(this.model);
+    this.exposure = next;
+    this.exposureOf = index;
+    // None before: the first season since the scene was opened, so everything is painted.
+    if (!prev) {
+      this.paintAll = true;
+      return;
+    }
+    for (const k of new Set([...prev.chunks.keys(), ...next.chunks.keys()])) {
+      const a = prev.chunks.get(k);
+      const b = next.chunks.get(k);
+      if (a && b && a.every((v, i) => v === b[i])) continue;
+      // Only this chunk: repainting it also redraws the two cells round it, which covers
+      // every object over any of its squares, and a tree's "leaves fall here" marks are
+      // kept (and compared) in the chunk of the square they mark.
+      this.paintDirty.add(k);
+    }
   }
 
   /** Takes the scene's terrain items. Returns whether anything visible changed. */
@@ -783,7 +1092,9 @@ export class BuildRenderer {
         this.paintDirty.add(k);
       }
     }
-    this.model.index = next;
+    // Kept when nothing changed (the scene's other items did, or the selection): what's
+    // outdoors is worked out again only for a new index.
+    if (changed) this.model.index = next;
     return changed;
   }
 
@@ -959,6 +1270,8 @@ export class BuildRenderer {
     const c1 = Math.min(all.c1 + 1, Math.floor((view.x1 - g.offsetX) / size) + 1);
     const r1 = Math.min(all.r1 + 1, Math.floor((view.y1 - g.offsetY) / size) + 1);
     if (c0 > c1 || r0 > r1) return;
+    // Worked out here rather than in update(): a season arrives as a scene change, which update() never sees.
+    if (this.season) this.updateExposure();
     c.save();
     c.beginPath();
     c.rect(0, 0, scene.width, scene.height);
@@ -986,7 +1299,7 @@ export class BuildRenderer {
 
   private updateCache(scene: Scene, k: number): void {
     const g = scene.grid;
-    const key = `${scene.id}|${scene.width}|${scene.height}|${g.size}|${g.offsetX}|${g.offsetY}|${k}`;
+    const key = `${scene.id}|${scene.width}|${scene.height}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
     const canvas = (this.cache ??= document.createElement("canvas"));
     if (key !== this.cacheKey) {
       this.cacheKey = key;
@@ -1043,26 +1356,56 @@ export class BuildRenderer {
     const g = scene.grid;
     const size = g.size;
     const m = this.model;
-    // One path per kind of floor: neighbouring cells of the same floor then show no seam.
-    const paths = new Map<FloorId, Path2D>();
+    const s = this.season;
+    const e = this.exposure;
+    // One path per kind of floor (in a season, per texture): neighbouring cells of the same
+    // one then show no seam. The season's overlays, the same way, go on top.
+    const paths = new Map<string, Path2D>();
+    const overlays = new Map<OverlayId, Path2D>();
+    const add = <K>(map: Map<K, Path2D>, key: K, from: number, to: number, row: number) => {
+      let p = map.get(key);
+      if (!p) map.set(key, (p = new Path2D()));
+      p.rect(g.offsetX + from * size, g.offsetY + row * size, (to - from) * size, size);
+    };
     for (let row = r0; row <= r1; row++) {
       let runStart = c0;
       let runFloor = "";
+      let overStart = c0;
+      let over: OverlayId | "" = "";
       for (let col = c0; col <= c1 + 1; col++) {
         const ch = col <= c1 ? m.cell(col, row) : EMPTY;
-        const floor = ch === EMPTY ? "" : ch.toLowerCase();
-        if (floor === runFloor) continue;
-        if (runFloor) {
-          let p = paths.get(runFloor as FloorId);
-          if (!p) paths.set(runFloor as FloorId, (p = new Path2D()));
-          p.rect(g.offsetX + runStart * size, g.offsetY + row * size, (col - runStart) * size, size);
+        let floor = ch === EMPTY ? "" : ch.toLowerCase();
+        if (s && e) {
+          let o: OverlayId | "" = "";
+          if (floor) {
+            const dist = e.dist(col, row);
+            // Grass is always outdoors (new grass too, before it's committed); water and bare earth when found so.
+            const hash = ch === "a" || ch === "D" ? stampHash(col, row, this.seasonSeed) : 0;
+            const v = groundVariant(ch, dist, e.openWater(col, row), s.look, s.level, hash);
+            if (v) floor = `${floor}:${v}`;
+            o = overlayFor(ch, dist, e.nearTree(col, row), s.look, s.level);
+          }
+          if (o !== over) {
+            if (over) add(overlays, over, overStart, col, row);
+            overStart = col;
+            over = o;
+          }
         }
+        if (floor === runFloor) continue;
+        if (runFloor) add(paths, runFloor, runStart, col, row);
         runStart = col;
         runFloor = floor;
       }
     }
-    for (const [floor, p] of paths) {
-      c.fillStyle = floorPattern(c, floor, size, g.offsetX, g.offsetY);
+    for (const [key, p] of paths) {
+      // "g" or "g:winter2".
+      c.fillStyle = floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
+      c.fill(p);
+    }
+    for (const [id, p] of overlays) {
+      const pattern = overlayPattern(c, id, size, g.offsetX, g.offsetY);
+      if (!pattern) continue;
+      c.fillStyle = pattern;
       c.fill(p);
     }
   }
@@ -1093,7 +1436,7 @@ export class BuildRenderer {
           c.translate(g.offsetX + (ax + n / 2) * size, g.offsetY + (ay + n / 2) * size);
           c.rotate((turns * Math.PI) / 2);
           c.scale(n * size, n * size);
-          drawStamp(c, id);
+          drawStamp(c, id, this.season ? this.stampLook(id, ax, ay, n) : null, turns);
           c.restore();
         }
       }
