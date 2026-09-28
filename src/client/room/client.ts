@@ -27,6 +27,8 @@ import type {
   Scene,
   TokenItem,
 } from "../../shared/types";
+import type { FloorId, StampId } from "../../shared/terrain";
+import { BUILD_ID } from "../../shared/build";
 import { uploadImage } from "../api";
 import type { Uploaded } from "../api";
 import type { MapFile } from "../mapImport";
@@ -34,7 +36,10 @@ import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
 
-export type ToolId = "select" | "draw" | "erase" | "fog" | "measure" | "pointer";
+export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
+
+/** Tools only the GM has. */
+export const GM_TOOLS: ToolId[] = ["fog", "build"];
 export type PanelId = "chat" | "scenes" | "library" | "initiative" | "settings";
 export type Status = "connecting" | "open" | "reconnecting" | "notfound" | "deleted";
 
@@ -55,6 +60,42 @@ export interface FogOptions {
   snap: boolean;
   /** GM only: show fog fully opaque, the way players see it. */
   preview: boolean;
+}
+
+/** How the Building and Terrain modes paint: drag out a rectangle or an oval, or brush. */
+export type BuildShape = "rect" | "circle" | "brush";
+
+/**
+ * The Build tool (GM): painting floors, walls, doors and objects onto the grid. The
+ * modes are named after Dungeondraft's tools, which the GM knows: Building, Wall,
+ * Portal (doors), Terrain and Object.
+ */
+export interface BuildOptions {
+  mode: "building" | "walls" | "doors" | "terrain" | "stamps";
+  shape: { building: BuildShape; terrain: BuildShape };
+  /**
+   * What each paints: a room's floor (stone, wood or dirt), or grass, water or lava; or
+   * "erase" (which takes the walls, doors and objects on those squares too).
+   */
+  floor: { building: Extract<FloorId, "s" | "w" | "d"> | "erase"; terrain: Extract<FloorId, "g" | "a" | "l"> | "erase" };
+  /** Floor brush size in squares (1-5). */
+  brush: number;
+  /**
+   * Floor: walls where stone, wood or dirt meets empty space, by scene, where the GM has
+   * chosen. Otherwise on for a blank scene, off over an uploaded map (a patch shouldn't
+   * get walled in).
+   */
+  walls: Record<string, boolean>;
+  /** Walls: add them, or take them away (also where they'd be drawn automatically). */
+  wallMode: "add" | "remove";
+  /** Doors: what a click on a wall makes. */
+  doorStyle: "open" | "door" | "secret";
+  stamp: StampId;
+  /** Objects: width and height in squares (1-3). */
+  stampSize: number;
+  /** Objects: quarter turns clockwise for the next one placed. */
+  stampTurns: number;
+  stampMode: "place" | "remove";
 }
 
 export interface MeasureOptions {
@@ -85,6 +126,7 @@ export interface RoomState {
   tool: ToolId;
   drawOpts: DrawOptions;
   fogOpts: FogOptions;
+  buildOpts: BuildOptions;
   measureOpts: MeasureOptions;
   /**
    * Set while the GM is lining the grid up by drawing a box on the map: how many
@@ -95,6 +137,8 @@ export interface RoomState {
   mapImport: File[] | null;
   /** GM: table displays follow this tab's view of the live scene (otherwise they show all of it). */
   displayFollow: boolean;
+  /** The server is running a newer Tabletop than this tab: it should reload. */
+  outdated: boolean;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -133,6 +177,8 @@ interface UndoEntry {
    * new map): just the settings it changed, as they were before and after.
    */
   scene?: { before: ScenePatch; after: ScenePatch };
+  /** Undo and redo worked out when they're used, from the items as they are then (build steps). */
+  steps?: { undo: (items: ItemMap) => ItemOps; redo: (items: ItemMap) => ItemOps };
 }
 
 const MAX_MESSAGES = 300;
@@ -174,6 +220,22 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
   const cur = scenes[patch.id];
   if (cur) return { ...scenes, [patch.id]: { ...cur, ...patch } };
   return create ? { ...scenes, [patch.id]: patch as Scene } : scenes;
+}
+
+/**
+ * Reloads the page for a newer version, unless it only just did (and was still told it's
+ * out of date, perhaps an old copy of the page on its way out): then it tries again later.
+ */
+function reloadOnce(): void {
+  let last = 0;
+  try {
+    last = Number(sessionStorage.getItem("tabletop-reloaded") ?? 0);
+    sessionStorage.setItem("tabletop-reloaded", String(Date.now()));
+  } catch {
+    // No storage: go by time alone.
+  }
+  if (Date.now() - last < 60_000) setTimeout(() => location.reload(), 120_000);
+  else location.reload();
 }
 
 function toMap<T extends { id: string }>(list: T[]): Record<string, T> {
@@ -241,10 +303,24 @@ export class RoomClient {
       tool: "select",
       drawOpts: { shape: "pen", color: profile.color, width: 4, fill: false },
       fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false },
+      buildOpts: {
+        mode: "building",
+        shape: { building: "rect", terrain: "brush" },
+        floor: { building: "s", terrain: "g" },
+        brush: 1,
+        walls: {},
+        wallMode: "add",
+        doorStyle: "door",
+        stamp: "table",
+        stampSize: 1,
+        stampTurns: 0,
+        stampMode: "place",
+      },
       measureOpts: { shape: "ruler", keep: false },
       textPrompt: null,
       mapImport: null,
       displayFollow: false,
+      outdated: false,
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -276,7 +352,9 @@ export class RoomClient {
     if (this.disposed) return;
     const p = this.profile;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color, sid: this.sid });
+    // v: the protocol version this code speaks (2: it can draw built maps). b: its build,
+    // so the server can say when this tab is out of date.
+    const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color, sid: this.sid, v: "2", b: BUILD_ID });
     if (this.displayKey !== null) qs.set("display", this.displayKey);
     const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/ws?${qs}`);
     this.ws = ws;
@@ -530,7 +608,7 @@ export class RoomClient {
           initiative: msg.initiative,
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
-          tool: !gm && s.tool === "fog" ? "select" : s.tool,
+          tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
@@ -636,6 +714,17 @@ export class RoomClient {
 
       case "error":
         this.toast(msg.message, "error");
+        return;
+
+      case "outdated":
+        // A newer Tabletop is running. A table display (nothing to lose, and nobody at it
+        // to click anything) reloads itself; anyone else gets a reload button.
+        if (this.display) {
+          reloadOnce();
+        } else if (!s.outdated) {
+          this.store.set({ outdated: true });
+          this.toast("Tabletop has been updated. Reload this page to get the new version.");
+        }
         return;
 
       case "closed":
@@ -749,6 +838,19 @@ export class RoomClient {
     this.refreshUndoFlags();
   }
 
+  /**
+   * A change whose undo and redo are worked out when they're used, from the state as it
+   * is then (a build step, which must never put back more than it changed).
+   */
+  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>): void {
+    if (isEmptyOps(ops)) return;
+    this.undoStack.push({ sceneId, redo: ops, undo: inverseOps(this.state.items, ops), steps });
+    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+    this.redoStack = [];
+    this.applyLocal(ops);
+    this.refreshUndoFlags();
+  }
+
   /** The scene a change belongs to. */
   private sceneOf(ops: ItemOps): string | null {
     const items = this.state.items;
@@ -783,7 +885,7 @@ export class RoomClient {
     if (i < 0) return;
     const [entry] = this.undoStack.splice(i, 1);
     this.redoStack.push(entry);
-    this.applyStep(entry.undo, entry.scene?.before);
+    this.applyStep(entry.steps ? entry.steps.undo(this.state.items) : entry.undo, entry.scene?.before);
     this.refreshUndoFlags();
   }
 
@@ -793,7 +895,7 @@ export class RoomClient {
     if (i < 0) return;
     const [entry] = this.redoStack.splice(i, 1);
     this.undoStack.push(entry);
-    this.applyStep(entry.redo, entry.scene?.after);
+    this.applyStep(entry.steps ? entry.steps.redo(this.state.items) : entry.redo, entry.scene?.after);
     this.refreshUndoFlags();
   }
 
@@ -946,7 +1048,7 @@ export class RoomClient {
   // ---------------------------------------------------------------- everything else
 
   setTool(tool: ToolId): void {
-    if (tool === "fog" && !this.isGm) return;
+    if (GM_TOOLS.includes(tool) && !this.isGm) return;
     const s = this.state;
     // "Player view" belongs to the fog tool; leaving the tool leaves the preview.
     this.store.set({ tool, ...(tool !== "fog" && s.fogOpts.preview ? { fogOpts: { ...s.fogOpts, preview: false } } : {}) });

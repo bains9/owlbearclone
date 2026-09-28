@@ -14,6 +14,7 @@ import type {
   RoomSettings,
   Scene,
 } from "./types";
+import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 
 export const LIMITS = {
   coord: 1_000_000,
@@ -149,7 +150,14 @@ const FOG_FIELDS: Record<string, Validator> = {
   mode: (v) => (v === "hide" || v === "reveal" ? v : undefined),
 };
 
-const FIELDS_BY_KIND = { token: TOKEN_FIELDS, drawing: DRAWING_FIELDS, fog: FOG_FIELDS } as const;
+/** A chunk's position and whether it's hidden never change: only its contents. */
+const TERRAIN_FIELDS: Record<string, Validator> = {
+  cells: cleanCells,
+  edges: cleanEdges,
+  stamps: cleanStamps,
+};
+
+const FIELDS_BY_KIND = { token: TOKEN_FIELDS, drawing: DRAWING_FIELDS, fog: FOG_FIELDS, terrain: TERRAIN_FIELDS } as const;
 
 const DRAW_SHAPES = ["pen", "line", "rect", "ellipse", "poly", "text"] as const;
 
@@ -235,6 +243,7 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
     }
     return { id: r.id, sceneId: r.sceneId, kind: "fog", z, owner, mode, shape, points };
   }
+  if (r.kind === "terrain") return sanitizeTerrain(r, r.id, r.sceneId, GM_OWNER);
   return null;
 }
 
@@ -258,9 +267,10 @@ export function sanitizeSet(item: Item, raw: unknown): Partial<MutableFields> | 
     n++;
   }
   if (n === 0) return null;
-  if (out.points && item.kind !== "token") {
+  if (out.points && (item.kind === "drawing" || item.kind === "fog")) {
     if (!shapePointsOk(item.kind, item.shape, out.points as number[])) return null;
   }
+  if (item.kind === "terrain" && !terrainFieldsOk(!!item.hidden, out as Partial<MutableFields>)) return null;
   if ("text" in out && !(item.kind === "drawing" && item.shape === "text")) return null;
   return out as Partial<MutableFields>;
 }

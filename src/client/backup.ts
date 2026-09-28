@@ -3,6 +3,7 @@
 // browser, uncompressed (images are compressed already).
 
 import { randomId } from "../shared/ids";
+import { terrainId } from "../shared/terrain";
 import type { Asset, Item, RoomSettings, Scene } from "../shared/types";
 import { fileUrl, uploadBlob } from "./api";
 import type { RoomClient } from "./room/client";
@@ -200,7 +201,9 @@ export async function importBackup(room: RoomClient, file: File, onProgress: (te
   for (const it of backup.items) {
     const sceneId = sceneIds.get(it.sceneId);
     if (!sceneId) continue;
-    const copy = { ...it, id: randomId(12), sceneId } as Item;
+    // A built map's chunks have ids made from their scene and place; the rest get new random ones.
+    const id = it.kind === "terrain" && !it.hidden ? terrainId(sceneId, it.cx, it.cy) : randomId(12);
+    const copy = { ...it, id, sceneId } as Item;
     if (copy.kind === "token" && copy.assetId) copy.assetId = assetIds.get(copy.assetId) ?? null;
     items.push(copy);
   }

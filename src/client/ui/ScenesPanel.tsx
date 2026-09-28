@@ -84,9 +84,18 @@ export function ScenesPanel() {
       {creating && (
         <NewSceneDialog
           onClose={() => setCreating(false)}
-          onCreated={(id) => {
+          onCreated={(id, blank) => {
             setCreating(false);
-            setEditing(id);
+            if (blank) {
+              // A blank grid is for building on: straight to the Build tool. On a phone the
+              // panel covers the whole board, so it closes.
+              room.setTool("build");
+              room.store.set({ buildOpts: { ...room.state.buildOpts, mode: "building" } });
+              if (window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
+              room.toast("Build the map with the Build tool (B): floors, walls, doors and objects.");
+            } else {
+              setEditing(id);
+            }
           }}
         />
       )}
@@ -95,8 +104,8 @@ export function ScenesPanel() {
           title="Delete scene?"
           message={
             <>
-              <strong>{deleting.name}</strong> and every token, drawing and fog shape on it will be deleted. This can't be
-              undone.
+              <strong>{deleting.name}</strong> and every token, drawing, fog shape and built floor, wall and object on it
+              will be deleted. This can't be undone.
             </>
           }
           confirmLabel="Delete scene"
@@ -120,7 +129,12 @@ function gridNote(scene: Scene, fromFile: boolean): string {
     : `Grid guessed at ${cols} × ${rows} ${cells}: check it with Edit scene.`;
 }
 
-export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: string) => void; files?: File[] }) {
+export function NewSceneDialog(props: {
+  onClose: () => void;
+  /** blank: a blank grid (to build on) rather than a map. */
+  onCreated: (id: string, blank: boolean) => void;
+  files?: File[];
+}) {
   const room = useRoom();
   const assets = useRoomState((s) => s.assets);
   const scenes = useRoomState((s) => s.scenes);
@@ -130,6 +144,8 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
   const [mode, setMode] = useState<"upload" | "library" | "blank">("upload");
   const [cols, setCols] = useState(30);
   const [covered, setCovered] = useState(true);
+  // A blank grid is usually built before the session, in plain view; a map usually starts hidden.
+  const [blankCovered, setBlankCovered] = useState(false);
   const [rows, setRows] = useState(20);
   const fileRef = useRef<HTMLInputElement>(null);
   const maps = Object.values(assets)
@@ -137,10 +153,10 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
     .sort((a, b) => b.createdAt - a.createdAt);
   const order = Math.max(0, ...Object.values(scenes).map((s) => s.order + 1));
 
-  const create = (scene: Scene) => {
+  const create = (scene: Scene, blank = false) => {
     room.createScene(scene);
     room.viewSceneLocally(scene.id);
-    props.onCreated(scene.id);
+    props.onCreated(scene.id, blank);
   };
 
   const [dragOver, setDragOver] = useState(false);
@@ -166,7 +182,7 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
         setReport(r);
         return;
       }
-      props.onCreated(r.scenes[0].id);
+      props.onCreated(r.scenes[0].id, false);
       room.toast(
         r.scenes.length > 1
           ? `Created ${r.scenes.length} scenes, one per map. ${r.gridFromFile} had their grid in the file.`
@@ -185,7 +201,7 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
 
   if (report) {
     return (
-      <Modal title="Maps brought in" onClose={() => props.onCreated(report.scenes[0].id)} width={480}>
+      <Modal title="Maps brought in" onClose={() => props.onCreated(report.scenes[0].id, false)} width={480}>
         <p>
           {report.scenes.length === 1 ? "One new scene" : `${report.scenes.length} new scenes`}:{" "}
           <strong>{report.scenes.map((s) => s.name).join(", ")}</strong>.{" "}
@@ -209,7 +225,7 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
           </>
         )}
         <div class="dialog-actions">
-          <button class="btn btn-primary" onClick={() => props.onCreated(report.scenes[0].id)}>
+          <button class="btn btn-primary" onClick={() => props.onCreated(report.scenes[0].id, false)}>
             Done
           </button>
         </div>
@@ -240,9 +256,14 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
           Blank grid
         </button>
       </div>
-      {mode !== "blank" && (
+      {mode !== "blank" ? (
         <label class="check" title="Players see nothing until you reveal it with the fog tool">
           <input type="checkbox" checked={covered} onChange={(e) => setCovered(e.currentTarget.checked)} /> Start with the map
+          covered in fog
+        </label>
+      ) : (
+        <label class="check" title="Players see nothing until you reveal it with the fog tool: build in secret, even on the live scene">
+          <input type="checkbox" checked={blankCovered} onChange={(e) => setBlankCovered(e.currentTarget.checked)} /> Start
           covered in fog
         </label>
       )}
@@ -319,11 +340,14 @@ export function NewSceneDialog(props: { onClose: () => void; onCreated: (id: str
               height: Math.max(1, Math.min(200, rows)) * size,
               background: "#3a3f47",
               grid: { ...DEFAULT_GRID, size, color: "#ffffff", opacity: 0.2 },
-              fogCover: false,
+              fogCover: blankCovered,
               createdAt: Date.now(),
-            });
+            }, true);
           }}
         >
+          <p class="small muted">
+            A plain grid to build a map on with the Build tool: floors, walls, doors and objects.
+          </p>
           <div class="row">
             <label class="field">
               <span>Columns</span>

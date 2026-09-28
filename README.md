@@ -30,6 +30,16 @@ entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucke
   and `]` to resize), rectangles, polygons or a lasso; corners snap to the grid. Every stroke is one Undo.
   The GM sees fog dimmed and can switch to the players' view; players see solid fog and can't pick
   anything under it. Fog is stored with each scene, so it's there next session.
+- **Map builder** (GM, the Build tool, `B`), laid out like Dungeondraft (the GM's map maker): modes
+  Building, Walls, Doors, Terrain and Objects. Rooms (stone, wood, dirt) as rectangles, ovals or a brush get
+  walls automatically where they meet empty space or terrain; terrain (grass, water, lava) goes under
+  buildings. Walls by dragging along grid lines or clicking corners; doors, secret doors and openings by
+  clicking a wall; objects (tables, beds, chests, stairs, pillars, trees, a campfire and more, 1 to 3
+  squares, quarter turns) placed, turned with a right-click and dragged to move. Alt takes away instead of
+  adding, as in Dungeondraft; Ctrl+wheel zooms. Works on a blank grid or over an uploaded map, and the Build
+  bar imports Dungeondraft's Universal VTT exports. Each drag or click is one Undo. Players see the
+  build under fog like any map; secret doors look like walls to them, and their browsers are never sent
+  them. Stored in 16 x 16-square chunks (`src/shared/terrain.ts`), drawn by `src/client/room/build.ts`.
 - **Drawing and notes.** Freehand, line, rectangle, ellipse, text notes; colours, widths, fill; eraser.
 - **Measuring and pointing.** A ruler (5e diagonals, alternating 1-2-1, straight line, or hexes), spell
   areas (circle, cone, cube, line) that can be pinned to the map, and a laser pointer. Everyone sees them live.
@@ -69,6 +79,14 @@ never got, and a change that arrives twice is applied once. A change to a scene 
 (Cover all, Clear all, a new map, and undoing them) travels in one message with it and is applied
 completely or not at all, so players never see a map between the two halves.
 
+Browsers say which protocol version their code speaks when they connect (`v=2` since built maps), and
+which build it is (`b`, a hash of the source set in `vite.config.ts`; the server has the same one). A tab
+whose build differs from the server's (one left open across a deploy) gets an **Update: Reload** button, and a
+table display reloads itself. Tabs from before builds were compared are sent a message asking them to reload
+(for such a table display, which shows no messages, the GM is told instead). A tab on older code isn't sent
+built-map chunks, which it would mistake for fog. Such a tab can't send terrain either. Undo of a build step is worked out
+when it's used, and puts back only what that step changed, so it never wipes what another tab built since.
+
 **Security.**
 - GM sign-in with Google: only the accounts listed in the `GM_EMAILS` secret become the GM, and taking an
   address off the list ends its sessions. OpenID Connect code flow with PKCE, a signed state and a nonce; the
@@ -107,7 +125,8 @@ different host name, so it doesn't share the GM cookie.
 ```bash
 npm run typecheck   # client, worker and tests
 npm test            # unit tests: dice, grid and hex maths, templates, validation, permissions, undo,
-                    # initiative, backups, map files (Universal VTT, Owlbear Rodeo backups, file names)
+                    # initiative, backups, map files (Universal VTT, Owlbear Rodeo backups, file names),
+                    # the map builder (chunk ids, walls, doors and secret doors, edits and undo)
 npm run smoke       # end-to-end: API + WebSocket protocol against a running server
 ```
 

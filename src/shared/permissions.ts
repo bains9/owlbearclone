@@ -9,12 +9,17 @@ export interface Actor {
   role: Role;
 }
 
-/** Whether a player can see an item at all. GMs see everything. */
+/**
+ * Whether a player can see an item at all. GMs see everything. (Hidden terrain holds
+ * the secret doors: players see those as plain walls.)
+ */
 export function visibleToPlayer(item: Item, activeSceneId: string | null): boolean {
   if (item.sceneId !== activeSceneId) return false;
-  if ((item.kind === "token" || item.kind === "drawing") && item.hidden) return false;
+  if ((item.kind === "token" || item.kind === "drawing" || item.kind === "terrain") && item.hidden) return false;
   return true;
 }
+
+// Only the GM builds: every rule below refuses players anything but tokens and drawings.
 
 export function canCreate(item: Item, actor: Actor, settings: RoomSettings): boolean {
   if (actor.role === "gm") return true;

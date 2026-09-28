@@ -1,6 +1,15 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  Armchair,
+  BrickWall,
+  Castle,
+  DoorOpen,
+  FileUp,
+  Hammer,
   Lasso,
+  RotateCw,
+  Trees,
+  X,
   Paintbrush,
   Circle,
   CloudFog,
@@ -23,9 +32,15 @@ import {
   Type,
   Undo2,
 } from "lucide-preact";
+import { isHex } from "../../shared/geometry";
 import type { MeasureShape } from "../../shared/protocol";
+import { FLOORS, STAMP_IDS, STAMP_NAMES } from "../../shared/terrain";
+import type { FloorId, StampId } from "../../shared/terrain";
+import { MAP_FILE_ACCEPT } from "../mapImport";
 import type { DrawShape } from "../../shared/types";
-import type { ToolId } from "../room/client";
+import { buildUndo, wallsFor } from "../room/build";
+import { drawStamp, floorPattern } from "../room/buildArt";
+import type { BuildOptions as BuildOpts, ToolId } from "../room/client";
 import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
@@ -33,6 +48,7 @@ const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?:
   { id: "draw", label: "Draw", key: "D", icon: Pencil },
   { id: "erase", label: "Eraser: drawings, notes and tokens", key: "E", icon: Eraser },
   { id: "fog", label: "Fog of war", key: "F", icon: CloudFog, gm: true },
+  { id: "build", label: "Build the map: floors, walls, doors, objects", key: "B", icon: Hammer, gm: true },
   { id: "measure", label: "Measure", key: "M", icon: Ruler },
   { id: "pointer", label: "Pointer", key: "P", icon: Pointer },
 ];
@@ -64,7 +80,7 @@ export function Toolbar() {
       <button class="tool" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!canUndo} onClick={() => room.undo()}>
         <Undo2 size={20} />
       </button>
-      <button class="tool" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!canRedo} onClick={() => room.redo()}>
+      <button class="tool" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" aria-label="Redo" disabled={!canRedo} onClick={() => room.redo()}>
         <Redo2 size={20} />
       </button>
     </div>
@@ -75,6 +91,7 @@ export function ToolOptions() {
   const tool = useRoomState((s) => s.tool);
   if (tool === "draw") return <DrawOptions />;
   if (tool === "fog") return <FogOptions />;
+  if (tool === "build") return <BuildOptions />;
   if (tool === "erase") return <EraseOptions />;
   if (tool === "measure") return <MeasureHint />;
   if (tool === "pointer") return <div class="tool-options hint">Hold and drag to point. Everyone sees the trail.</div>;
@@ -231,6 +248,415 @@ function FogOptions() {
           onClose={() => setConfirm(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The Build tool's modes, named and ordered after the Dungeondraft tools the GM knows:
+ * Building, Wall, Portal (doors), Terrain, Object.
+ */
+const BUILD_MODES: { id: BuildOpts["mode"]; label: string; title: string; icon: typeof Pencil }[] = [
+  { id: "building", label: "Building", title: "Building: rooms with walls round them (like Dungeondraft's Building tool)", icon: Castle },
+  { id: "walls", label: "Walls", title: "Walls: along grid lines (like Dungeondraft's Wall tool)", icon: BrickWall },
+  { id: "doors", label: "Doors", title: "Doors, secret doors and openings in walls (like Dungeondraft's Portal tool)", icon: DoorOpen },
+  { id: "terrain", label: "Terrain", title: "Terrain: grass, water and lava, under buildings (like Dungeondraft's Terrain brush)", icon: Trees },
+  { id: "stamps", label: "Objects", title: "Objects: furniture and scenery (like Dungeondraft's Object tool)", icon: Armchair },
+];
+
+const BUILDING_FLOORS = FLOORS.filter((f) => f.walls);
+const TERRAIN_FLOORS = FLOORS.filter((f) => !f.walls);
+
+/**
+ * What the mouse and keys do in the Build tool with these options, shown along the bottom
+ * on a computer (Dungeondraft shows its tool's controls the same way).
+ */
+function buildHints(o: BuildOpts): [string, string][] {
+  const pan: [string, string] = ["Space+drag", "pan"];
+  const zoom: [string, string] = ["Ctrl+wheel", "zoom"];
+  switch (o.mode) {
+    case "building":
+    case "terrain": {
+      const erase = o.floor[o.mode] === "erase";
+      const out: [string, string][] = [["Drag", erase ? "erase" : o.mode === "building" ? "room" : "paint"]];
+      if (!erase) out.push(["Alt+drag", o.mode === "building" ? "cut out" : "take away"]);
+      if (o.shape[o.mode] === "brush") out.push(["[ ]", "brush size"]);
+      return [...out, pan, zoom];
+    }
+    case "walls": {
+      const remove = o.wallMode === "remove";
+      const out: [string, string][] = [
+        ["Drag", remove ? "remove" : "walls"],
+        ["Click corners", remove ? "remove between" : "walls between"],
+        ["Dbl-click, right-click, Enter", "finish"],
+        ["Backspace", "undo corner"],
+      ];
+      if (!remove) out.push(["Alt", "remove"]);
+      return out;
+    }
+    case "doors":
+      return [
+        ["Click a wall", o.doorStyle === "open" ? "opening" : o.doorStyle === "secret" ? "secret door" : "door"],
+        ["Click it again, or Alt+click", "take it away"],
+        pan,
+        zoom,
+      ];
+    case "stamps":
+      return o.stampMode === "remove"
+        ? [["Click an object", "remove"], pan, zoom]
+        : [
+            ["Click", "place"],
+            ["Right-click or [ ]", "turn"],
+            ["Drag an object", "move it"],
+            ["Alt+click", "remove"],
+          ];
+  }
+}
+
+/** The same, briefly, for a touch screen (shown in the bar). */
+const TOUCH_HINTS: Record<BuildOpts["mode"], string> = {
+  building: "Drag to paint a room.",
+  terrain: "Drag to paint.",
+  walls: "Drag along grid lines, or tap one.",
+  doors: "Tap a wall.",
+  stamps: "Tap to place. Tap an object to turn it.",
+};
+
+/** A small picture of an object, for the palette. */
+function StampIcon(props: { id: StampId }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const px = 26 * (window.devicePixelRatio || 1);
+    canvas.width = px;
+    canvas.height = px;
+    ctx.setTransform(px, 0, 0, px, px / 2, px / 2);
+    drawStamp(ctx, props.id);
+  }, [props.id]);
+  return <canvas ref={ref} class="stamp-icon" aria-hidden="true" />;
+}
+
+/** A swatch of a floor's texture. */
+function FloorIcon(props: { id: FloorId }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const px = 22 * (window.devicePixelRatio || 1);
+    canvas.width = px;
+    canvas.height = px;
+    ctx.fillStyle = floorPattern(ctx, props.id, px, 0, 0);
+    ctx.fillRect(0, 0, px, px);
+  }, [props.id]);
+  return <canvas ref={ref} class="floor-icon" aria-hidden="true" />;
+}
+
+/** Brings a Dungeondraft export in as a new scene (through the new-scene window). */
+function ImportDungeondraft() {
+  const room = useRoom();
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button
+        class="btn btn-sm"
+        title="Bring in a map made in Dungeondraft (Universal VTT export, .dd2vtt) as a new scene. Its picture and grid come across; the walls, doors and lights in the file aren't used."
+        aria-label="Import Dungeondraft map"
+        onClick={() => fileRef.current?.click()}
+      >
+        <FileUp size={14} /> <span class="seg-label">Import Dungeondraft map</span>
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={MAP_FILE_ACCEPT}
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = [...(e.currentTarget.files ?? [])];
+          e.currentTarget.value = "";
+          if (files.length) room.store.set({ mapImport: files });
+        }}
+      />
+    </>
+  );
+}
+
+function BuildOptions() {
+  const room = useRoom();
+  const o = useRoomState((s) => s.buildOpts);
+  const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
+  const live = useRoomState((s) => !!s.viewSceneId && s.viewSceneId === s.activeSceneId);
+  const [confirm, setConfirm] = useState(false);
+  if (!scene) {
+    return (
+      <div class="tool-options build-options">
+        <ImportDungeondraft />
+      </div>
+    );
+  }
+  const set = (patch: Partial<BuildOpts>) => room.store.set({ buildOpts: { ...room.state.buildOpts, ...patch } });
+  if (isHex(scene.grid)) {
+    return (
+      <div class="tool-options build-options">
+        <span class="hint">Building works on a square grid. Switch this scene to squares in Edit scene (Scenes panel).</span>
+        <ImportDungeondraft />
+      </div>
+    );
+  }
+  const walls = wallsFor(scene, o.walls);
+  const clear = () => {
+    const items = room.state.items;
+    const ids = Object.values(items)
+      .filter((i) => i.kind === "terrain" && i.sceneId === scene.id)
+      .map((i) => i.id);
+    if (ids.length) room.changeWith({ delete: ids }, scene.id, buildUndo(items, scene.id, { delete: ids }));
+  };
+  const paint = o.mode === "building" || o.mode === "terrain" ? o.mode : null;
+  return (
+    <div class="tool-options build-options">
+      <div class="seg">
+        {BUILD_MODES.map((m) => (
+          <button
+            key={m.id}
+            class={cx("seg-btn wide", o.mode === m.id && "active")}
+            title={m.title}
+            aria-label={m.label}
+            aria-pressed={o.mode === m.id}
+            onClick={() => set({ mode: m.id })}
+          >
+            <m.icon size={16} />
+            <span class="seg-label">{m.label}</span>
+          </button>
+        ))}
+      </div>
+      {paint && (
+        <>
+          <div class="seg" role="group" aria-label="Shape">
+            {(
+              [
+                ["rect", "Rectangle: drag from corner to corner", Square],
+                ["circle", "Oval: drag from corner to corner", Circle],
+                [
+                  "brush",
+                  paint === "building"
+                    ? "Brush: paint square by square, like Dungeondraft's Cave brush ([ and ] change its size)"
+                    : "Brush: paint square by square ([ and ] change its size)",
+                  Paintbrush,
+                ],
+              ] as const
+            ).map(([id, title, Icon]) => (
+              <button
+                key={id}
+                class={cx("seg-btn", o.shape[paint] === id && "active")}
+                title={title}
+                aria-label={title.split(":")[0]}
+                aria-pressed={o.shape[paint] === id}
+                onClick={() => set({ shape: { ...o.shape, [paint]: id } })}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+          <div class="floor-swatches" role="group" aria-label="Floor">
+            {(paint === "building" ? BUILDING_FLOORS : TERRAIN_FLOORS).map((f) => (
+              <button
+                key={f.id}
+                class={cx("floor-swatch", o.floor[paint] === f.id && "active")}
+                title={f.name}
+                aria-label={f.name}
+                aria-pressed={o.floor[paint] === f.id}
+                onClick={() => set({ floor: { ...o.floor, [paint]: f.id } })}
+              >
+                <FloorIcon id={f.id} />
+              </button>
+            ))}
+            <button
+              class={cx("floor-swatch erase", o.floor[paint] === "erase" && "active")}
+              title={
+                paint === "building"
+                  ? "Erase rooms: their floor, and the walls, doors and objects on it (or hold Alt while you drag)"
+                  : "Erase terrain: grass, water and lava only (or hold Alt while you drag)"
+              }
+              aria-label="Erase"
+              aria-pressed={o.floor[paint] === "erase"}
+              onClick={() => set({ floor: { ...o.floor, [paint]: "erase" } })}
+            >
+              <Eraser size={14} />
+            </button>
+          </div>
+          {o.shape[paint] === "brush" && (
+            <div class="seg" role="group" aria-label="Brush size" title="Brush size in squares ([ and ] change it)">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  class={cx("seg-btn", o.brush === n && "active")}
+                  aria-label={`${n} square brush`}
+                  aria-pressed={o.brush === n}
+                  onClick={() => set({ brush: n })}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
+          {paint === "building" && (
+            <div
+              class="seg"
+              role="group"
+              aria-label="Wall"
+              title="Walls round the rooms you paint from now on, where they meet empty space, grass, water or lava. No wall: patch an uploaded map without walling the patch in."
+            >
+              <button
+                class={cx("seg-btn", !walls && "active")}
+                aria-label="No wall"
+                aria-pressed={!walls}
+                title="No wall"
+                onClick={() => set({ walls: { ...o.walls, [scene.id]: false } })}
+              >
+                <X size={16} />
+              </button>
+              <button
+                class={cx("seg-btn", walls && "active")}
+                aria-label="Wall"
+                aria-pressed={walls}
+                title="Wall"
+                onClick={() => set({ walls: { ...o.walls, [scene.id]: true } })}
+              >
+                <BrickWall size={16} />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {o.mode === "walls" && (
+        <div class="seg">
+          <button class={cx("seg-btn wide", o.wallMode === "add" && "active")} onClick={() => set({ wallMode: "add" })}>
+            Add
+          </button>
+          <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
+            Remove
+          </button>
+        </div>
+      )}
+      {o.mode === "doors" && (
+        <div class="seg" role="group" aria-label="Style">
+          <button
+            class={cx("seg-btn", o.doorStyle === "open" && "active")}
+            title="Opening: a gap in the wall, an archway"
+            aria-label="Opening"
+            aria-pressed={o.doorStyle === "open"}
+            onClick={() => set({ doorStyle: "open" })}
+          >
+            <X size={16} />
+          </button>
+          <button
+            class={cx("seg-btn wide", o.doorStyle === "door" && "active")}
+            title="Door"
+            aria-label="Door"
+            aria-pressed={o.doorStyle === "door"}
+            onClick={() => set({ doorStyle: "door" })}
+          >
+            <DoorOpen size={16} /> <span class="seg-label">Door</span>
+          </button>
+          <button
+            class={cx("seg-btn wide", o.doorStyle === "secret" && "active")}
+            title="Secret door: players see a wall"
+            aria-label="Secret door"
+            aria-pressed={o.doorStyle === "secret"}
+            onClick={() => set({ doorStyle: "secret" })}
+          >
+            <span class="secret-mark">S</span> <span class="seg-label">Secret</span>
+          </button>
+        </div>
+      )}
+      {o.mode === "stamps" && (
+        <>
+          <div class="seg">
+            <button class={cx("seg-btn wide", o.stampMode === "place" && "active")} onClick={() => set({ stampMode: "place" })}>
+              Place
+            </button>
+            <button class={cx("seg-btn wide", o.stampMode === "remove" && "active")} onClick={() => set({ stampMode: "remove" })}>
+              Remove
+            </button>
+          </div>
+          <div class="stamp-palette" role="group" aria-label="Objects">
+            {STAMP_IDS.map((id) => (
+              <button
+                key={id}
+                class={cx("stamp-btn", o.stamp === id && o.stampMode === "place" && "active")}
+                title={STAMP_NAMES[id]}
+                aria-label={STAMP_NAMES[id]}
+                aria-pressed={o.stamp === id && o.stampMode === "place"}
+                onClick={() => set({ stamp: id, stampMode: "place" })}
+              >
+                <StampIcon id={id} />
+              </button>
+            ))}
+          </div>
+          <div class="seg" title="Size in squares">
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                class={cx("seg-btn", o.stampSize === n && "active")}
+                aria-label={`${n} by ${n} squares`}
+                onClick={() => set({ stampSize: n })}
+              >
+                {n}×{n}
+              </button>
+            ))}
+          </div>
+          <button
+            class="seg-btn stamp-turn"
+            title="Turn the next object (right-click, or [ and ])"
+            aria-label="Turn the next object"
+            onClick={() => set({ stampTurns: (o.stampTurns + 1) % 4 })}
+          >
+            <RotateCw size={16} style={{ transform: `rotate(${o.stampTurns * 90}deg)` }} />
+          </button>
+        </>
+      )}
+      <span class="hint build-touch-hint">
+        {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object to remove it." : TOUCH_HINTS[o.mode]}
+      </span>
+      {live && <span class="hint build-live">Players see this scene as you build.</span>}
+      <ImportDungeondraft />
+      <button class="btn btn-sm" onClick={() => setConfirm(true)}>
+        Clear build
+      </button>
+      {confirm && (
+        <ConfirmDialog
+          title="Clear everything built here?"
+          message="Every floor, wall, door and object built on this scene is removed. Undo brings them back."
+          confirmLabel="Clear build"
+          onConfirm={clear}
+          onClose={() => setConfirm(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Along the bottom on a computer: what the mouse and keys do in the current Build mode. */
+export function BuildHints() {
+  const tool = useRoomState((s) => s.tool);
+  const gm = useRoomState((s) => s.me?.role === "gm");
+  const o = useRoomState((s) => s.buildOpts);
+  const selected = useRoomState((s) => s.selection.length > 0);
+  const hex = useRoomState((s) => {
+    const scene = s.viewSceneId ? s.scenes[s.viewSceneId] : null;
+    return !scene || isHex(scene.grid);
+  });
+  if (tool !== "build" || !gm || selected || hex) return null;
+  return (
+    <div class="build-hints" aria-hidden="true">
+      {buildHints(o).map(([keys, what]) => (
+        <span key={keys}>
+          <kbd>{keys}</kbd> {what}
+        </span>
+      ))}
     </div>
   );
 }

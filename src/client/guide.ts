@@ -12,6 +12,94 @@ export interface GuideSection {
 
 export const GUIDE: GuideSection[] = [
   {
+    "id": "whats-new",
+    "title": "What's new",
+    "audience": "everyone",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out late on 27 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "parts": [
+      {
+        "title": "Build like Dungeondraft (27 September 2026, night)",
+        "steps": [
+          "Pick **Build the map** (**B**). On a computer, the controls for each mode are listed along the bottom of the map."
+        ],
+        "notes": [
+          "The Build tool's modes now follow Dungeondraft's tools: **Building** (rooms), **Walls**, **Doors**, **Terrain** (grass, water and lava, which go under buildings) and **Objects**. **Building a map: floors, walls, doors and objects** now starts with a part for Dungeondraft users.",
+          "Dungeondraft habits work: hold Alt to cut out part of a room, right-click to turn the next object, and use Ctrl and the mouse wheel to zoom (with a mouse wheel it used to jump; now it zooms gently). Here Alt also erases terrain (in Dungeondraft you paint over it) and removes walls, doors and objects (in Dungeondraft, the Select tool does that).",
+          "With a mouse, walls can be placed by clicking corners, and finished with a double-click, a right-click or **Enter**.",
+          "Doors now have styles: **Door**, **Secret** and **Opening** (a gap in the wall). A click finds the nearest wall.",
+          "With a mouse, drag an object to move it.",
+          "Rooms can be ovals as well as rectangles, and the brush size is picked with buttons from 1 to 5.",
+          "Rooms now get walls where they meet grass, water or lava, not only where they meet empty space. A path or bridge painted in stone, wood or dirt before this update now has walls along the terrain beside it: open them with **Walls**, **Remove**, or paint it again with **No wall**.",
+          "**Import Dungeondraft map** in the Build tool's bar brings in a Dungeondraft Universal VTT export as a new scene.",
+          "Redo is **Ctrl+Y** as well as **Ctrl+Shift+Z**."
+        ]
+      },
+      {
+        "title": "Pages tell you when to reload (27 September 2026, later that evening)",
+        "steps": [
+          "When **Update: Reload** shows in the top bar, click it, or reload the page yourself (F5, or Cmd+R on a Mac)."
+        ],
+        "notes": [
+          "When Tabletop is updated while you have a room open, the page now tells you: a message says \"Tabletop has been updated. Reload this page to get the new version.\" and **Update: Reload** appears in the top bar. Until you reload, that page keeps the old version, without any new tools.",
+          "A table display reloads itself when Tabletop is updated, so the screen at the table keeps up without anyone touching it.",
+          "Pages opened before this change get the message but not the button. A table display opened before it can't show the message either, so the GM is told to reload it instead.",
+          "GM: if a tool you've read about isn't in your toolbar (the hammer for **Build the map**, say), reload first. See **Troubleshooting**."
+        ]
+      },
+      {
+        "title": "GM: build your own maps (27 September 2026, evening)",
+        "steps": [
+          "Click **Scenes** in the top bar.",
+          "Click **New scene**.",
+          "Choose **Blank grid**.",
+          "Click **Create**. The Build tool is picked for you.",
+          "In the Build tool's bar, check that **Building**, **Rectangle** (the square) and stone (the first floor) are picked. They are to begin with.",
+          "Drag from one corner of a room to the opposite corner. You get a stone room with walls round it.",
+          "Pick **Doors**.",
+          "Click one of the room's walls. It becomes a door.",
+          "When it's ready, click **Show to players** on the \"Only you can see this scene\" banner."
+        ],
+        "notes": [
+          "You can now build a battle map right on the grid with the Build tool: click **Build the map** (the hammer) in the toolbar, or press **B**.",
+          "Paint rooms (stone, wood or dirt) in **Building** and grass, water or lava in **Terrain**, with a rectangle or a brush. Rooms get walls by themselves; you can turn that off to patch an uploaded map.",
+          "Draw or remove walls along the grid lines. In **Doors**, click a wall to put a door in it, or pick **Secret** first for a secret door: you see a purple **S** on it, and players see an ordinary wall.",
+          "Place objects such as tables, beds, chests, stairs, trees and a campfire, from 1×1 to 3×3 squares.",
+          "Build on a blank grid, or over an uploaded map to patch it or add rooms. It needs a square grid.",
+          "When you build on the scene players are on, they see each change as you make it, unless it's under fog. The bar then says \"Players see this scene as you build.\" To build in secret, cover the scene in fog first, or build on another scene.",
+          "Each drag or click is one step for **Undo**. **Clear build** removes everything built on the scene, after asking you. What you build is saved with the scene and included in backups, and deleting the scene deletes it too.",
+          "On a phone or tablet, one finger paints floors and draws walls. For doors and objects, tap: a drag moves the map instead.",
+          "The full how-to is in **Building a map: floors, walls, doors and objects**."
+        ]
+      },
+      {
+        "title": "Also in this update",
+        "steps": [],
+        "notes": [
+          "For players: maps the GM builds show up like any other map, under the fog. On the scene you're on, they appear as the GM builds them. A secret door looks like an ordinary wall.",
+          "Blank grids (GM): **Blank grid** in **New scene** now has a **Start covered in fog** tick box, unticked to begin with. **Create** now takes you straight to the Build tool instead of the scene editor, and on a phone the **Scenes** panel closes so you can see the map. See **Adding maps**.",
+          "Pages left open from before the update: reload them. An older page can't show built maps. It leaves them out, and a message that starts \"Tabletop has been updated.\" asks you to reload. See **Troubleshooting**.",
+          "An out-of-date table display (GM): a table display can't show messages, so when it's the display's page that needs reloading, you get a message that starts \"A table display is running an older version of Tabletop\". Reload the page on the display's screen, or in the TV's browser.",
+          "The table display while you build (GM): with **What I'm looking at, while I'm on the live scene** picked, the display now stays where it is while you use the Build tool, so the table doesn't jump around as you zoom in to build. It follows you again when you pick another tool. See **Showing the map on a second screen or a TV**.",
+          "The \"Only you can see this scene\" banner (GM): it now sits just below a tool's options bar instead of covering it. On a phone it's still near the bottom of the map. See **Finding your way around a room**.",
+          "New keyboard shortcuts (GM): **B** picks **Build the map**. In the Build tool, **[** and **]** make the floor brush smaller or bigger, or turn the next object before you place it. They're in the **Help & shortcuts** box and in **Keyboard shortcuts**."
+        ]
+      },
+      {
+        "title": "Earlier updates, also on 27 September 2026",
+        "steps": [],
+        "notes": [
+          "The eraser takes tokens too (earlier that evening): drag the **Eraser** over tokens as well as drawings and notes. Locked tokens are never erased, and players can only erase their own drawings, notes and tokens. See **Drawing and notes**.",
+          "This guide: step-by-step help for players and the GM. Open it from **How to use Tabletop** on the start page, or from **Read the full guide** in a room's **Help & shortcuts** box. When something goes wrong, look in **Troubleshooting**.",
+          "The table display (GM): show the map on a second screen or a TV, exactly as players see it. Click the monitor button in the top bar, then **Open display window**. See **Showing the map on a second screen or a TV**.",
+          "Google sign-in (GM): sign in with **Sign in with Google** on the start page instead of typing the GM password. See **Signing in as the GM**.",
+          "Bringing in maps (GM): **New scene** takes Owlbear Rodeo backups (.ob2) with their fog and tokens, and Dungeondraft and other Universal VTT files with their exact grid. You can also drop or paste a map straight onto the board, and the grid can be read from a file name such as `Crypt 30x20.jpg`. See **Moving from Owlbear Rodeo** and **Adding maps**.",
+          "Steadier connections (everyone): when a dropped connection comes back, the changes you made meanwhile now arrive exactly once. None go missing (as long as you don't reload the page), and none are applied twice.",
+          "The first version of Tabletop: rooms players join with a link, tokens, drawing and notes, measuring, the pointer, dice and chat, initiative, scenes, fog of war, backups, and GM sign-in with a password. Players can start with **Joining a game**, and everyone with **Finding your way around a room**."
+        ]
+      }
+    ]
+  },
+  {
     "id": "joining-a-game",
     "title": "Joining a game",
     "audience": "player",
@@ -132,6 +220,7 @@ export const GUIDE: GuideSection[] = [
           "**Draw (D)**: freehand, lines, rectangles, ellipses and text notes. Players can only draw if the GM allows it. If the GM hasn't, you'll see \"The GM has turned drawing off.\" when you try.",
           "**Eraser (E)**: drag over drawings, notes or tokens to erase them. Locked tokens stay put. Players can only erase their own drawings and tokens. The tool's options also have **Clear my drawings** (for the GM, **Clear all drawings**), which asks you to confirm first. Undo brings them back.",
           "**Fog of war (F)**: GM only. Hide and reveal parts of the map.",
+          "**Build the map (B)**: GM only. Paint rooms, walls, doors, terrain and objects onto the grid, with modes named after Dungeondraft's tools.",
           "**Measure (M)**: a ruler and spell areas.",
           "**Pointer (P)**: hold and drag to point. Everyone sees the trail.",
           "**Undo (Ctrl+Z)** and **Redo (Ctrl+Shift+Z)** only cover your own changes on the scene you're looking at. They're greyed out when there's nothing to undo or redo.",
@@ -193,7 +282,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Players only ever get the scene you've shown them. A scene you're previewing is never sent to them.",
           "In the **Scenes** panel, the players' scene is tagged \"Players see this\" and the one you're looking at is marked \"Previewing\".",
-          "On a phone, this banner sits near the bottom of the map."
+          "The banner sits at the top of the map (just below a tool's options bar, when one is showing), and near the bottom on a phone."
         ]
       },
       {
@@ -231,7 +320,7 @@ export const GUIDE: GuideSection[] = [
           "Tap an empty part of the map when you're done with a selection."
         ],
         "notes": [
-          "With **Draw**, the **Eraser**, **Measure**, **Pointer** or (GM) **Fog of war** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
+          "With **Draw**, the **Eraser**, **Measure**, **Pointer**, or (GM) **Fog of war** or **Build the map** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
           "The zoom buttons work on touch screens too.",
           "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard."
         ]
@@ -1347,7 +1436,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "**Columns** and **Rows** can each be 1 to 200. They start at 30 and 20.",
-          "A blank grid has 70-pixel squares on a dark grey background and no fog.",
+          "A blank grid has 70-pixel squares on a dark grey background. The Build tool is picked for you, to build a map on it (see **Building a map**).",
+          "Tick **Start covered in fog** if players shouldn't see it until you reveal it. It starts unticked.",
           "You can change its size later in **Edit scene** (**Width (px)** and **Height (px)**), or give it a map there.",
           "Every new room starts with **Scene 1**, a blank 30 by 20 grid, and that's the scene players see at first."
         ]
@@ -1361,9 +1451,156 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Its tooltip says: \"Players see nothing until you reveal it with the fog tool\".",
           "It's ticked unless you untick it.",
-          "It isn't shown for **Blank grid**, because blank grids start with no fog.",
+          "For **Blank grid** it's called **Start covered in fog**, and it starts unticked.",
           "It doesn't apply to Owlbear backups, because their fog comes from Owlbear.",
           "You can change your mind later with **Cover all** or **Clear all**, in **Edit scene** or on the fog tool."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "building-maps",
+    "title": "Building a map: floors, walls, doors and objects",
+    "audience": "gm",
+    "intro": "The Build tool lets you make a battle map right on the grid, or add to a map you uploaded. Its modes are named after Dungeondraft's tools: **Building** for rooms, **Walls**, **Doors** (Dungeondraft's portals), **Terrain** for grass, water and lava, and **Objects**. Players see what you build (under fog, like any map), and it's saved with the scene.",
+    "parts": [
+      {
+        "title": "Coming from Dungeondraft",
+        "steps": [
+          "Keep making maps in Dungeondraft if you like. In Dungeondraft, choose **Export**, set the export mode to **Universal VTT**, and export each level as its own file.",
+          "In Tabletop, click **Import Dungeondraft map** in the Build tool's bar, or drop the file on the map. The **New scene** window opens with it."
+        ],
+        "notes": [
+          "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
+          "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
+          "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, and the Object tool is **Objects**.",
+          "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding; and a right-click turns the next object.",
+          "Different: everything sits on the grid, walls follow grid lines, objects turn in quarter turns, and there's no lighting and no levels (a scene is a level). There's no separate select step for what you've built: in **Objects**, drag an object to move it, and Alt+click to remove it.",
+          "A **Blank grid**'s **Columns** and **Rows** are Dungeondraft's new map size in squares."
+        ]
+      },
+      {
+        "title": "Start a map to build on",
+        "steps": [
+          "Click **Scenes**, then **New scene**.",
+          "Choose **Blank grid**, set **Columns** and **Rows**, and click **Create**.",
+          "The Build tool opens in **Building**: start painting rooms."
+        ],
+        "notes": [
+          "Tick **Start covered in fog** to build in secret, then reveal it with the fog tool as the party explores.",
+          "You can build on any scene with a square grid, including over an uploaded map, to patch it or add rooms to it."
+        ]
+      },
+      {
+        "title": "Open the Build tool",
+        "steps": [
+          "Click **Build the map** (the hammer) in the toolbar, or press **B**.",
+          "In its bar, pick a mode: **Building** (the castle), **Walls** (the bricks), **Doors** (the door), **Terrain** (the trees) or **Objects** (the armchair). On a phone the names are hidden and only the pictures show."
+        ],
+        "notes": [
+          "Only the GM has the Build tool.",
+          "It needs a square grid. On a hex grid its bar says \"Building works on a square grid.\": change the grid to squares in **Edit scene** first.",
+          "On a computer, the mouse and key controls for the mode you're in are listed along the bottom of the map.",
+          "While you build on the scene players are on, the bar says \"Players see this scene as you build.\" To build unseen, cover the scene first (**Fog of war**, then **Cover all**), or build on another scene and show it when it's ready.",
+          "While you're building, a table display that follows your view stays where it is, so the table doesn't jump around with you."
+        ]
+      },
+      {
+        "title": "Building: rooms",
+        "steps": [
+          "Pick **Building**.",
+          "Pick a floor: stone, wood or dirt (the textured squares).",
+          "Pick a shape: **Rectangle** (the square) or **Oval** (the circle), then drag from one corner of the room to the opposite corner.",
+          "Or pick **Brush** (the paintbrush), pick its size (1 to 5 squares, or press **[** and **]**), and drag to paint square by square."
+        ],
+        "notes": [
+          "Rooms get walls automatically wherever they meet empty space, grass, water or lava. Rooms painted next to each other join up with no wall between them.",
+          "Pick **No wall** (the X) to paint rooms without walls from then on, for example to patch an uploaded map; **Wall** (the bricks) turns walls on again for rooms you paint after that. (Rooms already painted keep what they had: paint them again to change it.) On a scene with an uploaded map it starts on **No wall**. Your choice is kept for each scene until you reload the page.",
+          "Dirt with the brush makes caves, like Dungeondraft's Cave brush.",
+          "Paint one floor over another to change it."
+        ]
+      },
+      {
+        "title": "Cut out and erase",
+        "steps": [
+          "Hold **Alt** and drag over part of a room to cut it out, with the rectangle, the oval or the brush.",
+          "Or pick **Erase** (the eraser after the floors) and drag."
+        ],
+        "notes": [
+          "In **Building**, erasing takes rooms: their floor, and the walls, doors and objects on it. Terrain stays where it was. In **Terrain**, it takes only the grass, water and lava: walls, doors and objects stay.",
+          "Unlike Dungeondraft, cutting out part of a room also takes the objects on those squares.",
+          "**Clear build** removes everything built on the scene, after asking you. Undo brings it back."
+        ]
+      },
+      {
+        "title": "Terrain: grass, water and lava",
+        "steps": [
+          "Pick **Terrain**.",
+          "Pick grass, water or lava, and a shape (it starts on **Brush**).",
+          "Drag to paint."
+        ],
+        "notes": [
+          "Terrain goes under buildings, as in Dungeondraft: painting it never covers a room's floor, so you can paint the outdoors right up to your rooms. Each square holds one floor, though: painting a room over terrain replaces the terrain there, and cutting the room out later leaves empty squares, which you can paint with terrain again.",
+          "Terrain never gets walls of its own, but rooms get walls where they meet it.",
+          "Hold **Alt** while you drag to take terrain away."
+        ]
+      },
+      {
+        "title": "Walls",
+        "steps": [
+          "Pick **Walls**, then **Add** or **Remove**.",
+          "Drag along the grid lines where the wall goes.",
+          "Or click grid corners one after another: each click adds a wall from the last corner, straight across or straight down.",
+          "Finish with a double-click, a right-click or **Enter**. Clicking the first corner again closes the loop and finishes too."
+        ],
+        "notes": [
+          "While you're placing corners, **Backspace** takes the last one back and **Escape** cancels.",
+          "Hold **Alt** to remove walls instead of adding them.",
+          "**Remove** also opens up a wall that was drawn automatically: an archway, or an opening into a cave.",
+          "On a touch screen, drag along the lines, or tap a single grid line."
+        ]
+      },
+      {
+        "title": "Doors, secret doors and openings",
+        "steps": [
+          "Pick **Doors**.",
+          "Pick a style: **Door**, **Secret** (a secret door) or **Opening** (the X: a gap in the wall).",
+          "Click a wall. The wall nearest your click is used, so you don't need to hit the line exactly."
+        ],
+        "notes": [
+          "To take a door, secret door or opening away again, click it with the same style, or hold **Alt** and click it. It goes back to exactly what was there: the wall it was cut into, or a bare grid line. A secret door just stops being secret, leaving the wall players have seen all along. Alt+click where there's no door or opening does nothing.",
+          "Players see a secret door as an ordinary wall; you see it marked with a purple **S**. Their browsers are never even told it's there.",
+          "An opening only goes where there's a wall to open.",
+          "To see the map as players do, pick **Fog of war** and click **Player view**: the secret doors' marks disappear."
+        ]
+      },
+      {
+        "title": "Place objects",
+        "steps": [
+          "Pick **Objects**.",
+          "Pick an object from the row of pictures: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire or rubble.",
+          "Pick a size: **1×1**, **2×2** or **3×3** squares.",
+          "Click the map where it goes. With a mouse, a faded copy shows where it will land."
+        ],
+        "notes": [
+          "To turn the next one before you place it, right-click (as in Dungeondraft), press **[** or **]**, or click the turn button.",
+          "Right-click or click an object that's already there to turn it a quarter turn.",
+          "With a mouse, drag an object to move it.",
+          "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
+          "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
+        ]
+      },
+      {
+        "title": "Undo, saving and touch screens",
+        "steps": [
+          "Press **Ctrl+Z** (or click **Undo**) to take back your last drag or click, and **Ctrl+Y** or **Ctrl+Shift+Z** to redo it."
+        ],
+        "notes": [
+          "Each drag or click is one step for undo, and so is a wall placed corner by corner.",
+          "Undo only takes back what that step changed. If you build in two tabs at once (a laptop and a tablet, say), undoing in one never wipes what you built in the other.",
+          "What you build is saved with the scene straight away, and it's included in the room's backups.",
+          "Changing the grid's size or offset in **Edit scene** moves the build along with it.",
+          "On a phone or tablet, one finger paints floors and draws walls. For doors and objects, tap; dragging moves the map instead. Alt, right-clicks and dragging objects need a mouse and keyboard."
         ]
       }
     ]
@@ -1379,7 +1616,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click the **Scenes** button in the top bar.",
           "Click a scene in the list. It opens for you only, and its row says **Previewing**.",
-          "Read the bar across the top of the map. It says **Only you can see this scene.** and names the scene players are on.",
+          "Read the banner on the map. It says **Only you can see this scene.** and names the scene players are on.",
           "When you're done, click **Back to live scene** in that bar to return to the scene players see."
         ],
         "notes": [
@@ -1396,7 +1633,7 @@ export const GUIDE: GuideSection[] = [
           "On the scene's row, click the play button (**Show to players**)."
         ],
         "notes": [
-          "While you're previewing a scene you can also click **Show to players** in the bar across the top.",
+          "While you're previewing a scene you can also click **Show to players** in that banner.",
           "Everyone moves to that scene at once, and its row now says **Players see this**.",
           "The scene players are already on has no play button."
         ]
@@ -1647,10 +1884,10 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click the **Polygon** button (the five-sided shape).",
           "Click each corner of the area in turn.",
-          "Finish by clicking the first corner again, or by pressing **Enter**."
+          "Finish by clicking the first corner again, by right-clicking, or by pressing **Enter**."
         ],
         "notes": [
-          "You need at least three corners. If you press **Enter** with only one or two, the polygon is thrown away.",
+          "You need at least three corners. If you press **Enter** or right-click with only one or two, the polygon is thrown away.",
           "Clicking the last corner a second time (a double-click) also finishes the shape.",
           "The first corner shows as a dot, and a dashed line follows your mouse to show the next edge.",
           "While you're placing corners, press **Backspace** or **Delete** to take away the last corner. If only one corner is left, this throws the polygon away.",
@@ -1823,7 +2060,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The scene is made as soon as you add the map, so set the tick box first. It starts ticked.",
           "An image you drop or paste straight onto the map only counts as a map if its longer side is at least 1600 pixels. Then it starts a new scene, covered in fog. A smaller image becomes a token instead. Pasting only works while a scene is showing.",
-          "**Blank grid** scenes don't have the tick box and start uncovered. Use **Hide** or **Cover all** if you want fog on them.",
+          "For **Blank grid** the box is called **Start covered in fog**, and it starts unticked. Use **Hide** or **Cover all** later if you want fog after all.",
           "An Owlbear Rodeo backup brings its own fog: the cover and every area you'd revealed or hidden in Owlbear, whatever the tick box says.",
           "Afterwards, a box called **Maps brought in** lists the new scenes and says \"Fog and tokens from Owlbear came too.\" Anything that didn't come over is listed under **Left out:**, for example fog shapes and tokens beyond what one scene can hold. Click **Done** to close it.",
           "Fog that came in from Owlbear isn't in your Undo history. Use **Clear all** or **Cover all** if you want to start fresh."
@@ -1943,7 +2180,8 @@ export const GUIDE: GuideSection[] = [
           "The display always shows the scene players are on. Previewing another scene yourself never moves it.",
           "When you show players a new scene, the display switches to it and shows all of it until you point it somewhere.",
           "During combat, the display shows the round and whose turn it is in the bottom corner.",
-          "The mouse pointer on the display hides itself after a few seconds. You can still drag and scroll on the display to move it yourself."
+          "The mouse pointer on the display hides itself after a few seconds. You can still drag and scroll on the display to move it yourself.",
+          "While you use the Build tool, the display stays where it is rather than following you."
         ]
       }
     ]
@@ -2072,7 +2310,8 @@ export const GUIDE: GuideSection[] = [
           "**E**: Eraser (drawings, notes and tokens)",
           "**M**: Measure",
           "**P**: Pointer",
-          "**F**: Fog of war (GM)"
+          "**F**: Fog of war (GM)",
+          "**B**: Build the map (GM)"
         ]
       },
       {
@@ -2100,7 +2339,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "**Shift+click**: add something to the selection, or take it out",
           "**Shift+drag** on empty map: select everything inside a box",
-          "**Right-click** a token or drawing: select it",
+          "**Right-click** a token or drawing: select it (except while you're drawing a fog polygon or placing wall corners, where a right-click finishes, and in the Build tool's **Objects**, where it turns an object)",
           "**Escape**: stop what you're in the middle of (a drag, a drawing, a measurement), or clear the selection",
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
@@ -2125,9 +2364,22 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "**[** and **]** with the fog brush: make the brush half a square smaller or bigger, or two squares with **Shift** held (GM)",
-          "**Enter** while drawing a fog polygon: close it, same as clicking the first point (GM)",
+          "**Enter** or a right-click while drawing a fog polygon: close it, same as clicking the first point (GM)",
           "**Backspace** while drawing a fog polygon: remove the last corner (GM)",
           "**Escape** while drawing a fog polygon: cancel it (GM)"
+        ]
+      },
+      {
+        "title": "Building a map (GM)",
+        "steps": [],
+        "notes": [
+          "**[** and **]** with the brush in **Building** or **Terrain**: make the brush a square smaller or bigger (GM)",
+          "**[** and **]**, or a right-click, with **Objects**: turn the next object a quarter turn (GM)",
+          "**Alt** while you drag or click: take away instead of adding (cut out a room, erase terrain, remove walls, doors or objects) (GM)",
+          "**Right-click** an object: turn it; with **Walls**, finish the walls you're placing corner by corner (GM)",
+          "**Enter** or a double-click: finish walls placed corner by corner; **Backspace** takes the last corner back (GM)",
+          "**Escape** while dragging or placing corners: stop without changing anything (GM)",
+          "**Ctrl+mouse wheel**: zoom, as in Dungeondraft"
         ]
       },
       {
@@ -2228,7 +2480,18 @@ export const GUIDE: GuideSection[] = [
           "While **Player view** is on, hidden tokens and GM-only drawings and notes disappear from your map as well, so you see exactly what players see. **Player view** turns off when you pick another tool.",
           "Initiative entries for hidden tokens aren't shown to players. When it's that token's turn, players see \"It's the turn of someone you can't see.\"",
           "A GM roll with **Hidden** ticked is seen only by the GM. A player's roll with **To GM** ticked is seen only by that player and the GM.",
-          "Players never get the **Scenes** or **Room settings** panels, or the **Fog of war** tool."
+          "Players never get the **Scenes** or **Room settings** panels, or the **Fog of war** and **Build the map** tools."
+        ]
+      },
+      {
+        "title": "\"Tabletop has been updated. Reload this page to get the new version.\"",
+        "steps": [
+          "Click **Update: Reload** in the top bar, or reload the page yourself (F5, or Cmd+R on a Mac)."
+        ],
+        "notes": [
+          "It shows on a page that was already open when Tabletop was updated. That page is still running the old version: it doesn't have the new tools, and it can't show everything on a newer map (a built map, say) until it's reloaded.",
+          "A table display reloads itself when Tabletop is updated. A display opened before this reload notice existed can't, and can't show messages either, so the GM is told instead: \"A table display is running an older version of Tabletop. Reload the display's page.\" Reload the page on the display's screen.",
+          "If a GM tool you've read about isn't in your toolbar (the hammer for **Build the map**, say), reload first. If it's still missing, check you're signed in as the GM: see \"I'm the GM, but the room treats me as a player\"."
         ]
       }
     ]

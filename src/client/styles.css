@@ -1598,6 +1598,133 @@ kbd {
   }
 }
 
+.floor-swatches {
+  display: inline-flex;
+  gap: 4px;
+}
+.floor-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+.floor-swatch.erase {
+  background: var(--bg-2);
+}
+.floor-swatch {
+  overflow: hidden;
+}
+.floor-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+.secret-mark {
+  color: #c77dff;
+  font-weight: 700;
+}
+.seg-btn.active .secret-mark {
+  color: var(--accent-ink);
+}
+/* The Build tool's controls, along the bottom on a computer (as Dungeondraft shows them). */
+.build-hints {
+  position: absolute;
+  left: 66px;
+  bottom: 12px;
+  z-index: 9;
+  display: none;
+  /* One line, so the toasts above it always clear it. */
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  align-items: center;
+  gap: 4px 14px;
+  max-width: calc(100% - 250px);
+  padding: 6px 10px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.build-hints kbd {
+  font-size: 11px;
+}
+@media (hover: hover) and (min-width: 761px) {
+  .build-hints {
+    display: flex;
+  }
+  .build-hints ~ .toasts {
+    bottom: 56px;
+  }
+  .build-options .build-touch-hint {
+    display: none;
+  }
+}
+.floor-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79, 209, 255, 0.35);
+}
+.stamp-palette {
+  display: flex;
+  gap: 3px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.stamp-btn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #d9d3c6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.stamp-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.stamp-icon {
+  width: 26px;
+  height: 26px;
+}
+.build-live {
+  color: var(--warn);
+}
+@media (max-width: 760px) {
+  .build-options .seg-label {
+    display: none;
+  }
+  .build-options .hint:not(.build-live) {
+    display: none;
+  }
+  /* One row that scrolls sideways, so the bar never covers much of the board. */
+  .build-options {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .build-options > * {
+    flex: none;
+  }
+  .build-options .stamp-palette {
+    max-width: 180px;
+  }
+  .build-options .build-live {
+    font-size: 12px;
+  }
+}
+
 .brush-size {
   display: inline-flex;
   align-items: center;

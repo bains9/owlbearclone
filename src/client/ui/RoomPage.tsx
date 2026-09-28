@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   CircleQuestionMark,
   House,
@@ -7,6 +7,7 @@ import {
   Link,
   MessageSquare,
   Monitor,
+  RotateCw,
   Settings,
   Swords,
   WifiOff,
@@ -26,7 +27,7 @@ import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
-import { ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
+import { BuildHints, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
 import { Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
@@ -154,6 +155,7 @@ function RoomShell() {
           <BoardView />
           <Toolbar />
           <ToolOptions />
+          <BuildHints />
           <PreviewBanner />
           <GridAlignBanner />
           <SelectionBar />
@@ -202,6 +204,7 @@ function TopBar() {
   const allPlayers = useRoomState((s) => s.players);
   const players = allPlayers.filter((p) => !p.display);
   const displays = allPlayers.length - players.length;
+  const outdated = useRoomState((s) => s.outdated);
   const [copied, setCopied] = useState(false);
   const [help, setHelp] = useState(false);
   const [display, setDisplay] = useState(false);
@@ -222,6 +225,15 @@ function TopBar() {
         {sceneName && <span class="scene-name">{sceneName}</span>}
       </div>
       <div class="spacer" />
+      {outdated && (
+        <button
+          class="btn btn-primary btn-sm update-btn"
+          title="Tabletop has been updated. Reload this page to get the new version."
+          onClick={() => location.reload()}
+        >
+          <RotateCw size={14} /> <span class="hide-narrow">Update:</span> Reload
+        </button>
+      )}
       <div class="player-dots" title={players.map((p) => p.name + (p.role === "gm" ? " (GM)" : "")).join(", ")}>
         {players.slice(0, 6).map((p) => (
           <span key={p.connId} class={cx("player-dot", p.role === "gm" && "gm")} style={{ background: p.color }}>
@@ -324,9 +336,30 @@ function PreviewBanner() {
   const view = useRoomState((s) => s.viewSceneId);
   const active = useRoomState((s) => s.activeSceneId);
   const activeName = useRoomState((s) => (s.activeSceneId ? (s.scenes[s.activeSceneId]?.name ?? "") : ""));
-  if (!gm || !view || view === active) return null;
+  const tool = useRoomState((s) => s.tool);
+  const ref = useRef<HTMLDivElement>(null);
+  const shown = gm && !!view && view !== active;
+  // Below the tool's options bar, whatever its height (the Build tool's can wrap), not over it.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const bar = el.parentElement?.querySelector<HTMLElement>(".tool-options");
+    const narrow = window.matchMedia("(max-width: 760px)");
+    const place = () => {
+      el.style.top = bar?.isConnected && !narrow.matches ? `${bar.offsetTop + bar.offsetHeight + 8}px` : "";
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    if (bar) ro.observe(bar);
+    window.addEventListener("resize", place);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [tool, shown]);
+  if (!shown) return null;
   return (
-    <div class="preview-banner">
+    <div class="preview-banner" ref={ref}>
       <span>
         Only you can see this scene.{activeName ? ` Players are on “${activeName}”.` : " Players have no scene."}
       </span>
@@ -464,8 +497,9 @@ export function ProfileDialog(props: { onClose: () => void }) {
 const SHORTCUTS: [string, string][] = [
   ["V / D / E / M / P", "Move, Draw, Erase, Measure, Pointer"],
   ["F", "Fog tool (GM)"],
+  ["B", "Build tool (GM): Building, Walls, Doors, Terrain and Objects, named as in Dungeondraft"],
   ["Drag empty space, right-drag, or Space + drag", "Pan"],
-  ["Mouse wheel, pinch", "Zoom"],
+  ["Mouse wheel, Ctrl+wheel, pinch", "Zoom"],
   ["+ / − / 0", "Zoom in, out, fit the scene"],
   ["Shift+click, Shift+drag", "Add to the selection, select with a box"],
   ["Drag something selected", "Move the whole selection: tokens, drawings and notes"],
@@ -473,10 +507,14 @@ const SHORTCUTS: [string, string][] = [
   ["Arrow keys", "Move the selected tokens one square (or hex)"],
   ["[ and ]", "Rotate the selected token (Shift: 15°)"],
   ["Fog brush: [ and ]", "Smaller or bigger brush (Shift: bigger steps)"],
+  ["Build tool: [ and ]", "Brush size, or turn the next object"],
+  ["Build tool: Alt", "Take away instead: cut out a room, erase terrain, remove walls, doors or objects"],
+  ["Build tool: right-click", "Turn an object (or the next one); finish walls placed corner by corner"],
+  ["Build tool, Walls: click corners", "Walls between them; double-click, right-click or Enter finishes, Backspace takes a corner back"],
   ["H / L", "Hide or lock the selected token (GM)"],
   ["Delete", "Delete the selection"],
   ["Ctrl+D", "Duplicate (copies are numbered: Goblin 2, Goblin 3)"],
-  ["Ctrl+Z / Ctrl+Shift+Z", "Undo / redo your own changes on this scene"],
+  ["Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)", "Undo / redo your own changes on this scene"],
   ["Fog polygon: click points", "Enter or click the first point to close, Backspace removes a point"],
   ["Measure tool", "Ruler or spell areas: circle, cone, cube, line (tick Pin to map to keep one)"],
   ["Draw tool, then the T button", "Text note: click where it goes"],

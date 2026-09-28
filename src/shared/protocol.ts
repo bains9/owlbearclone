@@ -77,6 +77,8 @@ export type ServerMsg =
       players: Player[];
       /** The last seq from this tab the server has applied (0 for none). */
       lastSeq: number;
+      /** The build of Tabletop the server is running. */
+      build?: string;
     }
   /**
    * Item changes, and the scene change made with them, if any. `by` is the connId
@@ -100,6 +102,8 @@ export type ServerMsg =
   /** The change with this seq (and every one before it) has been handled. */
   | { t: "ack"; seq: number }
   | { t: "error"; message: string }
+  /** The tab is running an older build than the server: it should reload. */
+  | { t: "outdated" }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

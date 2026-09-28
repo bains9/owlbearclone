@@ -34,8 +34,12 @@ function check(cond, label) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rid = () => Math.random().toString(36).slice(2, 12);
 
-function connect(roomId, { cookie, uid, name, sid, display }) {
-  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}${display !== undefined ? `&display=${encodeURIComponent(display)}` : ""}`;
+/**
+ * v: the protocol version the pretend browser speaks (left out: the oldest, which can't draw
+ * built maps). b: the build of its code (left out: code from before builds were compared).
+ */
+function connect(roomId, { cookie, uid, name, sid, display, v, b }) {
+  const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}${display !== undefined ? `&display=${encodeURIComponent(display)}` : ""}${v ? `&v=${v}` : ""}${b ? `&b=${b}` : ""}`;
   const ws = new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined);
   const c = { ws, msgs: [], closeCode: null, seq: 0 };
   ws.onmessage = (e) => {
@@ -256,6 +260,22 @@ async function main() {
   check(aHello?.you.role === "player", "player socket is a player");
   check(gmHello?.scenes.length === 1 && gmHello.activeSceneId === gmHello.scenes[0].id, "new room has one active scene");
   const sceneId = gmHello.activeSceneId;
+  // Tabs left open across an update are told to reload, whatever's on the map.
+  check(
+    typeof gmHello.build === "string" && Boolean(await alice.waitFor((m) => m.t === "error" && /Reload this page/.test(m.message))),
+    "a tab on code from before builds were compared is told to reload",
+  );
+  const stale = connect(room.id, { uid: "stale" + rid(), name: "Stale", v: 2, b: "not-this-build" });
+  const current = connect(room.id, { uid: "current" + rid(), name: "Current", v: 2, b: gmHello.build });
+  const staleNote = await stale.waitFor((m) => m.t === "outdated");
+  await current.waitFor((m) => m.t === "hello");
+  await sleep(300);
+  check(
+    Boolean(staleNote) && !current.msgs.some((m) => m.t === "outdated" || m.t === "error"),
+    "a tab on another build is told it's out of date, and one on this build isn't",
+  );
+  stale.ws.close();
+  current.ws.close();
   await gm.waitFor((m) => m.t === "players" && m.players.length === 3);
   check(true, "presence shows three people");
 
@@ -589,12 +609,175 @@ async function main() {
   alice.send({ t: "eph", e: { k: "view", sceneId: scene2.id, rect: [0, 0, 50, 50] } });
   await sleep(300);
   check(!screen.msgs.some((m) => m.t === "eph"), "views of a scene players can't see, or from a player, don't reach displays");
-  const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey });
+  const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey, v: 2 });
   const lateView = await late.waitFor((m) => m.t === "eph" && m.e.k === "view");
   check(lateView?.e.rect?.join() === "10,20,300,200", "a display that connects later starts where the GM pointed");
   gm.items({ delete: [secret.id] });
   late.ws.close();
   fake.ws.close();
+
+  // Built maps. Only the GM builds; players get the build but never its secret doors;
+  // tabs still running old code get none of it and are asked to reload.
+  const tid = (cx, cy, s) => `t${cx < 0 ? "m" + -cx : cx}_${cy < 0 ? "m" + -cy : cy}_${s}`;
+  const noCells = ".".repeat(256);
+  const noEdges = ".".repeat(512);
+  const chunk = {
+    id: tid(0, 0, scene2.id),
+    sceneId: scene2.id,
+    kind: "terrain",
+    z: 0,
+    owner: "someone",
+    cx: 0,
+    cy: 0,
+    cells: "s".repeat(16) + noCells.slice(16),
+    edges: "d" + noEdges.slice(1),
+    stamps: [["table", 2, 0, 1, 2]],
+  };
+  const carol = connect(room.id, { uid: "carol" + rid(), name: "Carol", v: 2 });
+  const dave = connect(room.id, { uid: "dave" + rid(), name: "Dave" });
+  const gm2 = connect(room.id, { cookie, uid: "gm2" + rid(), name: "GM tab", v: 2 });
+  await carol.waitFor((m) => m.t === "hello");
+  await dave.waitFor((m) => m.t === "hello");
+  // Told as soon as it connects (it's on old code), before there's anything built.
+  const daveWarned = await dave.waitFor((m) => m.t === "error" && /Reload/.test(m.message));
+  await gm2.waitFor((m) => m.t === "hello");
+  carol.items({ upsert: [chunk] });
+  const refusedBuild = await carol.waitFor((m) => m.t === "items" && m.refused?.includes(chunk.id));
+  check(refusedBuild?.delete?.includes(chunk.id), "a player can't build");
+  carol.clear();
+  dave.clear();
+  gm.clear();
+  gm2.items({ upsert: [chunk] });
+  const gotChunk = await carol.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === chunk.id));
+  check(gotChunk?.upsert.find((i) => i.id === chunk.id)?.owner === "@gm", "a player gets the GM's build, and it's always the GM's");
+  await sleep(300);
+  check(
+    Boolean(daveWarned) &&
+      !dave.msgs.some((m) => m.t === "items" && m.upsert?.some((i) => i.kind === "terrain")) &&
+      !gm.msgs.some((m) => m.t === "items" && m.upsert?.some((i) => i.kind === "terrain")),
+    "tabs on old code (a player's, the GM's) get no terrain, and are asked to reload",
+  );
+  gm2.clear();
+  const wrongId = { ...chunk, id: tid(1, 0, scene2.id) };
+  const inPlainSight = { ...chunk, id: tid(0, 1, scene2.id), cy: 1, edges: "s" + noEdges.slice(1) };
+  gm2.items({ upsert: [wrongId, inPlainSight] });
+  const refusedChunks = await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+  check(
+    refusedChunks?.refused?.includes(wrongId.id) && refusedChunks.refused.includes(inPlainSight.id),
+    "a chunk under the wrong id, or with a secret door in plain sight, is refused",
+  );
+  const marker = {
+    id: "sd" + rid(),
+    sceneId: scene2.id,
+    kind: "terrain",
+    z: 0,
+    cx: 0,
+    cy: 0,
+    cells: noCells,
+    edges: "s" + noEdges.slice(1),
+    stamps: [],
+    hidden: true,
+  };
+  carol.clear();
+  gm2.items({ upsert: [marker], patch: [{ id: chunk.id, set: { edges: "w" + noEdges.slice(1) } }] });
+  const markerEcho = await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+  const wallNews = await carol.waitFor((m) => m.t === "items" && m.patch?.some((p) => p.id === chunk.id));
+  check(markerEcho?.upsert?.some((i) => i.id === marker.id) && !markerEcho.refused, "the GM makes a secret door");
+  check(
+    Boolean(wallNews) && !carol.msgs.some((m) => JSON.stringify(m).includes(marker.id)),
+    "players see the door become a wall, and never receive the secret door",
+  );
+  carol.clear();
+  gm2.items({ patch: [{ id: marker.id, set: { edges: noEdges.slice(0, 16) + "s" + noEdges.slice(17) } }] });
+  await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+  await sleep(200);
+  check(!carol.msgs.some((m) => m.t === "items"), "moving a secret door tells players nothing at all");
+  carol.clear();
+  carol.items({ patch: [{ id: marker.id, set: {} }] });
+  carol.items({ upsert: [{ ...marker, hidden: false }] });
+  carol.items({ patch: [{ id: chunk.id, set: { cells: noCells } }] });
+  carol.send({ t: "items", seq: 1, upsert: [marker], patch: [{ id: marker.id, set: {} }] });
+  await sleep(500);
+  const leaked = carol.msgs.some((m) => m.t === "items" && (m.upsert ?? []).some((i) => i.id === marker.id || i.hidden));
+  check(!leaked, "probing for a secret door (patches, upserts, a resent message) never returns it");
+  check(
+    carol.msgs.some((m) => m.t === "items" && m.refused?.includes(chunk.id) && m.upsert?.some((i) => i.id === chunk.id)),
+    "a player can't change the build (refused and corrected)",
+  );
+  // Chunk ids can be worked out: a player asking about one learns nothing either way.
+  carol.clear();
+  const built = tid(0, 0, sceneId);
+  gm2.items({ upsert: [{ ...chunk, id: built, sceneId }] });
+  await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+  carol.items({ upsert: [{ id: built }] });
+  carol.items({ upsert: [{ id: tid(5, 5, sceneId) }] });
+  await sleep(400);
+  const answers = carol.msgs.filter((m) => m.t === "items" && m.seq !== undefined);
+  check(
+    answers.length === 2 && answers.every((m) => m.refused?.length === 1 && m.delete?.length === 1 && !m.upsert),
+    "a player probing chunk ids on a scene they can't see gets the same answer whether it's built or not",
+  );
+  gm2.items({ delete: [built] });
+  // A tab on old code can't send terrain (it would never be sent it, or corrected).
+  const gmOld = connect(room.id, { cookie, uid: "gmold" + rid(), name: "Old GM tab" });
+  await gmOld.waitFor((m) => m.t === "hello");
+  gmOld.clear();
+  const oldMarker = { ...marker, id: "old" + rid() };
+  gmOld.items({ upsert: [oldMarker], patch: [{ id: chunk.id, set: { cells: noCells } }] });
+  const oldAnswer = await gmOld.waitFor((m) => m.t === "items" && m.seq === gmOld.seq);
+  check(
+    oldAnswer?.refused?.includes(oldMarker.id) && oldAnswer.refused.includes(chunk.id) && oldAnswer.delete?.includes(oldMarker.id),
+    "a GM tab on old code can't create or change terrain, and its copy is corrected",
+  );
+  gmOld.ws.close();
+  const carol2 = connect(room.id, { uid: "carol" + rid(), name: "Carol again", v: 2 });
+  const carolHello = await carol2.waitFor((m) => m.t === "hello");
+  check(
+    carolHello?.items.some((i) => i.id === chunk.id) && !carolHello.items.some((i) => i.id === marker.id || i.hidden),
+    "a player joining gets the build without its secret doors",
+  );
+  const gm3 = connect(room.id, { cookie, uid: "gm3" + rid(), name: "GM tab 3", v: 2 });
+  const gm3Hello = await gm3.waitFor((m) => m.t === "hello");
+  check(gm3Hello?.items.some((i) => i.id === marker.id), "the GM gets the secret doors");
+  const dave2 = connect(room.id, { uid: "dave" + rid(), name: "Dave again" });
+  const dave2Hello = await dave2.waitFor((m) => m.t === "hello");
+  const dave2Warned = await dave2.waitFor((m) => m.t === "error" && /Reload/.test(m.message));
+  check(
+    dave2Hello && !dave2Hello.items.some((i) => i.kind === "terrain") && Boolean(dave2Warned),
+    "a tab on old code joining gets no terrain, and is asked to reload",
+  );
+  carol2.clear();
+  dave2.clear();
+  gm2.send({ t: "scene.activate", id: sceneId, seq: ++gm2.seq });
+  await carol2.waitFor((m) => m.t === "scene.active" && m.id === sceneId);
+  gm2.send({ t: "scene.activate", id: scene2.id, seq: ++gm2.seq });
+  const carolActive = await carol2.waitFor((m) => m.t === "scene.active" && m.id === scene2.id);
+  const daveActive = await dave2.waitFor((m) => m.t === "scene.active" && m.id === scene2.id);
+  check(
+    carolActive?.items.some((i) => i.id === chunk.id) &&
+      !carolActive.items.some((i) => i.id === marker.id) &&
+      daveActive &&
+      !daveActive.items.some((i) => i.kind === "terrain"),
+    "showing a built scene sends players its build (not to old code, and never the secret doors)",
+  );
+  // A table display on old code shows no messages, so the GM is told to reload it.
+  gm2.clear();
+  const oldScreen = connect(room.id, { uid: "oldscreen" + rid(), name: "Old screen", display: displayKey });
+  const oldScreenHello = await oldScreen.waitFor((m) => m.t === "hello");
+  const gmTold = await gm2.waitFor((m) => m.t === "error" && /table display/.test(m.message));
+  check(
+    oldScreenHello && !oldScreenHello.items.some((i) => i.kind === "terrain") && Boolean(gmTold),
+    "a table display on old code gets no terrain, and the GM is told to reload it",
+  );
+  const gmLater = connect(room.id, { cookie, uid: "gmlater" + rid(), name: "GM later", v: 2 });
+  const toldLater = await gmLater.waitFor((m) => m.t === "error" && /table display/.test(m.message));
+  check(Boolean(toldLater), "a GM who connects later is told about the out-of-date display too");
+  gmLater.ws.close();
+  oldScreen.ws.close();
+  gm2.items({ delete: [chunk.id, marker.id] });
+  const cleared = await carol2.waitFor((m) => m.t === "items" && m.delete?.includes(chunk.id));
+  check(Boolean(cleared) && !cleared.delete.includes(marker.id), "clearing the build removes it for players");
+  for (const c of [carol, carol2, dave, dave2, gm2, gm3]) c.ws.close();
 
   // reconnect
   const alice2 = connect(room.id, { uid: "alice" + rid(), name: "Alice again" });

@@ -10,6 +10,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { randomId } from "../shared/ids";
+import { looksLikeTerrainId } from "../shared/terrain";
+import { BUILD_ID } from "../shared/build";
 import { applyInitOp } from "../shared/initiative";
 import type { InitOp } from "../shared/initiative";
 import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } from "../shared/permissions";
@@ -48,13 +50,26 @@ import type {
 /** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
 interface Conn extends Player {
   sid: string;
+  /** The protocol version the tab's code speaks (1 when it doesn't say). */
+  v?: number;
+  /** Already told to reload for something it's too old to show. */
+  warned?: boolean;
 }
 
 /** The player as others see them. */
 function publicPlayer(c: Conn): Player {
-  const { sid: _sid, ...p } = c;
+  const { sid: _sid, v: _v, warned: _warned, ...p } = c;
   return p;
 }
+
+/**
+ * Built maps need browser code that knows them: older code (a tab left open over a
+ * deploy, a table display especially) would take a chunk for a fog shape and stop
+ * drawing the fog. Such tabs don't get terrain, and are asked to reload.
+ */
+const TERRAIN_VERSION = 2;
+const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";
+const OUTDATED = "Tabletop has been updated. Reload this page to get the new version.";
 
 interface Change {
   id: string;
@@ -360,6 +375,10 @@ export class Room extends DurableObject<Env> {
     const role: Role = !display && request.headers.get("X-Tabletop-Role") === "gm" ? "gm" : "player";
     const uid = url.searchParams.get("uid");
     const sid = url.searchParams.get("sid");
+    const version = Number(url.searchParams.get("v"));
+    const v = Number.isSafeInteger(version) && version > 0 ? version : 1;
+    // The build of the tab's code. Code from before builds were compared doesn't say.
+    const build = url.searchParams.get("b");
     const conn: Conn = display
       ? {
           connId: randomId(10),
@@ -369,6 +388,7 @@ export class Room extends DurableObject<Env> {
           role: "player",
           sid: randomId(16),
           display: true,
+          v,
         }
       : {
           connId: randomId(10),
@@ -380,10 +400,18 @@ export class Room extends DurableObject<Env> {
           role,
           // A tab that doesn't say which it is gets a fresh identity: nothing is deduplicated for it.
           sid: isId(sid) ? sid : randomId(16),
+          v,
         };
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(conn);
     this.send(server, this.hello(conn));
+    // A tab left open across an update is missing whatever came since (new tools, say).
+    // Newer code shows a reload button (a display reloads itself); older code can only
+    // show a message.
+    if (!build) this.warnOutdated(server, conn);
+    else if (build !== BUILD_ID) this.send(server, { t: "outdated" });
+    if ([...this.items.values()].some((i) => this.withheld(conn, i))) this.warnOutdated(server, conn);
+    if (role === "gm") this.tellAboutOutdatedDisplays(server);
     if (display && this.displayView && this.displayView.sceneId === this.activeSceneId) {
       this.send(server, { t: "eph", from: "", e: this.displayView });
     }
@@ -485,7 +513,7 @@ export class Room extends DurableObject<Env> {
       const del: string[] = [];
       for (const id of ids) {
         const item = this.items.get(id);
-        if (item && (gm || visibleToPlayer(item, this.activeSceneId))) upsert.push(item);
+        if (item && this.sees(conn, item)) upsert.push(item);
         else del.push(id);
       }
       const out: Extract<ServerMsg, { t: "items" }> = { t: "items", by: conn.connId, seq };
@@ -812,9 +840,18 @@ export class Room extends DurableObject<Env> {
       return true;
     };
 
+    // Terrain from a tab too old to have it (a backup restored in a tab left open over a
+    // deploy, say) is refused: that tab would never be sent it, or corrected.
+    const oldCode = (conn.v ?? 1) < TERRAIN_VERSION;
     for (const raw of ops.upsert) {
       const id = idOf(raw);
       if (!isId(id)) continue;
+      // Chunk ids can be worked out, so no player may use one at all: asking about one
+      // must never tell them whether that part of a scene has been built.
+      if (!isGm && looksLikeTerrainId(id)) {
+        refused.add(id);
+        continue;
+      }
       const existing = current(id);
       if (existing && hiddenFromSender(existing)) {
         gone.push(id);
@@ -831,7 +868,7 @@ export class Room extends DurableObject<Env> {
       const claimed = (raw as { owner?: unknown }).owner;
       const owner = isGm && isOwner(claimed) ? claimed : (existing?.owner ?? conn.userId);
       const item = sanitizeItem(raw, owner);
-      if (!item || !this.scenes.has(item.sceneId)) {
+      if (!item || !this.scenes.has(item.sceneId) || (oldCode && (item.kind === "terrain" || existing?.kind === "terrain"))) {
         refused.add(id);
         continue;
       }
@@ -865,7 +902,7 @@ export class Room extends DurableObject<Env> {
         continue;
       }
       const set = sanitizeSet(existing, p.set);
-      if (!set || !canPatch(existing, set, conn, settings)) {
+      if (!set || !canPatch(existing, set, conn, settings) || (oldCode && existing.kind === "terrain")) {
         refused.add(p.id);
         continue;
       }
@@ -884,7 +921,7 @@ export class Room extends DurableObject<Env> {
         gone.push(id);
         continue;
       }
-      if (!canDelete(existing, conn)) {
+      if (!canDelete(existing, conn) || (oldCode && existing.kind === "terrain")) {
         refused.add(id);
         continue;
       }
@@ -955,7 +992,12 @@ export class Room extends DurableObject<Env> {
       const upsert: Item[] = [];
       const patch: ItemPatch[] = [];
       const del: string[] = [];
+      let withheld = false;
       for (const ch of changes) {
+        if (this.withheld(c, ch.before) || this.withheld(c, ch.after)) {
+          withheld = true;
+          continue;
+        }
         if (c.role === "gm") {
           if (!ch.after) del.push(ch.id);
           else if (ch.set) patch.push({ id: ch.id, set: ch.set });
@@ -968,11 +1010,12 @@ export class Room extends DurableObject<Env> {
           else if (vb) del.push(ch.id);
         }
       }
+      if (withheld) this.warnOutdated(target, c);
       if (isSender) {
         // Corrections: put the sender's copy back to what the server actually holds.
         for (const id of refused) {
           const item = this.items.get(id);
-          if (item && (c.role === "gm" || visibleToPlayer(item, this.activeSceneId))) upsert.push(item);
+          if (item && this.sees(c, item)) upsert.push(item);
           else del.push(id);
         }
         del.push(...gone);
@@ -1176,6 +1219,40 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- helpers
 
+  /** Whether this connection is sent this item: the GM gets everything its code can draw. */
+  private sees(c: Conn, item: Item): boolean {
+    if (item.kind === "terrain" && (c.v ?? 1) < TERRAIN_VERSION) return false;
+    return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
+  }
+
+  /** An item this connection may see but isn't sent, because its code is too old to show it. */
+  private withheld(c: Conn, item: Item | null): boolean {
+    if (!item || item.kind !== "terrain" || (c.v ?? 1) >= TERRAIN_VERSION) return false;
+    return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
+  }
+
+  /** Once per connection: its code is out of date and it's missing part of the map. */
+  private warnOutdated(ws: WebSocket, c: Conn): void {
+    if (c.warned) return;
+    c.warned = true;
+    ws.serializeAttachment(c);
+    this.send(ws, { t: "error", message: OUTDATED });
+    if (c.display) {
+      // A table display shows no messages: tell the GM, who can reload it.
+      this.broadcast({ t: "error", message: OUTDATED_DISPLAY }, (p) => p.role === "gm");
+    }
+  }
+
+  /** A GM joining hears about any table display already running code too old for the map. */
+  private tellAboutOutdatedDisplays(gm: WebSocket): void {
+    for (const ws of this.ctx.getWebSockets()) {
+      const c = ws.deserializeAttachment() as Conn | null;
+      if (!c?.display || !c.warned) continue;
+      this.send(gm, { t: "error", message: OUTDATED_DISPLAY });
+      return;
+    }
+  }
+
   private canSeeAsset(a: Asset, c: Player): boolean {
     return c.role === "gm" || (a.owner !== GM_OWNER && a.owner === c.userId);
   }
@@ -1189,14 +1266,13 @@ export class Room extends DurableObject<Env> {
       room: this.info!,
       scenes: gm ? [...this.scenes.values()] : active ? [active] : [],
       activeSceneId: this.activeSceneId,
-      items: gm
-        ? [...this.items.values()]
-        : [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId)),
+      items: [...this.items.values()].filter((i) => this.sees(conn, i)),
       assets: [...this.assets.values()].filter((a) => this.canSeeAsset(a, conn)),
       messages: this.recentMessages(conn),
       initiative: this.initiativeFor(conn),
       players: this.players(),
       lastSeq: this.lastSeq(conn),
+      build: BUILD_ID,
     };
   }
 
@@ -1259,9 +1335,26 @@ export class Room extends DurableObject<Env> {
     const items = [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId));
     const forGm = JSON.stringify({ t: "scene.active", id: this.activeSceneId } satisfies ServerMsg);
     const forPlayers = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items } satisfies ServerMsg);
+    const terrain = items.some((i) => i.kind === "terrain");
+    const forOldPlayers = terrain
+      ? JSON.stringify({
+          t: "scene.active",
+          id: this.activeSceneId,
+          scene,
+          items: items.filter((i) => i.kind !== "terrain"),
+        } satisfies ServerMsg)
+      : forPlayers;
     for (const ws of this.ctx.getWebSockets()) {
-      const c = ws.deserializeAttachment() as Player | null;
-      if (c) this.sendRaw(ws, c.role === "gm" ? forGm : forPlayers);
+      const c = ws.deserializeAttachment() as Conn | null;
+      if (!c) continue;
+      if (c.role === "gm") {
+        this.sendRaw(ws, forGm);
+      } else if ((c.v ?? 1) < TERRAIN_VERSION) {
+        this.sendRaw(ws, forOldPlayers);
+        if (terrain) this.warnOutdated(ws, c);
+      } else {
+        this.sendRaw(ws, forPlayers);
+      }
     }
     // Which initiative entries players may see depends on the live scene.
     this.broadcastInitiative();

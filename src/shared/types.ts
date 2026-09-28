@@ -1,6 +1,8 @@
 // The data model shared by the Worker, the Room Durable Object and the browser.
 // All coordinates are in "world" units: pixels of the scene's map image.
 
+import type { Stamp } from "./terrain";
+
 export type Role = "gm" | "player";
 
 export type DiagonalRule = "chebyshev" | "alternating" | "euclidean";
@@ -116,7 +118,25 @@ export interface FogItem extends ItemBase {
   width?: number;
 }
 
-export type Item = TokenItem | DrawingItem | FogItem;
+/**
+ * Part of a built map: a 16 x 16 block of grid cells (see terrain.ts). A hidden one
+ * holds only secret doors, and players never receive it.
+ */
+export interface TerrainItem extends ItemBase {
+  kind: "terrain";
+  /** Which block: cells cx*16 to cx*16+15 across, cy*16 to cy*16+15 down. */
+  cx: number;
+  cy: number;
+  /** 256 characters, one per cell. */
+  cells: string;
+  /** 512 characters, two per cell (its top and left edges). */
+  edges: string;
+  /** Objects whose top-left cell is in this block. */
+  stamps: Stamp[];
+  hidden?: boolean;
+}
+
+export type Item = TokenItem | DrawingItem | FogItem | TerrainItem;
 export type ItemKind = Item["kind"];
 
 /** Every field a patch may set, across all item kinds. */
@@ -139,6 +159,9 @@ export interface MutableFields {
   fill: boolean;
   text: string;
   mode: "hide" | "reveal";
+  cells: string;
+  edges: string;
+  stamps: Stamp[];
 }
 
 export interface ItemPatch {

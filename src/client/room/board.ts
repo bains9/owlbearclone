@@ -25,7 +25,9 @@ import { randomId } from "../../shared/ids";
 import type { ItemMap } from "../../shared/ops";
 import { canDelete } from "../../shared/permissions";
 import type { Ephemeral, MeasureShape } from "../../shared/protocol";
-import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TokenItem } from "../../shared/types";
+import { EMPTY, cellAt, isBuildingFloor, isTerrainFloor, sceneCells } from "../../shared/terrain";
+import type { Stamp, StampId } from "../../shared/terrain";
+import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
   deleteSelection,
@@ -36,12 +38,30 @@ import {
   toggleLocked,
 } from "./actions";
 import type { BoardApi, RoomClient, RoomState } from "./client";
+import {
+  BuildEdit,
+  BuildRenderer,
+  buildUndo,
+  cycleDoor,
+  edgeOf,
+  floorChar,
+  keyCol,
+  keyRow,
+  sceneTerrain,
+  setPortal,
+  setWall,
+  wallsFor,
+} from "./build";
+import type { Side } from "./build";
+import { drawStamp } from "./buildArt";
 import { getImage, imageFailed } from "./images";
 import { isVttFile, looksLikeMap } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
 const SELECT_COLOR = "#4fd1ff";
+/** Build tool: what a click or drag would take away. */
+const REMOVE_COLOR = "#ff7b7b";
 const MIN_SCALE = 0.03;
 const MAX_SCALE = 8;
 const DRAG_THRESHOLD = 5;
@@ -122,9 +142,42 @@ type Gesture =
   | { kind: "fog-paint"; pointerId: number; points: number[]; pieces: number[][]; width: number; node: Konva.Line }
   | { kind: "measure"; pointerId: number; shape: MeasureShape; start: Point; end: Point; lastEph: number }
   | { kind: "pointer"; pointerId: number; lastEph: number }
-  /** A tap-style action (fog polygon corner, note) that happens on release, if it was a tap. */
-  | { kind: "tap"; pointerId: number; start: Point; world: Point; action: "poly" | "note" }
+  /** A tap-style action (fog polygon corner, note, door, object) that happens on release, if it was a tap. */
+  | {
+      kind: "tap";
+      pointerId: number;
+      start: Point;
+      world: Point;
+      action: "poly" | "note" | "door" | "stamp" | "wallpoint";
+      /** Build tool: Alt was held (take away rather than add). */
+      alt?: boolean;
+      /** Build tool, with a mouse: an object under the pointer, which a drag moves. */
+      grab?: Cell;
+    }
+  /** Build tool: painting floor with the brush (from the last point), or dragging out a rectangle or oval of it. */
+  | { kind: "build-paint"; pointerId: number; last: Point; erase: boolean }
+  | { kind: "build-rect"; pointerId: number; start: Cell; end: Cell; erase: boolean; circle: boolean }
+  /**
+   * Build tool: drawing or removing walls along grid lines, from grid corner to grid
+   * corner. With a mouse, a click without a drag starts walls placed corner by corner.
+   */
+  | {
+      kind: "build-wall";
+      pointerId: number;
+      vertex: { c: number; r: number };
+      start: { c: number; r: number };
+      moved: boolean;
+      mode: "add" | "remove";
+      mouse: boolean;
+    }
+  /** Build tool, with a mouse: dragging an object somewhere else (held `off` cells in from its top-left corner). */
+  | { kind: "build-move-stamp"; pointerId: number; from: Cell; stamp: Stamp; at: Cell; off: Cell }
   | { kind: "grid-align"; pointerId: number; start: Point; end: Point; node: Konva.Rect };
+
+interface Cell {
+  col: number;
+  row: number;
+}
 
 function clampScale(s: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
@@ -180,6 +233,19 @@ export class Board implements BoardApi {
     visible: false,
   });
   private rulerGroup = new Konva.Group();
+  /** Built maps: floors, objects, walls and doors, drawn between the map image and the grid. */
+  private build = new BuildRenderer();
+  private buildNode: Konva.Shape;
+  /** Build tool: what the next click would do, under the mouse. */
+  private buildHover: Konva.Shape;
+  private hover: Point | null = null;
+  /** Alt is held: the Build tool takes away instead of adding. */
+  private altDown = false;
+  /** Walls being placed corner by corner with a mouse: the corners so far, and the grid lines between them. */
+  private wallPath: { corners: { c: number; r: number }[]; steps: [number, number, Side][][]; mode: "add" | "remove" } | null =
+    null;
+  /** The last corner clicked, and when: the second click of a double-click finishes rather than adding or starting. */
+  private lastWallClick: { at: number; c: number; r: number } | null = null;
 
   private tokens = new Map<string, TokenNode>();
   private drawings = new Map<string, DrawingNode>();
@@ -240,10 +306,19 @@ export class Board implements BoardApi {
       listening: false,
       sceneFunc: (ctx) => this.drawTrails(native(ctx)),
     });
+    this.buildNode = new Konva.Shape({
+      listening: false,
+      sceneFunc: (ctx) => this.drawBuild(native(ctx)),
+    });
+    this.buildHover = new Konva.Shape({
+      listening: false,
+      visible: false,
+      sceneFunc: (ctx) => this.drawBuildHover(native(ctx)),
+    });
 
-    this.bgLayer.add(this.bgRect, this.mapNode, this.gridNode);
+    this.bgLayer.add(this.bgRect, this.mapNode, this.buildNode, this.gridNode);
     this.fogLayer.add(this.fogNode);
-    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor);
+    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover);
     this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.fogLayer, this.uiLayer);
 
     this.anim = new Konva.Animation(() => this.tick(), this.uiLayer);
@@ -261,7 +336,10 @@ export class Board implements BoardApi {
     on(el, "pointermove", this.onPointerMove);
     on(el, "pointerup", this.onPointerUp);
     on(el, "pointercancel", this.onPointerUp);
-    on(el, "pointerleave", () => this.updateBrushCursor(null));
+    on(el, "pointerleave", () => {
+      this.updateBrushCursor(null);
+      this.setHover(null);
+    });
     on(el, "wheel", this.onWheel, { passive: false });
     on(el, "contextmenu", (e) => e.preventDefault());
     on(el, "dragover", this.onDragOver);
@@ -270,6 +348,7 @@ export class Board implements BoardApi {
     on(window, "keydown", this.onKeyDown);
     on(window, "keyup", this.onKeyUp);
     on(window, "blur", () => {
+      this.setAlt(false);
       this.spaceDown = false;
       this.updateCursor();
     });
@@ -398,7 +477,8 @@ export class Board implements BoardApi {
   /** GM: starts or stops steering table displays as the settings and the viewed scene change. */
   private updateSteering(s: RoomState): void {
     const displays = s.players.filter((p) => p.display).length;
-    const steering = s.displayFollow && !!s.activeSceneId && s.viewSceneId === s.activeSceneId;
+    // Not while building: the GM zooms right in to place doors, and the table shouldn't follow.
+    const steering = s.displayFollow && !!s.activeSceneId && s.viewSceneId === s.activeSceneId && s.tool !== "build";
     if (steering && (!this.steering || displays > this.displayCount || this.steeredScene !== s.activeSceneId)) {
       this.steering = true;
       this.sendViewSoon();
@@ -457,6 +537,8 @@ export class Board implements BoardApi {
       this.trails.clear();
       this.localRuler = null;
       this.renderRulers();
+      this.wallPath = null;
+      this.build.reset();
       this.renderedSceneId = sceneId;
       this.renderedScene = null;
       this.needsFit = true;
@@ -511,6 +593,26 @@ export class Board implements BoardApi {
 
     if (this.brushCursor.visible() && (s.tool !== "fog" || s.fogOpts.shape !== "brush")) this.updateBrushCursor(null);
     else if (this.brushCursor.visible()) this.updateBrushCursor(this.brushCursor.position());
+    if (this.wallPath && !gm) this.cancelWallPath();
+    else if (this.wallPath && (s.tool !== "build" || s.buildOpts.mode !== "walls")) {
+      // Moving on to another mode or tool keeps the walls placed so far (one undo step).
+      queueMicrotask(() => this.finishWallPath());
+    }
+    const bg = this.gesture;
+    if (
+      s.tool !== "build" &&
+      (bg.kind === "build-paint" ||
+        bg.kind === "build-rect" ||
+        bg.kind === "build-wall" ||
+        bg.kind === "build-move-stamp" ||
+        (bg.kind === "tap" && (bg.action === "door" || bg.action === "stamp" || bg.action === "wallpoint")))
+    ) {
+      this.cancelGesture();
+    }
+    if (this.buildHover.visible()) {
+      if (s.tool !== "build") this.setHover(null);
+      else this.uiLayer.batchDraw();
+    }
     if (this.poly && (s.tool !== "fog" || s.fogOpts.shape !== "poly" || s.fogOpts.mode !== this.poly.mode)) {
       this.cancelPoly();
     }
@@ -541,12 +643,20 @@ export class Board implements BoardApi {
     const tokens: TokenItem[] = [];
     const drawings: DrawingItem[] = [];
     const fogs: FogItem[] = [];
+    const terrain: TerrainItem[] = [];
     for (const item of Object.values(s.items)) {
       if (item.sceneId !== this.renderedSceneId) continue;
       if (item.kind === "token") tokens.push(item);
       else if (item.kind === "drawing") drawings.push(item);
-      else fogs.push(item);
+      else if (item.kind === "fog") fogs.push(item);
+      else if (item.kind === "terrain") terrain.push(item);
+      else {
+        // A kind this code doesn't know (from a newer version): leave it out rather than guess.
+        const unknown: never = item;
+        void unknown;
+      }
     }
+    if (this.build.update(terrain) || force) this.bgLayer.batchDraw();
     const byZ = (a: Item, b: Item) => a.z - b.z || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
     const seenTokens = new Set<string>();
@@ -847,6 +957,145 @@ export class Board implements BoardApi {
     c.lineWidth = 1 / scale;
     c.stroke();
     c.restore();
+  }
+
+  private drawBuild(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    // Built maps are made of squares: on a hex grid there's nothing to draw them on.
+    if (!scene || isHex(scene.grid)) return;
+    const s = this.room.state;
+    const scale = this.stage.scaleX();
+    const tl = this.toWorld({ x: 0, y: 0 });
+    const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
+    const px = scale * this.bgLayer.getCanvas().getPixelRatio();
+    const gmView = s.me?.role === "gm" && !s.fogOpts.preview;
+    this.build.draw(c, scene, { x0: tl.x, y0: tl.y, x1: br.x, y1: br.y }, scale, px, gmView);
+  }
+
+  /** Build tool: outlines what the next click or drag would change (red when it takes something away). */
+  private drawBuildHover(c: CanvasRenderingContext2D): void {
+    const p = this.hover;
+    const scene = this.renderedScene;
+    const s = this.room.state;
+    const moving = this.gesture.kind === "build-move-stamp" ? this.gesture : null;
+    if (!scene || s.tool !== "build" || isHex(scene.grid)) return;
+    if (!moving && (!p || this.gesture.kind !== "none")) return;
+    const g = scene.grid;
+    const size = g.size;
+    const scale = this.stage.scaleX();
+    const o = s.buildOpts;
+    const alt = this.altDown;
+    const X = (col: number) => g.offsetX + col * size;
+    const Y = (row: number) => g.offsetY + row * size;
+    const ghost = (id: StampId, turns: number, n: number, at: Cell, alpha: number) => {
+      c.save();
+      c.globalAlpha = alpha;
+      c.translate(X(at.col + n / 2), Y(at.row + n / 2));
+      c.rotate((turns * Math.PI) / 2);
+      c.scale(n * size, n * size);
+      drawStamp(c, id);
+      c.restore();
+      c.setLineDash([6 / scale, 4 / scale]);
+      c.strokeRect(X(at.col), Y(at.row), n * size, n * size);
+    };
+    const line = (e: { col: number; row: number; side: Side }, color: string) => {
+      c.lineCap = "round";
+      c.globalAlpha = 0.75;
+      c.strokeStyle = color;
+      c.lineWidth = Math.max(size * 0.12, 5 / scale);
+      c.beginPath();
+      c.moveTo(X(e.col), Y(e.row));
+      if (e.side === "t") c.lineTo(X(e.col + 1), Y(e.row));
+      else c.lineTo(X(e.col), Y(e.row + 1));
+      c.stroke();
+    };
+    c.save();
+    // Nothing is built off the scene, so nothing is outlined there either.
+    const m = Math.max(size * 0.12, 5 / scale);
+    c.beginPath();
+    c.rect(-m, -m, scene.width + 2 * m, scene.height + 2 * m);
+    c.clip();
+    c.strokeStyle = SELECT_COLOR;
+    c.lineWidth = 2 / scale;
+    if (moving) {
+      const [id, , , turns, n] = moving.stamp;
+      ghost(id, turns, n, moving.at, 0.85);
+    } else if (o.mode === "building" || o.mode === "terrain") {
+      const n = o.shape[o.mode] === "brush" ? this.brushCells() : 1;
+      const at = this.brushAt(p!, n);
+      const all = sceneCells(scene.width, scene.height, g);
+      if (at.col <= all.c1 && at.row <= all.r1 && at.col + n - 1 >= all.c0 && at.row + n - 1 >= all.r0) {
+        c.setLineDash([6 / scale, 4 / scale]);
+        c.strokeStyle = alt || o.floor[o.mode] === "erase" ? REMOVE_COLOR : SELECT_COLOR;
+        c.strokeRect(X(at.col), Y(at.row), n * size, n * size);
+      }
+    } else if (o.mode === "walls") {
+      const path = this.wallPath;
+      if (path) {
+        // The wall the next click adds, from the last corner, and the corners so far.
+        const last = path.corners[path.corners.length - 1];
+        const next = this.nextCorner(p!);
+        const color = path.mode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
+        c.strokeStyle = color;
+        c.fillStyle = color;
+        c.lineCap = "round";
+        c.lineWidth = Math.max(size * 0.08, 3 / scale);
+        c.setLineDash([size * 0.2, size * 0.15]);
+        c.beginPath();
+        c.moveTo(X(last.c), Y(last.r));
+        c.lineTo(X(next.c), Y(next.r));
+        c.stroke();
+        c.setLineDash([]);
+        for (const v of path.corners) {
+          c.beginPath();
+          c.arc(X(v.c), Y(v.r), Math.max(size * 0.1, 4 / scale), 0, Math.PI * 2);
+          c.fill();
+        }
+      } else {
+        // The corner a click (or a drag) starts from.
+        const v = this.nearestVertex(p!);
+        const all = sceneCells(scene.width, scene.height, g);
+        if (v.c >= all.c0 && v.c <= all.c1 + 1 && v.r >= all.r0 && v.r <= all.r1 + 1) {
+          c.fillStyle = alt || o.wallMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
+          c.beginPath();
+          c.arc(X(v.c), Y(v.r), Math.max(size * 0.12, 5 / scale), 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    } else if (o.mode === "doors") {
+      const e = this.nearestWallEdge(p!);
+      if (this.edgeOnScene(e.col, e.row, e.side)) {
+        line(e, alt ? "#e7e9ee" : o.doorStyle === "open" ? REMOVE_COLOR : o.doorStyle === "secret" ? "#c77dff" : "#d9a066");
+      }
+    } else {
+      const cell = this.cellOnScene(p!);
+      const hit = this.build.model.stampAt(cell.col, cell.row);
+      if (hit) {
+        // Clicking an object turns it (or, removing, takes it away); with a mouse, dragging moves it.
+        const n = hit.stamp[4];
+        c.setLineDash([6 / scale, 4 / scale]);
+        c.strokeStyle = alt || o.stampMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
+        c.strokeRect(X(hit.cx * 16 + hit.stamp[1]), Y(hit.cy * 16 + hit.stamp[2]), n * size, n * size);
+      } else if (!alt && o.stampMode === "place") {
+        ghost(o.stamp, o.stampTurns, o.stampSize, this.stampAnchor(p!, o.stampSize), 0.6);
+      }
+    }
+    c.restore();
+  }
+
+  /** Alt held: the Build tool takes away instead (shown red under the pointer). */
+  private setAlt(down: boolean): void {
+    if (down === this.altDown) return;
+    this.altDown = down;
+    if (this.buildHover.visible()) this.uiLayer.batchDraw();
+  }
+
+  private setHover(world: Point | null): void {
+    const show = !!world && this.room.state.tool === "build" && this.isGm;
+    this.hover = show ? world : null;
+    if (!show && !this.buildHover.visible()) return;
+    this.buildHover.visible(show);
+    this.uiLayer.batchDraw();
   }
 
   private drawHexGrid(
@@ -1186,6 +1435,18 @@ export class Board implements BoardApi {
     }
 
     if (e.pointerType === "mouse" && (e.button === 1 || e.button === 2)) {
+      const st = this.room.state;
+      if (e.button === 2 && st.tool === "fog" && this.poly && this.isGm) {
+        // As with walls: a right-click finishes the polygon.
+        this.startPan(e.pointerId, pos, () => this.finishPoly());
+        return;
+      }
+      if (e.button === 2 && st.tool === "build" && this.isGm && (this.wallPath || st.buildOpts.mode === "stamps")) {
+        // As in Dungeondraft: a right-click turns the object (or finishes the walls). A right-drag still pans.
+        const world = this.toWorld(pos);
+        this.startPan(e.pointerId, pos, () => this.buildRightClick(world));
+        return;
+      }
       const hit = e.button === 2 && !this.fogged(pos) ? this.itemAt(pos) : null;
       this.startPan(e.pointerId, pos, hit ? () => this.room.select([hit.id]) : undefined);
       return;
@@ -1227,6 +1488,10 @@ export class Board implements BoardApi {
       case "fog":
         if (!this.isGm) return;
         this.fogDown(e.pointerId, world);
+        return;
+      case "build":
+        if (!this.isGm) return;
+        this.buildDown(e.pointerId, pos, world, e);
         return;
       case "measure": {
         const shape = s.measureOpts.shape;
@@ -1512,6 +1777,451 @@ export class Board implements BoardApi {
     this.gesture = { kind: "fog-lasso", pointerId, points: [world.x, world.y], node };
   }
 
+  // ---------------------------------------------------------------- building
+
+  /** Which kind of floor the brush and shapes paint: a building's, or terrain. */
+  private paintMode(): "building" | "terrain" {
+    return this.room.state.buildOpts.mode === "terrain" ? "terrain" : "building";
+  }
+
+  private buildDown(pointerId: number, pos: Point, world: Point, e: PointerEvent): void {
+    const scene = this.renderedScene!;
+    if (isHex(scene.grid)) {
+      this.room.toast("Building works on a square grid. Switch this scene to squares in Edit scene.", "error");
+      return;
+    }
+    const o = this.room.state.buildOpts;
+    // Alt reverses what the tool does, as in Dungeondraft: cut out, erase, take away.
+    const alt = e.altKey;
+    switch (o.mode) {
+      case "building":
+      case "terrain": {
+        const shape = o.shape[o.mode];
+        this.build.beginDraft();
+        // Erasing terrain takes only the ground, never the walls, doors or objects beside it.
+        if (o.mode === "terrain") this.build.model.draft!.groundOnly = true;
+        if (shape === "brush") {
+          this.gesture = { kind: "build-paint", pointerId, last: world, erase: alt };
+          this.paintBrush(world, world, alt);
+        } else {
+          const cell = cellAt(world.x, world.y, scene.grid);
+          const circle = shape === "circle";
+          this.gesture = { kind: "build-rect", pointerId, start: cell, end: cell, erase: alt, circle };
+          this.paintArea(cell, cell, alt, circle);
+        }
+        this.setHover(null);
+        this.bgLayer.batchDraw();
+        return;
+      }
+      case "walls": {
+        if (this.wallPath) {
+          // Placing corners: a click adds one, and a drag moves the map.
+          this.gesture = { kind: "tap", pointerId, start: pos, world, action: "wallpoint" };
+          return;
+        }
+        const v0 = this.nearestVertex(world);
+        const last = this.lastWallClick;
+        if (e.pointerType === "mouse" && last && performance.now() - last.at < 500 && last.c === v0.c && last.r === v0.r) {
+          // The second click of the double-click that just finished the walls: nothing more.
+          return;
+        }
+        this.build.beginDraft();
+        const v = this.nearestVertex(world);
+        const mode = alt ? "remove" : o.wallMode;
+        this.gesture = { kind: "build-wall", pointerId, vertex: v, start: v, moved: false, mode, mouse: e.pointerType === "mouse" };
+        this.setHover(null);
+        return;
+      }
+      case "doors":
+        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "door", alt };
+        return;
+      case "stamps": {
+        // With a mouse, dragging an object moves it (otherwise a drag moves the map).
+        const cell = this.cellOnScene(world);
+        const grab =
+          e.pointerType === "mouse" && !alt && o.stampMode === "place" && this.build.model.stampAt(cell.col, cell.row)
+            ? cell
+            : undefined;
+        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", alt, grab };
+        return;
+      }
+    }
+  }
+
+  /** The Build tool's brush size, in squares. */
+  private brushCells(): number {
+    return Math.max(1, Math.min(5, Math.round(this.room.state.buildOpts.brush)));
+  }
+
+  /** The top-left cell of an n x n brush centred on a point (on a cell for odd n, a grid corner for even). */
+  private brushAt(p: Point, n: number): Cell {
+    const g = this.renderedScene!.grid;
+    const u = (p.x - g.offsetX) / g.size;
+    const v = (p.y - g.offsetY) / g.size;
+    return n % 2
+      ? { col: Math.floor(u) - (n - 1) / 2, row: Math.floor(v) - (n - 1) / 2 }
+      : { col: Math.round(u) - n / 2, row: Math.round(v) - n / 2 };
+  }
+
+  /** Where an n x n object goes when placed at a point: centred on it, and inside the scene. */
+  private stampAnchor(p: Point, n: number): Cell {
+    const scene = this.renderedScene!;
+    const g = scene.grid;
+    const all = sceneCells(scene.width, scene.height, g);
+    const col = Math.round((p.x - g.offsetX) / g.size - n / 2);
+    const row = Math.round((p.y - g.offsetY) / g.size - n / 2);
+    return {
+      col: Math.max(all.c0, Math.min(all.c1 - n + 1, col)),
+      row: Math.max(all.r0, Math.min(all.r1 - n + 1, row)),
+    };
+  }
+
+  /** Where an object held `off` cells in from its corner goes, with the pointer at a point: inside the scene. */
+  private heldAnchor(p: Point, off: Cell, n: number): Cell {
+    const scene = this.renderedScene!;
+    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const cell = cellAt(p.x, p.y, scene.grid);
+    return {
+      col: Math.max(all.c0, Math.min(all.c1 - n + 1, cell.col - off.col)),
+      row: Math.max(all.r0, Math.min(all.r1 - n + 1, cell.row - off.row)),
+    };
+  }
+
+  /**
+   * The cell at a point, pulled in onto the scene: a click just off the edge means the
+   * cell at the edge (where an object placed there would go too).
+   */
+  private cellOnScene(p: Point): Cell {
+    const scene = this.renderedScene!;
+    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const cell = cellAt(p.x, p.y, scene.grid);
+    return { col: Math.max(all.c0, Math.min(all.c1, cell.col)), row: Math.max(all.r0, Math.min(all.r1, cell.row)) };
+  }
+
+  /** What the brush and shapes paint in the current mode: a floor, or "." to erase. */
+  private paintChar(erase: boolean): string {
+    const o = this.room.state.buildOpts;
+    const mode = this.paintMode();
+    const floor = o.floor[mode];
+    if (erase || floor === "erase") return EMPTY;
+    return mode === "terrain" ? floor : floorChar(floor, wallsFor(this.renderedScene!, o.walls));
+  }
+
+  /**
+   * Whether a stroke may change a cell. Terrain goes under buildings, as in Dungeondraft,
+   * so it never paints over a room's floor; erasing takes only what the mode paints.
+   */
+  private mayPaint(col: number, row: number, ch: string): boolean {
+    const cur = this.build.model.storedCell(col, row);
+    if (this.paintMode() === "terrain") return ch === EMPTY ? isTerrainFloor(cur) : !isBuildingFloor(cur);
+    return ch === EMPTY ? isBuildingFloor(cur) : true;
+  }
+
+  /** Paints the brush all along a line, so a fast drag leaves no gaps. */
+  private paintBrush(from: Point, to: Point, erase: boolean): void {
+    const scene = this.renderedScene!;
+    const g = scene.grid;
+    const all = sceneCells(scene.width, scene.height, g);
+    const ch = this.paintChar(erase);
+    const n = this.brushCells();
+    const steps = Math.max(1, Math.ceil((Math.hypot(to.x - from.x, to.y - from.y) / g.size) * 2));
+    for (let i = 0; i <= steps; i++) {
+      const at = this.brushAt({ x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps }, n);
+      for (let dr = 0; dr < n; dr++) {
+        for (let dc = 0; dc < n; dc++) {
+          const col = at.col + dc;
+          const row = at.row + dr;
+          if (col < all.c0 || col > all.c1 || row < all.r0 || row > all.r1) continue;
+          if (this.mayPaint(col, row, ch)) this.build.draftCell(col, row, ch);
+        }
+      }
+    }
+  }
+
+  /** A rectangle from one cell to another, or the oval inside it. */
+  private paintArea(a: Cell, b: Cell, erase: boolean, circle: boolean): void {
+    const scene = this.renderedScene!;
+    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const ch = this.paintChar(erase);
+    this.build.clearDraftCells();
+    const c0 = Math.min(a.col, b.col);
+    const c1 = Math.max(a.col, b.col);
+    const r0 = Math.min(a.row, b.row);
+    const r1 = Math.max(a.row, b.row);
+    // The oval's centre and radii, in cells: a square's worth of cells whose centres are inside it.
+    const cx = (c0 + c1 + 1) / 2;
+    const cy = (r0 + r1 + 1) / 2;
+    const rx = (c1 - c0 + 1) / 2;
+    const ry = (r1 - r0 + 1) / 2;
+    for (let row = Math.max(all.r0, r0); row <= Math.min(all.r1, r1); row++) {
+      for (let col = Math.max(all.c0, c0); col <= Math.min(all.c1, c1); col++) {
+        if (circle) {
+          const dx = (col + 0.5 - cx) / rx;
+          const dy = (row + 0.5 - cy) / ry;
+          if (dx * dx + dy * dy > 1) continue;
+        }
+        if (this.mayPaint(col, row, ch)) this.build.draftCell(col, row, ch);
+      }
+    }
+  }
+
+  private nearestVertex(p: Point): { c: number; r: number } {
+    const g = this.renderedScene!.grid;
+    return { c: Math.round((p.x - g.offsetX) / g.size), r: Math.round((p.y - g.offsetY) / g.size) };
+  }
+
+  /** The grid line segment (a cell's top or left edge) nearest a point. */
+  private nearestEdge(p: Point): { col: number; row: number; side: Side } {
+    const g = this.renderedScene!.grid;
+    const u = (p.x - g.offsetX) / g.size;
+    const v = (p.y - g.offsetY) / g.size;
+    return Math.abs(v - Math.round(v)) <= Math.abs(u - Math.round(u))
+      ? { col: Math.floor(u), row: Math.round(v), side: "t" }
+      : { col: Math.round(u), row: Math.floor(v), side: "l" };
+  }
+
+  /**
+   * The grid line a Doors click means: of the nearest across and the nearest down, the
+   * one with a wall or door on it (within half a square), so a door lands in the wall
+   * (Dungeondraft's portals snap to walls). Otherwise simply the nearest line.
+   */
+  private nearestWallEdge(p: Point): { col: number; row: number; side: Side } {
+    const g = this.renderedScene!.grid;
+    const u = (p.x - g.offsetX) / g.size;
+    const v = (p.y - g.offsetY) / g.size;
+    const across = { col: Math.floor(u), row: Math.round(v), side: "t" as Side, d: Math.abs(v - Math.round(v)) };
+    const down = { col: Math.round(u), row: Math.floor(v), side: "l" as Side, d: Math.abs(u - Math.round(u)) };
+    const m = this.build.model;
+    const walled = (e: typeof across) => m.state(e.col, e.row, e.side) !== 0 || m.edge(e.col, e.row, e.side) === "o";
+    const a = walled(across);
+    const b = walled(down);
+    // The line with a wall wins only when it's about as near as the bare one: across a
+    // one-square corridor, the bare line between its walls is still easy to pick.
+    const nearest = across.d <= down.d ? across : down;
+    const wall = a !== b ? (a ? across : down) : null;
+    const bare = wall === across ? down : across;
+    const pick = wall && wall.d <= bare.d + 0.2 ? wall : nearest;
+    return { col: pick.col, row: pick.row, side: pick.side };
+  }
+
+  /** Whether an edge is on the scene: inside it, or along its border. */
+  private edgeOnScene(col: number, row: number, side: Side): boolean {
+    const scene = this.renderedScene!;
+    const all = sceneCells(scene.width, scene.height, scene.grid);
+    return side === "t"
+      ? col >= all.c0 && col <= all.c1 && row >= all.r0 && row <= all.r1 + 1
+      : row >= all.r0 && row <= all.r1 && col >= all.c0 && col <= all.c1 + 1;
+  }
+
+  /** The grid lines from one corner to another in a straight line, as walls to draw. */
+  private edgesBetween(from: { c: number; r: number }, to: { c: number; r: number }): [number, number, Side][] {
+    const out: [number, number, Side][] = [];
+    let { c, r } = from;
+    for (let guard = 0; guard < 10_000 && (c !== to.c || r !== to.r); guard++) {
+      const dx = to.c - c;
+      const dy = to.r - r;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        const s = Math.sign(dx);
+        const col = s > 0 ? c : c - 1;
+        if (this.edgeOnScene(col, r, "t")) out.push([col, r, "t"]);
+        c += s;
+      } else {
+        const s = Math.sign(dy);
+        const row = s > 0 ? r : r - 1;
+        if (this.edgeOnScene(c, row, "l")) out.push([c, row, "l"]);
+        r += s;
+      }
+    }
+    return out;
+  }
+
+  /** Follows the pointer from grid corner to grid corner, marking each grid line passed. */
+  private wallMove(g: Extract<Gesture, { kind: "build-wall" }>, world: Point): void {
+    const target = this.nearestVertex(world);
+    if (target.c === g.vertex.c && target.r === g.vertex.r) return;
+    for (const [col, row, side] of this.edgesBetween(g.vertex, target)) this.build.draftWall(col, row, side, g.mode);
+    g.vertex = target;
+    g.moved = true;
+    this.bgLayer.batchDraw();
+  }
+
+  /** Starts walls drawn corner by corner with a mouse, as with Dungeondraft's Wall tool. */
+  private startWallPath(v: { c: number; r: number }, mode: "add" | "remove"): void {
+    this.wallPath = { corners: [v], steps: [], mode };
+    this.uiLayer.batchDraw();
+  }
+
+  /** The corner the next click adds: straight across or down from the last one. */
+  private nextCorner(world: Point): { c: number; r: number } {
+    const path = this.wallPath!;
+    const last = path.corners[path.corners.length - 1];
+    const v = this.nearestVertex(world);
+    return Math.abs(v.c - last.c) >= Math.abs(v.r - last.r) ? { c: v.c, r: last.r } : { c: last.c, r: v.r };
+  }
+
+  private wallPointClick(world: Point): void {
+    const path = this.wallPath;
+    if (!path) return;
+    const raw = this.nearestVertex(world);
+    const prev = this.lastWallClick;
+    this.lastWallClick = { at: performance.now(), c: raw.c, r: raw.r };
+    if (prev && this.lastWallClick.at - prev.at < 500 && prev.c === raw.c && prev.r === raw.r && path.steps.length) {
+      // A double-click: its first click placed the corner, the second finishes.
+      this.finishWallPath();
+      return;
+    }
+    const last = path.corners[path.corners.length - 1];
+    const next = this.nextCorner(world);
+    if (next.c === last.c && next.r === last.r) {
+      // The last corner again (a double-click): done.
+      this.finishWallPath();
+      return;
+    }
+    const steps = this.edgesBetween(last, next);
+    for (const [col, row, side] of steps) this.build.draftWall(col, row, side, path.mode);
+    path.steps.push(steps);
+    path.corners.push(next);
+    const first = path.corners[0];
+    if (path.corners.length > 2 && next.c === first.c && next.r === first.r) {
+      // Back at the first corner: the loop is closed.
+      this.finishWallPath();
+      return;
+    }
+    this.bgLayer.batchDraw();
+    this.uiLayer.batchDraw();
+  }
+
+  /** Double-click, right-click or Enter: the walls placed so far become one change (one undo). */
+  private finishWallPath(): void {
+    if (!this.wallPath) return;
+    this.wallPath = null;
+    this.commitBuild();
+    this.uiLayer.batchDraw();
+  }
+
+  private cancelWallPath(): void {
+    if (!this.wallPath) return;
+    this.wallPath = null;
+    this.build.endDraft();
+    this.bgLayer.batchDraw();
+    this.uiLayer.batchDraw();
+  }
+
+  /** Backspace while placing corners: takes the last one back. */
+  private undoWallCorner(): void {
+    const path = this.wallPath;
+    if (!path) return;
+    if (!path.steps.length) {
+      this.cancelWallPath();
+      return;
+    }
+    path.steps.pop();
+    path.corners.pop();
+    this.build.clearDraftWalls();
+    for (const steps of path.steps) for (const [col, row, side] of steps) this.build.draftWall(col, row, side, path.mode);
+    this.bgLayer.batchDraw();
+    this.uiLayer.batchDraw();
+  }
+
+  /** Sends a build change, and shows the result at once (with no frame of the old build in between). */
+  private applyBuild(edit: BuildEdit): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const before = this.room.state.items;
+    const ops = edit.ops();
+    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops));
+    this.build.update(sceneTerrain(this.room.state.items, scene.id));
+    this.build.endDraft();
+    this.bgLayer.batchDraw();
+  }
+
+  /** Turns the draft (painted floor, drawn walls) into a change, applied to the build as it is now. */
+  private commitBuild(): void {
+    const scene = this.renderedScene;
+    const d = this.build.model.draft;
+    if (!scene || !d) {
+      this.build.endDraft();
+      this.bgLayer.batchDraw();
+      return;
+    }
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    for (const [k, ch] of d.cells) {
+      if (ch === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
+      else edit.setCell(keyCol(k), keyRow(k), ch);
+    }
+    for (const [k, mode] of d.walls) {
+      const { col, row, side } = edgeOf(k);
+      setWall(edit, col, row, side, mode);
+    }
+    this.applyBuild(edit);
+  }
+
+  /** Doors: a click on a wall makes the chosen style there; with Alt, the plain wall again. */
+  private doorTap(world: Point, alt: boolean): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const { col, row, side } = this.nearestWallEdge(world);
+    if (!this.edgeOnScene(col, row, side)) return;
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    setPortal(edit, col, row, side, alt ? "wall" : this.room.state.buildOpts.doorStyle);
+    this.applyBuild(edit);
+  }
+
+  /** Objects: places one, or turns the one clicked; with Alt (or Remove), takes it away. */
+  private stampTap(world: Point, alt: boolean): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const o = this.room.state.buildOpts;
+    const cell = this.cellOnScene(world);
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    if (alt || o.stampMode === "remove") {
+      if (!edit.removeStampAt(cell.col, cell.row)) return;
+    } else if (!edit.rotateStampAt(cell.col, cell.row)) {
+      const at = this.stampAnchor(world, o.stampSize);
+      if (!edit.addStamp(o.stamp, at.col, at.row, o.stampTurns, o.stampSize)) {
+        this.room.toast("That part of the map has as many objects as it can hold.", "error");
+        return;
+      }
+    }
+    this.applyBuild(edit);
+  }
+
+  /** Right-click while building: turns an object (or the next one to place), or finishes walls. */
+  private buildRightClick(world: Point): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    if (this.wallPath) {
+      this.finishWallPath();
+      return;
+    }
+    const o = this.room.state.buildOpts;
+    if (o.mode !== "stamps") return;
+    const cell = this.cellOnScene(world);
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    if (edit.rotateStampAt(cell.col, cell.row)) this.applyBuild(edit);
+    else this.room.store.set({ buildOpts: { ...o, stampTurns: (o.stampTurns + 1) % 4 } });
+  }
+
+  /** Lets go of an object being dragged: it moves there (one undo). */
+  private dropStamp(g: Extract<Gesture, { kind: "build-move-stamp" }>): void {
+    const scene = this.renderedScene;
+    this.build.showHiddenStamp();
+    this.bgLayer.batchDraw();
+    this.uiLayer.batchDraw();
+    if (!scene) return;
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    if (edit.moveStamp(g.from.col, g.from.row, g.at.col, g.at.row, g.stamp)) {
+      this.applyBuild(edit);
+      return;
+    }
+    // Not moved: dropped where it was, gone meanwhile, or the place it was dropped is full.
+    const still = new BuildEdit(this.room.state.items, scene.id).stampAt(g.from.col, g.from.row);
+    const home = g.at.col - g.from.col === -g.off.col && g.at.row - g.from.row === -g.off.row;
+    if (still && still.join() === g.stamp.join() && !home) {
+      this.room.toast("That part of the map has as many objects as it can hold.", "error");
+    }
+  }
+
   private polyClick(world: Point): void {
     const scene = this.renderedScene!;
     const o = this.room.state.fogOpts;
@@ -1672,7 +2382,11 @@ export class Board implements BoardApi {
   private onPointerMove = (e: PointerEvent): void => {
     const pos = this.localPos(e);
     const world = this.toWorld(pos);
-    if (e.pointerType === "mouse") this.updateBrushCursor(world);
+    if (e.altKey !== this.altDown) this.setAlt(e.altKey);
+    if (e.pointerType === "mouse") {
+      this.updateBrushCursor(world);
+      if (this.room.state.tool === "build") this.setHover(world);
+    }
     if (!this.pointers.has(e.pointerId)) {
       if (this.poly) this.updatePolyPreview(world);
       return;
@@ -1761,6 +2475,19 @@ export class Board implements BoardApi {
       }
       case "tap":
         if (Math.hypot(pos.x - g.start.x, pos.y - g.start.y) >= DRAG_THRESHOLD) {
+          const hit = g.grab && this.room.state.tool === "build" ? this.build.model.stampAt(g.grab.col, g.grab.row) : null;
+          if (g.grab && hit) {
+            // Dragging an object: it moves by whole squares, keeping hold of it where it was grabbed.
+            this.build.hideStampAt(g.grab.col, g.grab.row);
+            const off = { col: g.grab.col - (hit.cx * 16 + hit.stamp[1]), row: g.grab.row - (hit.cy * 16 + hit.stamp[2]) };
+            const at = this.heldAnchor(world, off, hit.stamp[4]);
+            this.gesture = { kind: "build-move-stamp", pointerId: g.pointerId, from: g.grab, stamp: hit.stamp, at, off };
+            this.hover = world;
+            this.buildHover.visible(true);
+            this.bgLayer.batchDraw();
+            this.uiLayer.batchDraw();
+            return;
+          }
           // It's a drag, not a tap: pan instead.
           this.gesture = { kind: "pan", pointerId: g.pointerId, start: g.start, cam: this.cam, moved: false };
         }
@@ -1780,6 +2507,29 @@ export class Board implements BoardApi {
         return;
       case "erase":
         this.eraseAt(g, pos);
+        return;
+      case "build-paint":
+        this.paintBrush(g.last, world, g.erase);
+        g.last = world;
+        this.bgLayer.batchDraw();
+        return;
+      case "build-rect": {
+        const cell = cellAt(world.x, world.y, scene.grid);
+        if (cell.col === g.end.col && cell.row === g.end.row) return;
+        g.end = cell;
+        this.paintArea(g.start, cell, g.erase, g.circle);
+        this.bgLayer.batchDraw();
+        return;
+      }
+      case "build-move-stamp": {
+        const at = this.heldAnchor(world, g.off, g.stamp[4]);
+        if (at.col === g.at.col && at.row === g.at.row) return;
+        g.at = at;
+        this.uiLayer.batchDraw();
+        return;
+      }
+      case "build-wall":
+        this.wallMove(g, world);
         return;
       case "fog-rect": {
         const end = this.room.state.fogOpts.snap ? snapToVertex(world, scene.grid) : world;
@@ -1907,13 +2657,47 @@ export class Board implements BoardApi {
         return;
       }
       case "tap":
-        if (g.action === "poly") {
-          this.polyClick(g.world);
-        } else {
-          // Font size follows the line-width setting, sized for how zoomed in you are right now.
-          const fontSize = round2((12 + this.room.state.drawOpts.width * 2) / this.cam.scale);
-          this.room.store.set({ textPrompt: { x: round2(g.world.x), y: round2(g.world.y), fontSize } });
+        switch (g.action) {
+          case "poly":
+            this.polyClick(g.world);
+            break;
+          case "door":
+            this.doorTap(g.world, !!g.alt);
+            break;
+          case "stamp":
+            this.stampTap(g.world, !!g.alt);
+            break;
+          case "wallpoint":
+            this.wallPointClick(g.world);
+            break;
+          case "note": {
+            // Font size follows the line-width setting, sized for how zoomed in you are right now.
+            const fontSize = round2((12 + this.room.state.drawOpts.width * 2) / this.cam.scale);
+            this.room.store.set({ textPrompt: { x: round2(g.world.x), y: round2(g.world.y), fontSize } });
+            break;
+          }
         }
+        return;
+      case "build-paint":
+      case "build-rect":
+        this.commitBuild();
+        return;
+      case "build-wall":
+        if (!g.moved && g.mouse) {
+          // A click with a mouse starts walls placed corner by corner, as in Dungeondraft.
+          this.lastWallClick = { at: performance.now(), c: g.start.c, r: g.start.r };
+          this.startWallPath(g.start, g.mode);
+          return;
+        }
+        if (!g.moved) {
+          // A tap on a touch screen: the grid line nearest it.
+          const edge = this.nearestEdge(world);
+          if (this.edgeOnScene(edge.col, edge.row, edge.side)) this.build.draftWall(edge.col, edge.row, edge.side, g.mode);
+        }
+        this.commitBuild();
+        return;
+      case "build-move-stamp":
+        this.dropStamp(g);
         return;
       case "drag-items": {
         if (!g.moved) return;
@@ -2084,6 +2868,17 @@ export class Board implements BoardApi {
         this.drawLayer.batchDraw();
         this.tokenLayer.batchDraw();
         break;
+      case "build-paint":
+      case "build-rect":
+      case "build-wall":
+        this.build.endDraft();
+        this.bgLayer.batchDraw();
+        break;
+      case "build-move-stamp":
+        this.build.showHiddenStamp();
+        this.bgLayer.batchDraw();
+        this.uiLayer.batchDraw();
+        break;
       case "measure":
         this.localRuler = null;
         this.renderRulers();
@@ -2108,8 +2903,10 @@ export class Board implements BoardApi {
       dx *= 400;
     }
     if (e.ctrlKey) {
-      // Trackpad pinch (browsers report it as ctrl+wheel).
-      this.zoomAt(pos, Math.exp(-dy * 0.01));
+      // A trackpad pinch arrives as Ctrl+wheel in small steps. A mouse wheel's notches with
+      // Ctrl held (how Dungeondraft zooms) are big ones: zoom those at the plain wheel's rate.
+      const notch = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 40;
+      this.zoomAt(pos, Math.exp(-dy * (notch ? 0.0015 : 0.01)));
       return;
     }
     const looksLikeTrackpadScroll = e.deltaMode === 0 && (Math.abs(dx) > 0 || Math.abs(dy) < 40);
@@ -2182,6 +2979,12 @@ export class Board implements BoardApi {
     if (document.querySelector(".modal-backdrop")) return;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key;
+    if (key === "Alt") {
+      // Alt reverses the Build tool, as in Dungeondraft; keep the browser's menu out of it.
+      if (this.room.state.tool === "build") e.preventDefault();
+      this.setAlt(true);
+      return;
+    }
     if (key === " ") {
       if (!this.spaceDown) {
         this.spaceDown = true;
@@ -2192,6 +2995,7 @@ export class Board implements BoardApi {
     }
     if (mod) {
       const k = key.toLowerCase();
+      if ((k === "z" || k === "y") && this.gesture.kind === "build-move-stamp") this.cancelGesture();
       if (k === "z") {
         e.preventDefault();
         if (e.shiftKey) this.room.redo();
@@ -2215,6 +3019,17 @@ export class Board implements BoardApi {
       if (this.brushCursor.visible()) this.updateBrushCursor(this.brushCursor.position());
       return;
     }
+    if ((e.code === "BracketLeft" || e.code === "BracketRight") && room.state.tool === "build") {
+      // Building: [ and ] size the floor brush, or turn the next object.
+      const o = room.state.buildOpts;
+      const dir = e.code === "BracketLeft" ? -1 : 1;
+      if ((o.mode === "building" || o.mode === "terrain") && o.shape[o.mode] === "brush") {
+        room.store.set({ buildOpts: { ...o, brush: Math.min(5, Math.max(1, o.brush + dir)) } });
+      } else if (o.mode === "stamps") {
+        room.store.set({ buildOpts: { ...o, stampTurns: (o.stampTurns + dir + 4) % 4 } });
+      }
+      return;
+    }
     if (e.code === "BracketLeft" || e.code === "BracketRight") {
       const step = e.shiftKey ? 15 : 45;
       rotateSelection(room, e.code === "BracketLeft" ? -step : step);
@@ -2223,12 +3038,16 @@ export class Board implements BoardApi {
     switch (key) {
       case "Escape":
         if (room.state.gridAlign && this.gesture.kind === "none") room.store.set({ gridAlign: null });
+        else if (this.wallPath && this.gesture.kind === "none") this.cancelWallPath();
         else if (this.poly) this.cancelPoly();
         else if (this.gesture.kind !== "none") this.cancelGesture();
         else room.select([]);
         return;
       case "Enter":
-        if (this.poly) {
+        if (this.wallPath) {
+          e.preventDefault();
+          this.finishWallPath();
+        } else if (this.poly) {
           e.preventDefault();
           this.finishPoly();
         }
@@ -2236,7 +3055,9 @@ export class Board implements BoardApi {
       case "Delete":
       case "Backspace":
         e.preventDefault();
-        if (this.poly) {
+        if (this.wallPath) {
+          this.undoWallCorner();
+        } else if (this.poly) {
           if (this.poly.points.length > 2) {
             this.poly.points.splice(-2, 2);
             this.poly.node.points(this.poly.points);
@@ -2244,7 +3065,8 @@ export class Board implements BoardApi {
           } else {
             this.cancelPoly();
           }
-        } else {
+        } else if (!e.repeat) {
+          // (Not a held key that has just run out of corners to take back.)
           deleteSelection(room);
         }
         return;
@@ -2263,6 +3085,10 @@ export class Board implements BoardApi {
       case "f":
       case "F":
         room.setTool("fog");
+        return;
+      case "b":
+      case "B":
+        room.setTool("build");
         return;
       case "m":
       case "M":
@@ -2311,6 +3137,10 @@ export class Board implements BoardApi {
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    if (e.key === "Alt") {
+      if (this.room.state.tool === "build") e.preventDefault();
+      this.setAlt(false);
+    }
     if (e.key === " ") {
       this.spaceDown = false;
       this.updateCursor();
@@ -2322,7 +3152,7 @@ export class Board implements BoardApi {
     const tool = this.room.state.tool;
     let cursor = "default";
     if (this.spaceDown) cursor = "grab";
-    else if (tool === "draw" || tool === "fog" || tool === "measure" || tool === "pointer") cursor = "crosshair";
+    else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer") cursor = "crosshair";
     else if (tool === "erase") cursor = "cell";
     this.el.style.cursor = cursor;
   }
