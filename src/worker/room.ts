@@ -1100,7 +1100,7 @@ export class Room extends DurableObject<Env> {
       clean = { k: "ruler", sceneId: e.sceneId, points, label: cleanText(e.label, 40) ?? "", shape };
     } else if (e.k === "pointer") {
       if (!finite(e.x) || !finite(e.y)) return;
-      clean = { k: "pointer", sceneId: e.sceneId, x: e.x, y: e.y };
+      clean = { k: "pointer", sceneId: e.sceneId, x: e.x, y: e.y, ...(e.ping === true ? { ping: true } : {}) };
     } else {
       return;
     }

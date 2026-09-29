@@ -105,6 +105,10 @@ const MAX_SCALE = 8;
 const DRAG_THRESHOLD = 5;
 const EPH_INTERVAL = 40;
 const TRAIL_MS = 900;
+/** While the pointer is held still, it's sent again this often, so it stays on everyone's screen. */
+const POINTER_HOLD_MS = 200;
+/** How long a ping (a click with the pointer) pulses. */
+const PING_MS = 3500;
 /** The fog is drawn once into an image at most this many pixels on its long side. */
 const FOG_CACHE_MAX = 2560;
 /** A brush stroke is stored in pieces of at most this many points. */
@@ -183,7 +187,8 @@ type Gesture =
   | { kind: "fog-lasso"; pointerId: number; points: number[]; node: Konva.Line }
   | { kind: "fog-paint"; pointerId: number; points: number[]; pieces: number[][]; width: number; node: Konva.Line }
   | { kind: "measure"; pointerId: number; shape: MeasureShape; start: Point; end: Point; lastEph: number }
-  | { kind: "pointer"; pointerId: number; lastEph: number }
+  /** The pointer. Moved: it has been dragged, so letting go isn't a ping. */
+  | { kind: "pointer"; pointerId: number; lastEph: number; start: Point; at: Point; moved: boolean }
   /** A tap-style action (fog polygon corner, note, door, object) that happens on release, if it was a tap. */
   | {
       kind: "tap";
@@ -432,6 +437,8 @@ export class Board implements BoardApi {
   private localRuler: Ruler | null = null;
   private remoteRulers = new Map<string, Ruler>();
   private trails = new Map<string, { color: string; points: { x: number; y: number; t: number }[] }>();
+  /** Pings, one per person: a spot marked with a click of the pointer. */
+  private pings = new Map<string, { color: string; x: number; y: number; t: number }>();
   private poly: { points: number[]; node: Konva.Line; start: Konva.Circle; mode: "hide" | "reveal" } | null = null;
   private anim: Konva.Animation;
   private cleanup: (() => void)[] = [];
@@ -717,6 +724,7 @@ export class Board implements BoardApi {
       this.remoteDrags.clear();
       this.remoteRulers.clear();
       this.trails.clear();
+      this.pings.clear();
       this.localRuler = null;
       this.renderRulers();
       this.wallPath = null;
@@ -1612,7 +1620,8 @@ export class Board implements BoardApi {
 
   private drawTrails(c: CanvasRenderingContext2D): void {
     const now = performance.now();
-    const scale = this.stage.scaleX();
+    // Twice the size on a table display, so it can be seen across the table.
+    const k = (this.room.display ? 2 : 1) / this.stage.scaleX();
     c.save();
     c.lineCap = "round";
     c.lineJoin = "round";
@@ -1621,7 +1630,7 @@ export class Board implements BoardApi {
       if (!pts.length) continue;
       c.strokeStyle = trail.color;
       c.fillStyle = trail.color;
-      c.lineWidth = 6 / scale;
+      c.lineWidth = 6 * k;
       for (let i = 1; i < pts.length; i++) {
         const age = now - pts[i].t;
         c.globalAlpha = Math.max(0, 1 - age / TRAIL_MS);
@@ -1633,19 +1642,69 @@ export class Board implements BoardApi {
       const head = pts[pts.length - 1];
       c.globalAlpha = Math.max(0, 1 - (now - head.t) / TRAIL_MS);
       c.beginPath();
-      c.arc(head.x, head.y, 8 / scale, 0, Math.PI * 2);
+      c.arc(head.x, head.y, 8 * k, 0, Math.PI * 2);
       c.fill();
+      // A dark edge, so it shows on light maps and snow too.
+      c.strokeStyle = "rgba(0, 0, 0, 0.55)";
+      c.lineWidth = 2 * k;
+      c.stroke();
+    }
+    // Pings: rings that keep spreading out from the spot, then fade.
+    for (const p of this.pings.values()) {
+      const age = now - p.t;
+      const fade = Math.min(1, Math.max(0, (PING_MS - age) / 600));
+      for (let i = 0; i < 3; i++) {
+        const phase = (age / 1000 + i / 3) % 1;
+        const r = (12 + 44 * phase) * k;
+        c.globalAlpha = (1 - phase) * fade;
+        c.beginPath();
+        c.arc(p.x, p.y, r, 0, Math.PI * 2);
+        c.strokeStyle = "rgba(0, 0, 0, 0.6)";
+        c.lineWidth = 7 * k;
+        c.stroke();
+        c.strokeStyle = p.color;
+        c.lineWidth = 4 * k;
+        c.stroke();
+      }
+      c.globalAlpha = fade;
+      c.beginPath();
+      c.arc(p.x, p.y, 7 * k, 0, Math.PI * 2);
+      c.fillStyle = p.color;
+      c.fill();
+      c.strokeStyle = "rgba(0, 0, 0, 0.6)";
+      c.lineWidth = 2 * k;
+      c.stroke();
     }
     c.restore();
+  }
+
+  private addPing(key: string, color: string, p: Point): void {
+    this.pings.set(key, { color, x: p.x, y: p.y, t: performance.now() });
+    this.startAnim();
   }
 
   private tick(): void {
     const now = performance.now();
     let active = false;
+    // Held still, the pointer is sent again now and then, so it doesn't fade away while held.
+    const g = this.gesture;
+    const scene = this.renderedScene;
+    if (g.kind === "pointer" && scene) {
+      active = true;
+      if (now - g.lastEph >= POINTER_HOLD_MS) {
+        g.lastEph = now;
+        this.addTrail("me", this.room.state.me?.color ?? "#fff", g.at);
+        this.room.sendEph({ k: "pointer", sceneId: scene.id, x: round2(g.at.x), y: round2(g.at.y) });
+      }
+    }
     for (const [id, trail] of this.trails) {
       trail.points = trail.points.filter((p) => now - p.t < TRAIL_MS);
       if (trail.points.length) active = true;
       else this.trails.delete(id);
+    }
+    for (const [id, p] of this.pings) {
+      if (now - p.t < PING_MS) active = true;
+      else this.pings.delete(id);
     }
     const wall = Date.now();
     let rulersChanged = false;
@@ -1770,7 +1829,8 @@ export class Board implements BoardApi {
       return;
     }
     if (e.k === "pointer") {
-      this.addTrail(from, this.colorOf(from), e);
+      if (e.ping) this.addPing(from, this.colorOf(from), e);
+      else this.addTrail(from, this.colorOf(from), e);
       return;
     }
     if (e.k === "ruler") {
@@ -1922,7 +1982,7 @@ export class Board implements BoardApi {
         return;
       }
       case "pointer":
-        this.gesture = { kind: "pointer", pointerId: e.pointerId, lastEph: 0 };
+        this.gesture = { kind: "pointer", pointerId: e.pointerId, lastEph: performance.now(), start: pos, at: world, moved: false };
         this.addTrail("me", s.me!.color, world);
         this.room.sendEph({ k: "pointer", sceneId: scene.id, x: round2(world.x), y: round2(world.y) });
         return;
@@ -3481,8 +3541,11 @@ export class Board implements BoardApi {
         return;
       }
       case "pointer": {
+        g.at = world;
+        if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) >= DRAG_THRESHOLD) g.moved = true;
         this.addTrail("me", this.room.state.me?.color ?? "#fff", world);
-        if (now - g.lastEph > 30) {
+        // Up to one a frame: the table display follows it as smoothly as the mouse moves.
+        if (now - g.lastEph >= 15) {
           g.lastEph = now;
           this.room.sendEph({ k: "pointer", sceneId: scene.id, x: round2(world.x), y: round2(world.y) });
         }
@@ -3719,6 +3782,12 @@ export class Board implements BoardApi {
         if (g.shape !== "ruler" && this.room.state.measureOpts.keep) this.pinTemplate(g.shape, g.start, g.end);
         return;
       case "pointer":
+        // A click (or tap) that didn't move: a ping, pulsing there for a few seconds on
+        // everyone's screen and the table display.
+        if (!g.moved) {
+          this.addPing("me", this.room.state.me?.color ?? "#fff", g.at);
+          this.room.sendEph({ k: "pointer", sceneId: scene.id, x: round2(g.at.x), y: round2(g.at.y), ping: true });
+        }
         return;
     }
   };

@@ -30,7 +30,8 @@ export type Ephemeral =
   /** A drag in progress. Tokens carry their centre; drawings carry their offset from the stored points. */
   | { k: "drag"; sceneId: string; moves: { id: string; x: number; y: number }[] }
   | { k: "ruler"; sceneId: string; points: number[] | null; label?: string; shape?: MeasureShape }
-  | { k: "pointer"; sceneId: string; x: number; y: number }
+  /** The pointer: a point on its trail, or with ping, a click that marks a spot for a few seconds. */
+  | { k: "pointer"; sceneId: string; x: number; y: number; ping?: boolean }
   /**
    * GM only, to table displays: the part of the live scene the GM is looking at, as
    * [x, y, width, height] in map pixels, or null to show the whole scene.

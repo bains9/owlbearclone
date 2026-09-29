@@ -526,6 +526,7 @@ export function ProfileDialog(props: { onClose: () => void }) {
 
 const SHORTCUTS: [string, string][] = [
   ["V / D / E / M / P", "Move, Draw, Erase, Measure, Pointer"],
+  ["Pointer: click without dragging", "Ping: rings pulse there for a few seconds, for everyone and on the table display"],
   ["F", "Fog tool (GM)"],
   ["B", "Build tool (GM): Building, Walls, Doors, Terrain, Objects and Select, named as in Dungeondraft"],
   ["Drag empty space, right-drag, or Space + drag", "Pan (in Build › Select a drag on empty space draws a selection box)"],

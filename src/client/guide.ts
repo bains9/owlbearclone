@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest update came out on 29 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Pointing on the table display (29 September 2026, later)",
+        "steps": [
+          "Press **P** (or click **Pointer**) and click a spot on the map, without dragging."
+        ],
+        "notes": [
+          "A click with the pointer now pings: rings pulse there for a few seconds, on everyone's screen and on the table display.",
+          "Holding the pointer still keeps it showing instead of fading away, and on the table display it's twice as big, so the table can see what the GM points at.",
+          "The pointer also keeps up with the mouse more closely. See **Pointing at things**."
+        ]
+      },
+      {
         "title": "Select, turn and size objects, like Dungeondraft (29 September 2026)",
         "steps": [
           "GM: in **Build the map**, press **X** or pick **Select** (the dashed box with a pointer).",
@@ -805,9 +816,20 @@ export const GUIDE: GuideSection[] = [
           "Hold down the mouse button (or your finger) and drag over the map."
         ],
         "notes": [
-          "The trail is in your colour and fades away in under a second.",
-          "Everyone looking at the same scene sees it.",
+          "The trail is in your colour and fades away in under a second. While you hold the button (or your finger) still, the pointer stays where it is.",
+          "Everyone looking at the same scene sees it, including the table display, where it's drawn twice as big so the table can see it.",
           "The pointer doesn't leave anything behind on the map."
+        ]
+      },
+      {
+        "title": "Ping a spot",
+        "steps": [
+          "Click **Pointer** (the pointing hand) in the toolbar, or press **P**.",
+          "Click (or tap) the spot, without dragging."
+        ],
+        "notes": [
+          "Rings in your colour pulse there for a few seconds, on everyone's screen and on the table display, then fade.",
+          "Each person has one ping at a time: a new one replaces your last."
         ]
       }
     ]

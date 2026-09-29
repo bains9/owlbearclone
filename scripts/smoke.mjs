@@ -632,6 +632,19 @@ async function main() {
   alice.send({ t: "eph", e: { k: "view", sceneId: scene2.id, rect: [0, 0, 50, 50] } });
   await sleep(300);
   check(!screen.msgs.some((m) => m.t === "eph"), "views of a scene players can't see, or from a player, don't reach displays");
+  // The GM's ping on the live scene reaches the display and players; anything but true isn't passed on.
+  screen.clear();
+  alice.clear();
+  gm.send({ t: "eph", e: { k: "pointer", sceneId: scene2.id, x: 40, y: 50, ping: true } });
+  const screenPing = await screen.waitFor((m) => m.t === "eph" && m.e.k === "pointer");
+  const alicePing = await alice.waitFor((m) => m.t === "eph" && m.e.k === "pointer");
+  screen.clear();
+  gm.send({ t: "eph", e: { k: "pointer", sceneId: scene2.id, x: 41, y: 51, ping: "yes" } });
+  const plain = await screen.waitFor((m) => m.t === "eph" && m.e.k === "pointer");
+  check(
+    screenPing?.e.ping === true && screenPing.e.x === 40 && alicePing?.e.ping === true && plain && !("ping" in plain.e),
+    "the GM's ping reaches the table display and players, and only a real ping is passed on as one",
+  );
   const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey, v: 3 });
   const lateView = await late.waitFor((m) => m.t === "eph" && m.e.k === "view");
   check(lateView?.e.rect?.join() === "10,20,300,200", "a display that connects later starts where the GM pointed");

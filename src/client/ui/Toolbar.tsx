@@ -124,7 +124,7 @@ export function ToolOptions() {
   if (tool === "build") return <BuildOptions />;
   if (tool === "erase") return <EraseOptions />;
   if (tool === "measure") return <MeasureHint />;
-  if (tool === "pointer") return <div class="tool-options hint">Hold and drag to point. Everyone sees the trail.</div>;
+  if (tool === "pointer") return <div class="tool-options hint">Hold and drag to point; click to ping a spot. Everyone sees it, table display too.</div>;
   return null;
 }
 
