@@ -1263,9 +1263,25 @@ export function mapToStamp(dx: number, dy: number, turns: number): [number, numb
   }
 }
 
-/** The way to the light (the map's top left), one unit long, inside an object. */
-function litSide(turns: number): [number, number] {
-  return mapToStamp(-Math.SQRT1_2, -Math.SQRT1_2, turns);
+/**
+ * The same for an object turned deg degrees clockwise (objects turned finer than quarter
+ * turns are drawn inside a c.rotate() of that angle); exactly mapToStamp for quarter turns.
+ */
+export function mapToStampDeg(dx: number, dy: number, deg: number): [number, number] {
+  if (deg % 90 === 0) return mapToStamp(dx, dy, deg / 90);
+  const a = (deg * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  return [dx * cos + dy * sin, -dx * sin + dy * cos];
+}
+
+/**
+ * The way to the light (the map's top left), one unit long, inside an object turned
+ * `turns` quarter turns and `fine` degrees more. (Worked out just as it always was for
+ * quarter turns, so those draw exactly as before.)
+ */
+function litFor(turns: number, fine: number): [number, number] {
+  return fine ? mapToStampDeg(-Math.SQRT1_2, -Math.SQRT1_2, turns * 90 + fine) : mapToStamp(-Math.SQRT1_2, -Math.SQRT1_2, turns);
 }
 
 function seedOf(s: StampLook): number {
@@ -1663,10 +1679,9 @@ function autumnBush(c: CanvasRenderingContext2D, s: StampLook): void {
 }
 
 // A tree's or bush's seasonal drawing depends only on its look, level and hash, and in
-// winter on its turns (drawVariety keeps each variety's drawing by those).
+// winter on the way to the light, lit (drawVariety keeps each variety's drawing by those).
 
-function seasonalTree(c: CanvasRenderingContext2D, s: StampLook, turns: number): void {
-  const lit = litSide(turns);
+function seasonalTree(c: CanvasRenderingContext2D, s: StampLook, lit: [number, number]): void {
   if (s.look === "autumn") {
     autumnTree(c, s);
   } else if (s.look === "winter") {
@@ -1691,8 +1706,7 @@ function seasonalTree(c: CanvasRenderingContext2D, s: StampLook, turns: number):
   }
 }
 
-function seasonalBush(c: CanvasRenderingContext2D, s: StampLook, turns: number): void {
-  const lit = litSide(turns);
+function seasonalBush(c: CanvasRenderingContext2D, s: StampLook, lit: [number, number]): void {
   const rand = rng(seedOf(s));
   if (s.look === "winter") {
     if (s.level === 3) {
@@ -1755,7 +1769,7 @@ function snowMound(c: CanvasRenderingContext2D, [lx, ly]: [number, number]): voi
   c.fill();
 }
 
-function winterRock(c: CanvasRenderingContext2D, s: StampLook, turns: number): void {
+function winterRock(c: CanvasRenderingContext2D, s: StampLook, [lx, ly]: [number, number]): void {
   if (s.cover < 2) {
     STAMPS.rock(c);
     if (s.cover === 1) {
@@ -1767,7 +1781,6 @@ function winterRock(c: CanvasRenderingContext2D, s: StampLook, turns: number): v
     return;
   }
   // Its highlight becomes a cap of snow, always on the map's top-left side.
-  const [lx, ly] = litSide(turns);
   const big = s.cover === 3;
   shadow(c, () => blob(c, 0, 0, 0.36, 44, 7, 0.35));
   blob(c, 0, 0, 0.36, 44, 7, 0.35);
@@ -1782,10 +1795,9 @@ function winterRock(c: CanvasRenderingContext2D, s: StampLook, turns: number): v
   c.fill();
 }
 
-function winterRubble(c: CanvasRenderingContext2D, s: StampLook, turns: number): void {
+function winterRubble(c: CanvasRenderingContext2D, s: StampLook, [lx, ly]: [number, number]): void {
   STAMPS.rubble(c);
   if (!s.cover) return;
-  const [lx, ly] = litSide(turns);
   c.beginPath();
   RUBBLE_BITS.forEach(([x, y, r], i) => {
     if (s.cover !== 2 || i % 2 === 0) disc(c, x + lx * r * 0.35, y + ly * r * 0.35, r * (s.cover === 3 ? 0.72 : 0.58));
@@ -1794,10 +1806,9 @@ function winterRubble(c: CanvasRenderingContext2D, s: StampLook, turns: number):
   c.fill();
 }
 
-function winterWell(c: CanvasRenderingContext2D, s: StampLook, turns: number): void {
+function winterWell(c: CanvasRenderingContext2D, s: StampLook, [lx, ly]: [number, number]): void {
   STAMPS.well(c);
   if (!s.cover) return;
-  const [lx, ly] = litSide(turns);
   if (s.cover === 3) {
     // Frozen over, the rim white all round.
     circle(c, 0, 0, 0.29);
@@ -1851,14 +1862,15 @@ function winterCampfire(c: CanvasRenderingContext2D, s: StampLook): void {
   STAMPS.campfire(c);
 }
 
-type SeasonalDrawing = (c: CanvasRenderingContext2D, s: StampLook, turns: number) => void;
+/** A seasonal drawing: `lit` is the way to the light inside the object (see litFor). */
+type SeasonalDrawing = (c: CanvasRenderingContext2D, s: StampLook, lit: [number, number]) => void;
 
 const SEASONAL_STAMPS: Partial<Record<StampId, SeasonalDrawing>> = {
   tree: seasonalTree,
   bush: seasonalBush,
-  rock: (c, s, turns) => (s.look === "winter" ? winterRock(c, s, turns) : STAMPS.rock(c)),
-  rubble: (c, s, turns) => (s.look === "winter" ? winterRubble(c, s, turns) : STAMPS.rubble(c)),
-  well: (c, s, turns) => (s.look === "winter" ? winterWell(c, s, turns) : STAMPS.well(c)),
+  rock: (c, s, lit) => (s.look === "winter" ? winterRock(c, s, lit) : STAMPS.rock(c)),
+  rubble: (c, s, lit) => (s.look === "winter" ? winterRubble(c, s, lit) : STAMPS.rubble(c)),
+  well: (c, s, lit) => (s.look === "winter" ? winterWell(c, s, lit) : STAMPS.well(c)),
   campfire: (c, s) => (s.look === "winter" ? winterCampfire(c, s) : STAMPS.campfire(c)),
 };
 
@@ -1992,8 +2004,14 @@ function record(draw: (c: CanvasRenderingContext2D) => void): CanvasOp[] | null 
 const LOOK_NUMBER: Record<SeasonLook, number> = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 /** How many varieties of seasonal tree and bush there are for each look and level. */
 const VARIETIES = 64;
-/** The most drawings kept (a scene in one season needs at most 512); the one drawn longest ago goes first. */
-const REMEMBERED_MAX = 1024;
+/** In winter, the ways a tree or bush can be turned that are drawn differently: every 30 degrees. */
+const WINTER_TURNS = 12;
+/**
+ * The most drawings kept: a scene in one season needs at most 1,536 (winter: trees and
+ * bushes at every 30 degrees); only the varieties actually drawn are kept. The one drawn
+ * longest ago goes first.
+ */
+const REMEMBERED_MAX = 2048;
 const remembered = new Map<number, CanvasOp[] | null>();
 
 /**
@@ -2001,20 +2019,23 @@ const remembered = new Map<number, CanvasOp[] | null>();
  * and zoomed in, every object on screen is drawn again each frame the board moves: so
  * each variety is made into ready-made paths once, and after that only filled and stroked.
  * A variety is its look and level, its hash rounded to one of VARIETIES, and in winter the
- * way it's turned (the snow lies towards the light); nothing else changes these drawings.
+ * way it's turned, to the nearest 30 degrees (the snow lies towards the light, then within
+ * 15 degrees of it); nothing else changes these drawings.
  */
-function drawVariety(c: CanvasRenderingContext2D, id: "tree" | "bush", s: StampLook, turns: number, draw: SeasonalDrawing): void {
+function drawVariety(c: CanvasRenderingContext2D, id: "tree" | "bush", s: StampLook, turns: number, fine: number, draw: SeasonalDrawing): void {
   const v = Math.min(VARIETIES - 1, Math.floor(s.hash * VARIETIES));
-  const t = s.look === "winter" ? ((turns % 4) + 4) % 4 : 0;
+  // Quarter turns are every third of these, and take the light the way they always did.
+  const t = s.look === "winter" ? ((((turns % 4) + 4) % 4) * 3 + Math.round(fine / 30)) % WINTER_TURNS : 0;
+  const lit = litFor(Math.floor(t / 3), (t % 3) * 30);
   const look: StampLook = { look: s.look, level: s.level, hash: (v + 0.5) / VARIETIES, cover: 0 };
   if (typeof Path2D === "undefined") {
-    draw(c, look, t);
+    draw(c, look, lit);
     return;
   }
-  const key = ((((id === "tree" ? 0 : 1) * 4 + LOOK_NUMBER[s.look]) * 4 + s.level) * 4 + t) * VARIETIES + v;
+  const key = ((((id === "tree" ? 0 : 1) * 4 + LOOK_NUMBER[s.look]) * 4 + s.level) * WINTER_TURNS + t) * VARIETIES + v;
   let ops = remembered.get(key);
   if (ops === undefined) {
-    ops = record((r) => draw(r, look, t));
+    ops = record((r) => draw(r, look, lit));
     if (remembered.size >= REMEMBERED_MAX) remembered.delete(remembered.keys().next().value!);
   } else {
     remembered.delete(key);
@@ -2022,22 +2043,23 @@ function drawVariety(c: CanvasRenderingContext2D, id: "tree" | "bush", s: StampL
   // Last in the map: the one drawn most recently.
   remembered.set(key, ops);
   if (ops) for (const op of ops) op(c);
-  else draw(c, look, t);
+  else draw(c, look, lit);
 }
 
 /**
  * Draws an object into the unit square centred on the origin ([-0.5, 0.5] both ways):
  * the caller moves, turns and scales the canvas to where the object goes. `look` is its
- * seasonal look, if it's outdoors in a season; `turns` the quarter turns the caller has
- * turned it by, so snow can lie on the same side of every object.
+ * seasonal look, if it's outdoors in a season; `turns` the quarter turns, and `fine` the
+ * degrees on top of them, the caller has turned it by, so snow can lie on the same side
+ * of every object.
  */
-export function drawStamp(c: CanvasRenderingContext2D, id: StampId, look?: StampLook | null, turns = 0): void {
+export function drawStamp(c: CanvasRenderingContext2D, id: StampId, look?: StampLook | null, turns = 0, fine = 0): void {
   c.save();
   c.lineJoin = "round";
   const seasonal = look ? SEASONAL_STAMPS[id] : undefined;
   if (seasonal && look) {
-    if (id === "tree" || id === "bush") drawVariety(c, id, look, turns, seasonal);
-    else seasonal(c, look, turns);
+    if (id === "tree" || id === "bush") drawVariety(c, id, look, turns, fine, seasonal);
+    else seasonal(c, look, litFor(turns, fine));
   } else STAMPS[id](c);
   c.restore();
 }

@@ -25,8 +25,18 @@ import { randomId } from "../../shared/ids";
 import type { ItemMap } from "../../shared/ops";
 import { canDelete } from "../../shared/permissions";
 import type { Ephemeral, MeasureShape } from "../../shared/protocol";
-import { EMPTY, cellAt, isBuildingFloor, isTerrainFloor, sceneCells } from "../../shared/terrain";
-import type { Stamp, StampId } from "../../shared/terrain";
+import {
+  EMPTY,
+  STAMP_SIZE_STEP,
+  cellAt,
+  isBuildingFloor,
+  isTerrainFloor,
+  sceneCells,
+  snapDeg,
+  snapSize,
+  stampBlock,
+} from "../../shared/terrain";
+import type { CellBounds } from "../../shared/terrain";
 import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
@@ -37,23 +47,41 @@ import {
   toggleHidden,
   toggleLocked,
 } from "./actions";
-import type { BoardApi, RoomClient, RoomState } from "./client";
+import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import {
   BuildEdit,
   BuildRenderer,
   buildUndo,
-  cycleDoor,
+  doorSegment,
+  drawStampAt,
   edgeOf,
   floorChar,
   keyCol,
   keyRow,
+  refOf,
   sceneTerrain,
   setPortal,
   setWall,
   wallsFor,
 } from "./build";
-import type { Side } from "./build";
-import { drawStamp } from "./buildArt";
+import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
+import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
+import {
+  CLIPBOARD_MAX,
+  canResize,
+  centreOf,
+  clampShift,
+  decodeObjects,
+  encodeObjects,
+  groupFits,
+  placeGroupAt,
+  placedOf,
+  samePlaced,
+  shiftGroup,
+  sizeGroup,
+  turnGroup,
+} from "./stampGeom";
+import type { Placed } from "./stampGeom";
 import { getImage, imageFailed } from "./images";
 import { SeasonBaker } from "./seasons";
 import type { SeasonJob } from "./seasons";
@@ -65,6 +93,13 @@ const FOG_COLOR = "#0b0d11";
 const SELECT_COLOR = "#4fd1ff";
 /** Build tool: what a click or drag would take away. */
 const REMOVE_COLOR = "#ff7b7b";
+/** Build › Select: what a click would select (selected things are SELECT_COLOR), as in Dungeondraft. */
+const HOVER_COLOR = "#ffd24f";
+/** Moving more objects than this, only their outlines follow the pointer (the overlay redraws often). */
+const GHOST_ART_MAX = 60;
+/** Build › Select: how near (in screen pixels) a click must be to a door to pick it, with a mouse and with a finger. */
+const DOOR_REACH_MOUSE = 8;
+const DOOR_REACH_TOUCH = 16;
 const MIN_SCALE = 0.03;
 const MAX_SCALE = 8;
 const DRAG_THRESHOLD = 5;
@@ -74,6 +109,10 @@ const TRAIL_MS = 900;
 const FOG_CACHE_MAX = 2560;
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
+
+/** Shown once per page load: the hint that doors can't be dragged, and each Build mode's touch hint. */
+let doorDragWarned = false;
+const touchHintsShown = new Set<string>();
 
 interface Camera {
   x: number;
@@ -154,8 +193,10 @@ type Gesture =
       action: "poly" | "note" | "door" | "stamp" | "wallpoint";
       /** Build tool: Alt was held (take away rather than add). */
       alt?: boolean;
-      /** Build tool, with a mouse: an object under the pointer, which a drag moves. */
-      grab?: Cell;
+      /** Build tool, with a mouse: the object under the pointer, which a drag moves. */
+      grab?: StampHit;
+      /** Build tool: a finger or a pen (which reaches a little further round an object). */
+      touch?: boolean;
     }
   /** Build tool: painting floor with the brush (from the last point), or dragging out a rectangle or oval of it. */
   | { kind: "build-paint"; pointerId: number; last: Point; erase: boolean }
@@ -173,8 +214,39 @@ type Gesture =
       mode: "add" | "remove";
       mouse: boolean;
     }
-  /** Build tool, with a mouse: dragging an object somewhere else (held `off` cells in from its top-left corner). */
-  | { kind: "build-move-stamp"; pointerId: number; from: Cell; stamp: Stamp; at: Cell; off: Cell }
+  /**
+   * Build › Select: pressed, not yet dragged. What's under the press is looked for when it
+   * becomes a drag or a click, not before: while it's held, the wheel or a key can turn or
+   * nudge the selection, and another tab can change the build. Changed: what's selected was
+   * changed while it was held, so letting go isn't a click. Grab: the press was on something
+   * selected, so a drag moves the selection even if a turn or nudge took it from under the
+   * pointer meanwhile.
+   */
+  | {
+      kind: "build-select";
+      pointerId: number;
+      start: Point;
+      startWorld: Point;
+      shift: boolean;
+      mouse: boolean;
+      changed?: boolean;
+      grab: boolean;
+    }
+  /** Build › Select: dragging a box to select the objects whose middles are in it. */
+  | { kind: "build-box"; pointerId: number; start: Point; end: Point; additive: boolean; node: Konva.Rect }
+  /**
+   * Build tool: dragging objects somewhere else, a square at a time: the selection in
+   * Select, or the one under the pointer in Objects (select: false, which leaves them unselected).
+   */
+  | {
+      kind: "build-move-sel";
+      pointerId: number;
+      grab: Cell;
+      refs: StampRef[];
+      orig: Placed[];
+      shift: { dCol: number; dRow: number };
+      select: boolean;
+    }
   | { kind: "grid-align"; pointerId: number; start: Point; end: Point; node: Konva.Rect };
 
 interface Cell {
@@ -211,6 +283,46 @@ function initials(label: string): string {
 /** The raw 2D context behind a Konva context (for composite operations Konva doesn't wrap). */
 function native(ctx: Konva.Context): CanvasRenderingContext2D {
   return (ctx as unknown as { _context: CanvasRenderingContext2D })._context;
+}
+
+/** Whether an object's middle is on the scene. (One left off it when the scene was made smaller can't be picked.) */
+function onScene(p: Placed, all: CellBounds): boolean {
+  const m = centreOf(p);
+  return m.x >= all.c0 && m.x <= all.c1 + 1 && m.y >= all.r0 && m.y <= all.r1 + 1;
+}
+
+/** Whether a picked-out object is the one found. */
+function sameRef(r: StampRef, h: StampHit): boolean {
+  return r.cx === h.cx && r.cy === h.cy && r.i === h.i && r.key === h.stamp.join();
+}
+
+function sameDoor(a: DoorRef, b: DoorRef): boolean {
+  return a.col === b.col && a.row === b.row && a.side === b.side;
+}
+
+/** Objects picked out, as one string: equal only for the same objects, as they are now, in the same order. */
+function keysOf(refs: StampRef[]): string {
+  return refs.map((r) => `${r.cx},${r.cy},${r.key}`).join(";");
+}
+
+/** Found objects in the order they're drawn: chunk rows top to bottom, each left to right, then each chunk's list. */
+function inDrawingOrder(hits: StampHit[]): StampHit[] {
+  return hits.slice().sort((a, b) => a.cy - b.cy || a.cx - b.cx || a.i - b.i);
+}
+
+/** Whether text is selected on the page (the chat, the guide), which a copy then copies. */
+function pageTextSelected(): boolean {
+  return !!window.getSelection()?.toString();
+}
+
+/**
+ * Lets go of text selected on the page. Pressing the board doesn't (nothing on it can be
+ * selected), where pressing anything else would; so a copy after it would take text selected
+ * before it, not what was just picked out on the board.
+ */
+function dropPageTextSelection(): void {
+  const s = window.getSelection();
+  if (s && !s.isCollapsed) s.removeAllRanges();
 }
 
 export class Board implements BoardApi {
@@ -252,6 +364,44 @@ export class Board implements BoardApi {
     null;
   /** The last corner clicked, and when: the second click of a double-click finishes rather than adding or starting. */
   private lastWallClick: { at: number; c: number; r: number } | null = null;
+  /** Build › Select: the objects and doors selected. Only this tab's: never sent. */
+  private buildSel: { objects: StampRef[]; doors: DoorRef[] } = { objects: [], doors: [] };
+  /** The selected objects where they stand now, in the same order (for outlines and the bars). */
+  private selPlaced: Placed[] = [];
+  /**
+   * The last turn of the selection: the objects as they were before it, how far they've
+   * been turned from there in all, and the objects it left (as keys). While the selection
+   * is exactly those, the next turn starts from the same objects, so six turns of 15
+   * degrees make one exact quarter turn.
+   */
+  private turnBase: { base: Placed[]; deg: number; keys: string } | null = null;
+  /** Where sizing began, for each set of objects sizing has left (see sizeSelection). */
+  private sizeBases = new Map<string, Placed[]>();
+  /** Build tool: numbers bursts of turning, sizing or nudging, each of which is one undo step. */
+  private burst = 0;
+  /** Build › Select: what a click at the mouse would select (drawn yellow), and it as a key, to redraw only when it changes. */
+  private hoverTarget: { obj: Placed | null; door: DoorRef | null } = { obj: null, door: null };
+  private hoverKey = "";
+  /** Build › Select: an object is under the mouse, so a drag would move it. */
+  private hoverObject = false;
+  /** Z is held: the mouse wheel turns objects 5 degrees at a time. */
+  private zDown = false;
+  /** Alt+wheel has sized the next object while Alt is held: Alt+click then places it rather than removing one. */
+  private altScaled = false;
+  private wheelSteps = new WheelSteps(isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? ""));
+  /** Objects copied in Build › Select, where they stood, in the order they're drawn. */
+  private clip: Placed[] | null = null;
+  /** Ctrl+V was pressed: pastes this tab's copy, unless the browser's paste event comes first. */
+  private pasteArm: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Where the mouse is on the board while it's over it (things are pasted under it). On the
+   * screen, not the map: the map can move under a still mouse (a trackpad, the + and - keys).
+   */
+  private pointerPos: Point | null = null;
+  /** The tool, Build mode and grid the last sync saw, to notice when they change. */
+  private renderedTool = "";
+  private renderedMode = "";
+  private renderedGrid = "";
 
   private tokens = new Map<string, TokenNode>();
   private drawings = new Map<string, DrawingNode>();
@@ -357,6 +507,7 @@ export class Board implements BoardApi {
     on(el, "pointerup", this.onPointerUp);
     on(el, "pointercancel", this.onPointerUp);
     on(el, "pointerleave", () => {
+      this.pointerPos = null;
       this.updateBrushCursor(null);
       this.setHover(null);
     });
@@ -365,12 +516,22 @@ export class Board implements BoardApi {
     on(el, "dragover", this.onDragOver);
     on(el, "drop", this.onDrop);
     on(window, "paste", this.onPaste as EventListener);
+    on(window, "copy", this.onCopy as EventListener);
     on(window, "keydown", this.onKeyDown);
     on(window, "keyup", this.onKeyUp);
     on(window, "blur", () => {
       this.setAlt(false);
       this.spaceDown = false;
+      this.zDown = false;
       this.updateCursor();
+    });
+    const onHidden = () => {
+      if (document.visibilityState !== "visible") this.zDown = false;
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    this.cleanup.push(() => document.removeEventListener("visibilitychange", onHidden));
+    this.cleanup.push(() => {
+      if (this.pasteArm) clearTimeout(this.pasteArm);
     });
 
     const ro = new ResizeObserver(() => {
@@ -560,6 +721,12 @@ export class Board implements BoardApi {
       this.renderRulers();
       this.wallPath = null;
       this.build.reset();
+      this.buildSel = { objects: [], doors: [] };
+      this.selPlaced = [];
+      this.turnBase = null;
+      this.sizeBases.clear();
+      this.publishBuildSel();
+      this.newBurst();
       // The last scene's seasonal bake is no longer wanted, even when this scene's map is
       // still loading or there's no scene at all (the next one starts once it's needed).
       this.seasons.cancel();
@@ -626,21 +793,33 @@ export class Board implements BoardApi {
       // Moving on to another mode or tool keeps the walls placed so far (one undo step).
       queueMicrotask(() => this.finishWallPath());
     }
+    // A change of tool or Build mode, or of the grid under a drag, ends what Select was doing.
+    const mode = s.buildOpts.mode;
+    const modeChanged = s.tool !== this.renderedTool || mode !== this.renderedMode;
+    const grid = scene ? `${scene.grid.type}|${scene.grid.size}|${scene.grid.offsetX}|${scene.grid.offsetY}` : "";
+    const gridChanged = grid !== this.renderedGrid;
+    this.renderedTool = s.tool;
+    this.renderedMode = mode;
+    this.renderedGrid = grid;
+    if (modeChanged) this.newBurst();
     const bg = this.gesture;
+    const selecting = bg.kind === "build-select" || bg.kind === "build-box" || bg.kind === "build-move-sel";
+    // (A click in progress in one mode mustn't land in another: X can be pressed with the button down.)
+    const buildTap = bg.kind === "tap" && (bg.action === "door" || bg.action === "stamp" || bg.action === "wallpoint");
     if (
-      s.tool !== "build" &&
-      (bg.kind === "build-paint" ||
-        bg.kind === "build-rect" ||
-        bg.kind === "build-wall" ||
-        bg.kind === "build-move-stamp" ||
-        (bg.kind === "tap" && (bg.action === "door" || bg.action === "stamp" || bg.action === "wallpoint")))
+      (s.tool !== "build" && (bg.kind === "build-paint" || bg.kind === "build-rect" || bg.kind === "build-wall" || selecting || buildTap)) ||
+      ((selecting || buildTap) && (modeChanged || gridChanged))
     ) {
       this.cancelGesture();
     }
-    if (this.buildHover.visible()) {
-      if (s.tool !== "build") this.setHover(null);
-      else this.uiLayer.batchDraw();
+    const hex = !scene || isHex(scene.grid);
+    if ((s.tool !== "build" || mode !== "select" || hex || !gm) && (this.buildSel.objects.length || this.buildSel.doors.length)) {
+      this.setBuildSel([], []);
     }
+    if (modeChanged && s.tool === "build" && gm && !hex && (mode === "stamps" || mode === "select")) this.touchHint(mode);
+    if (s.tool !== "build") this.hover = null;
+    else if (mode === "select") this.updateSelectHover();
+    this.refreshOverlay(true);
     if (this.poly && (s.tool !== "fog" || s.fogOpts.shape !== "poly" || s.fogOpts.mode !== this.poly.mode)) {
       this.cancelPoly();
     }
@@ -717,7 +896,10 @@ export class Board implements BoardApi {
         void unknown;
       }
     }
-    if (this.build.update(terrain) || force) this.bgLayer.batchDraw();
+    const built = this.build.update(terrain);
+    // The build changed: the objects selected (or being dragged) are found again, and any gone are dropped.
+    if (built) this.resolveBuildSel();
+    if (built || force) this.bgLayer.batchDraw();
     const byZ = (a: Item, b: Item) => a.z - b.z || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
     const seenTokens = new Set<string>();
@@ -1033,43 +1215,58 @@ export class Board implements BoardApi {
     this.build.draw(c, scene, { x0: tl.x, y0: tl.y, x1: br.x, y1: br.y }, scale, px, gmView);
   }
 
-  /** Build tool: outlines what the next click or drag would change (red when it takes something away). */
+  /**
+   * Build tool: outlines what the next click or drag would change (red when it takes
+   * something away), objects being dragged, and in Select what's selected (blue) and what
+   * a click would select (yellow), as Dungeondraft does.
+   */
   private drawBuildHover(c: CanvasRenderingContext2D): void {
     const p = this.hover;
     const scene = this.renderedScene;
     const s = this.room.state;
-    const moving = this.gesture.kind === "build-move-stamp" ? this.gesture : null;
+    const gesture = this.gesture;
+    const moving = gesture.kind === "build-move-sel" ? gesture : null;
     if (!scene || s.tool !== "build" || isHex(scene.grid)) return;
-    if (!moving && (!p || this.gesture.kind !== "none")) return;
     const g = scene.grid;
     const size = g.size;
     const scale = this.stage.scaleX();
     const o = s.buildOpts;
-    const alt = this.altDown;
+    // Alt after Alt+wheel has sized the next object places it, so nothing turns red.
+    const alt = this.altDown && !this.altScaled;
     const X = (col: number) => g.offsetX + col * size;
     const Y = (row: number) => g.offsetY + row * size;
-    const ghost = (id: StampId, turns: number, n: number, at: Cell, alpha: number) => {
+    const dashed = () => c.setLineDash([6 / scale, 4 / scale]);
+    /** An object's outline: its size square, turned as it's drawn, round the middle of the squares it stands on. */
+    const box = (q: Placed) => {
+      const m = centreOf(q);
+      const w = q.size * size;
+      c.save();
+      c.translate(X(m.x), Y(m.y));
+      c.rotate((q.deg * Math.PI) / 180);
+      c.strokeRect(-w / 2, -w / 2, w, w);
+      c.restore();
+    };
+    /** An object drawn faintly where it would go (in the scene's season, as it will look there), outlined. */
+    const ghost = (q: Placed, alpha: number) => {
       c.save();
       c.globalAlpha = alpha;
-      c.translate(X(at.col + n / 2), Y(at.row + n / 2));
-      c.rotate((turns * Math.PI) / 2);
-      c.scale(n * size, n * size);
-      // In the scene's season, as it will look once placed (turned the same way).
-      drawStamp(c, id, this.build.stampLook(id, at.col, at.row, n), turns);
+      drawStampAt(c, g, q, this.build.lookFor(q));
       c.restore();
-      c.setLineDash([6 / scale, 4 / scale]);
-      c.strokeRect(X(at.col), Y(at.row), n * size, n * size);
+      dashed();
+      box(q);
     };
-    const line = (e: { col: number; row: number; side: Side }, color: string) => {
+    const line = (e: { x0: number; y0: number; x1: number; y1: number }, color: string, alpha: number) => {
+      c.save();
+      c.setLineDash([]);
       c.lineCap = "round";
-      c.globalAlpha = 0.75;
+      c.globalAlpha = alpha;
       c.strokeStyle = color;
       c.lineWidth = Math.max(size * 0.12, 5 / scale);
       c.beginPath();
-      c.moveTo(X(e.col), Y(e.row));
-      if (e.side === "t") c.lineTo(X(e.col + 1), Y(e.row));
-      else c.lineTo(X(e.col), Y(e.row + 1));
+      c.moveTo(e.x0, e.y0);
+      c.lineTo(e.x1, e.y1);
       c.stroke();
+      c.restore();
     };
     c.save();
     // Nothing is built off the scene, so nothing is outlined there either.
@@ -1079,15 +1276,53 @@ export class Board implements BoardApi {
     c.clip();
     c.strokeStyle = SELECT_COLOR;
     c.lineWidth = 2 / scale;
+    if (o.mode === "select") {
+      // What's selected (not while it's being dragged: that's drawn where it's going).
+      c.setLineDash([]);
+      if (!moving?.select) {
+        for (const q of this.selPlaced) {
+          c.lineWidth = 4 / scale;
+          c.strokeStyle = "rgba(0, 0, 0, 0.45)";
+          box(q);
+          c.lineWidth = 2 / scale;
+          c.strokeStyle = SELECT_COLOR;
+          box(q);
+        }
+      }
+      for (const d of this.buildSel.doors) line(doorSegment(g, d), SELECT_COLOR, 0.85);
+      // What a click would select, under the mouse.
+      const h = this.hoverTarget;
+      if (p && gesture.kind === "none") {
+        if (h.door) line(doorSegment(g, h.door), HOVER_COLOR, 0.6);
+        if (h.obj) {
+          c.strokeStyle = HOVER_COLOR;
+          c.lineWidth = 2 / scale;
+          dashed();
+          box(h.obj);
+        }
+      }
+    }
     if (moving) {
-      const [id, , , turns, n] = moving.stamp;
-      ghost(id, turns, n, moving.at, 0.85);
+      // Too many to draw the objects themselves every frame: just their outlines.
+      const art = moving.orig.length <= GHOST_ART_MAX;
+      c.strokeStyle = SELECT_COLOR;
+      c.lineWidth = 2 / scale;
+      for (const q of moving.orig) {
+        const at = { ...q, col: q.col + moving.shift.dCol, row: q.row + moving.shift.dRow };
+        if (art) ghost(at, 0.85);
+        else {
+          dashed();
+          box(at);
+        }
+      }
+    } else if (!p || gesture.kind !== "none" || o.mode === "select") {
+      // Nothing under the mouse to show.
     } else if (o.mode === "building" || o.mode === "terrain") {
       const n = o.shape[o.mode] === "brush" ? this.brushCells() : 1;
-      const at = this.brushAt(p!, n);
+      const at = this.brushAt(p, n);
       const all = sceneCells(scene.width, scene.height, g);
       if (at.col <= all.c1 && at.row <= all.r1 && at.col + n - 1 >= all.c0 && at.row + n - 1 >= all.r0) {
-        c.setLineDash([6 / scale, 4 / scale]);
+        dashed();
         c.strokeStyle = alt || o.floor[o.mode] === "erase" ? REMOVE_COLOR : SELECT_COLOR;
         c.strokeRect(X(at.col), Y(at.row), n * size, n * size);
       }
@@ -1096,7 +1331,7 @@ export class Board implements BoardApi {
       if (path) {
         // The wall the next click adds, from the last corner, and the corners so far.
         const last = path.corners[path.corners.length - 1];
-        const next = this.nextCorner(p!);
+        const next = this.nextCorner(p);
         const color = path.mode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
         c.strokeStyle = color;
         c.fillStyle = color;
@@ -1115,7 +1350,7 @@ export class Board implements BoardApi {
         }
       } else {
         // The corner a click (or a drag) starts from.
-        const v = this.nearestVertex(p!);
+        const v = this.nearestVertex(p);
         const all = sceneCells(scene.width, scene.height, g);
         if (v.c >= all.c0 && v.c <= all.c1 + 1 && v.r >= all.r0 && v.r <= all.r1 + 1) {
           c.fillStyle = alt || o.wallMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
@@ -1125,21 +1360,33 @@ export class Board implements BoardApi {
         }
       }
     } else if (o.mode === "doors") {
-      const e = this.nearestWallEdge(p!);
+      const e = this.nearestWallEdge(p);
       if (this.edgeOnScene(e.col, e.row, e.side)) {
-        line(e, alt ? "#e7e9ee" : o.doorStyle === "open" ? REMOVE_COLOR : o.doorStyle === "secret" ? "#c77dff" : "#d9a066");
+        const color = alt ? "#e7e9ee" : o.doorStyle === "open" ? REMOVE_COLOR : o.doorStyle === "secret" ? "#c77dff" : "#d9a066";
+        const x0 = X(e.col);
+        const y0 = Y(e.row);
+        line({ x0, y0, x1: e.side === "t" ? X(e.col + 1) : x0, y1: e.side === "t" ? y0 : Y(e.row + 1) }, color, 0.75);
       }
     } else {
-      const cell = this.cellOnScene(p!);
-      const hit = this.build.model.stampAt(cell.col, cell.row);
-      if (hit) {
-        // Clicking an object turns it (or, removing, takes it away); with a mouse, dragging moves it.
-        const n = hit.stamp[4];
-        c.setLineDash([6 / scale, 4 / scale]);
-        c.strokeStyle = alt || o.stampMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
-        c.strokeRect(X(hit.cx * 16 + hit.stamp[1]), Y(hit.cy * 16 + hit.stamp[2]), n * size, n * size);
-      } else if (!alt && o.stampMode === "place") {
-        ghost(o.stamp, o.stampTurns, o.stampSize, this.stampAnchor(p!, o.stampSize), 0.6);
+      const { u, v } = this.cellsAt(p);
+      const hit = this.build.model.stampAtPoint(u, v, 0);
+      const under = hit ? placedOf(hit.cx, hit.cy, hit.stamp) : null;
+      if (alt || o.stampMode === "remove") {
+        // What a click takes away.
+        if (under) {
+          c.strokeStyle = REMOVE_COLOR;
+          dashed();
+          box(under);
+        }
+      } else {
+        // A click always places the next object here; a drag from an object moves that one.
+        ghost({ id: o.stamp, ...this.stampAnchor(p, stampBlock(o.stampSize)), deg: o.stampDeg, size: o.stampSize }, 0.6);
+        if (under) {
+          c.globalAlpha = 0.5;
+          dashed();
+          box(under);
+          c.globalAlpha = 1;
+        }
       }
     }
     c.restore();
@@ -1147,17 +1394,119 @@ export class Board implements BoardApi {
 
   /** Alt held: the Build tool takes away instead (shown red under the pointer). */
   private setAlt(down: boolean): void {
+    if (!down) this.altScaled = false;
     if (down === this.altDown) return;
     this.altDown = down;
     if (this.buildHover.visible()) this.uiLayer.batchDraw();
   }
 
+  /** The mouse is over the map at `world` (null: it's gone): the Build tool shows what a click there would do. */
   private setHover(world: Point | null): void {
-    const show = !!world && this.room.state.tool === "build" && this.isGm;
-    this.hover = show ? world : null;
-    if (!show && !this.buildHover.visible()) return;
+    const s = this.room.state;
+    const build = s.tool === "build" && this.isGm;
+    this.hover = world && build ? world : null;
+    // In Select the outlines only change when what's under the mouse does.
+    const redraw = build && s.buildOpts.mode === "select" ? this.updateSelectHover() : true;
+    this.refreshOverlay(redraw);
+  }
+
+  /**
+   * Shows the Build tool's overlay while there's something for it to show (the mouse over
+   * the map, a selection, objects being dragged), and redraws it if asked.
+   */
+  private refreshOverlay(redraw: boolean): void {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    const show =
+      s.tool === "build" &&
+      this.isGm &&
+      !!scene &&
+      !isHex(scene.grid) &&
+      (!!this.hover || this.buildSel.objects.length > 0 || this.buildSel.doors.length > 0 || this.gesture.kind === "build-move-sel");
+    if (show === this.buildHover.visible()) {
+      if (show && redraw) this.uiLayer.batchDraw();
+      return;
+    }
     this.buildHover.visible(show);
     this.uiLayer.batchDraw();
+  }
+
+  /** A point on the map in cells, fractional: what the Build tool's hit-tests take. */
+  private cellsAt(p: Point): { u: number; v: number } {
+    const g = this.renderedScene!.grid;
+    return { u: (p.x - g.offsetX) / g.size, v: (p.y - g.offsetY) / g.size };
+  }
+
+  /**
+   * Build › Select: what's under a point, as a click there goes by: a door (drawn on top of
+   * objects, so it comes first), or the objects whose drawing is there, the top one first.
+   * A finger reaches a little further than a mouse. Nothing off the scene is found.
+   */
+  private selectHit(world: Point, mouse: boolean): { obj: StampHit | null; door: DoorHit | null; under: StampHit[] } {
+    const scene = this.renderedScene!;
+    const none = { obj: null, door: null, under: [] };
+    if (world.x < 0 || world.y < 0 || world.x > scene.width || world.y > scene.height) return none;
+    const { u, v } = this.cellsAt(world);
+    // Screen pixels to a square.
+    const px = this.cam.scale * scene.grid.size;
+    const reach = Math.min(0.3, Math.max(0.08, (mouse ? DOOR_REACH_MOUSE : DOOR_REACH_TOUCH) / px));
+    const door = this.build.model.doorAt(u, v, reach);
+    if (door) return { ...none, door };
+    const pad = mouse ? 0 : Math.min(0.5, 12 / px);
+    const all = this.sceneBounds(scene);
+    const under = this.build.model.stampsAtPoint(u, v, pad).filter((h) => onScene(placedOf(h.cx, h.cy, h.stamp), all));
+    return { obj: under[0] ?? null, door: null, under };
+  }
+
+  /**
+   * Of the objects under a click, the one it selects: the top one, or, when the one
+   * selected is already among them, the next one down (click again to reach one underneath).
+   */
+  private clickTarget(under: StampHit[]): StampHit {
+    const { objects, doors } = this.buildSel;
+    if (objects.length === 1 && !doors.length) {
+      const k = under.findIndex((h) => sameRef(objects[0], h));
+      if (k >= 0) return under[(k + 1) % under.length];
+    }
+    return under[0];
+  }
+
+  /**
+   * Build › Select: works out what a click at the mouse would select, if it isn't selected
+   * already (drawn yellow), and whether an object is under it (the cursor then shows a
+   * drag would move it). Returns whether what's drawn changed.
+   */
+  private updateSelectHover(): boolean {
+    const p = this.hover;
+    let obj: Placed | null = null;
+    let door: DoorRef | null = null;
+    let key = "";
+    let over = false;
+    if (p && this.gesture.kind === "none" && this.renderedScene && !isHex(this.renderedScene.grid)) {
+      const hit = this.selectHit(p, true);
+      if (hit.door) {
+        const d = { col: hit.door.col, row: hit.door.row, side: hit.door.side };
+        if (!this.buildSel.doors.some((x) => sameDoor(x, d))) {
+          door = d;
+          key = `d${d.col},${d.row},${d.side}`;
+        }
+      } else if (hit.under.length) {
+        over = true;
+        const t = this.clickTarget(hit.under);
+        if (!this.buildSel.objects.some((r) => sameRef(r, t))) {
+          obj = placedOf(t.cx, t.cy, t.stamp);
+          key = `o${t.cx},${t.cy},${t.i},${t.stamp.join()}`;
+        }
+      }
+    }
+    if (over !== this.hoverObject) {
+      this.hoverObject = over;
+      this.updateCursor();
+    }
+    if (key === this.hoverKey) return false;
+    this.hoverKey = key;
+    this.hoverTarget = { obj, door };
+    return true;
   }
 
   private drawHexGrid(
@@ -1476,6 +1825,7 @@ export class Board implements BoardApi {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
+    dropPageTextSelection();
     if (!this.renderedScene || !this.room.state.me) return;
     const pos = this.localPos(e);
     try {
@@ -1495,6 +1845,8 @@ export class Board implements BoardApi {
       this.startPan(e.pointerId, pos);
       return;
     }
+    // Turning objects with the wheel, keys or bar buttons is one undo step until something else happens.
+    this.newBurst();
 
     if (e.pointerType === "mouse" && (e.button === 1 || e.button === 2)) {
       const st = this.room.state;
@@ -1503,13 +1855,15 @@ export class Board implements BoardApi {
         this.startPan(e.pointerId, pos, () => this.finishPoly());
         return;
       }
-      if (e.button === 2 && st.tool === "build" && this.isGm && (this.wallPath || st.buildOpts.mode === "stamps")) {
+      const mode = st.buildOpts.mode;
+      if (e.button === 2 && st.tool === "build" && this.isGm && (this.wallPath || mode === "stamps" || mode === "select")) {
         // As in Dungeondraft: a right-click turns the object (or finishes the walls). A right-drag still pans.
         const world = this.toWorld(pos);
         this.startPan(e.pointerId, pos, () => this.buildRightClick(world));
         return;
       }
-      const hit = e.button === 2 && !this.fogged(pos) ? this.itemAt(pos) : null;
+      // (In the Build tool a right-click never selects a token: the selection bar would hide its controls.)
+      const hit = e.button === 2 && st.tool !== "build" && !this.fogged(pos) ? this.itemAt(pos) : null;
       this.startPan(e.pointerId, pos, hit ? () => this.room.select([hit.id]) : undefined);
       return;
     }
@@ -1849,7 +2203,7 @@ export class Board implements BoardApi {
   private buildDown(pointerId: number, pos: Point, world: Point, e: PointerEvent): void {
     const scene = this.renderedScene!;
     if (isHex(scene.grid)) {
-      this.room.toast("Building works on a square grid. Switch this scene to squares in Edit scene.", "error");
+      this.room.toast(HEX_TOAST, "error");
       return;
     }
     const o = this.room.state.buildOpts;
@@ -1898,13 +2252,27 @@ export class Board implements BoardApi {
         this.gesture = { kind: "tap", pointerId, start: pos, world, action: "door", alt };
         return;
       case "stamps": {
-        // With a mouse, dragging an object moves it (otherwise a drag moves the map).
-        const cell = this.cellOnScene(world);
-        const grab =
-          e.pointerType === "mouse" && !alt && o.stampMode === "place" && this.build.model.stampAt(cell.col, cell.row)
-            ? cell
-            : undefined;
-        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", alt, grab };
+        // With a mouse, dragging an object moves it, as Dungeondraft's Object tool does
+        // (otherwise a drag moves the map). A click always places a new one.
+        const mouse = e.pointerType === "mouse";
+        const { u, v } = this.cellsAt(world);
+        const grab = mouse && !alt && o.stampMode === "place" ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
+        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", alt, grab, touch: !mouse };
+        return;
+      }
+      case "select": {
+        const mouse = e.pointerType === "mouse";
+        const under = this.selectHit(world, mouse).under;
+        this.gesture = {
+          kind: "build-select",
+          pointerId,
+          start: pos,
+          startWorld: world,
+          shift: mouse && e.shiftKey,
+          mouse,
+          grab: under.some((h) => this.buildSel.objects.some((r) => sameRef(r, h))),
+        };
+        this.setHover(this.hover);
         return;
       }
     }
@@ -1938,26 +2306,9 @@ export class Board implements BoardApi {
     };
   }
 
-  /** Where an object held `off` cells in from its corner goes, with the pointer at a point: inside the scene. */
-  private heldAnchor(p: Point, off: Cell, n: number): Cell {
-    const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
-    const cell = cellAt(p.x, p.y, scene.grid);
-    return {
-      col: Math.max(all.c0, Math.min(all.c1 - n + 1, cell.col - off.col)),
-      row: Math.max(all.r0, Math.min(all.r1 - n + 1, cell.row - off.row)),
-    };
-  }
-
-  /**
-   * The cell at a point, pulled in onto the scene: a click just off the edge means the
-   * cell at the edge (where an object placed there would go too).
-   */
-  private cellOnScene(p: Point): Cell {
-    const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
-    const cell = cellAt(p.x, p.y, scene.grid);
-    return { col: Math.max(all.c0, Math.min(all.c1, cell.col)), row: Math.max(all.r0, Math.min(all.r1, cell.row)) };
+  /** The cells a scene covers: objects are kept within them. */
+  private sceneBounds(scene: Scene): CellBounds {
+    return sceneCells(scene.width, scene.height, scene.grid);
   }
 
   /** What the brush and shapes paint in the current mode: a floor, or "." to erase. */
@@ -2185,16 +2536,30 @@ export class Board implements BoardApi {
     this.uiLayer.batchDraw();
   }
 
-  /** Sends a build change, and shows the result at once (with no frame of the old build in between). */
-  private applyBuild(edit: BuildEdit): void {
+  /**
+   * Sends a build change, and shows the result at once (with no frame of the old build in
+   * between). With a burst's key (see newBurst), it folds into the undo step before it
+   * when that's from the same burst; without one it's a step of its own, and ends the burst.
+   */
+  private applyBuild(edit: BuildEdit, coalesce?: string): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const before = this.room.state.items;
     const ops = edit.ops();
-    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops));
+    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops, edit.pairs()), coalesce);
     this.build.update(sceneTerrain(this.room.state.items, scene.id));
     this.build.endDraft();
     this.bgLayer.batchDraw();
+    if (coalesce === undefined) this.newBurst();
+  }
+
+  /** Ends a burst of turning, sizing or nudging: the next such step is an undo step of its own. */
+  private newBurst(): void {
+    this.burst++;
+  }
+
+  private burstKey(): string {
+    return `b${this.burst}`;
   }
 
   /** Turns the draft (painted floor, drawn walls) into a change, applied to the build as it is now. */
@@ -2229,26 +2594,35 @@ export class Board implements BoardApi {
     this.applyBuild(edit);
   }
 
-  /** Objects: places one, or turns the one clicked; with Alt (or Remove), takes it away. */
-  private stampTap(world: Point, alt: boolean): void {
+  /**
+   * Objects: a click places the next object, even on top of another (a chair at a table);
+   * with Alt (or Remove), it takes away the object drawn on top there.
+   */
+  private stampTap(world: Point, alt: boolean, touch: boolean): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const o = this.room.state.buildOpts;
-    const cell = this.cellOnScene(world);
     const edit = new BuildEdit(this.room.state.items, scene.id);
-    if (alt || o.stampMode === "remove") {
-      if (!edit.removeStampAt(cell.col, cell.row)) return;
-    } else if (!edit.rotateStampAt(cell.col, cell.row)) {
-      const at = this.stampAnchor(world, o.stampSize);
-      if (!edit.addStamp(o.stamp, at.col, at.row, o.stampTurns, o.stampSize)) {
-        this.room.toast("That part of the map has as many objects as it can hold.", "error");
-        return;
-      }
+    if ((alt && !this.altScaled) || o.stampMode === "remove") {
+      const { u, v } = this.cellsAt(world);
+      const pad = touch ? Math.min(0.5, 12 / (this.cam.scale * scene.grid.size)) : 0;
+      const hit = this.build.model.stampAtPoint(u, v, pad);
+      if (!hit || !edit.removeRefs([refOf(hit)])) return;
+      this.applyBuild(edit);
+      return;
+    }
+    const r = edit.addPlaced({ id: o.stamp, ...this.stampAnchor(world, stampBlock(o.stampSize)), deg: o.stampDeg, size: o.stampSize });
+    if (!r.ok) {
+      this.room.toast(r.reason === "same" ? BUILD_TOASTS.samePlace : BUILD_TOASTS.full, "error");
+      return;
     }
     this.applyBuild(edit);
   }
 
-  /** Right-click while building: turns an object (or the next one to place), or finishes walls. */
+  /**
+   * Right-click while building: turns the next object a quarter turn, or in Select the
+   * selection (or the object under the pointer, which is then selected); or finishes walls.
+   */
   private buildRightClick(world: Point): void {
     const scene = this.renderedScene;
     if (!scene) return;
@@ -2257,30 +2631,476 @@ export class Board implements BoardApi {
       return;
     }
     const o = this.room.state.buildOpts;
-    if (o.mode !== "stamps") return;
-    const cell = this.cellOnScene(world);
-    const edit = new BuildEdit(this.room.state.items, scene.id);
-    if (edit.rotateStampAt(cell.col, cell.row)) this.applyBuild(edit);
-    else this.room.store.set({ buildOpts: { ...o, stampTurns: (o.stampTurns + 1) % 4 } });
-  }
-
-  /** Lets go of an object being dragged: it moves there (one undo). */
-  private dropStamp(g: Extract<Gesture, { kind: "build-move-stamp" }>): void {
-    const scene = this.renderedScene;
-    this.build.showHiddenStamp();
-    this.bgLayer.batchDraw();
-    this.uiLayer.batchDraw();
-    if (!scene) return;
-    const edit = new BuildEdit(this.room.state.items, scene.id);
-    if (edit.moveStamp(g.from.col, g.from.row, g.at.col, g.at.row, g.stamp)) {
-      this.applyBuild(edit);
+    if (o.mode === "stamps") {
+      this.room.store.set({ buildOpts: { ...o, stampDeg: snapDeg(o.stampDeg + 90) } });
       return;
     }
-    // Not moved: dropped where it was, gone meanwhile, or the place it was dropped is full.
-    const still = new BuildEdit(this.room.state.items, scene.id).stampAt(g.from.col, g.from.row);
-    const home = g.at.col - g.from.col === -g.off.col && g.at.row - g.from.row === -g.off.row;
-    if (still && still.join() === g.stamp.join() && !home) {
-      this.room.toast("That part of the map has as many objects as it can hold.", "error");
+    if (o.mode !== "select" || isHex(scene.grid)) return;
+    const hit = this.selectHit(world, true);
+    const selected = hit.under.some((h) => this.buildSel.objects.some((r) => sameRef(r, h)));
+    if (hit.obj && !selected) this.setBuildSel([refOf(hit.obj)], []);
+    else if (!this.buildSel.objects.length) return;
+    // A step of its own (a right-click is a pointer down, which starts a new burst anyway).
+    this.turnSelection(90);
+  }
+
+  // ---------------------------------------------------------------- Build › Select
+
+  /** Selects these objects and doors (as they're found now), and shows it. */
+  private setBuildSel(objects: StampRef[], doors: DoorRef[]): void {
+    // Changed while a press in Select is held (the wheel turned it, say): letting go isn't a click.
+    const g = this.gesture;
+    if (g.kind === "build-select") g.changed = true;
+    const r = this.build.model.resolve(objects);
+    this.buildSel = { objects: r.refs, doors };
+    this.selPlaced = r.hits.map((h) => placedOf(h.cx, h.cy, h.stamp));
+    this.publishBuildSel();
+    this.showSelection();
+  }
+
+  /** Redraws the selection, and what a click at the mouse would select now. */
+  private showSelection(): void {
+    const s = this.room.state;
+    if (s.tool === "build" && s.buildOpts.mode === "select") this.updateSelectHover();
+    this.refreshOverlay(true);
+  }
+
+  /** Tells the bars what's selected (only when that changes, so a sync doesn't lead to another). */
+  private publishBuildSel(): void {
+    const cur = this.room.state.buildSel;
+    const next = {
+      objects: this.buildSel.objects.length,
+      doors: this.buildSel.doors.length,
+      canGrow: canResize(this.selPlaced, 1),
+      canShrink: canResize(this.selPlaced, -1),
+    };
+    if (next.objects !== cur.objects || next.doors !== cur.doors || next.canGrow !== cur.canGrow || next.canShrink !== cur.canShrink) {
+      this.room.store.set({ buildSel: next });
+    }
+  }
+
+  /**
+   * The build has changed (another tab, an undo): finds the selected objects and doors
+   * again, dropping any that have gone, and the same for objects being dragged (if none
+   * are left, the drag just stops).
+   */
+  private resolveBuildSel(): void {
+    const g = this.gesture;
+    const m = this.build.model;
+    if (g.kind === "build-move-sel") {
+      const r = m.resolve(g.refs);
+      if (!r.refs.length) this.cancelGesture();
+      else {
+        g.refs = r.refs;
+        g.orig = r.hits.map((h) => placedOf(h.cx, h.cy, h.stamp));
+      }
+    }
+    const { objects, doors } = this.buildSel;
+    if (!objects.length && !doors.length) return;
+    const r = m.resolve(objects);
+    this.buildSel = { objects: r.refs, doors: doors.filter((d) => m.doorStyle(d) !== null) };
+    this.selPlaced = r.hits.map((h) => placedOf(h.cx, h.cy, h.stamp));
+    this.publishBuildSel();
+    this.showSelection();
+  }
+
+  /** Selects nothing (Escape, undo and redo, the bar's deselect button). */
+  clearBuildSelection(): void {
+    const g = this.gesture;
+    if (g.kind === "build-select" || g.kind === "build-box" || (g.kind === "build-move-sel" && g.select)) this.cancelGesture();
+    this.newBurst();
+    if (this.buildSel.objects.length || this.buildSel.doors.length) this.setBuildSel([], []);
+  }
+
+  /**
+   * The selected objects as they are now, with what they need to be changed: the scene,
+   * its cells, and each object found again. Null with none selected (or none left).
+   */
+  private selContext(): { scene: Scene; bounds: CellBounds; refs: StampRef[]; hits: StampHit[]; cur: Placed[] } | null {
+    const scene = this.renderedScene;
+    // (Not while they are being dragged: the drop places them.)
+    if (!scene || isHex(scene.grid) || !this.buildSel.objects.length || this.gesture.kind === "build-move-sel") return null;
+    // The build as it is this moment, not as the last frame drew it.
+    if (this.build.update(sceneTerrain(this.room.state.items, scene.id))) {
+      this.resolveBuildSel();
+      this.bgLayer.batchDraw();
+    }
+    const r = this.build.model.resolve(this.buildSel.objects);
+    if (!r.refs.length) return null;
+    const cur = r.hits.map((h) => placedOf(h.cx, h.cy, h.stamp));
+    return { scene, bounds: this.sceneBounds(scene), refs: r.refs, hits: r.hits, cur };
+  }
+
+  /** Moves, turns or sizes objects (refs[k] becomes next[k]) and selects them as they end up. */
+  private placeSelection(scene: Scene, refs: StampRef[], next: Placed[], coalesce?: string): EditResult {
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    const r = edit.place(refs, next);
+    if (!r.ok) {
+      if (r.reason === "full") this.room.toast(BUILD_TOASTS.full, "error");
+      return r;
+    }
+    this.applyBuild(edit, coalesce);
+    this.setBuildSel(r.refs, this.buildSel.doors);
+    return r;
+  }
+
+  /**
+   * Turns the selection as a whole, delta degrees clockwise (see turnGroup). While the
+   * selection is exactly what the last turn left, it turns on from the same starting point.
+   */
+  private turnSelection(delta: number, coalesce?: string): void {
+    const ctx = this.selContext();
+    if (!ctx) return;
+    const keys = keysOf(ctx.refs);
+    const from = this.turnBase?.keys === keys ? this.turnBase : { base: ctx.cur, deg: 0, keys };
+    const deg = (((from.deg + delta) % 360) + 360) % 360;
+    const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds), coalesce);
+    if (r.ok) this.turnBase = { base: from.base, deg, keys: keysOf(r.refs) };
+  }
+
+  /**
+   * Makes each selected object bigger or smaller by dSize squares, where it stands. When the
+   * selection is exactly something sizing left (even after selecting others meanwhile, or an
+   * undo), it's sized about where it stood when sizing began, so bigger then smaller at the
+   * scene's edge puts it back where it was.
+   */
+  private sizeSelection(dSize: number, coalesce?: string): void {
+    const ctx = this.selContext();
+    if (!ctx || !canResize(ctx.cur, dSize > 0 ? 1 : -1)) return;
+    const base = this.sizeBases.get(keysOf(ctx.refs)) ?? ctx.cur;
+    const next = sizeGroup(ctx.cur, dSize, ctx.bounds, base);
+    if (next.every((q, k) => samePlaced(q, ctx.cur[k]))) return;
+    const r = this.placeSelection(ctx.scene, ctx.refs, next, coalesce);
+    if (!r.ok) return;
+    // A few hundred at most: the oldest go first.
+    if (this.sizeBases.size >= 256) this.sizeBases.delete(this.sizeBases.keys().next().value!);
+    this.sizeBases.set(keysOf(r.refs), base);
+  }
+
+  /** The arrow keys: moves the selected objects together, kept on the scene. */
+  private nudgeBuild(dCol: number, dRow: number): void {
+    const ctx = this.selContext();
+    if (!ctx) return;
+    const d = clampShift(ctx.cur, dCol, dRow, ctx.bounds);
+    if (!d.dCol && !d.dRow) return;
+    this.placeSelection(ctx.scene, ctx.refs, shiftGroup(ctx.cur, d.dCol, d.dRow, ctx.bounds), this.burstKey());
+  }
+
+  /** Delete: takes away the selected objects and doors, in one step. */
+  private deleteBuildSel(): void {
+    const scene = this.renderedScene;
+    const { objects, doors } = this.buildSel;
+    if (!scene || (!objects.length && !doors.length) || this.gesture.kind === "build-move-sel") return;
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    edit.removeRefs(objects);
+    edit.removeDoors(doors);
+    this.applyBuild(edit);
+    this.setBuildSel([], []);
+  }
+
+  /** Duplicate: copies of the selected objects a square away (the first side with room), selected instead. */
+  private duplicateBuild(): void {
+    const ctx = this.selContext();
+    if (!ctx) return;
+    const cur = inDrawingOrder(ctx.hits).map((h) => placedOf(h.cx, h.cy, h.stamp));
+    let full = false;
+    for (const o of DUPLICATE_OFFSETS) {
+      const copies = cur.map((q) => ({ ...q, col: q.col + o.dCol, row: q.row + o.dRow }));
+      if (!groupFits(copies, ctx.bounds)) continue;
+      const edit = new BuildEdit(this.room.state.items, ctx.scene.id);
+      const r = edit.addGroup(copies);
+      if (!r.ok) {
+        full ||= r.reason === "full";
+        continue;
+      }
+      this.applyBuild(edit);
+      this.setBuildSel(r.refs, []);
+      return;
+    }
+    this.room.toast(full ? BUILD_TOASTS.full : BUILD_TOASTS.noRoom, "error");
+  }
+
+  /** The selected objects to copy, in the order they're drawn (so stacks paste the same way up). */
+  private copyList(): Placed[] | null {
+    const ctx = this.selContext();
+    if (!ctx) return null;
+    return inDrawingOrder(ctx.hits).map((h) => placedOf(h.cx, h.cy, h.stamp));
+  }
+
+  /**
+   * Copy: keeps the selected objects in this tab, and puts them on the system clipboard as
+   * text, so they can be pasted in another scene, tab or room.
+   */
+  private copyObjects(): void {
+    const ps = this.copyList();
+    if (!ps) return;
+    if (ps.length > CLIPBOARD_MAX) {
+      this.room.toast(BUILD_TOASTS.tooMany, "error");
+      return;
+    }
+    this.clip = ps;
+    if (!this.room.state.buildClip) this.room.store.set({ buildClip: true });
+    try {
+      // Done here, in the key press, because Safari doesn't send a copy event with no text selected.
+      navigator.clipboard?.writeText(encodeObjects(ps)).catch(() => {});
+    } catch {
+      // No clipboard: this tab's copy still pastes.
+    }
+    this.room.toast(BUILD_TOASTS.copied(ps.length));
+  }
+
+  /**
+   * Paste: objects (copied here, or text copied from Tabletop anywhere) centred on the
+   * square under the mouse, or the middle of the view; then they're what's selected.
+   */
+  private pasteObjects(ps: Placed[] | null): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    if (isHex(scene.grid)) {
+      this.room.toast(HEX_TOAST, "error");
+      return;
+    }
+    if (!ps?.length) {
+      this.room.toast(BUILD_TOASTS.nothingToPaste, "error");
+      return;
+    }
+    const at = this.pointerPos ? this.toWorld(this.pointerPos) : this.viewCenter();
+    const cell = cellAt(at.x, at.y, scene.grid);
+    const placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
+    if (!placed) {
+      this.room.toast(BUILD_TOASTS.tooBig, "error");
+      return;
+    }
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    const r = edit.addGroup(placed);
+    if (!r.ok) {
+      // (With no mouse, they went to the middle of the view: moving the map moves that.)
+      const same = this.pointerPos ? BUILD_TOASTS.samePaste : BUILD_TOASTS.samePasteMiddle;
+      this.room.toast(r.reason === "same" ? same : BUILD_TOASTS.full, "error");
+      return;
+    }
+    this.applyBuild(edit);
+    this.setBuildSel(r.refs, []);
+  }
+
+  /** What Build › Select's bar buttons do (the same as their keys). */
+  buildAction(a: BuildAction): void {
+    const s = this.room.state;
+    if (s.tool !== "build" || s.buildOpts.mode !== "select" || !this.isGm) return;
+    // Taps in quick succession make one undo step, as the wheel's turns do.
+    const burst = this.burstKey();
+    switch (a) {
+      case "turnLeft":
+        this.turnSelection(-15, burst);
+        return;
+      case "turnRight":
+        this.turnSelection(15, burst);
+        return;
+      case "turn90":
+        this.turnSelection(90);
+        return;
+      case "smaller":
+        this.sizeSelection(-STAMP_SIZE_STEP, burst);
+        return;
+      case "bigger":
+        this.sizeSelection(STAMP_SIZE_STEP, burst);
+        return;
+      case "duplicate":
+        this.duplicateBuild();
+        return;
+      case "copy":
+        this.copyObjects();
+        return;
+      case "paste":
+        this.pasteObjects(this.clip);
+        return;
+      case "delete":
+        this.deleteBuildSel();
+        return;
+      case "deselect":
+        this.clearBuildSelection();
+        return;
+    }
+  }
+
+  /** Starts dragging objects (the selection, or in Objects the one under the pointer) from a point. */
+  private startSelMove(pointerId: number, from: Point, world: Point, refs: StampRef[], select: boolean): boolean {
+    const scene = this.renderedScene;
+    if (!scene) return false;
+    const r = this.build.model.resolve(refs);
+    if (!r.refs.length) return false;
+    const orig = r.hits.map((h) => placedOf(h.cx, h.cy, h.stamp));
+    const g: Extract<Gesture, { kind: "build-move-sel" }> = {
+      kind: "build-move-sel",
+      pointerId,
+      grab: cellAt(from.x, from.y, scene.grid),
+      refs: r.refs,
+      orig,
+      shift: { dCol: 0, dRow: 0 },
+      select,
+    };
+    this.gesture = g;
+    // Not drawn where they are while they're dragged: the overlay draws them where they'd go.
+    this.build.hideStamps(r.refs);
+    this.moveSelTo(g, world);
+    this.bgLayer.batchDraw();
+    this.showSelection();
+    this.updateCursor();
+    return true;
+  }
+
+  /** Objects being dragged follow the pointer a square at a time, all together, kept on the scene. */
+  private moveSelTo(g: Extract<Gesture, { kind: "build-move-sel" }>, world: Point): void {
+    const scene = this.renderedScene!;
+    const cell = cellAt(world.x, world.y, scene.grid);
+    const d = clampShift(g.orig, cell.col - g.grab.col, cell.row - g.grab.row, this.sceneBounds(scene));
+    if (d.dCol === g.shift.dCol && d.dRow === g.shift.dRow) return;
+    g.shift = d;
+    this.uiLayer.batchDraw();
+  }
+
+  /** Lets go of objects being dragged: they move there (one undo step), and stay selected in Select. */
+  private dropSel(g: Extract<Gesture, { kind: "build-move-sel" }>): void {
+    const scene = this.renderedScene;
+    const { dCol, dRow } = g.shift;
+    if (scene && (dCol || dRow)) {
+      const edit = new BuildEdit(this.room.state.items, scene.id);
+      const r = edit.place(g.refs, shiftGroup(g.orig, dCol, dRow, this.sceneBounds(scene)));
+      if (r.ok) {
+        this.applyBuild(edit);
+        if (g.select) this.setBuildSel(r.refs, this.buildSel.doors);
+      } else if (r.reason === "full") {
+        this.room.toast(BUILD_TOASTS.full, "error");
+      }
+    }
+    // Shown again only now, with the move applied: no frame shows them twice, or not at all.
+    this.build.hideStamps([]);
+    this.bgLayer.batchDraw();
+    this.showSelection();
+  }
+
+  /** Starts a box selecting the objects whose middles are in it. */
+  private startBox(pointerId: number, from: Point, world: Point, additive: boolean): void {
+    const node = new Konva.Rect({
+      x: from.x,
+      y: from.y,
+      width: 0,
+      height: 0,
+      stroke: SELECT_COLOR,
+      strokeWidth: 1.5,
+      strokeScaleEnabled: false,
+      dash: [6, 4],
+      fill: "rgba(79, 209, 255, 0.08)",
+    });
+    this.previewGroup.add(node);
+    const g: Extract<Gesture, { kind: "build-box" }> = { kind: "build-box", pointerId, start: from, end: from, additive, node };
+    this.gesture = g;
+    this.boxTo(g, world);
+    this.showSelection();
+    this.updateCursor();
+  }
+
+  private boxTo(g: Extract<Gesture, { kind: "build-box" }>, world: Point): void {
+    g.end = world;
+    g.node.setAttrs({
+      x: Math.min(g.start.x, world.x),
+      y: Math.min(g.start.y, world.y),
+      width: Math.abs(world.x - g.start.x),
+      height: Math.abs(world.y - g.start.y),
+    });
+    this.uiLayer.batchDraw();
+  }
+
+  /** Lets go of a box: selects the objects whose middles are in it, and on the scene (adding with Shift). */
+  private dropBox(g: Extract<Gesture, { kind: "build-box" }>, additive: boolean): void {
+    g.node.destroy();
+    this.uiLayer.batchDraw();
+    const scene = this.renderedScene;
+    if (!scene) return;
+    this.newBurst();
+    const scale = this.cam.scale;
+    if (Math.abs(g.end.x - g.start.x) * scale < DRAG_THRESHOLD && Math.abs(g.end.y - g.start.y) * scale < DRAG_THRESHOLD) {
+      // Hardly a box: a click on empty floor.
+      if (!additive) this.setBuildSel([], []);
+      return;
+    }
+    const a = this.cellsAt(g.start);
+    const b = this.cellsAt(g.end);
+    const all = this.sceneBounds(scene);
+    const hits = this.build.model.stampsInBox(a.u, a.v, b.u, b.v).filter((h) => onScene(placedOf(h.cx, h.cy, h.stamp), all));
+    const picked = hits.map(refOf);
+    if (!additive) {
+      this.setBuildSel(picked, []);
+      return;
+    }
+    const { objects, doors } = this.buildSel;
+    const extra = picked.filter((r) => !objects.some((o) => o.cx === r.cx && o.cy === r.cy && o.i === r.i && o.key === r.key));
+    this.setBuildSel([...objects, ...extra], doors);
+  }
+
+  /**
+   * A click (or tap) in Select: a door or object alone, or with Shift one added or taken
+   * away; where objects overlap, clicking the one selected picks the one under it; empty
+   * floor selects nothing.
+   */
+  private selectClick(g: Extract<Gesture, { kind: "build-select" }>): void {
+    // What's under the press as things are now (see the gesture).
+    const { door, under } = this.selectHit(g.startWorld, g.mouse);
+    const { objects, doors } = this.buildSel;
+    const toggle = g.shift && g.mouse;
+    this.newBurst();
+    if (door) {
+      const d: DoorRef = { col: door.col, row: door.row, side: door.side };
+      const at = doors.findIndex((x) => sameDoor(x, d));
+      if (!toggle) this.setBuildSel([], [d]);
+      else this.setBuildSel(objects, at >= 0 ? doors.filter((_, k) => k !== at) : [...doors, d]);
+    } else if (under.length) {
+      if (!toggle) {
+        this.setBuildSel([refOf(this.clickTarget(under))], []);
+        return;
+      }
+      const top = under[0];
+      const at = objects.findIndex((r) => sameRef(r, top));
+      this.setBuildSel(at >= 0 ? objects.filter((_, k) => k !== at) : [...objects, refOf(top)], doors);
+    } else if (!toggle) {
+      this.setBuildSel([], []);
+    }
+  }
+
+  /** On a touch screen, the first time in a page load that Objects or Select is picked: how to use it. */
+  private touchHint(mode: "stamps" | "select"): void {
+    if (touchHintsShown.has(mode) || typeof matchMedia !== "function" || !matchMedia("(hover: none)").matches) return;
+    touchHintsShown.add(mode);
+    this.room.toast(TOUCH_HINTS[mode]);
+  }
+
+  /** What the mouse wheel can turn here: the next object (Objects), the selection (Select), or nothing. */
+  private wheelTarget(): "ghost" | "selection" | null {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    if (s.tool !== "build" || !this.isGm || !scene || isHex(scene.grid)) return null;
+    const o = s.buildOpts;
+    if (o.mode === "stamps" && o.stampMode === "place") return "ghost";
+    if (o.mode === "select" && this.buildSel.objects.length) return "selection";
+    return null;
+  }
+
+  /** Wheel steps over objects: turns (15 or 5 degrees a step) or sizes (a quarter square a step, up is bigger). */
+  private wheelStep(target: "ghost" | "selection", intent: "turn" | "fine-turn" | "size", steps: number): void {
+    const deg = steps * (intent === "turn" ? 15 : 5);
+    const dSize = -steps * STAMP_SIZE_STEP;
+    if (target === "selection") {
+      if (intent === "size") this.sizeSelection(dSize, this.burstKey());
+      else this.turnSelection(deg, this.burstKey());
+      return;
+    }
+    const o = this.room.state.buildOpts;
+    if (intent === "size") {
+      // Alt+click places this one now, rather than removing one (until Alt is let go).
+      this.altScaled = true;
+      this.room.store.set({ buildOpts: { ...o, stampSize: snapSize(o.stampSize + dSize) } });
+    } else {
+      this.room.store.set({ buildOpts: { ...o, stampDeg: snapDeg(o.stampDeg + deg) } });
     }
   }
 
@@ -2444,8 +3264,10 @@ export class Board implements BoardApi {
   private onPointerMove = (e: PointerEvent): void => {
     const pos = this.localPos(e);
     const world = this.toWorld(pos);
-    if (e.altKey !== this.altDown) this.setAlt(e.altKey);
+    // (Alt let go without the page seeing it: an Alt+click removes again.)
+    if (e.altKey !== this.altDown || (!e.altKey && this.altScaled)) this.setAlt(e.altKey);
     if (e.pointerType === "mouse") {
+      this.pointerPos = pos;
       this.updateBrushCursor(world);
       if (this.room.state.tool === "build") this.setHover(world);
     }
@@ -2537,22 +3359,39 @@ export class Board implements BoardApi {
       }
       case "tap":
         if (Math.hypot(pos.x - g.start.x, pos.y - g.start.y) >= DRAG_THRESHOLD) {
-          const hit = g.grab && this.room.state.tool === "build" ? this.build.model.stampAt(g.grab.col, g.grab.row) : null;
-          if (g.grab && hit) {
-            // Dragging an object: it moves by whole squares, keeping hold of it where it was grabbed.
-            this.build.hideStampAt(g.grab.col, g.grab.row);
-            const off = { col: g.grab.col - (hit.cx * 16 + hit.stamp[1]), row: g.grab.row - (hit.cy * 16 + hit.stamp[2]) };
-            const at = this.heldAnchor(world, off, hit.stamp[4]);
-            this.gesture = { kind: "build-move-stamp", pointerId: g.pointerId, from: g.grab, stamp: hit.stamp, at, off };
-            this.hover = world;
-            this.buildHover.visible(true);
-            this.bgLayer.batchDraw();
-            this.uiLayer.batchDraw();
-            return;
-          }
+          // Dragging an object in Objects: it moves by whole squares, keeping hold of it where it was grabbed.
+          if (g.grab && this.room.state.tool === "build" && this.startSelMove(g.pointerId, g.world, world, [refOf(g.grab)], false)) return;
           // It's a drag, not a tap: pan instead.
           this.gesture = { kind: "pan", pointerId: g.pointerId, start: g.start, cam: this.cam, moved: false };
         }
+        return;
+      case "build-select": {
+        if (Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        // What's under the press as things are now (see the gesture).
+        const hit = this.selectHit(g.startWorld, g.mouse);
+        // A drag that starts on something selected moves the selection (even one under another
+        // object, or one a turn or nudge moved away while the button was held).
+        const grabbed = hit.under.some((h) => this.buildSel.objects.some((r) => sameRef(r, h))) || (!!g.changed && g.grab);
+        if (g.mouse && !g.shift && (hit.obj || grabbed)) {
+          // With a mouse, as in Dungeondraft: dragging an object not selected selects it and moves it.
+          if (!grabbed && hit.obj) this.setBuildSel([refOf(hit.obj)], []);
+          if (this.startSelMove(g.pointerId, g.startWorld, world, this.buildSel.objects, true)) return;
+        } else if (!g.mouse && grabbed && this.startSelMove(g.pointerId, g.startWorld, world, this.buildSel.objects, true)) {
+          return;
+        }
+        if (g.mouse && !g.shift && hit.door && !doorDragWarned) {
+          doorDragWarned = true;
+          this.room.toast(BUILD_TOASTS.doorDrag);
+        }
+        // Anything else draws a box (with Shift, adding to what's selected).
+        this.startBox(g.pointerId, g.startWorld, world, g.shift);
+        return;
+      }
+      case "build-box":
+        this.boxTo(g, world);
+        return;
+      case "build-move-sel":
+        this.moveSelTo(g, world);
         return;
       case "marquee": {
         g.node.setAttrs({
@@ -2581,13 +3420,6 @@ export class Board implements BoardApi {
         g.end = cell;
         this.paintArea(g.start, cell, g.erase, g.circle);
         this.bgLayer.batchDraw();
-        return;
-      }
-      case "build-move-stamp": {
-        const at = this.heldAnchor(world, g.off, g.stamp[4]);
-        if (at.col === g.at.col && at.row === g.at.row) return;
-        g.at = at;
-        this.uiLayer.batchDraw();
         return;
       }
       case "build-wall":
@@ -2727,7 +3559,7 @@ export class Board implements BoardApi {
             this.doorTap(g.world, !!g.alt);
             break;
           case "stamp":
-            this.stampTap(g.world, !!g.alt);
+            this.stampTap(g.world, !!g.alt, !!g.touch);
             break;
           case "wallpoint":
             this.wallPointClick(g.world);
@@ -2758,8 +3590,17 @@ export class Board implements BoardApi {
         }
         this.commitBuild();
         return;
-      case "build-move-stamp":
-        this.dropStamp(g);
+      case "build-select":
+        if (!g.changed) this.selectClick(g);
+        return;
+      case "build-box":
+        // Where the pointer let go, in case its last move wasn't sent on its own.
+        g.end = world;
+        this.dropBox(g, g.additive || e.shiftKey);
+        return;
+      case "build-move-sel":
+        this.moveSelTo(g, world);
+        this.dropSel(g);
         return;
       case "drag-items": {
         if (!g.moved) return;
@@ -2936,9 +3777,13 @@ export class Board implements BoardApi {
         this.build.endDraft();
         this.bgLayer.batchDraw();
         break;
-      case "build-move-stamp":
-        this.build.showHiddenStamp();
+      case "build-move-sel":
+        this.build.hideStamps([]);
         this.bgLayer.batchDraw();
+        this.uiLayer.batchDraw();
+        break;
+      case "build-box":
+        g.node.destroy();
         this.uiLayer.batchDraw();
         break;
       case "measure":
@@ -2949,29 +3794,51 @@ export class Board implements BoardApi {
       default:
         break;
     }
+    if (g.kind === "build-select" || g.kind === "build-box" || g.kind === "build-move-sel") this.showSelection();
     this.updateCursor();
   }
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     const pos = this.localPos(e);
+    // Firefox only reports whole lines to a page that asks for deltaMode before deltaY.
+    const mode = e.deltaMode;
     let dy = e.deltaY;
     let dx = e.deltaX;
-    if (e.deltaMode === 1) {
+    if (mode === 1) {
       dy *= 33;
       dx *= 33;
-    } else if (e.deltaMode === 2) {
+    } else if (mode === 2) {
       dy *= 400;
       dx *= 400;
     }
-    if (e.ctrlKey) {
+    // Every event goes through, so each stream (a spin of the wheel, a trackpad flick) is judged as one.
+    // It goes by when the input came, not when it's handled: notches kept waiting while the page
+    // was busy arrive close together, and would otherwise pass for a wheel spinning freely.
+    const step = this.wheelSteps.next(
+      { deltaMode: mode, dx, dy, wheelDeltaY: (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY },
+      e.timeStamp || performance.now(),
+    );
+    const target = this.wheelTarget();
+    const intent = wheelIntent(
+      { ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey, z: this.zDown, dx, dy },
+      target,
+      step.kind,
+      this.room.state.wheelTurns,
+    );
+    if (intent === "zoom") {
       // A trackpad pinch arrives as Ctrl+wheel in small steps. A mouse wheel's notches with
       // Ctrl held (how Dungeondraft zooms) are big ones: zoom those at the plain wheel's rate.
-      const notch = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 40;
+      const notch = mode !== 0 || Math.abs(dy) >= 40;
       this.zoomAt(pos, Math.exp(-dy * (notch ? 0.0015 : 0.01)));
       return;
     }
-    const looksLikeTrackpadScroll = e.deltaMode === 0 && (Math.abs(dx) > 0 || Math.abs(dy) < 40);
+    if (intent !== "default") {
+      // Over objects in the Build tool: the wheel turns or sizes them, as in Dungeondraft.
+      if (target && step.steps) this.wheelStep(target, intent, step.steps);
+      return;
+    }
+    const looksLikeTrackpadScroll = mode === 0 && (Math.abs(dx) > 0 || Math.abs(dy) < 40);
     if (looksLikeTrackpadScroll) {
       const c = this.cam;
       this.setCam(c.x - dx, c.y - dy, c.scale);
@@ -3006,16 +3873,60 @@ export class Board implements BoardApi {
     void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
   };
 
-  /** An image pasted from the clipboard: a map for a new scene, or a token in the middle of the view. */
+  /**
+   * Pasting: objects copied in Build › Select (from this tab, another, or another room), or
+   * an image: a map for a new scene, or a token in the middle of the view.
+   */
   private onPaste = (e: ClipboardEvent): void => {
     if (this.room.display) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     if (document.querySelector(".modal-backdrop") || !this.renderedScene) return;
+    const s = this.room.state;
+    const building = s.tool === "build" && this.isGm;
+    const selecting = building && s.buildOpts.mode === "select";
+    // The paste event came: Ctrl+V's fallback isn't needed.
+    if (this.pasteArm) clearTimeout(this.pasteArm);
+    this.pasteArm = null;
+    if (building) {
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      const objects = text ? decodeObjects(text) : null;
+      if (objects) {
+        e.preventDefault();
+        if (selecting) this.pasteObjects(objects);
+        else this.room.toast(BUILD_TOASTS.pasteMode);
+        return;
+      }
+    }
     const files = [...(e.clipboardData?.files ?? [])];
-    if (!files.length) return;
+    if (files.length) {
+      e.preventDefault();
+      void this.takeFiles(files, this.viewCenter());
+      return;
+    }
+    if (selecting) {
+      e.preventDefault();
+      this.pasteObjects(this.clip);
+    }
+  };
+
+  /**
+   * Copying with nothing else to copy (no text selected), in Build › Select with objects
+   * selected: the objects go on the clipboard as text (see copyObjects, which the key does too).
+   */
+  private onCopy = (e: ClipboardEvent): void => {
+    if (this.room.display) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (document.querySelector(".modal-backdrop") || pageTextSelected()) return;
+    const s = this.room.state;
+    if (s.tool !== "build" || s.buildOpts.mode !== "select" || !this.isGm || !e.clipboardData) return;
+    const ps = this.copyList();
+    if (!ps || ps.length > CLIPBOARD_MAX) return;
+    this.clip = ps;
+    if (!s.buildClip) this.room.store.set({ buildClip: true });
+    e.clipboardData.setData("text/plain", encodeObjects(ps));
     e.preventDefault();
-    void this.takeFiles(files, this.viewCenter());
   };
 
   /**
@@ -3036,15 +3947,26 @@ export class Board implements BoardApi {
 
   private onKeyDown = (e: KeyboardEvent): void => {
     if (this.room.display) return;
+    const key = e.key;
+    // Z held turns objects 5 degrees at a time with the wheel (Z alone: Ctrl+Z is undo).
+    const plainZ = (key === "z" || key === "Z") && !e.ctrlKey && !e.metaKey && !e.altKey;
+    // A burst of turning, sizing or nudging objects is one undo step. Holding Alt, Z or
+    // Shift, or the arrows and [ ] that do the nudging and turning, keeps the burst going;
+    // any other key ends it.
+    const burstKeys = key.startsWith("Arrow") || e.code === "BracketLeft" || e.code === "BracketRight";
+    if (!burstKeys && !plainZ && key !== "Alt" && key !== "Shift" && key !== "Control" && key !== "Meta") this.newBurst();
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
     if (document.querySelector(".modal-backdrop")) return;
     const mod = e.ctrlKey || e.metaKey;
-    const key = e.key;
     if (key === "Alt") {
       // Alt reverses the Build tool, as in Dungeondraft; keep the browser's menu out of it.
       if (this.room.state.tool === "build") e.preventDefault();
       this.setAlt(true);
+      return;
+    }
+    if (plainZ) {
+      this.zDown = true;
       return;
     }
     if (key === " ") {
@@ -3055,9 +3977,14 @@ export class Board implements BoardApi {
       e.preventDefault();
       return;
     }
+    const room = this.room;
+    const st = room.state;
+    // Build › Select: its keys act on the objects and doors selected there, never on tokens.
+    const selecting = st.tool === "build" && st.buildOpts.mode === "select" && this.isGm;
     if (mod) {
       const k = key.toLowerCase();
-      if ((k === "z" || k === "y") && this.gesture.kind === "build-move-stamp") this.cancelGesture();
+      const g = this.gesture.kind;
+      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select")) this.cancelGesture();
       if (k === "z") {
         e.preventDefault();
         if (e.shiftKey) this.room.redo();
@@ -3067,28 +3994,51 @@ export class Board implements BoardApi {
         this.room.redo();
       } else if (k === "d") {
         e.preventDefault();
-        duplicateSelection(this.room);
+        // Held down, the key repeats: the objects are copied once, not in a row across the map.
+        if (selecting) {
+          if (!e.repeat) this.duplicateBuild();
+        } else duplicateSelection(room);
+      } else if (k === "c" && selecting && this.buildSel.objects.length && !pageTextSelected()) {
+        // Not prevented: the copy event that follows puts the objects on the clipboard too.
+        // With text selected on the page (since the board was last pressed, which lets go of
+        // it), the browser copies the text instead, as it would anywhere else.
+        if (!e.repeat) this.copyObjects();
+      } else if (k === "v" && selecting) {
+        // Held down: pasted once (prevented, a repeat sends no paste event either).
+        if (e.repeat) {
+          e.preventDefault();
+          return;
+        }
+        // The paste event pastes (whatever was copied, wherever); this is for a browser that doesn't send one.
+        if (this.pasteArm) clearTimeout(this.pasteArm);
+        this.pasteArm = setTimeout(() => {
+          this.pasteArm = null;
+          const s = this.room.state;
+          if (s.tool === "build" && s.buildOpts.mode === "select") this.pasteObjects(this.clip);
+        }, 60);
       }
       return;
     }
     if (e.altKey) return;
-    const room = this.room;
-    if ((e.code === "BracketLeft" || e.code === "BracketRight") && room.state.tool === "fog" && room.state.fogOpts.shape === "brush") {
+    if ((e.code === "BracketLeft" || e.code === "BracketRight") && st.tool === "fog" && st.fogOpts.shape === "brush") {
       // [ and ] size the fog brush (Shift: in bigger steps).
-      const o = room.state.fogOpts;
+      const o = st.fogOpts;
       const delta = (e.code === "BracketLeft" ? -1 : 1) * (e.shiftKey ? 2 : 0.5);
       room.store.set({ fogOpts: { ...o, brush: Math.min(20, Math.max(0.5, o.brush + delta)) } });
       if (this.brushCursor.visible()) this.updateBrushCursor(this.brushCursor.position());
       return;
     }
-    if ((e.code === "BracketLeft" || e.code === "BracketRight") && room.state.tool === "build") {
-      // Building: [ and ] size the floor brush, or turn the next object.
-      const o = room.state.buildOpts;
+    if ((e.code === "BracketLeft" || e.code === "BracketRight") && st.tool === "build") {
+      // Building: [ and ] size the floor brush, or turn the next object (or the selected ones) 15 degrees, Shift 5.
+      const o = st.buildOpts;
       const dir = e.code === "BracketLeft" ? -1 : 1;
+      const deg = dir * (e.shiftKey ? 5 : 15);
       if ((o.mode === "building" || o.mode === "terrain") && o.shape[o.mode] === "brush") {
         room.store.set({ buildOpts: { ...o, brush: Math.min(5, Math.max(1, o.brush + dir)) } });
       } else if (o.mode === "stamps") {
-        room.store.set({ buildOpts: { ...o, stampTurns: (o.stampTurns + dir + 4) % 4 } });
+        room.store.set({ buildOpts: { ...o, stampDeg: snapDeg(o.stampDeg + deg) } });
+      } else if (selecting) {
+        this.turnSelection(deg, this.burstKey());
       }
       return;
     }
@@ -3097,12 +4047,39 @@ export class Board implements BoardApi {
       rotateSelection(room, e.code === "BracketLeft" ? -step : step);
       return;
     }
+    if (selecting) {
+      const nudge = e.shiftKey ? 5 : 1;
+      switch (key) {
+        case "Delete":
+        case "Backspace":
+          e.preventDefault();
+          if (!e.repeat) this.deleteBuildSel();
+          return;
+        case "ArrowUp":
+          e.preventDefault();
+          this.nudgeBuild(0, -nudge);
+          return;
+        case "ArrowDown":
+          e.preventDefault();
+          this.nudgeBuild(0, nudge);
+          return;
+        case "ArrowLeft":
+          e.preventDefault();
+          this.nudgeBuild(-nudge, 0);
+          return;
+        case "ArrowRight":
+          e.preventDefault();
+          this.nudgeBuild(nudge, 0);
+          return;
+      }
+    }
     switch (key) {
       case "Escape":
         if (room.state.gridAlign && this.gesture.kind === "none") room.store.set({ gridAlign: null });
         else if (this.wallPath && this.gesture.kind === "none") this.cancelWallPath();
         else if (this.poly) this.cancelPoly();
         else if (this.gesture.kind !== "none") this.cancelGesture();
+        else if (this.buildSel.objects.length || this.buildSel.doors.length) this.clearBuildSelection();
         else room.select([]);
         return;
       case "Enter":
@@ -3132,6 +4109,14 @@ export class Board implements BoardApi {
           deleteSelection(room);
         }
         return;
+      case "x":
+      case "X": {
+        // As in Dungeondraft: Build › Select, and X again goes back (not in the middle of a drag).
+        const g = this.gesture.kind;
+        if (e.shiftKey || e.repeat || (g !== "none" && g !== "tap")) return;
+        room.toggleBuildSelect();
+        return;
+      }
       case "v":
       case "V":
         room.setTool("select");
@@ -3203,6 +4188,7 @@ export class Board implements BoardApi {
       if (this.room.state.tool === "build") e.preventDefault();
       this.setAlt(false);
     }
+    if (e.key === "z" || e.key === "Z") this.zDown = false;
     if (e.key === " ") {
       this.spaceDown = false;
       this.updateCursor();
@@ -3210,11 +4196,16 @@ export class Board implements BoardApi {
   };
 
   private updateCursor(): void {
-    if (this.gesture.kind === "pan" && this.gesture.moved) return;
-    const tool = this.room.state.tool;
+    const g = this.gesture;
+    if (g.kind === "pan" && g.moved) return;
+    const s = this.room.state;
+    const tool = s.tool;
     let cursor = "default";
     if (this.spaceDown) cursor = "grab";
-    else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer") cursor = "crosshair";
+    else if (tool === "build" && s.buildOpts.mode === "select") {
+      // Select: a drag on an object moves it, and anywhere else draws a box.
+      cursor = g.kind === "build-move-sel" ? "grabbing" : g.kind === "build-box" ? "crosshair" : this.hoverObject ? "move" : "default";
+    } else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer") cursor = "crosshair";
     else if (tool === "erase") cursor = "cell";
     this.el.style.cursor = cursor;
   }

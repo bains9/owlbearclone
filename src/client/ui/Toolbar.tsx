@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  ArrowLeft,
   Armchair,
   BrickWall,
   Castle,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
   DoorOpen,
+  Expand,
   FileUp,
   Hammer,
   Lasso,
+  RedoDot,
+  RotateCcw,
   RotateCw,
+  Shrink,
+  SquareDashedMousePointer,
+  Trash,
   Trees,
   X,
   Paintbrush,
@@ -34,13 +44,33 @@ import {
 } from "lucide-preact";
 import { isHex } from "../../shared/geometry";
 import type { MeasureShape } from "../../shared/protocol";
-import { FLOORS, STAMP_IDS, STAMP_NAMES } from "../../shared/terrain";
+import {
+  FLOORS,
+  STAMP_DEG_STEP,
+  STAMP_IDS,
+  STAMP_NAMES,
+  STAMP_SIZE_MAX,
+  STAMP_SIZE_MIN,
+  STAMP_SIZE_STEP,
+  snapDeg,
+  snapSize,
+} from "../../shared/terrain";
 import type { FloorId, StampId } from "../../shared/terrain";
 import { MAP_FILE_ACCEPT } from "../mapImport";
 import type { DrawShape } from "../../shared/types";
 import { buildUndo, wallsFor } from "../room/build";
 import { drawStamp, floorPattern } from "../room/buildArt";
-import type { BuildOptions as BuildOpts, ToolId } from "../room/client";
+import {
+  BUILD_MODE_LABELS,
+  TOUCH_HINTS,
+  backLabel,
+  buildHints,
+  formatDeg,
+  formatSize,
+  isMacPlatform,
+  selectionStatus,
+} from "../room/buildInput";
+import type { BuildAction, BuildOptions as BuildOpts, ToolId } from "../room/client";
 import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
@@ -254,74 +284,49 @@ function FogOptions() {
 
 /**
  * The Build tool's modes, named and ordered after the Dungeondraft tools the GM knows:
- * Building, Wall, Portal (doors), Terrain, Object.
+ * Building, Wall, Portal (doors), Terrain, Object, Select.
  */
 const BUILD_MODES: { id: BuildOpts["mode"]; label: string; title: string; icon: typeof Pencil }[] = [
-  { id: "building", label: "Building", title: "Building: rooms with walls round them (like Dungeondraft's Building tool)", icon: Castle },
-  { id: "walls", label: "Walls", title: "Walls: along grid lines (like Dungeondraft's Wall tool)", icon: BrickWall },
-  { id: "doors", label: "Doors", title: "Doors, secret doors and openings in walls (like Dungeondraft's Portal tool)", icon: DoorOpen },
-  { id: "terrain", label: "Terrain", title: "Terrain: grass, water and lava, under buildings (like Dungeondraft's Terrain brush)", icon: Trees },
-  { id: "stamps", label: "Objects", title: "Objects: furniture and scenery (like Dungeondraft's Object tool)", icon: Armchair },
+  { id: "building", label: BUILD_MODE_LABELS.building, title: "Building: rooms with walls round them (like Dungeondraft's Building tool)", icon: Castle },
+  { id: "walls", label: BUILD_MODE_LABELS.walls, title: "Walls: along grid lines (like Dungeondraft's Wall tool)", icon: BrickWall },
+  { id: "doors", label: BUILD_MODE_LABELS.doors, title: "Doors, secret doors and openings in walls (like Dungeondraft's Portal tool)", icon: DoorOpen },
+  { id: "terrain", label: BUILD_MODE_LABELS.terrain, title: "Terrain: grass, water and lava, under buildings (like Dungeondraft's Terrain brush)", icon: Trees },
+  { id: "stamps", label: BUILD_MODE_LABELS.stamps, title: "Objects: furniture and scenery (like Dungeondraft's Object tool)", icon: Armchair },
+  {
+    id: "select",
+    label: BUILD_MODE_LABELS.select,
+    title: "Select (X): click an object or door, or drag a box; then move, turn, size, copy or delete (like Dungeondraft's Select tool)",
+    icon: SquareDashedMousePointer,
+  },
 ];
 
 const BUILDING_FLOORS = FLOORS.filter((f) => f.walls);
 const TERRAIN_FLOORS = FLOORS.filter((f) => !f.walls);
 
+/** Whether this is a Mac, where the zoom key is ⌘. */
+const MAC = typeof navigator !== "undefined" && isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? "");
+
 /**
- * What the mouse and keys do in the Build tool with these options, shown along the bottom
- * on a computer (Dungeondraft shows its tool's controls the same way).
+ * A slider that lets go of the keyboard when you let go of it, so X, Delete, [ ] and the
+ * arrow keys still reach the map (they're ignored while a slider has the focus).
  */
-function buildHints(o: BuildOpts): [string, string][] {
-  const pan: [string, string] = ["Space+drag", "pan"];
-  const zoom: [string, string] = ["Ctrl+wheel", "zoom"];
-  switch (o.mode) {
-    case "building":
-    case "terrain": {
-      const erase = o.floor[o.mode] === "erase";
-      const out: [string, string][] = [["Drag", erase ? "erase" : o.mode === "building" ? "room" : "paint"]];
-      if (!erase) out.push(["Alt+drag", o.mode === "building" ? "cut out" : "take away"]);
-      if (o.shape[o.mode] === "brush") out.push(["[ ]", "brush size"]);
-      return [...out, pan, zoom];
-    }
-    case "walls": {
-      const remove = o.wallMode === "remove";
-      const out: [string, string][] = [
-        ["Drag", remove ? "remove" : "walls"],
-        ["Click corners", remove ? "remove between" : "walls between"],
-        ["Dbl-click, right-click, Enter", "finish"],
-        ["Backspace", "undo corner"],
-      ];
-      if (!remove) out.push(["Alt", "remove"]);
-      return out;
-    }
-    case "doors":
-      return [
-        ["Click a wall", o.doorStyle === "open" ? "opening" : o.doorStyle === "secret" ? "secret door" : "door"],
-        ["Click it again, or Alt+click", "take it away"],
-        pan,
-        zoom,
-      ];
-    case "stamps":
-      return o.stampMode === "remove"
-        ? [["Click an object", "remove"], pan, zoom]
-        : [
-            ["Click", "place"],
-            ["Right-click or [ ]", "turn"],
-            ["Drag an object", "move it"],
-            ["Alt+click", "remove"],
-          ];
-  }
+function Slider(props: { min: number; max: number; step: number; value: number; label: string; onInput: (v: number) => void }) {
+  const blur = (e: Event) => (e.currentTarget as HTMLInputElement).blur();
+  return (
+    <input
+      type="range"
+      class="build-slider"
+      min={props.min}
+      max={props.max}
+      step={props.step}
+      value={props.value}
+      aria-label={props.label}
+      onInput={(e) => props.onInput(Number(e.currentTarget.value))}
+      onPointerUp={blur}
+      onChange={blur}
+    />
+  );
 }
-
-/** The same, briefly, for a touch screen (shown in the bar). */
-const TOUCH_HINTS: Record<BuildOpts["mode"], string> = {
-  building: "Drag to paint a room.",
-  terrain: "Drag to paint.",
-  walls: "Drag along grid lines, or tap one.",
-  doors: "Tap a wall.",
-  stamps: "Tap to place. Tap an object to turn it.",
-};
-
 /** A small picture of an object, for the palette. */
 function StampIcon(props: { id: StampId }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -387,6 +392,8 @@ function ImportDungeondraft() {
 function BuildOptions() {
   const room = useRoom();
   const o = useRoomState((s) => s.buildOpts);
+  const sel = useRoomState((s) => s.buildSel);
+  const clip = useRoomState((s) => s.buildClip);
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
   const live = useRoomState((s) => !!s.viewSceneId && s.viewSceneId === s.activeSceneId);
   const [confirm, setConfirm] = useState(false);
@@ -401,7 +408,7 @@ function BuildOptions() {
   if (isHex(scene.grid)) {
     return (
       <div class="tool-options build-options">
-        <span class="hint">Building works on a square grid. Switch this scene to squares in Edit scene (Scenes panel).</span>
+        <span class="hint hex-note">Building works on a square grid. Switch this scene to squares in Edit scene (Scenes panel).</span>
         <ImportDungeondraft />
       </div>
     );
@@ -417,7 +424,7 @@ function BuildOptions() {
   const paint = o.mode === "building" || o.mode === "terrain" ? o.mode : null;
   return (
     <div class="tool-options build-options">
-      <div class="seg">
+      <div class="seg build-modes">
         {BUILD_MODES.map((m) => (
           <button
             key={m.id}
@@ -425,7 +432,7 @@ function BuildOptions() {
             title={m.title}
             aria-label={m.label}
             aria-pressed={o.mode === m.id}
-            onClick={() => set({ mode: m.id })}
+            onClick={() => room.setBuildMode(m.id)}
           >
             <m.icon size={16} />
             <span class="seg-label">{m.label}</span>
@@ -596,27 +603,76 @@ function BuildOptions() {
               </button>
             ))}
           </div>
-          <div class="seg" title="Size in squares">
-            {[1, 2, 3].map((n) => (
-              <button
-                key={n}
-                class={cx("seg-btn", o.stampSize === n && "active")}
-                aria-label={`${n} by ${n} squares`}
-                onClick={() => set({ stampSize: n })}
-              >
-                {n}×{n}
-              </button>
-            ))}
+          <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
+            <span class="seg-label build-group-label">Size</span>
+            <button
+              class="seg-btn"
+              title="Smaller (Alt+wheel)"
+              aria-label="Smaller"
+              disabled={o.stampSize <= STAMP_SIZE_MIN}
+              onClick={() => set({ stampSize: snapSize(o.stampSize - STAMP_SIZE_STEP) })}
+            >
+              <Minus size={14} />
+            </button>
+            <Slider
+              min={STAMP_SIZE_MIN}
+              max={STAMP_SIZE_MAX}
+              step={STAMP_SIZE_STEP}
+              value={o.stampSize}
+              label="Size"
+              onInput={(v) => set({ stampSize: snapSize(v) })}
+            />
+            <button
+              class="seg-btn"
+              title="Bigger (Alt+wheel)"
+              aria-label="Bigger"
+              disabled={o.stampSize >= STAMP_SIZE_MAX}
+              onClick={() => set({ stampSize: snapSize(o.stampSize + STAMP_SIZE_STEP) })}
+            >
+              <Plus size={14} />
+            </button>
+            <span class="build-readout">{formatSize(o.stampSize)}</span>
+          </div>
+          <div class="seg build-turn" role="group" aria-label="Turn" title="Turn (mouse wheel; Z and the wheel: 5°)">
+            <span class="seg-label build-group-label">Turn</span>
+            <button
+              class="seg-btn"
+              title="Turn left 15° ([)"
+              aria-label="Turn left 15°"
+              onClick={() => set({ stampDeg: snapDeg(o.stampDeg - 15) })}
+            >
+              <RotateCcw size={14} />
+            </button>
+            <Slider
+              min={0}
+              max={360 - STAMP_DEG_STEP}
+              step={STAMP_DEG_STEP}
+              value={o.stampDeg}
+              label="Turn"
+              onInput={(v) => set({ stampDeg: snapDeg(v) })}
+            />
+            <button
+              class="seg-btn"
+              title="Turn right 15° (])"
+              aria-label="Turn right 15°"
+              onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 15) })}
+            >
+              <RotateCw size={14} />
+            </button>
+            <span class="build-readout">{formatDeg(o.stampDeg)}</span>
           </div>
           <button
             class="seg-btn stamp-turn"
-            title="Turn the next object (right-click, or [ and ])"
-            aria-label="Turn the next object"
-            onClick={() => set({ stampTurns: (o.stampTurns + 1) % 4 })}
+            title="Turn 90° (right-click)"
+            aria-label="Turn 90°"
+            onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 90) })}
           >
-            <RotateCw size={16} style={{ transform: `rotate(${o.stampTurns * 90}deg)` }} />
+            <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
           </button>
         </>
+      )}
+      {o.mode === "select" && (
+        <SelectOptions sel={sel} clip={clip} back={backLabel(o.selectReturn)} act={(a) => room.board?.buildAction(a)} />
       )}
       <span class="hint build-touch-hint">
         {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object to remove it." : TOUCH_HINTS[o.mode]}
@@ -639,11 +695,128 @@ function BuildOptions() {
   );
 }
 
+/**
+ * Build › Select's part of the bar: what's selected, and buttons for what the mouse and keys
+ * do to it (greyed out when they don't apply, so the bar keeps its size as Dungeondraft's
+ * does). On a phone or tablet only Copy, Paste and Back stay here: BuildSelectionBar has the
+ * rest. Copy stays beside Paste, since without keys it's the only way to copy objects.
+ */
+function SelectOptions(props: {
+  sel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
+  clip: boolean;
+  back: string;
+  act: (a: BuildAction) => void;
+}) {
+  const room = useRoom();
+  const { sel, act } = props;
+  const none = !sel.objects;
+  return (
+    <>
+      <span class="build-sel-status build-sel-more" aria-live="polite">
+        {selectionStatus(sel)}
+      </span>
+      <div class="seg build-sel-more" role="group" aria-label="Turn">
+        <button class="seg-btn" title="Turn left 15° (wheel up, [)" aria-label="Turn left 15°" disabled={none} onClick={() => act("turnLeft")}>
+          <RotateCcw size={14} /> <span class="build-deg">15°</span>
+        </button>
+        <button class="seg-btn" title="Turn right 15° (wheel down, ])" aria-label="Turn right 15°" disabled={none} onClick={() => act("turnRight")}>
+          <RotateCw size={14} /> <span class="build-deg">15°</span>
+        </button>
+        <button class="seg-btn" title="Turn 90° (right-click)" aria-label="Turn 90°" disabled={none} onClick={() => act("turn90")}>
+          <RedoDot size={14} /> <span class="build-deg">90°</span>
+        </button>
+      </div>
+      <div class="seg build-sel-more" role="group" aria-label="Size">
+        <button class="seg-btn" title="Smaller (Alt+wheel)" aria-label="Smaller" disabled={!sel.canShrink} onClick={() => act("smaller")}>
+          <Shrink size={16} />
+        </button>
+        <button class="seg-btn" title="Bigger (Alt+wheel)" aria-label="Bigger" disabled={!sel.canGrow} onClick={() => act("bigger")}>
+          <Expand size={16} />
+        </button>
+      </div>
+      <div class="seg" role="group" aria-label="Edit">
+        <button class="seg-btn build-sel-more" title="Duplicate (Ctrl+D)" aria-label="Duplicate" disabled={none} onClick={() => act("duplicate")}>
+          <CopyPlus size={16} />
+        </button>
+        <button class="seg-btn" title="Copy (Ctrl+C)" aria-label="Copy" disabled={none} onClick={() => act("copy")}>
+          <Copy size={16} />
+        </button>
+        <button
+          class="seg-btn"
+          title="Paste the objects you copied (Ctrl+V also pastes objects copied in another tab or room)"
+          aria-label="Paste"
+          disabled={!props.clip}
+          onClick={() => act("paste")}
+        >
+          <ClipboardPaste size={16} />
+        </button>
+        <button
+          class="seg-btn build-sel-more"
+          title="Delete (Del)"
+          aria-label="Delete"
+          disabled={none && !sel.doors}
+          onClick={() => act("delete")}
+        >
+          <Trash size={16} />
+        </button>
+      </div>
+      <button class="seg-btn wide" title={`Back to ${props.back} (X)`} aria-label={`Back to ${props.back}`} onClick={() => room.toggleBuildSelect()}>
+        <ArrowLeft size={16} /> <span class="seg-label">Back</span>
+      </button>
+    </>
+  );
+}
+
+/**
+ * Build › Select on a phone or tablet (or a narrow window): the selection's buttons in a bar
+ * along the bottom, like the one for tokens, since there's no wheel, right-click or keys.
+ */
+export function BuildSelectionBar() {
+  const room = useRoom();
+  const shown = useRoomState((s) => s.tool === "build" && s.buildOpts.mode === "select" && s.me?.role === "gm");
+  const sel = useRoomState((s) => s.buildSel);
+  const count = sel.objects + sel.doors;
+  if (!shown || !count) return null;
+  const act = (a: BuildAction) => room.board?.buildAction(a);
+  return (
+    <div class="selbar build-selbar" onPointerDown={(e) => e.stopPropagation()}>
+      {sel.objects > 0 && (
+        <>
+          <button class="icon-btn" title="Turn 90°" aria-label="Turn 90°" onClick={() => act("turn90")}>
+            <RedoDot size={18} />
+          </button>
+          <button class="icon-btn" title="Turn 15°" aria-label="Turn 15°" onClick={() => act("turnRight")}>
+            <RotateCw size={18} />
+          </button>
+          <button class="icon-btn" title="Smaller" aria-label="Smaller" disabled={!sel.canShrink} onClick={() => act("smaller")}>
+            <Shrink size={18} />
+          </button>
+          <button class="icon-btn" title="Bigger" aria-label="Bigger" disabled={!sel.canGrow} onClick={() => act("bigger")}>
+            <Expand size={18} />
+          </button>
+          <button class="icon-btn" title="Duplicate" aria-label="Duplicate" onClick={() => act("duplicate")}>
+            <CopyPlus size={18} />
+          </button>
+        </>
+      )}
+      <button class="icon-btn danger" title="Delete" aria-label="Delete" onClick={() => act("delete")}>
+        <Trash size={18} />
+      </button>
+      <button class="icon-btn" title="Select nothing" aria-label={`Select nothing (${count} selected)`} onClick={() => act("deselect")}>
+        <X size={18} />
+        <span class="badge build-selbar-count">{count}</span>
+      </button>
+    </div>
+  );
+}
+
 /** Along the bottom on a computer: what the mouse and keys do in the current Build mode. */
 export function BuildHints() {
   const tool = useRoomState((s) => s.tool);
   const gm = useRoomState((s) => s.me?.role === "gm");
   const o = useRoomState((s) => s.buildOpts);
+  const sel = useRoomState((s) => s.buildSel);
+  const wheel = useRoomState((s) => s.wheelTurns);
   const selected = useRoomState((s) => s.selection.length > 0);
   const hex = useRoomState((s) => {
     const scene = s.viewSceneId ? s.scenes[s.viewSceneId] : null;
@@ -652,8 +825,8 @@ export function BuildHints() {
   if (tool !== "build" || !gm || selected || hex) return null;
   return (
     <div class="build-hints" aria-hidden="true">
-      {buildHints(o).map(([keys, what]) => (
-        <span key={keys}>
+      {buildHints(o, sel, { mac: MAC, wheel, backLabel: backLabel(o.selectReturn) }).map(([keys, what], i) => (
+        <span key={i}>
           <kbd>{keys}</kbd> {what}
         </span>
       ))}

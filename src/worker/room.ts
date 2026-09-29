@@ -65,9 +65,12 @@ function publicPlayer(c: Conn): Player {
 /**
  * Built maps need browser code that knows them: older code (a tab left open over a
  * deploy, a table display especially) would take a chunk for a fog shape and stop
- * drawing the fog. Such tabs don't get terrain, and are asked to reload.
+ * drawing the fog. Such tabs don't get terrain, can't change it, and are asked to reload.
+ * 2: built maps. 3: objects turned in 5° steps and sized in quarter squares. Older code
+ * would draw them wrongly and, worse, write them back without their angle. (The lowest
+ * version that may see terrain: the same as PROTOCOL_VERSION for now, but not bound to it.)
  */
-const TERRAIN_VERSION = 2;
+const TERRAIN_VERSION = 3;
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";
 const OUTDATED = "Tabletop has been updated. Reload this page to get the new version.";
 

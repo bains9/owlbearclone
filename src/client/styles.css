@@ -1764,6 +1764,11 @@ kbd {
   .build-options .seg-label {
     display: none;
   }
+  /* Without their labels the modes and Back need less room, so Back still fits beside Copy
+     and Paste on most phones. */
+  .build-options .seg-btn.wide {
+    padding: 0 7px;
+  }
   .build-options .hint:not(.build-live) {
     display: none;
   }
@@ -1797,6 +1802,117 @@ kbd {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+
+/* The Build tool's Objects: the next object's size and turn, a button each side of a slider. */
+.build-size,
+.build-turn {
+  align-items: center;
+}
+.build-group-label {
+  padding: 0 4px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.build-slider {
+  width: 84px;
+  margin: 0 4px;
+}
+.build-readout {
+  min-width: 34px;
+  padding: 0 4px 0 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+/* Build › Select: what's selected (a fixed width, so the bar doesn't reflow as it changes). */
+.build-sel-status {
+  min-width: 118px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.build-deg {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* Build › Select's own bar along the bottom, for phones, tablets and narrow windows. */
+.selbar.build-selbar {
+  display: none;
+}
+.build-selbar-count {
+  top: -2px;
+  right: -2px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+@media (hover: none), (max-width: 760px) {
+  .selbar.build-selbar {
+    display: flex;
+  }
+  /* The floating bar has these; only Copy, Paste and Back stay in the Build tool's bar. */
+  .build-options .build-sel-more {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  /* Sliders fight the bar's sideways scrolling: the buttons either side of them stay. */
+  .build-slider {
+    display: none;
+  }
+  /* The zoom buttons, down in the corner while a tool's bar is open, move up above the
+     floating bar while it's there, so it doesn't cover them. */
+  .build-selbar ~ .zoom {
+    bottom: 64px;
+  }
+  /* While a tool's bar is open the zoom buttons stand in the bottom corner, so toasts stop
+     short of them rather than covering Zoom in and Zoom out. */
+  .tool-options ~ .toasts {
+    max-width: min(360px, calc(100% - 124px));
+  }
+}
+/* On the narrowest phones (320 px) the floating bar's buttons close up, so all seven fit. */
+@media (max-width: 359px) {
+  .selbar.build-selbar {
+    gap: 3px;
+  }
+  .build-selbar .icon-btn {
+    min-width: 30px;
+    padding: 0 3px;
+  }
+}
+/* On a tablet (or a phone held sideways) the floating bar stays one row in the middle, even
+   beside a side panel. The zoom buttons sit above it, and toasts above those, so nothing
+   covers a button (a tap on a toast only closes the toast). */
+@media (hover: none) and (min-width: 761px) {
+  .selbar.build-selbar {
+    flex-wrap: nowrap;
+    width: max-content;
+    max-width: calc(100% - 20px);
+  }
+  .build-selbar ~ .zoom {
+    bottom: 64px;
+  }
+  .build-selbar ~ .toasts {
+    bottom: 116px;
+  }
+}
+/* The Build tool's modes wrap onto a second row rather than running under a side panel. */
+@media (min-width: 761px) {
+  .build-options .build-modes {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+}
+/* On a short screen (a phone held sideways) the Build tool's bar leaves out its hints and the
+   words beside its icons, as it does on a phone held upright, so beside a side panel it
+   doesn't cover most of the map or run under the zoom buttons. */
+@media (max-height: 520px) {
+  /* (Not the note that a hex scene can't be built on: then it's all the bar has to say.) */
+  .build-options .hint:not(.build-live):not(.hex-note),
+  .build-options .seg-label {
+    display: none;
+  }
 }
 
 .align-grid {

@@ -3,10 +3,28 @@ import { applyOps, inverseOps } from "../src/shared/ops";
 import type { ItemMap } from "../src/shared/ops";
 import { canCreate, canDelete, canPatch, visibleToPlayer } from "../src/shared/permissions";
 import { DEFAULT_SETTINGS, sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
-import { chunkOf, inChunk, looksLikeTerrainId, sceneCells, terrainId } from "../src/shared/terrain";
+import { chunkOf, cleanStamps, inChunk, looksLikeTerrainId, makeStamp, sceneCells, snapDeg, snapSize, stampBlock, stampDeg, terrainId } from "../src/shared/terrain";
 import type { Stamp } from "../src/shared/terrain";
 import type { TerrainItem } from "../src/shared/types";
-import { BuildEdit, BuildModel, buildUndo, cellKey, cycleDoor, edgeKey, setPortal, floorChar, indexTerrain, setWall, wallsFor } from "../src/client/room/build";
+import {
+  BuildEdit,
+  BuildModel,
+  BuildRenderer,
+  buildUndo,
+  cellKey,
+  composeBuildUndo,
+  cycleDoor,
+  edgeKey,
+  setPortal,
+  floorChar,
+  indexTerrain,
+  opsBetween,
+  refOf,
+  setWall,
+  wallsFor,
+} from "../src/client/room/build";
+import type { StampRef } from "../src/client/room/build";
+import { placedOf, shiftGroup, sizeGroup, stampFor, turnGroup } from "../src/client/room/stampGeom";
 
 const SCENE = "Scene1234567";
 const noCells = ".".repeat(256);
@@ -39,6 +57,20 @@ function cellsWith(cells: [number, number, string][]): string {
 function toMap(items: TerrainItem[]): ItemMap {
   return Object.fromEntries(items.map((i) => [i.id, i]));
 }
+
+/** The objects of the chunk at (cx, cy). */
+const stampsIn = (items: ItemMap, cx = 0, cy = 0) => (items[terrainId(SCENE, cx, cy)] as TerrainItem | undefined)?.stamps ?? [];
+/** Refs to the objects at these indexes of the chunk at (cx, cy). */
+const refsTo = (items: ItemMap, cx: number, cy: number, ...is: number[]): StampRef[] =>
+  is.map((i) => refOf({ cx, cy, i, stamp: stampsIn(items, cx, cy)[i] }));
+/** An edit made to items: what the edit call returned, its ops, what it leaves, and its undo. */
+function edit<T>(items: ItemMap, change: (e: BuildEdit) => T) {
+  const e = new BuildEdit(items, SCENE);
+  const result = change(e);
+  const ops = e.ops();
+  return { result, ops, after: applyOps(items, ops), undo: buildUndo(items, SCENE, ops, e.pairs()) };
+}
+const refsOf = (r: unknown) => (r as { refs: StampRef[] }).refs;
 
 describe("terrain ids and chunk maths", () => {
   it("derives one id per scene and place, negative places included", () => {
@@ -115,6 +147,43 @@ describe("terrain validation", () => {
     expect(sanitizeSet(t, { stamps: [["tree", 3, 3, 1, 2]] })).toEqual({ stamps: [["tree", 3, 3, 1, 2]] });
     expect(sanitizeSet(t, { points: [0, 0, 1, 1] })).toBeNull();
     expect(sanitizeSet(t, { x: 5 })).toBeNull();
+  });
+
+  it("keeps objects as they were always written, and ones turned finer or sized in quarters with all they say", () => {
+    const t = sanitizeItem(chunk(0, 0), "@gm")!;
+    const legacy: Stamp[] = [["tree", 3, 3, 1, 2], ["chair", 0, 15, 3, 1], ["bed", 15, 0, 0, 3]];
+    expect(sanitizeSet(t, { stamps: legacy })).toEqual({ stamps: legacy });
+    expect(cleanStamps(legacy)!.map((s) => s.length)).toEqual([5, 5, 5]);
+    const turned: Stamp[] = [["table", 2, 0, 1, 1.5, 15], ["rock", 0, 0, 0, 0.5], ["well", 9, 9, 3, 2.75, 85]];
+    expect(sanitizeSet(t, { stamps: turned })).toEqual({ stamps: turned });
+    expect(sanitizeItem({ ...chunk(0, 0), stamps: turned }, "@gm")).toMatchObject({ stamps: turned });
+  });
+
+  it("refuses objects written any other way, rather than putting them right", () => {
+    const t = sanitizeItem(chunk(0, 0), "@gm")!;
+    const bad: unknown[][] = [
+      // Fine degrees of 0, a whole quarter turn, not a multiple of 5, below 0, or missing.
+      ["table", 2, 0, 1, 1.5, 0],
+      ["table", 2, 0, 1, 1.5, 90],
+      ["table", 2, 0, 1, 1.5, 7],
+      ["table", 2, 0, 1, 1.5, -5],
+      ["table", 2, 0, 1, 1.5, null],
+      ["table", 2, 0, 1, 1.5, "15"],
+      // Sizes that aren't quarter squares from half a square to 3.
+      ["table", 2, 0, 1, 0.25],
+      ["table", 2, 0, 1, 3.25],
+      ["table", 2, 0, 1, 1.1],
+      ["table", 2, 0, 1, "1"],
+      ["table", 2, 0, 1, Infinity],
+      // Too short, too long, too many quarter turns.
+      ["table", 2, 0, 1],
+      ["table", 2, 0, 1, 1, 15, 0],
+      ["table", 2, 0, 4, 1],
+    ];
+    for (const s of bad) {
+      expect(sanitizeSet(t, { stamps: [s] as never }), JSON.stringify(s)).toBeNull();
+      expect(cleanStamps([["rock", 0, 0, 0, 1], s]), JSON.stringify(s)).toBeUndefined();
+    }
   });
 });
 
@@ -286,15 +355,18 @@ describe("build edits", () => {
     expect(ops.patch?.find((p) => p.id === terrainId(SCENE, 0, 0))?.set.stamps).toEqual([]);
   });
 
-  it("a click on an object turns it; removing takes the top one", () => {
+  it("turns the object on top at a square where it is; removing takes the top one", () => {
     const items = toMap([chunk(0, 0, { stamps: [["chair", 2, 2, 3, 1], ["table", 2, 2, 0, 2]] })]);
+    const m = new BuildModel();
+    m.index = indexTerrain(Object.values(items) as TerrainItem[]);
+    const top = m.stampAt(3, 3)!;
     const e = new BuildEdit(items, SCENE);
-    expect(e.rotateStampAt(3, 3)).toBe(true);
+    expect(e.place([refOf(top)], [{ ...placedOf(top.cx, top.cy, top.stamp), deg: 90 }]).ok).toBe(true);
     expect(e.ops().patch![0].set.stamps).toEqual([["chair", 2, 2, 3, 1], ["table", 2, 2, 1, 2]]);
     const e2 = new BuildEdit(items, SCENE);
     expect(e2.removeStampAt(2, 2)).toBe(true);
     expect(e2.ops().patch![0].set.stamps).toEqual([["chair", 2, 2, 3, 1]]);
-    expect(new BuildEdit(items, SCENE).rotateStampAt(9, 9)).toBe(false);
+    expect(m.stampAt(9, 9)).toBeNull();
   });
 
   it("a chunk holds at most 64 objects", () => {
@@ -431,31 +503,37 @@ describe("door styles (the Portal tool)", () => {
 });
 
 describe("moving objects", () => {
-  it("moves the top object across a chunk border, as one step that undoes", () => {
+  const moved = (items: ItemMap, i: number, col: number, row: number) => ({ ...placedOf(0, 0, stampsIn(items)[i]), col, row });
+
+  it("moves an object across a chunk border, as one step that undoes", () => {
     const items = toMap([chunk(0, 0, { stamps: [["table", 14, 3, 1, 2]] })]);
-    const e = new BuildEdit(items, SCENE);
-    expect(e.moveStamp(15, 4, 17, 3)).toBe(true);
-    const ops = e.ops();
-    const after = applyOps(items, ops);
-    expect((after[terrainId(SCENE, 0, 0)] as TerrainItem | undefined)?.stamps ?? []).toEqual([]);
-    expect((after[terrainId(SCENE, 1, 0)] as TerrainItem).stamps).toEqual([["table", 1, 3, 1, 2]]);
-    const undo = buildUndo(items, SCENE, ops);
-    const back = applyOps(after, undo.undo(after));
-    expect((back[terrainId(SCENE, 0, 0)] as TerrainItem).stamps).toEqual([["table", 14, 3, 1, 2]]);
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), [moved(items, 0, 17, 3)]));
+    expect(t.result.ok).toBe(true);
+    expect(stampsIn(t.after)).toEqual([]);
+    expect(stampsIn(t.after, 1, 0)).toEqual([["table", 1, 3, 1, 2]]);
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    expect(stampsIn(back)).toEqual([["table", 14, 3, 1, 2]]);
     expect(back[terrainId(SCENE, 1, 0)]).toBeUndefined();
   });
 
   it("does nothing when dropped where it was, or where there's nothing to move", () => {
     const items = toMap([chunk(0, 0, { stamps: [["chair", 2, 2, 0, 1]] })]);
-    expect(new BuildEdit(items, SCENE).moveStamp(2, 2, 2, 2)).toBe(false);
-    expect(new BuildEdit(items, SCENE).moveStamp(9, 9, 3, 3)).toBe(false);
+    const still = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), [moved(items, 0, 2, 2)]));
+    expect(still.result).toEqual({ ok: true, refs: refsTo(items, 0, 0, 0) });
+    expect(still.ops).toEqual({});
+    const m = new BuildModel();
+    m.index = indexTerrain(Object.values(items) as TerrainItem[]);
+    expect(m.stampAt(9, 9)).toBeNull();
   });
 
-  it("moves only the object picked up, not whatever is there now", () => {
+  it("moves only the object picked up: one that's no longer as it was is left out", () => {
     const items = toMap([chunk(0, 0, { stamps: [["table", 2, 2, 0, 2]] })]);
     // The chair that was picked up has gone (undone meanwhile): the table under it stays put.
-    expect(new BuildEdit(items, SCENE).moveStamp(2, 2, 6, 6, ["chair", 2, 2, 0, 1])).toBe(false);
-    expect(new BuildEdit(items, SCENE).moveStamp(2, 2, 6, 6, ["table", 2, 2, 0, 2])).toBe(true);
+    const chair = refOf({ cx: 0, cy: 0, i: 0, stamp: ["chair", 2, 2, 0, 1] });
+    const e = new BuildEdit(items, SCENE);
+    expect(e.place([chair], [{ id: "chair", col: 6, row: 6, deg: 0, size: 1 }])).toEqual({ ok: false, reason: "gone" });
+    expect(e.ops()).toEqual({});
+    expect(edit(items, (e) => e.place(refsTo(items, 0, 0, 0), [moved(items, 0, 6, 6)])).result.ok).toBe(true);
   });
 });
 
@@ -469,7 +547,7 @@ describe("undo of build steps", () => {
     const e = new BuildEdit(items, SCENE);
     change(e);
     const ops = e.ops();
-    return { ops, after: applyOps(items, ops), undo: buildUndo(items, SCENE, ops) };
+    return { ops, after: applyOps(items, ops), undo: buildUndo(items, SCENE, ops, e.pairs()) };
   };
 
   it("undoing a step never wipes what another tab built since in the same chunk", () => {
@@ -520,7 +598,8 @@ describe("undo of build steps", () => {
       return e.ops();
     })());
     const stamps = (items: ItemMap) => (items[terrainId(SCENE, 0, 0)] as TerrainItem).stamps;
-    const turn = step(base, (e) => e.rotateStampAt(2, 2));
+    const turnTable = (e: BuildEdit) => e.place(refsTo(base, 0, 0, 0), [{ ...placedOf(0, 0, stamps(base)[0]), deg: 90 }]);
+    const turn = step(base, turnTable);
     expect(stamps(turn.after)[0]).toEqual(["table", 2, 2, 1, 2]);
     expect(stamps(applyOps(turn.after, turn.undo.undo(turn.after)))).toEqual([["table", 2, 2, 0, 2], ["chair", 3, 3, 0, 1]]);
     const erase = step(base, (e) => e.erase(2, 2));
@@ -529,6 +608,11 @@ describe("undo of build steps", () => {
     // Turned again in another tab since: undo leaves it, rather than adding a second table.
     const again = applyOps(turn.after, { patch: [{ id: terrainId(SCENE, 0, 0), set: { stamps: [["table", 2, 2, 2, 2], ["chair", 3, 3, 0, 1]] } }] });
     expect(stamps(applyOps(again, turn.undo.undo(again)))).toEqual([["table", 2, 2, 2, 2], ["chair", 3, 3, 0, 1]]);
+    // A step that doesn't say what it moved (made before pairs were kept) still undoes the
+    // same way: the objects are matched up by what they are.
+    const unpaired = buildUndo(base, SCENE, turn.ops);
+    expect(stamps(applyOps(turn.after, unpaired.undo(turn.after)))).toEqual([["table", 2, 2, 0, 2], ["chair", 3, 3, 0, 1]]);
+    expect(stamps(applyOps(again, unpaired.undo(again)))).toEqual([["table", 2, 2, 2, 2], ["chair", 3, 3, 0, 1]]);
   });
 
   it("brings back an erased chunk, and a removed secret door, without duplicating objects", () => {
@@ -574,5 +658,475 @@ describe("floor painting", () => {
     expect(floorChar("s", true)).toBe("s");
     expect(floorChar("s", false)).toBe("S");
     expect(floorChar("g", false)).toBe("g");
+  });
+});
+
+describe("objects at any angle and size", () => {
+  it("are written one way only: the fine degrees only when there are some", () => {
+    for (let deg = 0; deg < 360; deg += 5) {
+      for (let size = 0.5; size <= 3; size += 0.25) {
+        const s = makeStamp("table", 3, 4, deg, size);
+        expect(stampDeg(s)).toBe(deg);
+        expect(s[4]).toBe(size);
+        expect(s).toHaveLength(deg % 90 ? 6 : 5);
+        // And the server takes it just as it is.
+        expect(cleanStamps([s])).toEqual([s]);
+      }
+    }
+    expect(makeStamp("table", 3, 4, 105, 1.5)).toEqual(["table", 3, 4, 1, 1.5, 15]);
+    expect(makeStamp("table", 3, 4, -90, 1.1)).toEqual(["table", 3, 4, 3, 1]);
+  });
+
+  it("stand on 1, 2 or 3 squares, and snap to 5 degrees and quarter squares", () => {
+    expect([0.5, 1.25, 1.5, 2.25, 2.5, 3].map(stampBlock)).toEqual([1, 1, 2, 2, 3, 3]);
+    expect([snapDeg(-15), snapDeg(362), snapDeg(357.6), snapDeg(-0), snapDeg(720)]).toEqual([345, 0, 0, 0, 0]);
+    expect([snapSize(0.3), snapSize(1.1), snapSize(1.2), snapSize(3.4)]).toEqual([0.5, 1, 1.25, 3]);
+  });
+});
+
+describe("moving, turning and sizing objects", () => {
+  const base = toMap([chunk(0, 0, { stamps: [["chair", 2, 2, 0, 1], ["table", 2, 2, 0, 2], ["rock", 9, 9, 0, 1]] })]);
+  const placed = (items: ItemMap, cx: number, cy: number, i: number) => placedOf(cx, cy, stampsIn(items, cx, cy)[i]);
+  const scene = { c0: 0, r0: 0, c1: 63, r1: 63 };
+
+  it("turns an object where it is in the drawing order, and undoes it", () => {
+    const t = edit(base, (e) => e.place(refsTo(base, 0, 0, 1), [{ ...placed(base, 0, 0, 1), deg: 15 }]));
+    expect(stampsIn(t.after)).toEqual([["chair", 2, 2, 0, 1], ["table", 2, 2, 0, 2, 15], ["rock", 9, 9, 0, 1]]);
+    expect(t.result).toEqual({ ok: true, refs: [{ cx: 0, cy: 0, i: 1, key: "table,2,2,0,2,15" }] });
+    expect(t.ops.patch).toHaveLength(1);
+    expect(stampsIn(applyOps(t.after, t.undo.undo(t.after)))).toEqual(stampsIn(base));
+  });
+
+  it("sizes an object about its middle", () => {
+    const bigger = sizeGroup([placed(base, 0, 0, 0)], 0.5, scene);
+    const t = edit(base, (e) => e.place(refsTo(base, 0, 0, 0), bigger));
+    expect(stampsIn(t.after)[0]).toEqual(["chair", 1, 1, 0, 1.5]);
+    const back = edit(t.after, (e) => e.place(refsOf(t.result), sizeGroup(bigger, -0.5, scene)));
+    expect(stampsIn(back.after)).toEqual(stampsIn(base));
+  });
+
+  it("moves an object across a chunk border as one step that undoes, on top in its new chunk", () => {
+    const items = toMap([chunk(0, 0, { stamps: [["table", 14, 3, 1, 2, 15]] }), chunk(1, 0, { stamps: [["rock", 5, 5, 0, 1]] })]);
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 3, 0, scene)));
+    expect(t.after[terrainId(SCENE, 0, 0)]).toBeUndefined();
+    expect(stampsIn(t.after, 1, 0)).toEqual([["rock", 5, 5, 0, 1], ["table", 1, 3, 1, 2, 15]]);
+    expect(t.result).toEqual({ ok: true, refs: [{ cx: 1, cy: 0, i: 1, key: "table,1,3,1,2,15" }] });
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    expect(stampsIn(back)).toEqual([["table", 14, 3, 1, 2, 15]]);
+    expect(stampsIn(back, 1, 0)).toEqual([["rock", 5, 5, 0, 1]]);
+  });
+
+  it("keeps what it did to each object, for undo", () => {
+    const e = new BuildEdit(base, SCENE);
+    e.place(refsTo(base, 0, 0, 0, 2), [{ ...placed(base, 0, 0, 0), col: 20 }, { ...placed(base, 0, 0, 2), deg: 90 }]);
+    expect(e.pairs()).toEqual([
+      { from: { cx: 0, cy: 0, i: 0, stamp: ["chair", 2, 2, 0, 1] }, to: { cx: 1, cy: 0, i: 0, stamp: ["chair", 4, 2, 0, 1] } },
+      { from: { cx: 0, cy: 0, i: 2, stamp: ["rock", 9, 9, 0, 1] }, to: { cx: 0, cy: 0, i: 1, stamp: ["rock", 9, 9, 1, 1] } },
+    ]);
+    expect(new BuildEdit(base, SCENE).pairs()).toEqual([]);
+  });
+
+  it("moves objects in three chunks as one step, and undo puts them all back", () => {
+    const items = toMap([
+      chunk(0, 0, { stamps: [["chair", 15, 15, 0, 1], ["bed", 3, 3, 0, 2]] }),
+      chunk(1, 0, { stamps: [["chair", 0, 15, 2, 1]] }),
+      chunk(0, 1, { stamps: [["table", 15, 0, 0, 1, 45]] }),
+    ]);
+    const refs = [...refsTo(items, 0, 0, 0), ...refsTo(items, 1, 0, 0), ...refsTo(items, 0, 1, 0)];
+    const ps = [placed(items, 0, 0, 0), placed(items, 1, 0, 0), placed(items, 0, 1, 0)];
+    const t = edit(items, (e) => e.place(refs, shiftGroup(ps, 1, 1, scene)));
+    expect(stampsIn(t.after)).toEqual([["bed", 3, 3, 0, 2]]);
+    expect(t.after[terrainId(SCENE, 1, 0)]).toBeUndefined();
+    expect(t.after[terrainId(SCENE, 0, 1)]).toBeUndefined();
+    expect(stampsIn(t.after, 1, 1)).toEqual([["chair", 0, 0, 0, 1], ["chair", 1, 0, 2, 1], ["table", 0, 1, 0, 1, 45]]);
+    // What it returns finds the objects where they now are.
+    const m = new BuildModel();
+    m.index = indexTerrain(Object.values(t.after) as TerrainItem[]);
+    expect(m.resolve(refsOf(t.result)).refs).toEqual(refsOf(t.result));
+    expect(m.resolve(refsOf(t.result)).hits.map((h) => placedOf(h.cx, h.cy, h.stamp))).toEqual(shiftGroup(ps, 1, 1, scene));
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    for (const id of Object.keys(items)) expect((back[id] as TerrainItem).stamps).toEqual((items[id] as TerrainItem).stamps);
+    expect(back[terrainId(SCENE, 1, 1)]).toBeUndefined();
+    const again = applyOps(back, t.undo.redo(back));
+    expect(stampsIn(again, 1, 1)).toEqual(stampsIn(t.after, 1, 1));
+  });
+
+  it("turns a group as a whole, as one step", () => {
+    const items = toMap([chunk(0, 0, { stamps: [["chair", 4, 5, 0, 1], ["table", 5, 5, 0, 2], ["chair", 7, 5, 0, 1]] })]);
+    const ps = [0, 1, 2].map((i) => placed(items, 0, 0, i));
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0, 1, 2), turnGroup(ps, 90, scene)));
+    expect(stampsIn(t.after)).toEqual([["chair", 6, 4, 1, 1], ["table", 5, 5, 1, 2], ["chair", 6, 7, 1, 1]]);
+    expect(stampsIn(applyOps(t.after, t.undo.undo(t.after)))).toEqual(stampsIn(items));
+  });
+
+  it("changes nothing if a chunk would hold too many, however the objects come and go", () => {
+    const full: Stamp[] = Array.from({ length: 64 }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
+    const items = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] }), chunk(1, 0, { stamps: full })]);
+    const into = new BuildEdit(items, SCENE);
+    expect(into.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 1, 0, scene))).toEqual({ ok: false, reason: "full" });
+    expect(into.ops()).toEqual({});
+    expect(into.pairs()).toEqual([]);
+    // Within the full chunk, or one out as another comes in, it's fine.
+    expect(edit(items, (e) => e.place(refsTo(items, 1, 0, 5), [{ ...placed(items, 1, 0, 5), deg: 90 }])).result.ok).toBe(true);
+    const swap = edit(items, (e) =>
+      e.place([...refsTo(items, 0, 0, 0), ...refsTo(items, 1, 0, 0)], [{ ...placed(items, 0, 0, 0), col: 20 }, { ...placed(items, 1, 0, 0), col: 3 }]),
+    );
+    expect(swap.result.ok).toBe(true);
+    expect(stampsIn(swap.after, 1, 0)).toHaveLength(64);
+  });
+
+  it("skips objects that have gone, does nothing if they all have, and nothing for no change", () => {
+    const gone = refOf({ cx: 0, cy: 0, i: 0, stamp: ["bed", 2, 2, 0, 1] });
+    expect(new BuildEdit(base, SCENE).place([gone], [placed(base, 0, 0, 0)])).toEqual({ ok: false, reason: "gone" });
+    // A chair picked up has gone (undone meanwhile): the other object picked up still moves.
+    const one = edit(base, (e) => e.place([gone, ...refsTo(base, 0, 0, 2)], [{ ...placed(base, 0, 0, 0), col: 12 }, { ...placed(base, 0, 0, 2), col: 10 }]));
+    expect(stampsIn(one.after)).toEqual([["chair", 2, 2, 0, 1], ["table", 2, 2, 0, 2], ["rock", 10, 9, 0, 1]]);
+    expect(refsOf(one.result)).toEqual([{ cx: 0, cy: 0, i: 2, key: "rock,10,9,0,1" }]);
+    const same = edit(base, (e) => e.place(refsTo(base, 0, 0, 0, 2), [placed(base, 0, 0, 0), placed(base, 0, 0, 2)]));
+    expect(same.result).toEqual({ ok: true, refs: refsTo(base, 0, 0, 0, 2) });
+    expect(same.ops).toEqual({});
+    expect(() => new BuildEdit(base, SCENE).place(refsTo(base, 0, 0, 0), [])).toThrow();
+  });
+
+  it("keeps the places of the rest when one before them leaves the chunk", () => {
+    const t = edit(base, (e) => e.place(refsTo(base, 0, 0, 0, 2), [{ ...placed(base, 0, 0, 0), col: 20 }, { ...placed(base, 0, 0, 2), deg: 90 }]));
+    expect(stampsIn(t.after)).toEqual([["table", 2, 2, 0, 2], ["rock", 9, 9, 1, 1]]);
+    expect(refsOf(t.result).map((r) => [r.cx, r.i])).toEqual([[1, 0], [0, 1]]);
+    expect(stampsIn(applyOps(t.after, t.undo.undo(t.after)))).toEqual(stampsIn(base));
+  });
+
+  /** The object drawn on top at a point (in cells) in these items. */
+  const topAt = (items: ItemMap, u: number, v: number) => {
+    const m = new BuildModel();
+    m.index = indexTerrain(Object.values(items) as TerrainItem[]);
+    return m.stampAtPoint(u, v, 0)?.stamp[0];
+  };
+
+  it("keeps a group stacked as it was across a chunk border, whatever order it was picked in", () => {
+    // A chair on a 2-square table, picked chair first (clicked, then the table Shift+clicked),
+    // moved 6 squares right into the next chunk.
+    const items = toMap([chunk(0, 0, { stamps: [["table", 12, 4, 0, 2], ["chair", 13, 4, 0, 1]] })]);
+    const ps = [placed(items, 0, 0, 1), placed(items, 0, 0, 0)];
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 1, 0), shiftGroup(ps, 6, 0, scene)));
+    expect(stampsIn(t.after, 1, 0)).toEqual([["table", 2, 4, 0, 2], ["chair", 3, 4, 0, 1]]);
+    expect(topAt(t.after, 19.5, 4.5)).toBe("chair");
+    // What it returns is in the order given, where each now is.
+    expect(refsOf(t.result)).toEqual([
+      { cx: 1, cy: 0, i: 1, key: "chair,3,4,0,1" },
+      { cx: 1, cy: 0, i: 0, key: "table,2,4,0,2" },
+    ]);
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    expect(stampsIn(back)).toEqual(stampsIn(items));
+    expect(back[terrainId(SCENE, 1, 0)]).toBeUndefined();
+    expect(stampsIn(applyOps(back, t.undo.redo(back)), 1, 0)).toEqual(stampsIn(t.after, 1, 0));
+  });
+
+  it("and when part of it comes into a chunk under one of it that was already there", () => {
+    // A 3-square table just before a chunk border, and a chair on it just past the border,
+    // between two other objects: nudged 2 squares right, the table comes into the chair's chunk.
+    const items = toMap([
+      chunk(0, 0, { stamps: [["table", 14, 4, 0, 3]] }),
+      chunk(1, 0, { stamps: [["rock", 9, 9, 0, 1], ["chair", 0, 5, 0, 1], ["crate", 9, 12, 0, 1]] }),
+    ]);
+    const ps = [placed(items, 0, 0, 0), placed(items, 1, 0, 1)];
+    const t = edit(items, (e) => e.place([...refsTo(items, 0, 0, 0), ...refsTo(items, 1, 0, 1)], shiftGroup(ps, 2, 0, scene)));
+    expect(stampsIn(t.after, 1, 0)).toEqual([["rock", 9, 9, 0, 1], ["table", 0, 4, 0, 3], ["chair", 2, 5, 0, 1], ["crate", 9, 12, 0, 1]]);
+    expect(topAt(t.after, 18.5, 5.5)).toBe("chair");
+    expect(refsOf(t.result).map((r) => [r.cx, r.i])).toEqual([[1, 1], [1, 2]]);
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    for (const id of Object.keys(items)) expect((back[id] as TerrainItem).stamps).toEqual((items[id] as TerrainItem).stamps);
+    const again = applyOps(back, t.undo.redo(back));
+    expect(stampsIn(again, 1, 0)).toEqual(stampsIn(t.after, 1, 0));
+    expect(again[terrainId(SCENE, 0, 0)]).toBeUndefined();
+  });
+});
+
+describe("placing and deleting objects", () => {
+  const P = (col: number, row: number, deg = 0, size = 1) => ({ id: "chair" as const, col, row, deg, size });
+
+  it("won't put one exactly on top of the same, though it will on top of another", () => {
+    const one = edit({}, (e) => e.addPlaced(P(3, 3, 15, 1.5)));
+    expect(one.result).toEqual({ ok: true, refs: [{ cx: 0, cy: 0, i: 0, key: "chair,3,3,0,1.5,15" }] });
+    expect(new BuildEdit(one.after, SCENE).addPlaced(P(3, 3, 15, 1.5))).toEqual({ ok: false, reason: "same" });
+    expect(edit(one.after, (e) => e.addPlaced(P(3, 3, 20, 1.5))).result.ok).toBe(true);
+    expect(edit(one.after, (e) => e.addPlaced(P(3, 3, 15, 1.25))).result.ok).toBe(true);
+    // (Adding the raw way still stacks them.)
+    expect(new BuildEdit(one.after, SCENE).addStamp("chair", 3, 3, 0, 1.5)).toBe(true);
+  });
+
+  it("places a group in its order, all of it or none", () => {
+    const t = edit({}, (e) => e.addGroup([P(15, 2), P(16, 2, 90), P(15, 2)]));
+    expect(stampsIn(t.after)).toEqual([["chair", 15, 2, 0, 1], ["chair", 15, 2, 0, 1]]);
+    expect(stampsIn(t.after, 1, 0)).toEqual([["chair", 0, 2, 1, 1]]);
+    expect(refsOf(t.result).map((r) => [r.cx, r.i])).toEqual([[0, 0], [1, 0], [0, 1]]);
+    expect(new BuildEdit(t.after, SCENE).addGroup([P(1, 1), P(16, 2, 90)])).toEqual({ ok: false, reason: "same" });
+    const nearlyFull = toMap([chunk(1, 0, { stamps: Array.from({ length: 63 }, (_, i): Stamp => ["rock", i % 16, Math.floor(i / 16), 0, 1]) })]);
+    const e = new BuildEdit(nearlyFull, SCENE);
+    expect(e.addGroup([P(1, 1), P(17, 5), P(18, 5)])).toEqual({ ok: false, reason: "full" });
+    expect(e.ops()).toEqual({});
+    expect(edit(nearlyFull, (e) => e.addGroup([P(1, 1), P(17, 5)])).result.ok).toBe(true);
+  });
+
+  it("takes away the objects picked, if they're still there", () => {
+    const items = toMap([
+      chunk(0, 0, { stamps: [["chair", 1, 1, 0, 1], ["table", 2, 2, 0, 2], ["rock", 9, 9, 0, 1]] }),
+      chunk(1, 0, { stamps: [["bed", 0, 0, 0, 2]] }),
+    ]);
+    const stale = refOf({ cx: 0, cy: 0, i: 1, stamp: ["crate", 2, 2, 0, 2] });
+    const t = edit(items, (e) => e.removeRefs([...refsTo(items, 0, 0, 0, 2), ...refsTo(items, 1, 0, 0), stale]));
+    expect(t.result).toBe(3);
+    expect(stampsIn(t.after)).toEqual([["table", 2, 2, 0, 2]]);
+    expect(t.after[terrainId(SCENE, 1, 0)]).toBeUndefined();
+    const back = applyOps(t.after, t.undo.undo(t.after));
+    expect(stampsIn(back)).toEqual(stampsIn(items));
+    expect(stampsIn(back, 1, 0)).toEqual(stampsIn(items, 1, 0));
+  });
+});
+
+describe("taking doors away", () => {
+  // A stone cell at (1,1): its top edge (index 34) has an automatic wall.
+  const room = () => toMap([chunk(0, 0, { cells: cellsWith([[1, 1, "s"]]) })]);
+  const apply = (items: ItemMap, change: (e: BuildEdit) => void) => {
+    const e = new BuildEdit(items, SCENE);
+    change(e);
+    return applyOps(items, e.ops());
+  };
+  const edges = (items: ItemMap, ...is: number[]) => is.map((i) => (items[terrainId(SCENE, 0, 0)] as TerrainItem).edges[i]);
+  const at = (col: number, row: number) => (row * 16 + col) * 2;
+
+  it("leaves what was there before each door: the wall it was cut into, or nothing", () => {
+    // In an automatic wall, in a hand-drawn one, and on a bare line.
+    let items = apply(room(), (e) => {
+      setPortal(e, 1, 1, "t", "door");
+      setWall(e, 6, 6, "t", "add");
+      setPortal(e, 8, 8, "t", "door");
+    });
+    items = apply(items, (e) => setPortal(e, 6, 6, "t", "door"));
+    expect(edges(items, at(1, 1), at(6, 6), at(8, 8))).toEqual(["d", "D", "d"]);
+    let n = 0;
+    items = apply(items, (e) => {
+      n = e.removeDoors([{ col: 1, row: 1, side: "t" }, { col: 6, row: 6, side: "t" }, { col: 8, row: 8, side: "t" }]);
+    });
+    expect(n).toBe(3);
+    expect(edges(items, at(1, 1), at(6, 6), at(8, 8))).toEqual([".", "w", "."]);
+  });
+
+  it("takes a secret door away, leaving the wall players always saw", () => {
+    const items = apply(room(), (e) => setPortal(e, 1, 1, "t", "secret"));
+    const marker = Object.values(items).find((t) => t.kind === "terrain" && t.hidden)!;
+    const e = new BuildEdit(items, SCENE);
+    expect(e.removeDoors([{ col: 1, row: 1, side: "t" }])).toBe(1);
+    expect(e.ops()).toEqual({ delete: [marker.id] });
+  });
+
+  it("takes one of two secret doors in a chunk away, keeping the other", () => {
+    const items = apply(room(), (e) => {
+      setPortal(e, 1, 1, "t", "secret");
+      setPortal(e, 1, 1, "l", "secret");
+    });
+    const marker = Object.values(items).find((t) => t.kind === "terrain" && t.hidden)!;
+    const e = new BuildEdit(items, SCENE);
+    expect(e.removeDoors([{ col: 1, row: 1, side: "t" }])).toBe(1);
+    expect(e.ops()).toEqual({ patch: [{ id: marker.id, set: { edges: ".".repeat(35) + "s" + ".".repeat(476) } }] });
+  });
+
+  it("skips openings, walls, lines with nothing on them, and a door listed twice", () => {
+    const items = apply(room(), (e) => {
+      setPortal(e, 1, 1, "t", "open");
+      setPortal(e, 5, 5, "t", "door");
+    });
+    const e = new BuildEdit(items, SCENE);
+    const door = { col: 5, row: 5, side: "t" as const };
+    expect(e.removeDoors([{ col: 1, row: 1, side: "t" }, { col: 1, row: 1, side: "l" }, { col: 9, row: 9, side: "t" }, door, door])).toBe(1);
+    expect(e.ops().patch).toHaveLength(1);
+  });
+});
+
+describe("undo steps made of several", () => {
+  const base = toMap([chunk(0, 0, { stamps: [["table", 2, 2, 0, 2], ["chair", 9, 9, 0, 1]] })]);
+  const turn = (items: ItemMap, i: number, deg: number) => edit(items, (e) => e.place(refsTo(items, 0, 0, i), [{ ...placedOf(0, 0, stampsIn(items)[i]), deg }]));
+
+  it("undoes two turns in one, and redoes them", () => {
+    const a = turn(base, 0, 15);
+    const b = turn(a.after, 0, 30);
+    const both = composeBuildUndo(a.undo, b.undo);
+    const back = applyOps(b.after, both.undo(b.after));
+    expect(stampsIn(back)).toEqual(stampsIn(base));
+    expect(stampsIn(applyOps(back, both.redo(back)))).toEqual(stampsIn(b.after));
+  });
+
+  it("leaves alone what another tab changed in between", () => {
+    const a = turn(base, 0, 15);
+    // Another tab turns the chair.
+    const b = turn(turn(a.after, 1, 90).after, 0, 30);
+    const both = composeBuildUndo(a.undo, b.undo);
+    const ops = both.undo(b.after);
+    const back = applyOps(b.after, ops);
+    expect(stampsIn(back)).toEqual([["table", 2, 2, 0, 2], ["chair", 9, 9, 1, 1]]);
+    // Just the one chunk, and only its objects.
+    expect(ops).toEqual({ patch: [{ id: terrainId(SCENE, 0, 0), set: { stamps: stampsIn(back) } }] });
+    expect(stampsIn(applyOps(back, both.redo(back)))).toEqual(stampsIn(b.after));
+    // Three in a row, the way repeated steps are folded together.
+    const c = turn(b.after, 0, 45);
+    const three = composeBuildUndo(both, c.undo);
+    expect(stampsIn(applyOps(c.after, three.undo(c.after)))).toEqual([["table", 2, 2, 0, 2], ["chair", 9, 9, 1, 1]]);
+  });
+
+  it("works out the operations between two states: deleted, added, and only what changed", () => {
+    const secret = { ...chunk(0, 0), id: "AaaaaaaaaaaA", hidden: true, edges: "s" + noEdges.slice(1) };
+    const moved = { ...secret, id: "BbbbbbbbbbbB" };
+    const now = toMap([chunk(0, 0, { cells: cellsWith([[1, 1, "s"]]), stamps: [["rock", 1, 1, 0, 1]] }), chunk(1, 0), secret]);
+    const final = toMap([chunk(0, 0, { cells: cellsWith([[1, 1, "s"]]), stamps: [["rock", 1, 1, 0, 1, 15]] }), chunk(0, 1), moved]);
+    const ops = opsBetween(now, final, [...Object.keys(now), ...Object.keys(final), terrainId(SCENE, 5, 5)]);
+    expect(ops).toEqual({
+      upsert: [final[terrainId(SCENE, 0, 1)], moved],
+      patch: [{ id: terrainId(SCENE, 0, 0), set: { stamps: [["rock", 1, 1, 0, 1, 15]] } }],
+      delete: [terrainId(SCENE, 1, 0), secret.id],
+    });
+    expect(applyOps(now, ops)).toEqual(final);
+    expect(opsBetween(now, { ...now }, Object.keys(now))).toEqual({});
+  });
+});
+
+describe("objects that differ only by their fine degrees", () => {
+  it("are told apart, whichever way round", () => {
+    const fine = toMap([chunk(0, 0, { stamps: [["table", 2, 2, 0, 1, 15]] })]);
+    const plain = toMap([chunk(0, 0, { stamps: [["table", 2, 2, 0, 1]] })]);
+    for (const [from, to, deg] of [[fine, plain, 0], [plain, fine, 15]] as const) {
+      const t = edit(from, (e) => e.place(refsTo(from, 0, 0, 0), [{ ...placedOf(0, 0, stampsIn(from)[0]), deg }]));
+      expect(t.ops).toEqual({ patch: [{ id: terrainId(SCENE, 0, 0), set: { stamps: stampsIn(to) } }] });
+      const r = new BuildRenderer();
+      r.update(Object.values(from) as TerrainItem[]);
+      const dirty = (r as unknown as { paintDirty: Set<number> }).paintDirty;
+      dirty.clear();
+      expect(r.update(Object.values(to) as TerrainItem[])).toBe(true);
+      expect(dirty.size).toBe(1);
+    }
+  });
+});
+
+describe("undoing moves, turns and size changes while another tab builds too", () => {
+  const scene = { c0: -100, r0: -100, c1: 100, r1: 100 };
+  const placed = (items: ItemMap, cx: number, cy: number, i: number) => placedOf(cx, cy, stampsIn(items, cx, cy)[i]);
+  const base = toMap([chunk(0, 0, { stamps: [["chair", 2, 2, 0, 1], ["table", 4, 4, 0, 2], ["rock", 9, 9, 0, 1]] })]);
+
+  it("puts back a turn, a finer turn or a new size where the object was in the drawing order, and redoes it", () => {
+    const table = placed(base, 0, 0, 1);
+    for (const next of [{ ...table, deg: 90 }, { ...table, deg: 105 }, sizeGroup([table], 0.75, scene)[0], sizeGroup([table], -1.5, scene)[0]]) {
+      const t = edit(base, (e) => e.place(refsTo(base, 0, 0, 1), [next]));
+      expect(stampsIn(t.after)[1]).toEqual(stampFor(next).stamp);
+      const back = applyOps(t.after, t.undo.undo(t.after));
+      expect(stampsIn(back)).toEqual(stampsIn(base));
+      expect(stampsIn(applyOps(back, t.undo.redo(back)))).toEqual(stampsIn(t.after));
+    }
+  });
+
+  it("puts one back under what it was under, when another tab has taken away an object before it", () => {
+    // A chair on a 3-square table, after a chest and a crate.
+    const set = toMap([chunk(0, 0, { stamps: [["chest", 1, 1, 0, 1], ["crate", 2, 1, 0, 1], ["table", 4, 4, 0, 3], ["chair", 5, 5, 0, 1]] })]);
+    const table = placed(set, 0, 0, 2);
+    const chestGone = (items: ItemMap) => edit(items, (e) => e.removeRefs(refsTo(items, 0, 0, 0))).after;
+    // Turned; then the chest deleted in another tab.
+    const turn = edit(set, (e) => e.place(refsTo(set, 0, 0, 2), [{ ...table, deg: 15 }]));
+    const turned = chestGone(turn.after);
+    const back = applyOps(turned, turn.undo.undo(turned));
+    expect(stampsIn(back)).toEqual([["crate", 2, 1, 0, 1], ["table", 4, 4, 0, 3], ["chair", 5, 5, 0, 1]]);
+    expect(stampsIn(applyOps(back, turn.undo.redo(back)))).toEqual([["crate", 2, 1, 0, 1], ["table", 4, 4, 0, 3, 15], ["chair", 5, 5, 0, 1]]);
+    // Moved into the next chunk and back, the same.
+    const move = edit(set, (e) => e.place(refsTo(set, 0, 0, 2), [{ ...table, col: 20 }]));
+    const moved = chestGone(move.after);
+    const undone = applyOps(moved, move.undo.undo(moved));
+    expect(stampsIn(undone)).toEqual([["crate", 2, 1, 0, 1], ["table", 4, 4, 0, 3], ["chair", 5, 5, 0, 1]]);
+    expect(undone[terrainId(SCENE, 1, 0)]).toBeUndefined();
+    // Undone, then an object put in its chunk in another tab: redo puts it back on top of the rest there, as before.
+    const busy = edit(undone, (e) => e.addPlaced({ id: "barrel", col: 22, row: 2, deg: 0, size: 1 })).after;
+    const redone = applyOps(busy, move.undo.redo(busy));
+    expect(stampsIn(redone)).toEqual([["crate", 2, 1, 0, 1], ["chair", 5, 5, 0, 1]]);
+    expect(stampsIn(redone, 1, 0)).toEqual([["barrel", 6, 2, 0, 1], ["table", 4, 4, 0, 3]]);
+  });
+
+  it("puts back only what's still as the step left it: an object another tab deleted stays deleted", () => {
+    // Chairs A and C, in two chunks, moved 6 squares right together: A into C's chunk, C into the next.
+    const items = toMap([chunk(0, 0, { stamps: [["chair", 15, 3, 0, 1]] }), chunk(1, 0, { stamps: [["chair", 10, 3, 0, 1]] })]);
+    const ps = [placed(items, 0, 0, 0), placed(items, 1, 0, 0)];
+    const t = edit(items, (e) => e.place([...refsTo(items, 0, 0, 0), ...refsTo(items, 1, 0, 0)], shiftGroup(ps, 6, 0, scene)));
+    expect(stampsIn(t.after, 1, 0)).toEqual([["chair", 5, 3, 0, 1]]);
+    expect(stampsIn(t.after, 2, 0)).toEqual([["chair", 0, 3, 0, 1]]);
+    // Another tab deletes A where it now is.
+    const other = edit(t.after, (e) => e.removeRefs(refsTo(t.after, 1, 0, 0))).after;
+    const back = applyOps(other, t.undo.undo(other));
+    // C is back where it was, and gone from where it was moved to; A isn't brought back.
+    expect(back[terrainId(SCENE, 0, 0)]).toBeUndefined();
+    expect(stampsIn(back, 1, 0)).toEqual([["chair", 10, 3, 0, 1]]);
+    expect(back[terrainId(SCENE, 2, 0)]).toBeUndefined();
+    // Redone, C moves again, and A still isn't.
+    const again = applyOps(back, t.undo.redo(back));
+    expect(again[terrainId(SCENE, 0, 0)]).toBeUndefined();
+    expect(again[terrainId(SCENE, 1, 0)]).toBeUndefined();
+    expect(stampsIn(again, 2, 0)).toEqual([["chair", 0, 3, 0, 1]]);
+  });
+
+  it("leaves an object moved to another chunk alone once another tab has turned it: no second copy", () => {
+    const items = toMap([chunk(0, 0, { stamps: [["table", 14, 3, 0, 2], ["rock", 1, 1, 0, 1]] })]);
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 4, 0, scene)));
+    expect(stampsIn(t.after, 1, 0)).toEqual([["table", 2, 3, 0, 2]]);
+    const turned = edit(t.after, (e) => e.place(refsTo(t.after, 1, 0, 0), [{ ...placed(t.after, 1, 0, 0), deg: 90 }])).after;
+    expect(t.undo.undo(turned)).toEqual({});
+    expect(t.undo.redo(turned)).toEqual({});
+    expect(stampsIn(turned)).toEqual([["rock", 1, 1, 0, 1]]);
+    expect(stampsIn(turned, 1, 0)).toEqual([["table", 2, 3, 1, 2]]);
+  });
+
+  it("the same for one moved within its chunk", () => {
+    const t = edit(base, (e) => e.place(refsTo(base, 0, 0, 1), shiftGroup([placed(base, 0, 0, 1)], 3, 3, scene)));
+    const turned = edit(t.after, (e) => e.place(refsTo(t.after, 0, 0, 1), [{ ...placed(t.after, 0, 0, 1), deg: 45 }])).after;
+    const want = [["chair", 2, 2, 0, 1], ["table", 7, 7, 0, 2, 45], ["rock", 9, 9, 0, 1]];
+    expect(stampsIn(turned)).toEqual(want);
+    expect(stampsIn(applyOps(turned, t.undo.undo(turned)))).toEqual(want);
+    // Undone, then turned in another tab: redo leaves it too.
+    const undone = applyOps(t.after, t.undo.undo(t.after));
+    const turnedBack = edit(undone, (e) => e.place(refsTo(undone, 0, 0, 1), [{ ...placed(undone, 0, 0, 1), deg: 45 }])).after;
+    expect(t.undo.redo(turnedBack)).toEqual({});
+  });
+
+  it("leaves an object where it is if its old chunk has been filled since, and still undoes a swap in a full one", () => {
+    const items = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] })]);
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 1, 0, scene)));
+    const rocks = Array.from({ length: 64 }, (_, i) => ({ id: "rock" as const, col: i % 16, row: Math.floor(i / 16), deg: 0, size: 1 }));
+    const filled = edit(t.after, (e) => e.addGroup(rocks)).after;
+    const back = applyOps(filled, t.undo.undo(filled));
+    expect(stampsIn(back)).toHaveLength(64);
+    expect(stampsIn(back, 1, 0)).toEqual([["chair", 0, 0, 0, 1]]);
+    // A chair into a full chunk as a rock comes out of it: undone, each goes back.
+    const full: Stamp[] = Array.from({ length: 64 }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
+    const two = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] }), chunk(1, 0, { stamps: full })]);
+    const swap = edit(two, (e) =>
+      e.place([...refsTo(two, 0, 0, 0), ...refsTo(two, 1, 0, 0)], [{ ...placed(two, 0, 0, 0), col: 20 }, { ...placed(two, 1, 0, 0), col: 3 }]),
+    );
+    const swapped = applyOps(swap.after, swap.undo.undo(swap.after));
+    expect(stampsIn(swapped)).toEqual(stampsIn(two));
+    expect(stampsIn(swapped, 1, 0)).toEqual(full);
+  });
+
+  it("moves back the one of two identical objects that moved", () => {
+    const items = toMap([chunk(0, 0, { stamps: [["chair", 2, 2, 0, 1], ["table", 5, 5, 0, 1], ["chair", 2, 2, 0, 1]] })]);
+    const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 2), [{ ...placed(items, 0, 0, 2), col: 20 }]));
+    expect(stampsIn(t.after)).toEqual([["chair", 2, 2, 0, 1], ["table", 5, 5, 0, 1]]);
+    expect(stampsIn(applyOps(t.after, t.undo.undo(t.after)))).toEqual(stampsIn(items));
+  });
+
+  it("keeps one pair for an object placed twice in one edit, and none for one put back as it was", () => {
+    const e = new BuildEdit(base, SCENE);
+    const first = e.place(refsTo(base, 0, 0, 1), [{ ...placed(base, 0, 0, 1), deg: 15 }]);
+    e.place(refsOf(first), [{ ...placed(base, 0, 0, 1), col: 20, deg: 30 }]);
+    expect(e.pairs()).toEqual([{ from: { cx: 0, cy: 0, i: 1, stamp: ["table", 4, 4, 0, 2] }, to: { cx: 1, cy: 0, i: 0, stamp: ["table", 4, 4, 0, 2, 30] } }]);
+    const ops = e.ops();
+    const after = applyOps(base, ops);
+    expect(stampsIn(applyOps(after, buildUndo(base, SCENE, ops, e.pairs()).undo(after)))).toEqual(stampsIn(base));
+    const still = new BuildEdit(base, SCENE);
+    const turned = still.place(refsTo(base, 0, 0, 1), [{ ...placed(base, 0, 0, 1), deg: 15 }]);
+    still.place(refsOf(turned), [placed(base, 0, 0, 1)]);
+    expect(still.pairs()).toEqual([]);
+    expect(still.ops()).toEqual({});
   });
 });

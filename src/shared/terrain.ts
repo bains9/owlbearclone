@@ -85,13 +85,57 @@ export const STAMP_NAMES: Record<StampId, string> = {
   campfire: "Campfire",
   rubble: "Rubble",
 };
+/** Objects are sized from half a square to 3 squares, in quarter squares. */
+export const STAMP_SIZE_MIN = 0.5;
 export const STAMP_SIZE_MAX = 3;
+export const STAMP_SIZE_STEP = 0.25;
+/** Objects turn in steps of this many degrees. */
+export const STAMP_DEG_STEP = 5;
 
 /**
- * An object: what it is, the column and row of its top-left cell within the chunk,
- * quarter turns clockwise, and how many cells wide (and tall) it is.
+ * An object: what it is, the column and row (within the chunk) of the top-left cell of the
+ * block of squares it stands on, whole quarter turns clockwise (0-3), its size in squares
+ * (0.5-3 in quarter squares; the block is 1, 2 or 3 squares, see stampBlock), and, when it
+ * isn't turned by whole quarter turns, the degrees clockwise on top of them (5-85, a
+ * multiple of 5; never stored as 0).
  */
-export type Stamp = [id: StampId, col: number, row: number, turns: number, size: number];
+export type Stamp = [id: StampId, col: number, row: number, turns: number, size: number, fine?: number];
+
+/** Cells a scene overlaps, or a block of cells: [c0, c1] x [r0, r1], inclusive. */
+export type CellBounds = { c0: number; r0: number; c1: number; r1: number };
+
+/** Squares on a side of the block an object stands on: 1 below 1.5, 2 below 2.5, else 3. */
+export function stampBlock(size: number): 1 | 2 | 3 {
+  return size < 1.5 ? 1 : size < 2.5 ? 2 : 3;
+}
+
+/** An object's angle in degrees clockwise, 0-355. */
+export function stampDeg(s: Stamp): number {
+  return s[3] * 90 + (s[5] ?? 0);
+}
+
+/** Rounded to 5 degrees, wrapped into 0-355. */
+export function snapDeg(deg: number): number {
+  return (((Math.round(deg / STAMP_DEG_STEP) * STAMP_DEG_STEP) % 360) + 360) % 360;
+}
+
+/** Rounded to a quarter square, between half a square and 3 squares. */
+export function snapSize(size: number): number {
+  return Math.min(STAMP_SIZE_MAX, Math.max(STAMP_SIZE_MIN, Math.round(size / STAMP_SIZE_STEP) * STAMP_SIZE_STEP));
+}
+
+/**
+ * An object as it's stored, with its angle and size snapped (col and row within the chunk,
+ * 0-15). There's one way to write each, so two the same always join() the same: the fine
+ * degrees only when there are some.
+ */
+export function makeStamp(id: StampId, col: number, row: number, deg: number, size: number): Stamp {
+  const d = snapDeg(deg);
+  const turns = Math.floor(d / 90);
+  const fine = d % 90;
+  const sz = snapSize(size);
+  return fine ? [id, col, row, turns, sz, fine] : [id, col, row, turns, sz];
+}
 
 export function emptyCells(): string {
   return EMPTY_CELLS;
@@ -152,7 +196,7 @@ export function cellAt(x: number, y: number, grid: GridSettings): { col: number;
 }
 
 /** The range of cells that overlap a scene of this size: [c0, c1] x [r0, r1], inclusive. */
-export function sceneCells(width: number, height: number, grid: GridSettings): { c0: number; r0: number; c1: number; r1: number } {
+export function sceneCells(width: number, height: number, grid: GridSettings): CellBounds {
   return {
     // (|| 0: no -0.)
     c0: Math.floor(-grid.offsetX / grid.size) || 0,
@@ -176,18 +220,30 @@ export function cleanEdges(v: unknown): string | undefined {
   return typeof v === "string" && (EDGES_RE.test(v) || SECRET_EDGES_RE.test(v)) ? v : undefined;
 }
 
+/**
+ * Objects as sent: each exactly as makeStamp writes it, or the whole list is refused. One
+ * written another way (fine degrees of 0, say) comes from a client with a bug, and putting
+ * it right here would leave that client's own copy different from everyone else's.
+ */
 export function cleanStamps(v: unknown): Stamp[] | undefined {
   if (!Array.isArray(v) || v.length > MAX_STAMPS_PER_CHUNK) return undefined;
   const out: Stamp[] = [];
   for (const s of v) {
-    if (!Array.isArray(s) || s.length !== 5) return undefined;
-    const [id, col, row, turns, size] = s as unknown[];
+    if (!Array.isArray(s) || (s.length !== 5 && s.length !== 6)) return undefined;
+    const [id, col, row, turns, size, fine] = s as unknown[];
     const kind = STAMP_IDS.find((k) => k === id);
     const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n < CHUNK;
     if (!kind || !cell(col) || !cell(row)) return undefined;
     if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 0 || turns > 3) return undefined;
-    if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > STAMP_SIZE_MAX) return undefined;
-    out.push([kind, col as number, row as number, turns, size]);
+    // Quarter squares are exact in floating point, so this is exact too.
+    if (typeof size !== "number" || !Number.isInteger(size / STAMP_SIZE_STEP) || size < STAMP_SIZE_MIN || size > STAMP_SIZE_MAX) return undefined;
+    if (s.length === 6) {
+      // Only when it's turned finer than quarter turns: never 0, never a whole quarter turn.
+      if (typeof fine !== "number" || !Number.isInteger(fine) || fine % STAMP_DEG_STEP || fine < STAMP_DEG_STEP || fine >= 90) return undefined;
+      out.push([kind, col as number, row as number, turns, size, fine]);
+    } else {
+      out.push([kind, col as number, row as number, turns, size]);
+    }
   }
   return out;
 }

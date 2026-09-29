@@ -26,12 +26,15 @@ import {
   isBuildingFloor,
   isWalledFloor,
   sceneCells,
+  stampBlock,
   terrainId,
 } from "../../shared/terrain";
 import type { FloorId, Stamp, StampId } from "../../shared/terrain";
-import type { ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
+import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
+import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
+import type { Placed } from "./stampGeom";
 
 export type Side = "t" | "l";
 
@@ -58,6 +61,10 @@ export function edgeOf(k: number): { col: number; row: number; side: Side } {
 }
 function ckey(cx: number, cy: number): number {
   return (cx + 2048) * 4096 + (cy + 2048);
+}
+/** A number standing for the object at index i of the chunk at (cx, cy). */
+function slot(cx: number, cy: number, i: number): number {
+  return ckey(cx, cy) * 1024 + i;
 }
 /** Where a cell sits in its chunk's strings. */
 function idx(col: number, row: number): number {
@@ -106,6 +113,89 @@ export function sceneTerrain(items: ItemMap, sceneId: string): TerrainItem[] {
   return out;
 }
 
+// ---------------------------------------------------------------- objects and doors, picked out
+
+/** An object as found: the chunk it's stored in, where in that chunk's list, and what it is. */
+export interface StampHit {
+  cx: number;
+  cy: number;
+  i: number;
+  stamp: Stamp;
+}
+
+/**
+ * An object picked out to act on later (a selection, one being dragged): where it was
+ * found, and what it was then (key: stamp.join()), to find it again once things have changed.
+ */
+export interface StampRef {
+  cx: number;
+  cy: number;
+  i: number;
+  key: string;
+}
+
+/** A door or secret door: the cell whose top ("t") or left ("l") edge it's on. */
+export interface DoorRef {
+  col: number;
+  row: number;
+  side: Side;
+}
+
+export interface DoorHit extends DoorRef {
+  style: "door" | "secret";
+}
+
+/** What an edit did to one object: where it was and what it was, and the same after. */
+export interface StampPair {
+  from: { cx: number; cy: number; i: number; stamp: Stamp };
+  to: { cx: number; cy: number; i: number; stamp: Stamp };
+}
+
+/**
+ * What an edit to objects did: the objects it leaves, to act on next; or why it did
+ * nothing ("gone": none of them are there any more; "full": a chunk would hold more than
+ * it can; "same": one exactly like it is there already).
+ */
+export type EditResult = { ok: true; refs: StampRef[] } | { ok: false; reason: "gone" | "full" | "same" };
+
+export function refOf(h: StampHit): StampRef {
+  return { cx: h.cx, cy: h.cy, i: h.i, key: h.stamp.join() };
+}
+
+/**
+ * Finds objects picked out earlier as they are now. Each is where it was if it's still the
+ * same there; otherwise the same object nearest there in its chunk (another tab has added
+ * or taken away objects before it); otherwise it's left out (deleted, changed, or moved to
+ * another chunk). No two refs find the same object, so two identical objects on one
+ * square are found as two, and a ref listed twice once. Returns the refs as they are now,
+ * what they found, and for each, which of the given refs it was.
+ */
+export function resolveRefs(
+  chunk: (cx: number, cy: number) => { stamps: Stamp[] } | undefined,
+  refs: StampRef[],
+): { refs: StampRef[]; hits: StampHit[]; at: number[] } {
+  const out = { refs: [] as StampRef[], hits: [] as StampHit[], at: [] as number[] };
+  const claimed = new Set<number>();
+  const listed = new Set<string>();
+  refs.forEach((r, j) => {
+    const stamps = chunk(r.cx, r.cy)?.stamps;
+    const id = `${slot(r.cx, r.cy, r.i)}|${r.key}`;
+    if (!stamps || listed.has(id)) return;
+    listed.add(id);
+    const free = (i: number) => !claimed.has(slot(r.cx, r.cy, i)) && stamps[i].join() === r.key;
+    let i = r.i >= 0 && r.i < stamps.length && free(r.i) ? r.i : -1;
+    if (i < 0) {
+      for (let k = 0; k < stamps.length; k++) if (free(k) && (i < 0 || Math.abs(k - r.i) < Math.abs(i - r.i))) i = k;
+      if (i < 0) return;
+    }
+    claimed.add(slot(r.cx, r.cy, i));
+    out.refs.push({ cx: r.cx, cy: r.cy, i, key: r.key });
+    out.hits.push({ cx: r.cx, cy: r.cy, i, stamp: stamps[i] });
+    out.at.push(j);
+  });
+  return out;
+}
+
 /** What the Build tool is painting before it's committed: shown at once, sent when you let go. */
 export interface BuildDraft {
   /** Cell -> the floor being painted, or "." to erase. */
@@ -127,8 +217,10 @@ const DOOR = 2;
 export class BuildModel {
   index: TerrainIndex = { chunks: new Map(), secrets: new Map() };
   draft: BuildDraft | null = null;
-  /** An object being dragged somewhere else: not drawn where it was. */
-  hiddenStamp: { cx: number; cy: number; i: number; stamp: Stamp } | null = null;
+  /** Objects being dragged somewhere else: not drawn where they are (see BuildRenderer.hideStamps). */
+  hidden: StampRef[] = [];
+  /** The same, as slot numbers, for the drawing loop. */
+  hiddenSlots = new Set<number>();
 
   storedCell(col: number, row: number): string {
     const ch = this.index.chunks.get(ckey(chunkOf(col), chunkOf(row)));
@@ -178,19 +270,99 @@ export class BuildModel {
     return (isWalledFloor(a) && !isBuildingFloor(b)) || (isWalledFloor(b) && !isBuildingFloor(a)) ? WALL : NONE;
   }
 
-  /** The object drawn topmost over a cell, if any. */
-  stampAt(col: number, row: number): { cx: number; cy: number; i: number; stamp: Stamp } | null {
+  /** The object whose block covers a cell, topmost, if any (as erasing goes by). */
+  stampAt(col: number, row: number): StampHit | null {
     return stampsCovering(this.index.chunks, col, row).pop() ?? null;
+  }
+
+  /**
+   * Objects whose drawing (grown by pad cells all round) is under a point, the one drawn
+   * on top first. u and v are in cells, fractional: (x - offsetX) / size and the same down.
+   */
+  stampsAtPoint(u: number, v: number, pad: number): StampHit[] {
+    const out: StampHit[] = [];
+    // Only objects whose top-left cell is this near can reach the point (pad grows the
+    // drawing most along its diagonals).
+    const reach = pad * 1.5;
+    const cx0 = chunkOf(Math.floor(u - STAMP_DRAW_AFTER - 1 - reach));
+    const cx1 = chunkOf(Math.floor(u + STAMP_DRAW_BEFORE + reach));
+    const cy0 = chunkOf(Math.floor(v - STAMP_DRAW_AFTER - 1 - reach));
+    const cy1 = chunkOf(Math.floor(v + STAMP_DRAW_BEFORE + reach));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const ch = this.index.chunks.get(ckey(cx, cy));
+        if (!ch) continue;
+        ch.stamps.forEach((stamp, i) => {
+          if (hitsPoint(placedOf(cx, cy, stamp), u, v, pad)) out.push({ cx, cy, i, stamp });
+        });
+      }
+    }
+    return out.reverse();
+  }
+
+  /** The object drawn on top under a point (see stampsAtPoint), if any. */
+  stampAtPoint(u: number, v: number, pad: number): StampHit | null {
+    return this.stampsAtPoint(u, v, pad)[0] ?? null;
+  }
+
+  /** Objects whose middle is in a box (in cells, edges included, corners either way round), in drawing order. */
+  stampsInBox(u0: number, v0: number, u1: number, v1: number): StampHit[] {
+    const x0 = Math.min(u0, u1);
+    const x1 = Math.max(u0, u1);
+    const y0 = Math.min(v0, v1);
+    const y1 = Math.max(v0, v1);
+    const out: StampHit[] = [];
+    // A middle is at most one and a half cells from the top-left cell.
+    for (let cy = chunkOf(Math.floor(y0 - 1.5)); cy <= chunkOf(Math.floor(y1)); cy++) {
+      for (let cx = chunkOf(Math.floor(x0 - 1.5)); cx <= chunkOf(Math.floor(x1)); cx++) {
+        const ch = this.index.chunks.get(ckey(cx, cy));
+        if (!ch) continue;
+        ch.stamps.forEach((stamp, i) => {
+          const { x, y } = centreOf(placedOf(cx, cy, stamp));
+          if (x >= x0 && x <= x1 && y >= y0 && y <= y1) out.push({ cx, cy, i, stamp });
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Objects picked out earlier, as they are now (see resolveRefs). */
+  resolve(refs: StampRef[]): { refs: StampRef[]; hits: StampHit[] } {
+    const r = resolveRefs((cx, cy) => this.index.chunks.get(ckey(cx, cy)), refs);
+    return { refs: r.refs, hits: r.hits };
+  }
+
+  /** What an edge is now: a door, a secret door, or neither. */
+  doorStyle(d: DoorRef): "door" | "secret" | null {
+    const e = this.edge(d.col, d.row, d.side);
+    if (e === "d" || e === "D") return "door";
+    return this.state(d.col, d.row, d.side) === WALL && this.secret(d.col, d.row, d.side) ? "secret" : null;
+  }
+
+  /**
+   * The door or secret door on the grid line nearest a point (in cells, fractional), if
+   * it's within reach cells of it; of the lines across and down, the nearer. Openings and
+   * walls are never found. (Secret doors always are: only the GM builds, and never in
+   * Player view.)
+   */
+  doorAt(u: number, v: number, reach: number): DoorHit | null {
+    const lines: [number, DoorRef][] = [
+      [Math.abs(v - Math.round(v)), { col: Math.floor(u), row: Math.round(v) || 0, side: "t" }],
+      [Math.abs(u - Math.round(u)), { col: Math.round(u) || 0, row: Math.floor(v), side: "l" }],
+    ];
+    if (lines[1][0] < lines[0][0]) lines.reverse();
+    for (const [dist, d] of lines) {
+      if (dist > reach) continue;
+      const style = this.doorStyle(d);
+      if (style) return { ...d, style };
+    }
+    return null;
   }
 }
 
-/** Objects covering a cell, in drawing order (the last is on top). */
-function stampsCovering(
-  chunks: Map<number, { cx: number; cy: number; stamps: Stamp[] }>,
-  col: number,
-  row: number,
-): { cx: number; cy: number; i: number; stamp: Stamp }[] {
-  const out: { cx: number; cy: number; i: number; stamp: Stamp }[] = [];
+/** Objects whose block covers a cell, in drawing order (the last is on top). */
+function stampsCovering(chunks: Map<number, { cx: number; cy: number; stamps: Stamp[] }>, col: number, row: number): StampHit[] {
+  const out: StampHit[] = [];
   for (let cy = chunkOf(row - 2); cy <= chunkOf(row); cy++) {
     for (let cx = chunkOf(col - 2); cx <= chunkOf(col); cx++) {
       const ch = chunks.get(ckey(cx, cy));
@@ -198,7 +370,8 @@ function stampsCovering(
       ch.stamps.forEach((stamp, i) => {
         const ax = cx * CHUNK + stamp[1];
         const ay = cy * CHUNK + stamp[2];
-        if (col >= ax && col < ax + stamp[4] && row >= ay && row < ay + stamp[4]) out.push({ cx, cy, i, stamp });
+        const n = stampBlock(stamp[4]);
+        if (col >= ax && col < ax + n && row >= ay && row < ay + n) out.push({ cx, cy, i, stamp });
       });
     }
   }
@@ -233,6 +406,7 @@ export class BuildEdit {
   private work = new Map<number, WorkChunk>();
   private secretWork = new Map<number, WorkSecrets>();
   private index: TerrainIndex;
+  private placedPairs: StampPair[] = [];
 
   constructor(
     items: ItemMap,
@@ -266,6 +440,16 @@ export class BuildEdit {
   private peek(col: number, row: number): { cells: ArrayLike<string>; edges: ArrayLike<string> } | undefined {
     const k = ckey(chunkOf(col), chunkOf(row));
     return this.work.get(k) ?? this.index.chunks.get(k);
+  }
+
+  /** The objects of the chunk at (cx, cy) as the edit has them so far, without making a working copy. */
+  private view(cx: number, cy: number): { stamps: Stamp[] } | undefined {
+    const k = ckey(cx, cy);
+    return this.work.get(k) ?? this.index.chunks.get(k);
+  }
+
+  private stampCount(cx: number, cy: number): number {
+    return this.view(cx, cy)?.stamps.length ?? 0;
   }
 
   cell(col: number, row: number): string {
@@ -347,7 +531,7 @@ export class BuildEdit {
     }
   }
 
-  private covering(col: number, row: number): { cx: number; cy: number; i: number; stamp: Stamp }[] {
+  private covering(col: number, row: number): StampHit[] {
     const view = new Map<number, { cx: number; cy: number; stamps: Stamp[] }>();
     for (let cy = chunkOf(row - 2); cy <= chunkOf(row); cy++) {
       for (let cx = chunkOf(col - 2); cx <= chunkOf(col); cx++) {
@@ -357,22 +541,6 @@ export class BuildEdit {
       }
     }
     return stampsCovering(view, col, row);
-  }
-
-  /** The object on top at a cell. */
-  stampAt(col: number, row: number): Stamp | null {
-    return this.covering(col, row).pop()?.stamp ?? null;
-  }
-
-  /** Turns the object on top at a cell a quarter turn clockwise. */
-  rotateStampAt(col: number, row: number): boolean {
-    const hit = this.covering(col, row).pop();
-    if (!hit) return false;
-    const w = this.chunk(hit.cx * CHUNK, hit.cy * CHUNK);
-    const [id, c, r, turns, size] = hit.stamp;
-    w.stamps[hit.i] = [id, c, r, (turns + 1) % 4, size];
-    w.stampsChanged = true;
-    return true;
   }
 
   removeStampAt(col: number, row: number): boolean {
@@ -458,18 +626,118 @@ export class BuildEdit {
     }
   }
 
-  /** Moves the object on top at a cell so its top-left cell is (toCol, toRow). */
-  moveStamp(fromCol: number, fromRow: number, toCol: number, toRow: number, expect?: Stamp): boolean {
-    // The object picked up, if it's still there (an undo, or another tab, may have changed things since).
-    const all = this.covering(fromCol, fromRow);
-    const hit = expect ? all.filter((h) => h.stamp.join() === expect.join()).pop() : all.pop();
-    if (!hit) return false;
-    const [id, c, r, turns, size] = hit.stamp;
-    if (hit.cx * CHUNK + c === toCol && hit.cy * CHUNK + r === toRow) return false;
-    const w = this.chunk(hit.cx * CHUNK, hit.cy * CHUNK);
-    w.stamps.splice(hit.i, 1);
+  /**
+   * Undoes (back) or redoes the objects an earlier step moved, turned or sized (its
+   * pairs, from place()), before mergeChunk does the rest: each object the step left
+   * becomes what it was again, where it was in the drawing order, or the other way round.
+   * One that isn't there as the step left it (another tab has changed it, moved it or
+   * taken it away since) is left alone, and so is one whose chunk would hold too many.
+   * `was` gives a chunk's objects as they were where the pairs go back to (as the step
+   * found them when undoing, as it left them when redoing): see putBack.
+   */
+  mergePairs(pairs: StampPair[], back: boolean, was?: (cx: number, cy: number) => Stamp[] | undefined): void {
+    if (!pairs.length) return;
+    const ends = pairs.map((p) => (back ? { cur: p.to, prev: p.from } : { cur: p.from, prev: p.to }));
+    const found = resolveRefs(
+      (cx, cy) => this.view(cx, cy),
+      ends.map((e) => ({ cx: e.cur.cx, cy: e.cur.cy, i: e.cur.i, key: e.cur.stamp.join() })),
+    );
+    // Which of those still go ahead: all but the ones coming into a chunk that would then
+    // hold too many (the last ones there first, looking again after each round, as leaving
+    // one out can leave another chunk with one more).
+    const live = found.hits.map((hit, j) => ({ hit, ...ends[found.at[j]] }));
+    for (;;) {
+      const count = new Map<number, number>();
+      const add = (cx: number, cy: number, n: number) => {
+        const k = ckey(cx, cy);
+        count.set(k, (count.get(k) ?? this.stampCount(cx, cy)) + n);
+      };
+      for (const m of live) {
+        add(m.hit.cx, m.hit.cy, -1);
+        add(m.prev.cx, m.prev.cy, 1);
+      }
+      let skipped = false;
+      for (let j = live.length - 1; j >= 0; j--) {
+        const m = live[j];
+        const k = ckey(m.prev.cx, m.prev.cy);
+        if (count.get(k)! <= MAX_STAMPS_PER_CHUNK || k === ckey(m.hit.cx, m.hit.cy)) continue;
+        count.set(k, count.get(k)! - 1);
+        live.splice(j, 1);
+        skipped = true;
+      }
+      if (!skipped) break;
+    }
+    if (!live.length) return;
+    // One the step changed where it stood in its chunk's list (turned, sized or moved within
+    // the chunk) is changed back where it is now: that's still its place among the rest,
+    // whatever other tabs have added or taken away before it since.
+    const moving: typeof live = [];
+    for (const m of live) {
+      if (m.cur.cx !== m.prev.cx || m.cur.cy !== m.prev.cy || m.cur.i !== m.prev.i) {
+        moving.push(m);
+        continue;
+      }
+      const w = this.chunk(m.hit.cx * CHUNK, m.hit.cy * CHUNK);
+      w.stamps[m.hit.i] = m.prev.stamp;
+      w.stampsChanged = true;
+    }
+    // The rest out of each chunk from the end of its list first, so the others keep their
+    // places; then back in, chunk by chunk.
+    for (const m of [...moving].sort((a, b) => b.hit.i - a.hit.i)) {
+      const w = this.chunk(m.hit.cx * CHUNK, m.hit.cy * CHUNK);
+      w.stamps.splice(m.hit.i, 1);
+      w.stampsChanged = true;
+    }
+    const into = new Map<number, StampPair["from"][]>();
+    for (const { prev } of moving) {
+      const k = ckey(prev.cx, prev.cy);
+      const list = into.get(k);
+      if (list) list.push(prev);
+      else into.set(k, [prev]);
+    }
+    for (const list of into.values()) this.putBack(list, was?.(list[0].cx, list[0].cy));
+  }
+
+  /**
+   * Puts objects back into one chunk, for mergePairs. With `was`, the chunk's list as it was
+   * when they were last there, each goes just under the first object that was drawn over it
+   * then and is still there (found as resolveRefs finds objects), or on top if none is: so
+   * objects another tab has taken away or added since don't put it over or under others it
+   * wasn't. Without it, each goes back at its old index, the first place first.
+   */
+  private putBack(prevs: StampPair["from"][], was: Stamp[] | undefined): void {
+    const { cx, cy } = prevs[0];
+    const w = this.chunk(cx * CHUNK, cy * CHUNK);
     w.stampsChanged = true;
-    return this.addStamp(id, toCol, toRow, turns, size);
+    const sorted = [...prevs].sort((a, b) => a.i - b.i);
+    if (!was || sorted.some((p) => was[p.i]?.join() !== p.stamp.join())) {
+      for (const p of sorted) w.stamps.splice(Math.min(p.i, w.stamps.length), 0, p.stamp);
+      return;
+    }
+    // The others in that list, found where they now are (each looked for where it would be
+    // if nothing had changed since).
+    const coming = new Set(sorted.map((p) => p.i));
+    const others: StampRef[] = [];
+    const wasAt: number[] = [];
+    was.forEach((s, i) => {
+      if (coming.has(i)) return;
+      others.push({ cx, cy, i: others.length, key: s.join() });
+      wasAt.push(i);
+    });
+    const found = resolveRefs(() => w, others);
+    const now = new Map<number, number>();
+    found.at.forEach((j, n) => now.set(wasAt[j], found.hits[n].i));
+    const places = sorted.map((p) => {
+      for (let i = p.i + 1; i < was.length; i++) {
+        const at = now.get(i);
+        if (at !== undefined) return { p, at };
+      }
+      return { p, at: w.stamps.length };
+    });
+    // The last place first, and of several going in at one place the last first, so each
+    // lands where it was worked out to go, in the order they were in.
+    places.sort((a, b) => b.at - a.at || b.p.i - a.p.i);
+    for (const { p, at } of places) w.stamps.splice(at, 0, p.stamp);
   }
 
   /** Places an object with its top-left cell at (col, row). False if that block is full. */
@@ -479,6 +747,155 @@ export class BuildEdit {
     w.stamps.push([id, inChunk(col), inChunk(row), turns, size]);
     w.stampsChanged = true;
     return true;
+  }
+
+  /** Places one object ("same": one exactly like it stands there already; "full": its chunk is full). */
+  addPlaced(p: Placed): EditResult {
+    return this.addGroup([p]);
+  }
+
+  /**
+   * Places several, in the order given (so drawn in that order), or none: "full" if a
+   * chunk would hold too many, "same" if any would be exactly like an object already there.
+   */
+  addGroup(ps: Placed[]): EditResult {
+    const adds = ps.map(stampFor);
+    const arriving = new Map<number, number>();
+    for (const a of adds) {
+      const key = a.stamp.join();
+      if (this.view(a.cx, a.cy)?.stamps.some((s) => s.join() === key)) return { ok: false, reason: "same" };
+      const k = ckey(a.cx, a.cy);
+      arriving.set(k, (arriving.get(k) ?? 0) + 1);
+    }
+    for (const a of adds) {
+      if (this.stampCount(a.cx, a.cy) + arriving.get(ckey(a.cx, a.cy))! > MAX_STAMPS_PER_CHUNK) return { ok: false, reason: "full" };
+    }
+    const refs = adds.map((a) => {
+      const w = this.chunk(a.cx * CHUNK, a.cy * CHUNK);
+      w.stamps.push(a.stamp);
+      w.stampsChanged = true;
+      return { cx: a.cx, cy: a.cy, i: w.stamps.length - 1, key: a.stamp.join() };
+    });
+    return { ok: true, refs };
+  }
+
+  /**
+   * Makes each object refs[k] exactly next[k]: how moves, turns and size changes are made.
+   * Refs are found again first (see resolveRefs), and ones no longer there are skipped with
+   * their next[k]: "gone" if none are left. One that stays in its chunk keeps its place in
+   * the drawing order; one that moves to another chunk goes on top there, but under any of
+   * the others given that were drawn over it (see below). Every change or none: "full" if a
+   * chunk would hold too many. Returns the objects as they now are, in the order given
+   * (those already as asked too), and keeps what it did to each for undo (pairs).
+   */
+  place(refs: StampRef[], next: Placed[]): EditResult {
+    if (refs.length !== next.length) throw new Error("place: a new place for each object, no more, no less");
+    const found = resolveRefs((cx, cy) => this.view(cx, cy), refs);
+    if (!found.hits.length) return { ok: false, reason: "gone" };
+    const moves = found.hits.map((hit, j) => {
+      const to = stampFor(next[found.at[j]]);
+      const kind = to.cx !== hit.cx || to.cy !== hit.cy ? "leave" : to.stamp.join() === found.refs[j].key ? "keep" : "stay";
+      return { hit, to, kind, i: hit.i };
+    });
+    // How many objects each chunk gains, less those it loses.
+    const gain = new Map<number, number>();
+    for (const m of moves) {
+      if (m.kind !== "leave") continue;
+      const from = ckey(m.hit.cx, m.hit.cy);
+      const to = ckey(m.to.cx, m.to.cy);
+      gain.set(from, (gain.get(from) ?? 0) - 1);
+      gain.set(to, (gain.get(to) ?? 0) + 1);
+    }
+    for (const m of moves) {
+      if (m.kind === "leave" && this.stampCount(m.to.cx, m.to.cy) + gain.get(ckey(m.to.cx, m.to.cy))! > MAX_STAMPS_PER_CHUNK) return { ok: false, reason: "full" };
+    }
+    // Each chunk that objects change in or leave is made again in one go: those leaving
+    // left out, those changing changed where they are, the rest as they were.
+    const bySource = new Map<number, typeof moves>();
+    for (const m of moves) {
+      const k = ckey(m.hit.cx, m.hit.cy);
+      const list = bySource.get(k);
+      if (list) list.push(m);
+      else bySource.set(k, [m]);
+    }
+    for (const list of bySource.values()) {
+      if (list.every((m) => m.kind === "keep")) continue;
+      const w = this.chunk(list[0].hit.cx * CHUNK, list[0].hit.cy * CHUNK);
+      const at = new Map(list.map((m) => [m.hit.i, m]));
+      const out: Stamp[] = [];
+      w.stamps.forEach((s, i) => {
+        const m = at.get(i);
+        if (m?.kind === "leave") return;
+        if (m) m.i = out.length;
+        out.push(m?.kind === "stay" ? m.to.stamp : s);
+      });
+      w.stamps = out;
+      w.stampsChanged = true;
+    }
+    // Those moving to another chunk go on top there, one by one in the order they were
+    // drawn in (not the order given), except that each goes just under the first of the
+    // others there that was drawn over it: so a group stays stacked as it was, however it
+    // was picked out and wherever chunk borders fall (a chair on a table stays on it).
+    const drawnAfter = (a: StampHit, b: StampHit) => a.cy - b.cy || a.cx - b.cx || a.i - b.i;
+    const there = new Map([...bySource].map(([k, list]) => [k, list.filter((m) => m.kind !== "leave")]));
+    for (const m of moves.filter((m) => m.kind === "leave").sort((a, b) => drawnAfter(a.hit, b.hit))) {
+      const k = ckey(m.to.cx, m.to.cy);
+      const w = this.chunk(m.to.cx * CHUNK, m.to.cy * CHUNK);
+      const others = there.get(k) ?? [];
+      let at = w.stamps.length;
+      for (const o of others) if (o.i < at && drawnAfter(o.hit, m.hit) > 0) at = o.i;
+      for (const o of others) if (o.i >= at) o.i++;
+      m.i = at;
+      w.stamps.splice(at, 0, m.to.stamp);
+      w.stampsChanged = true;
+      there.set(k, [...others, m]);
+    }
+    for (const m of moves) {
+      if (m.kind === "keep") continue;
+      const to = { cx: m.to.cx, cy: m.to.cy, i: m.i, stamp: m.to.stamp };
+      // One placed again in the same edit keeps one pair, from where it was at first.
+      const key = m.hit.stamp.join();
+      const j = this.placedPairs.findIndex((p) => p.to.cx === m.hit.cx && p.to.cy === m.hit.cy && p.to.i === m.hit.i && p.to.stamp.join() === key);
+      const from = j >= 0 ? this.placedPairs[j].from : { cx: m.hit.cx, cy: m.hit.cy, i: m.hit.i, stamp: m.hit.stamp };
+      if (j >= 0) this.placedPairs.splice(j, 1);
+      // (Back just as it was: nothing to undo.)
+      if (from.cx === to.cx && from.cy === to.cy && from.i === to.i && from.stamp.join() === to.stamp.join()) continue;
+      this.placedPairs.push({ from, to });
+    }
+    return { ok: true, refs: moves.map((m) => ({ cx: m.to.cx, cy: m.to.cy, i: m.i, key: m.to.stamp.join() })) };
+  }
+
+  /** Takes away the objects that are still there (see resolveRefs). Returns how many. */
+  removeRefs(refs: StampRef[]): number {
+    const { hits } = resolveRefs((cx, cy) => this.view(cx, cy), refs);
+    // From the end of each chunk's list first, so the others keep their places.
+    hits.sort((a, b) => b.i - a.i);
+    for (const h of hits) {
+      const w = this.chunk(h.cx * CHUNK, h.cy * CHUNK);
+      w.stamps.splice(h.i, 1);
+      w.stampsChanged = true;
+    }
+    return hits.length;
+  }
+
+  /**
+   * Takes away each door or secret door, leaving what was there before it (a wall, or
+   * nothing); anything else (an opening, a wall, nothing) is skipped. Returns how many.
+   */
+  removeDoors(doors: DoorRef[]): number {
+    let n = 0;
+    for (const { col, row, side } of doors) {
+      const e = this.edge(col, row, side);
+      if (e !== "d" && e !== "D" && !(this.isWall(col, row, side) && this.secret(col, row, side))) continue;
+      setPortal(this, col, row, side, "wall");
+      n++;
+    }
+    return n;
+  }
+
+  /** What place() has done to each object so far, for buildUndo. */
+  pairs(): StampPair[] {
+    return this.placedPairs.slice();
   }
 
   ops(): ItemOps {
@@ -602,10 +1019,14 @@ export interface BuildUndo {
  * chunks back as they were, which would also wipe out what another tab has built in
  * them since, each puts back only what the change itself changed, and only where it's
  * still as the change left it. Worked out when used, from the state as it is then.
+ * `pairs` (BuildEdit.pairs()) are the objects the change moved, turned or sized: each is
+ * put back as itself (see mergePairs), rather than matched up by what it is, so an object
+ * another tab has changed since is never taken for another or brought back twice. The
+ * objects the change added or took away are counted, as before (see mergeChunk).
  */
-export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps): BuildUndo {
+export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps, pairs: StampPair[] = []): BuildUndo {
   const after = applyOps(items, ops);
-  const ids = new Set([...(ops.upsert ?? []).map((i) => i.id), ...(ops.patch ?? []).map((p) => p.id), ...(ops.delete ?? [])]);
+  const ids = new Set(opIds(ops));
   const chunks = new Map<number, { cx: number; cy: number; before: ChunkData; after: ChunkData }>();
   const secrets = new Map<number, { cx: number; cy: number; before: string; after: string }>();
   const data = (map: ItemMap, id: string): ChunkData => {
@@ -624,8 +1045,22 @@ export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps): BuildU
       chunks.set(k, { cx: t.cx, cy: t.cy, before: data(items, id), after: data(after, id) });
     }
   }
+  // Each chunk's objects whole, before and after, for putting the pairs back among the rest.
+  const lists = new Map([...chunks].map(([k, c]) => [k, { before: c.before.stamps, after: c.after.stamps }]));
+  // What the pairs put back is left out of what mergeChunk compares: each chunk as it was
+  // without the objects that moved, turned or changed size in it, and the same after.
+  for (const c of chunks.values()) {
+    const from = pairs.filter((p) => p.from.cx === c.cx && p.from.cy === c.cy).map((p) => p.from.stamp);
+    const to = pairs.filter((p) => p.to.cx === c.cx && p.to.cy === c.cy).map((p) => p.to.stamp);
+    if (from.length) c.before = { ...c.before, stamps: without(c.before.stamps, from) };
+    if (to.length) c.after = { ...c.after, stamps: without(c.after.stamps, to) };
+  }
   const run = (now: ItemMap, back: boolean): ItemOps => {
     const edit = new BuildEdit(now, sceneId);
+    edit.mergePairs(pairs, back, (cx, cy) => {
+      const l = lists.get(ckey(cx, cy));
+      return l && (back ? l.before : l.after);
+    });
     for (const c of chunks.values()) {
       if (back) edit.mergeChunk(c.cx, c.cy, c.after, c.before);
       else edit.mergeChunk(c.cx, c.cy, c.before, c.after);
@@ -637,6 +1072,68 @@ export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps): BuildU
     return edit.ops();
   };
   return { undo: (now) => run(now, true), redo: (now) => run(now, false) };
+}
+
+/** A list of objects with one of each of these taken out (identical objects are counted). */
+function without(stamps: Stamp[], taken: Stamp[]): Stamp[] {
+  const left = new Map<string, number>();
+  for (const s of taken) left.set(s.join(), (left.get(s.join()) ?? 0) + 1);
+  return stamps.filter((s) => {
+    const n = left.get(s.join()) ?? 0;
+    if (n > 0) left.set(s.join(), n - 1);
+    return n === 0;
+  });
+}
+
+/** The ids of the items some operations change. */
+function opIds(ops: ItemOps): string[] {
+  return [...(ops.upsert ?? []).map((i) => i.id), ...(ops.patch ?? []).map((p) => p.id), ...(ops.delete ?? [])];
+}
+
+/**
+ * One undo step made of two in a row: undoing undoes b, then a on what that leaves;
+ * redoing redoes a, then b. Each still leaves alone what other tabs have changed since.
+ */
+export function composeBuildUndo(a: BuildUndo, b: BuildUndo): BuildUndo {
+  const run = (now: ItemMap, first: (now: ItemMap) => ItemOps, second: (now: ItemMap) => ItemOps): ItemOps => {
+    const o1 = first(now);
+    const mid = applyOps(now, o1);
+    const o2 = second(mid);
+    return opsBetween(now, applyOps(mid, o2), [...opIds(o1), ...opIds(o2)]);
+  };
+  return { undo: (now) => run(now, b.undo, a.undo), redo: (now) => run(now, a.redo, b.redo) };
+}
+
+/**
+ * The item operations that turn `now` into `final`, for the given ids: items only in
+ * `now` deleted, items only in `final` added, and for chunks in both, a patch of their
+ * cells, edges and objects where they differ.
+ */
+export function opsBetween(now: ItemMap, final: ItemMap, ids: Iterable<string>): ItemOps {
+  const upsert: Item[] = [];
+  const patch: ItemPatch[] = [];
+  const del: string[] = [];
+  for (const id of new Set(ids)) {
+    const a = now[id];
+    const b = final[id];
+    if (a === b) continue;
+    if (!b) {
+      del.push(id);
+    } else if (a?.kind !== "terrain" || b.kind !== "terrain") {
+      upsert.push(b);
+    } else {
+      const set: ItemPatch["set"] = {};
+      if (a.cells !== b.cells) set.cells = b.cells;
+      if (a.edges !== b.edges) set.edges = b.edges;
+      if (!sameStamps(a.stamps, b.stamps)) set.stamps = b.stamps;
+      if (Object.keys(set).length) patch.push({ id, set });
+    }
+  }
+  const out: ItemOps = {};
+  if (upsert.length) out.upsert = upsert;
+  if (patch.length) out.patch = patch;
+  if (del.length) out.delete = del;
+  return out;
 }
 
 /** What a click with the Doors tool makes of a grid line (named after Dungeondraft's portal styles). */
@@ -686,7 +1183,7 @@ export function setPortal(edit: BuildEdit, col: number, row: number, side: Side,
 }
 
 function sameStamps(a: Stamp[], b: Stamp[]): boolean {
-  return a.length === b.length && a.every((s, i) => s.every((v, j) => v === b[i][j]));
+  return a.length === b.length && a.every((s, i) => s.length === b[i].length && s.every((v, j) => v === b[i][j]));
 }
 
 /**
@@ -792,10 +1289,12 @@ export function computeExposure(m: BuildModel): Exposure {
       for (let i = 0; i < CHUNK_CELLS; i++) {
         if (ch.cells[i] === "g") grass.push(cellKey(ch.cx * CHUNK + (i % CHUNK), ch.cy * CHUNK + Math.floor(i / CHUNK)));
       }
-      for (const [id, sc, sr, , n] of ch.stamps) {
+      for (const [id, sc, sr, , size] of ch.stamps) {
         if (id !== "tree" && id !== "bush") continue;
         const ax = ch.cx * CHUNK + sc;
         const ay = ch.cy * CHUNK + sr;
+        // The squares it stands on, however big it's drawn.
+        const n = stampBlock(size);
         let outdoors = false;
         for (let dy = 0; dy < n; dy++) {
           for (let dx = 0; dx < n; dx++) {
@@ -943,6 +1442,46 @@ const WALL_COLOR = "#1d1a17";
 const DOOR_COLOR = "#9a6532";
 const SECRET_COLOR = "#c77dff";
 
+/**
+ * Draws an object whose block's top-left cell is (col, row): the canvas moved to the
+ * block's middle, turned, and scaled to its size, for drawStamp. (A quarter turn is
+ * worked out just as it always was, so objects not turned finer draw exactly as before.)
+ */
+function paintStamp(
+  c: CanvasRenderingContext2D,
+  g: { size: number; offsetX: number; offsetY: number },
+  id: StampId,
+  col: number,
+  row: number,
+  turns: number,
+  size: number,
+  fine: number,
+  look: StampLook | null,
+): void {
+  const n = stampBlock(size);
+  c.save();
+  c.translate(g.offsetX + (col + n / 2) * g.size, g.offsetY + (row + n / 2) * g.size);
+  c.rotate(fine ? (turns * Math.PI) / 2 + (fine * Math.PI) / 180 : (turns * Math.PI) / 2);
+  c.scale(size * g.size, size * g.size);
+  drawStamp(c, id, look, turns, fine);
+  c.restore();
+}
+
+/** Draws an object where it stands, as the build draws it (the caller sets the alpha): for previews and drags. */
+export function drawStampAt(c: CanvasRenderingContext2D, g: GridSettings, p: Placed, look: StampLook | null): void {
+  const { stamp } = stampFor(p);
+  paintStamp(c, g, p.id, p.col, p.row, stamp[3], stamp[4], stamp[5] ?? 0, look);
+}
+
+/** Where a door is drawn on its grid line, in map pixels: the part between 0.18 and 0.82 of the way along. */
+export function doorSegment(g: GridSettings, d: DoorRef): { x0: number; y0: number; x1: number; y1: number } {
+  const X = (col: number) => g.offsetX + col * g.size;
+  const Y = (row: number) => g.offsetY + row * g.size;
+  return d.side === "t"
+    ? { x0: X(d.col + 0.18), y0: Y(d.row), x1: X(d.col + 0.82), y1: Y(d.row) }
+    : { x0: X(d.col), y0: Y(d.row + 0.18), x1: X(d.col), y1: Y(d.row + 0.82) };
+}
+
 interface ChunkGeom {
   /** Wall lines, in cells: x0, y0, x1, y1 for each. */
   walls: number[];
@@ -975,7 +1514,8 @@ export class BuildRenderer {
   reset(): void {
     this.model.index = { chunks: new Map(), secrets: new Map() };
     this.model.draft = null;
-    this.model.hiddenStamp = null;
+    this.model.hidden = [];
+    this.model.hiddenSlots = new Set();
     this.geoms.clear();
     this.geomDirty.clear();
     this.paintDirty.clear();
@@ -1033,6 +1573,11 @@ export class BuildRenderer {
     return { look: s.look, level: s.level, hash: stampHash(col, row, this.seasonSeed), cover };
   }
 
+  /** How an object standing somewhere looks in the season (see stampLook). */
+  lookFor(p: Placed): StampLook | null {
+    return this.stampLook(p.id, p.col, p.row, stampBlock(p.size));
+  }
+
   /** Works out what's outdoors again if the build has changed, and repaints where that changed. */
   private updateExposure(): void {
     const index = this.model.index;
@@ -1050,7 +1595,7 @@ export class BuildRenderer {
       const a = prev.chunks.get(k);
       const b = next.chunks.get(k);
       if (a && b && a.every((v, i) => v === b[i])) continue;
-      // Only this chunk: repainting it also redraws the two cells round it, which covers
+      // Only this chunk: repainting it also redraws the three cells round it, which covers
       // every object over any of its squares, and a tree's "leaves fall here" marks are
       // kept (and compared) in the chunk of the square they mark.
       this.paintDirty.add(k);
@@ -1082,15 +1627,10 @@ export class BuildRenderer {
       changed = true;
       this.geomDirty.add(k);
     }
-    // An object being dragged: if its chunk changed, find it again by what it is, or stop hiding it.
-    const h = this.model.hiddenStamp;
-    if (h) {
-      const k = ckey(h.cx, h.cy);
-      if (prev.chunks.get(k) !== next.chunks.get(k)) {
-        const i = next.chunks.get(k)?.stamps.findIndex((s) => s.join() === h.stamp.join()) ?? -1;
-        this.model.hiddenStamp = i >= 0 ? { ...h, i } : null;
-        this.paintDirty.add(k);
-      }
+    // Objects being dragged: if their chunks changed, find them again, or stop hiding those that have gone.
+    const hidden = this.model.hidden;
+    if (hidden.some((r) => prev.chunks.get(ckey(r.cx, r.cy)) !== next.chunks.get(ckey(r.cx, r.cy)))) {
+      this.setHidden(resolveRefs((cx, cy) => next.chunks.get(ckey(cx, cy)), hidden).refs);
     }
     // Kept when nothing changed (the scene's other items did, or the selection): what's
     // outdoors is worked out again only for a new index.
@@ -1152,21 +1692,20 @@ export class BuildRenderer {
     d.walls.clear();
   }
 
-  /** Stops drawing the object on top at a cell (while it's dragged somewhere else). */
-  hideStampAt(col: number, row: number): boolean {
-    const hit = this.model.stampAt(col, row);
-    if (!hit) return false;
-    this.showHiddenStamp();
-    this.model.hiddenStamp = { cx: hit.cx, cy: hit.cy, i: hit.i, stamp: hit.stamp };
-    this.paintDirty.add(ckey(hit.cx, hit.cy));
-    return true;
+  /**
+   * Stops drawing these objects where they are (while they're dragged somewhere else),
+   * and draws any hidden before again; [] shows them all. Kept up to date as the build
+   * changes: one that's gone is simply no longer hidden.
+   */
+  hideStamps(refs: StampRef[]): void {
+    this.setHidden(this.model.resolve(refs).refs);
   }
 
-  showHiddenStamp(): void {
-    const h = this.model.hiddenStamp;
-    if (!h) return;
-    this.model.hiddenStamp = null;
-    this.paintDirty.add(ckey(h.cx, h.cy));
+  private setHidden(refs: StampRef[]): void {
+    for (const r of this.model.hidden) this.paintDirty.add(ckey(r.cx, r.cy));
+    this.model.hidden = refs;
+    this.model.hiddenSlots = new Set(refs.map((r) => slot(r.cx, r.cy, r.i)));
+    for (const r of refs) this.paintDirty.add(ckey(r.cx, r.cy));
   }
 
   draftWall(col: number, row: number, side: Side, mode: "add" | "remove"): void {
@@ -1315,8 +1854,12 @@ export class BuildRenderer {
       for (const ck of this.paintDirty) {
         const cx = Math.floor(ck / 4096) - 2048;
         const cy = (ck % 4096) - 2048;
-        // Objects reach up to two cells past the chunk their corner is in.
-        this.paintRegion(scene, cx * CHUNK - 2, cy * CHUNK - 2, cx * CHUNK + CHUNK + 1, cy * CHUNK + CHUNK + 1);
+        // An object is drawn from one cell before the chunk its block's corner is in to
+        // three cells past it (3 squares, turned 45 degrees: STAMP_DRAW_BEFORE and _AFTER).
+        // One standing on any of the chunk's squares, whose look can depend on them, has its
+        // corner up to two cells before the chunk, so it's drawn from three cells before.
+        // All of those are painted whole.
+        this.paintRegion(scene, cx * CHUNK - 3, cy * CHUNK - 3, cx * CHUNK + CHUNK + 2, cy * CHUNK + CHUNK + 2);
       }
     }
     this.paintAll = false;
@@ -1348,7 +1891,10 @@ export class BuildRenderer {
     const cc1 = Math.floor((px1 / k - g.offsetX) / g.size);
     const cr1 = Math.floor((py1 / k - g.offsetY) / g.size);
     this.drawFloors(ctx, scene, cc0, cr0, cc1, cr1);
-    this.drawStamps(ctx, scene, cc0, cr0, cc1, cr1);
+    // Objects are drawn from a cell before too: a tree's shadow falls a little past the
+    // square it's drawn on, so one just above or left of these cells can reach into them
+    // (the clip keeps the rest of it out). Below and right, cc1 and cr1 are already a cell on.
+    this.drawStamps(ctx, scene, cc0 - 1, cr0 - 1, cc1, cr1);
     ctx.restore();
   }
 
@@ -1412,7 +1958,6 @@ export class BuildRenderer {
 
   private drawStamps(c: CanvasRenderingContext2D, scene: Scene, c0: number, r0: number, c1: number, r1: number): void {
     const g = scene.grid;
-    const size = g.size;
     const chunks = this.model.index.chunks;
     const draft = this.model.draft?.groundOnly ? undefined : this.model.draft?.cells;
     // An object over any square of a room being erased goes with it, so it isn't shown.
@@ -1420,24 +1965,32 @@ export class BuildRenderer {
       for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) if (draft!.get(cellKey(ax + dx, ay + dy)) === EMPTY) return true;
       return false;
     };
-    for (let cy = chunkOf(r0 - 2); cy <= chunkOf(r1); cy++) {
-      for (let cx = chunkOf(c0 - 2); cx <= chunkOf(c1); cx++) {
+    const hidden = this.model.hiddenSlots;
+    // Objects standing up to STAMP_DRAW_AFTER cells before the area, or STAMP_DRAW_BEFORE
+    // after it, can reach into it (3 squares, turned 45 degrees).
+    for (let cy = chunkOf(r0 - STAMP_DRAW_AFTER); cy <= chunkOf(r1 + STAMP_DRAW_BEFORE); cy++) {
+      for (let cx = chunkOf(c0 - STAMP_DRAW_AFTER); cx <= chunkOf(c1 + STAMP_DRAW_BEFORE); cx++) {
         const ch = chunks.get(ckey(cx, cy));
         if (!ch?.stamps.length) continue;
-        const hidden = this.model.hiddenStamp;
         for (let i = 0; i < ch.stamps.length; i++) {
-          const [id, sc, sr, turns, n] = ch.stamps[i];
-          if (hidden && hidden.cx === cx && hidden.cy === cy && hidden.i === i) continue;
+          const stamp = ch.stamps[i];
+          const [id, sc, sr, turns, size, fine = 0] = stamp;
+          if (hidden.size && hidden.has(slot(cx, cy, i))) continue;
           const ax = cx * CHUNK + sc;
           const ay = cy * CHUNK + sr;
-          if (ax > c1 || ay > r1 || ax + n - 1 < c0 || ay + n - 1 < r0) continue;
+          const n = stampBlock(size);
+          // What its drawing covers (see drawnBounds): for quarter turns, its size about its block's middle.
+          if (fine) {
+            const b = drawnBounds(placedOf(cx, cy, stamp));
+            if (b.c0 > c1 || b.r0 > r1 || b.c1 < c0 || b.r1 < r0) continue;
+          } else {
+            const x = ax + n / 2;
+            const y = ay + n / 2;
+            const h = size / 2;
+            if (Math.floor(x - h) > c1 || Math.floor(y - h) > r1 || Math.ceil(x + h) - 1 < c0 || Math.ceil(y + h) - 1 < r0) continue;
+          }
           if (draft?.size && erased(ax, ay, n)) continue;
-          c.save();
-          c.translate(g.offsetX + (ax + n / 2) * size, g.offsetY + (ay + n / 2) * size);
-          c.rotate((turns * Math.PI) / 2);
-          c.scale(n * size, n * size);
-          drawStamp(c, id, this.season ? this.stampLook(id, ax, ay, n) : null, turns);
-          c.restore();
+          paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
         }
       }
     }

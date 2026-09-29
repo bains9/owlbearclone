@@ -15,8 +15,25 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 28 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 29 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Select, turn and size objects, like Dungeondraft (29 September 2026)",
+        "steps": [
+          "GM: in **Build the map**, press **X** or pick **Select** (the dashed box with a pointer).",
+          "Click an object, or drag a box over several.",
+          "Drag them to move them, scroll the mouse wheel to turn them, or press **Delete**."
+        ],
+        "notes": [
+          "**Select** works like Dungeondraft's Select tool: selected objects have a blue outline and the one under the pointer a yellow one. **Shift**+click adds or takes away, a box over empty floor selects several, **Shift**+drag adds a box. Drag to move, the arrow keys nudge a square, the mouse wheel turns 15° a notch (hold **Z** for 5°), a right-click turns 90°, and **Alt**+wheel changes the size. **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste (into another scene or room too), **Escape** deselects, and **X** again goes back to what you were using.",
+          "Turning several objects turns them together, so a table keeps its chairs.",
+          "Objects can now be turned in 5° steps and sized from ½ to 3 squares in quarter squares. While you place one in **Objects**, the mouse wheel turns it and **Alt**+wheel sizes it before you click, and the bar has **Size** and **Turn** controls.",
+          "In **Objects**, a click now always places a new object, even on top of another; turn, move or delete placed ones in **Select**. **Alt**+click still removes one, and with a mouse you can still drag one to move it.",
+          "In **Objects**, and in **Select** with objects selected, the mouse wheel turns objects: zoom with **Ctrl** and the wheel, or pinch. A trackpad still moves the map. If your mouse wheel moves the map instead of turning, or you use a trackpad, hold **Z** while you scroll, or see **Place objects**.",
+          "Doors and secret doors can be clicked in **Select**, and **Delete** takes them away.",
+          "Pages opened before this update don't show built maps until they're reloaded (**Update: Reload**)."
+        ]
+      },
       {
         "title": "Seasons in one click (28 September 2026)",
         "steps": [
@@ -272,7 +289,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "With any tool, you can move around by dragging with the right (or middle) mouse button, or by holding Space and dragging.",
           "On a laptop trackpad, scroll with two fingers to move around and pinch to zoom.",
-          "On the keyboard, + zooms in, − zooms out and 0 fits the scene."
+          "On the keyboard, + zooms in, − zooms out and 0 fits the scene.",
+          "GM: in the Build tool's **Objects**, and in **Select** with objects selected, the wheel turns objects instead; zoom with **Ctrl** and the wheel."
         ]
       },
       {
@@ -1476,7 +1494,7 @@ export const GUIDE: GuideSection[] = [
     "id": "building-maps",
     "title": "Building a map: floors, walls, doors and objects",
     "audience": "gm",
-    "intro": "The Build tool lets you make a battle map right on the grid, or add to a map you uploaded. Its modes are named after Dungeondraft's tools: **Building** for rooms, **Walls**, **Doors** (Dungeondraft's portals), **Terrain** for grass, water and lava, and **Objects**. Players see what you build (under fog, like any map), and it's saved with the scene.",
+    "intro": "The Build tool lets you make a battle map right on the grid, or add to a map you uploaded. Its modes are named after Dungeondraft's tools: **Building** for rooms, **Walls**, **Doors** (Dungeondraft's portals), **Terrain** for grass, water and lava, and **Objects**, plus **Select** (**X**) to move, turn, size, copy or delete what you've placed. Players see what you build (under fog, like any map), and it's saved with the scene.",
     "parts": [
       {
         "title": "Coming from Dungeondraft",
@@ -1487,9 +1505,9 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
-          "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, and the Object tool is **Objects**.",
-          "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding; and a right-click turns the next object.",
-          "Different: everything sits on the grid, walls follow grid lines, objects turn in quarter turns, and there's no lighting and no levels (a scene is a level). There's no separate select step for what you've built: in **Objects**, drag an object to move it, and Alt+click to remove it.",
+          "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
+          "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",
+          "Different: everything sits on the grid: walls follow grid lines, and objects stand on whole squares, turn in 5° steps and size from ½ to 3 squares. In **Select** the wheel turns 15° a notch (Dungeondraft: 30°) and **Z**+wheel 5° (Dungeondraft: 10°). Walls and floors can't be selected (floors can't in Dungeondraft either); doors can be selected only to delete them, and openings not at all. There's no mirror, layers, locking, lighting or levels (a scene is a level).",
           "A **Blank grid**'s **Columns** and **Rows** are Dungeondraft's new map size in squares."
         ]
       },
@@ -1509,7 +1527,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Open the Build tool",
         "steps": [
           "Click **Build the map** (the hammer) in the toolbar, or press **B**.",
-          "In its bar, pick a mode: **Building** (the castle), **Walls** (the bricks), **Doors** (the door), **Terrain** (the trees) or **Objects** (the armchair). On a phone the names are hidden and only the pictures show."
+          "In its bar, pick a mode: **Building** (the castle), **Walls** (the bricks), **Doors** (the door), **Terrain** (the trees), **Objects** (the armchair) or **Select** (the dashed box with a pointer, or press **X**). On a phone the names are hidden and only the pictures show."
         ],
         "notes": [
           "Only the GM has the Build tool.",
@@ -1593,15 +1611,36 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Pick **Objects**.",
           "Pick an object from the row of pictures: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire or rubble.",
-          "Pick a size: **1×1**, **2×2** or **3×3** squares.",
-          "Click the map where it goes. With a mouse, a faded copy shows where it will land."
+          "Set its **Size** (½ to 3 squares) and **Turn** in the bar. With a mouse you can instead scroll the wheel to turn it 15° a notch (hold **Z** for 5°), hold **Alt** and scroll to change its size, or right-click to turn it 90°, as in Dungeondraft.",
+          "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],
         "notes": [
-          "To turn the next one before you place it, right-click (as in Dungeondraft), press **[** or **]**, or click the turn button.",
-          "Right-click or click an object that's already there to turn it a quarter turn.",
-          "With a mouse, drag an object to move it.",
+          "A click always places a new object, even on top of another (a chair at a table), but never an exact copy on top of the same object. To move, turn or delete objects already placed, use **Select**. With a mouse you can also drag one to move it without switching.",
+          "While you place objects, the mouse wheel turns them: zoom with **Ctrl** and the wheel, or pinch on a trackpad. Two fingers on a trackpad still move the map.",
+          "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
+          "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them.",
           "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
           "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
+        ]
+      },
+      {
+        "title": "Select: move, turn, size, copy and delete",
+        "steps": [
+          "Press **X**, or pick **Select** in the Build tool's bar. **X** again, or **Back** in the bar, goes back to what you were using.",
+          "Click an object to select it. **Shift**+click adds another, or takes it out again. Where objects overlap, click again to pick the one underneath.",
+          "To select several, drag a box over them, starting on empty floor, or hold **Shift** to start anywhere and add to what's selected. Every object whose middle is in the box is selected.",
+          "Drag a selected object to move everything selected, a square at a time, or press the arrow keys (**Shift**: five squares).",
+          "Turn them with the mouse wheel (15° a notch; hold **Z** for 5°), **[** and **]**, or a right-click (90°). Hold **Alt** and scroll to make them bigger or smaller.",
+          "**Delete** removes them. **Ctrl+D** duplicates them next to themselves. **Ctrl+C** copies them and **Ctrl+V** pastes them under the pointer, in any scene or room. **Escape** deselects."
+        ],
+        "notes": [
+          "Selected objects have a blue outline, and the one under the pointer a yellow one, as in Dungeondraft. The bar has the same actions as buttons.",
+          "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, they keep to the grid, so they can shift a little; turn on and they fall back into place. Sizing sizes each object where it stands.",
+          "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected.",
+          "Each move, delete, duplicate or paste is one step for **Undo**, and so is each burst of turning, sizing or nudging. Undo also clears the selection.",
+          "With nothing selected, the mouse wheel zooms as usual. With objects selected it turns them; **Ctrl** and the wheel always zoom. If your wheel or trackpad moves the map instead, hold **Z** while you scroll, or see **Place objects**.",
+          "In a season, moving, turning or sizing a tree can change which kind of tree it is, because that depends on where it stands.",
+          "On a phone or tablet: tap an object to select it (tap again for the one underneath), drag it to move it, or drag across the map to select several with a box; two fingers move the map. The bar at the bottom turns, sizes, duplicates and deletes. **Copy** (two overlapping squares) and **Paste** (a clipboard) are in the Build tool's bar at the top; on a phone, swipe that bar sideways to reach them. **Paste** puts the copies in the middle of the screen, so move the map to where they go first."
         ]
       },
       {
@@ -1610,11 +1649,11 @@ export const GUIDE: GuideSection[] = [
           "Press **Ctrl+Z** (or click **Undo**) to take back your last drag or click, and **Ctrl+Y** or **Ctrl+Shift+Z** to redo it."
         ],
         "notes": [
-          "Each drag or click is one step for undo, and so is a wall placed corner by corner.",
+          "Each drag or click is one step for undo, and so is a wall placed corner by corner. In **Select**, a burst of turning, sizing or nudging is one step.",
           "Undo only takes back what that step changed. If you build in two tabs at once (a laptop and a tablet, say), undoing in one never wipes what you built in the other.",
           "What you build is saved with the scene straight away, and it's included in the room's backups.",
           "Changing the grid's size or offset in **Edit scene** moves the build along with it.",
-          "On a phone or tablet, one finger paints floors and draws walls. For doors and objects, tap; dragging moves the map instead. Alt, right-clicks and dragging objects need a mouse and keyboard."
+          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
         ]
       }
     ]
@@ -2386,7 +2425,8 @@ export const GUIDE: GuideSection[] = [
           "**M**: Measure",
           "**P**: Pointer",
           "**F**: Fog of war (GM)",
-          "**B**: Build the map (GM)"
+          "**B**: Build the map (GM)",
+          "**X**: **Select** in Build the map, and back again (GM)"
         ]
       },
       {
@@ -2396,8 +2436,8 @@ export const GUIDE: GuideSection[] = [
           "**Drag empty map**: move your view, while **Move & select** is on",
           "**Right- or middle-button drag**: move your view, with any tool",
           "**Space+drag**: move your view, with any tool",
-          "**Mouse wheel**: zoom in and out around the pointer",
-          "**Ctrl+mouse wheel**: zoom, if turning the wheel on its own moves the map instead (small, smooth wheel steps are treated like a trackpad scroll)",
+          "**Mouse wheel**: zoom in and out around the pointer (GM: in the Build tool's **Objects**, and in **Select** with objects selected, it turns objects instead)",
+          "**Ctrl+mouse wheel**: zoom, always, even where the wheel turns objects or moves the map (small, smooth wheel steps are treated like a trackpad scroll)",
           "**Pinch** on a trackpad: zoom",
           "**Two-finger scroll** on a trackpad: move your view",
           "**Two-finger pinch** on a phone or tablet: zoom",
@@ -2413,8 +2453,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "**Shift+click**: add something to the selection, or take it out",
-          "**Shift+drag** on empty map: select everything inside a box",
-          "**Right-click** a token or drawing: select it (except while you're drawing a fog polygon or placing wall corners, where a right-click finishes, and in the Build tool's **Objects**, where it turns an object)",
+          "**Shift+drag** on empty map: select everything inside a box (in the Build tool's **Select**, a plain drag on empty floor does it)",
+          "**Right-click** a token or drawing: select it (except while you're drawing a fog polygon or placing wall corners, where a right-click finishes, and in the Build tool, where it never selects tokens and in **Objects** and **Select** turns objects 90°)",
           "**Escape**: stop what you're in the middle of (a drag, a drawing, a measurement), or clear the selection",
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
@@ -2431,7 +2471,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "**Ctrl+Z**: undo your own last change on this scene",
           "**Ctrl+Shift+Z** or **Ctrl+Y**: redo",
-          "**Ctrl+V**: paste a picture as a token. For the GM, a big picture opens the **New scene** window instead."
+          "**Ctrl+V**: paste a picture as a token. For the GM, a big picture opens the **New scene** window instead. In the Build tool's **Select**, it pastes objects you copied (GM)",
+          "**Ctrl+C** in the Build tool's **Select**: copy the selected objects (GM)"
         ]
       },
       {
@@ -2449,9 +2490,12 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "**[** and **]** with the brush in **Building** or **Terrain**: make the brush a square smaller or bigger (GM)",
-          "**[** and **]**, or a right-click, with **Objects**: turn the next object a quarter turn (GM)",
+          "**[** and **]** with **Objects**: turn the next object 15° (**Shift**: 5°); in **Select**, the selected objects (GM)",
+          "**Mouse wheel** with **Objects**: turn the next object 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller. In **Select**, the same for the selected objects (GM)",
+          "**Right-click** with **Objects**: turn the next object 90°; in **Select**, the selected objects (or the one under the pointer); with **Walls**, finish the walls you're placing corner by corner (GM)",
+          "**X**: **Select**, and back (GM)",
+          "In **Select**: **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste, the arrow keys move (**Shift**: five squares), **Escape** deselects (GM)",
           "**Alt** while you drag or click: take away instead of adding (cut out a room, erase terrain, remove walls, doors or objects) (GM)",
-          "**Right-click** an object: turn it; with **Walls**, finish the walls you're placing corner by corner (GM)",
           "**Enter** or a double-click: finish walls placed corner by corner; **Backspace** takes the last corner back (GM)",
           "**Escape** while dragging or placing corners: stop without changing anything (GM)",
           "**Ctrl+mouse wheel**: zoom, as in Dungeondraft"

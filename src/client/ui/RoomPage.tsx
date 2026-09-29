@@ -19,6 +19,7 @@ import type { Profile } from "../identity";
 import { Board } from "../room/board";
 import { RoomClient } from "../room/client";
 import type { PanelId, RoomState } from "../room/client";
+import type { WheelPref } from "../room/buildInput";
 import { ChatPanel, RollView } from "./ChatPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
@@ -28,7 +29,7 @@ import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
-import { BuildHints, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
+import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
 import { Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
@@ -160,6 +161,7 @@ function RoomShell() {
           <PreviewBanner />
           <GridAlignBanner />
           <SelectionBar />
+          <BuildSelectionBar />
           <ZoomControls />
           <Toasts />
           <NoteDialog />
@@ -481,6 +483,8 @@ function NoteForm(props: { at: NonNullable<RoomState["textPrompt"]> }) {
 export function ProfileDialog(props: { onClose: () => void }) {
   const room = useRoom();
   const seasonsOff = useRoomState((s) => s.seasonsOff);
+  const gm = useRoomState((s) => s.me?.role === "gm");
+  const wheelTurns = useRoomState((s) => s.wheelTurns);
   return (
     <Modal title="Your name and colour" onClose={props.onClose}>
       <ProfileForm
@@ -502,6 +506,19 @@ export function ProfileDialog(props: { onClose: () => void }) {
         <p class="small muted">
           Untick it if maps are slow to appear on this device: you'll see them as drawn. Everyone else still sees the season.
         </p>
+        {gm && (
+          <>
+            <label class="field">
+              <span>Mouse wheel over objects (Build tool)</span>
+              <select value={wheelTurns} onChange={(e) => room.setWheelTurns(e.currentTarget.value as WheelPref)}>
+                <option value="auto">Turns them, like Dungeondraft</option>
+                <option value="always">Always turns them (smooth-scrolling mice, Mac mice)</option>
+                <option value="never">Zooms, as elsewhere</option>
+              </select>
+            </label>
+            <p class="small muted">A trackpad still moves the map unless you pick Always.</p>
+          </>
+        )}
       </div>
     </Modal>
   );
@@ -510,20 +527,28 @@ export function ProfileDialog(props: { onClose: () => void }) {
 const SHORTCUTS: [string, string][] = [
   ["V / D / E / M / P", "Move, Draw, Erase, Measure, Pointer"],
   ["F", "Fog tool (GM)"],
-  ["B", "Build tool (GM): Building, Walls, Doors, Terrain and Objects, named as in Dungeondraft"],
-  ["Drag empty space, right-drag, or Space + drag", "Pan"],
-  ["Mouse wheel, Ctrl+wheel, pinch", "Zoom"],
+  ["B", "Build tool (GM): Building, Walls, Doors, Terrain, Objects and Select, named as in Dungeondraft"],
+  ["Drag empty space, right-drag, or Space + drag", "Pan (in Build › Select a drag on empty space draws a selection box)"],
+  [
+    "Mouse wheel, Ctrl+wheel, pinch",
+    "Zoom (in Build › Objects, and in Select with objects selected, the wheel turns them: zoom with Ctrl+wheel or pinch)",
+  ],
   ["+ / − / 0", "Zoom in, out, fit the scene"],
-  ["Shift+click, Shift+drag", "Add to the selection, select with a box"],
+  ["Shift+click, Shift+drag", "Add to the selection, select with a box (Build › Select too)"],
   ["Drag something selected", "Move the whole selection: tokens, drawings and notes"],
   ["Alt while dropping a token", "Don't snap to the grid"],
   ["Arrow keys", "Move the selected tokens one square (or hex)"],
-  ["[ and ]", "Rotate the selected token (Shift: 15°)"],
+  ["[ and ]", "Rotate the selected token 45° (Shift: 15°)"],
   ["Fog brush: [ and ]", "Smaller or bigger brush (Shift: bigger steps)"],
-  ["Build tool: [ and ]", "Brush size, or turn the next object"],
+  ["Build tool: [ and ]", "Brush size, or turn objects 15° (Shift: 5°): the next one, or the selected ones"],
   ["Build tool: Alt", "Take away instead: cut out a room, erase terrain, remove walls, doors or objects"],
-  ["Build tool: right-click", "Turn an object (or the next one); finish walls placed corner by corner"],
+  ["Build tool: right-click", "Turn the next object, or the selected ones, 90°; finish walls placed corner by corner"],
   ["Build tool, Walls: click corners", "Walls between them; double-click, right-click or Enter finishes, Backspace takes a corner back"],
+  ["X", "Build tool (GM): Select, and X again to go back, as in Dungeondraft"],
+  ["Build tool: wheel, Z+wheel, Alt+wheel", "Turn objects 15°, turn them 5°, change their size (Objects: the next one; Select: the selected ones)"],
+  ["Build › Select: click, Shift+click, drag", "Select objects (doors by clicking); Shift adds; click again for the one underneath"],
+  ["Build › Select: drag, arrow keys", "Move the selected objects (Shift+arrows: five squares)"],
+  ["Build › Select: Delete, Ctrl+D, Ctrl+C, Ctrl+V, Esc", "Delete, duplicate, copy, paste (other scenes and rooms too), deselect"],
   ["H / L", "Hide or lock the selected token (GM)"],
   ["Delete", "Delete the selection"],
   ["Ctrl+D", "Duplicate (copies are numbered: Goblin 2, Goblin 3)"],
@@ -532,7 +557,7 @@ const SHORTCUTS: [string, string][] = [
   ["Measure tool", "Ruler or spell areas: circle, cone, cube, line (tick Pin to map to keep one)"],
   ["Draw tool, then the T button", "Text note: click where it goes"],
   ["Chat: /r 2d6+3", "Roll dice (also 4d6dl1, 2d20kh1, d%, 4dF)"],
-  ["Ctrl+V", "Paste an image: a big one starts a new scene (GM), a small one becomes a token"],
+  ["Ctrl+V", "Paste an image: a big one starts a new scene (GM), a small one becomes a token; in Build › Select, objects you copied"],
 ];
 
 function HelpDialog(props: { onClose: () => void }) {

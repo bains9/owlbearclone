@@ -9,7 +9,7 @@ import { applyOps, inverseOps, isEmptyOps } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
 import { canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
-import { CLOSE_DELETED, CLOSE_NOT_FOUND } from "../../shared/protocol";
+import { CLOSE_DELETED, CLOSE_NOT_FOUND, PROTOCOL_VERSION } from "../../shared/protocol";
 import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
 import type { Point } from "../../shared/geometry";
 import type {
@@ -35,6 +35,9 @@ import type { MapFile } from "../mapImport";
 import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
+import { composeBuildUndo } from "./build";
+import { canFold, pressX } from "./buildInput";
+import type { SelectReturn, WheelPref } from "./buildInput";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
 
@@ -68,10 +71,10 @@ export type BuildShape = "rect" | "circle" | "brush";
 /**
  * The Build tool (GM): painting floors, walls, doors and objects onto the grid. The
  * modes are named after Dungeondraft's tools, which the GM knows: Building, Wall,
- * Portal (doors), Terrain and Object.
+ * Portal (doors), Terrain, Object and Select.
  */
 export interface BuildOptions {
-  mode: "building" | "walls" | "doors" | "terrain" | "stamps";
+  mode: "building" | "walls" | "doors" | "terrain" | "stamps" | "select";
   shape: { building: BuildShape; terrain: BuildShape };
   /**
    * What each paints: a room's floor (stone, wood or dirt), or grass, water or lava; or
@@ -91,11 +94,13 @@ export interface BuildOptions {
   /** Doors: what a click on a wall makes. */
   doorStyle: "open" | "door" | "secret";
   stamp: StampId;
-  /** Objects: width and height in squares (1-3). */
+  /** Objects: size in squares of the next one placed, ½ to 3 in quarter squares. */
   stampSize: number;
-  /** Objects: quarter turns clockwise for the next one placed. */
-  stampTurns: number;
+  /** Objects: degrees clockwise of the next one placed, 0-355 in 5° steps. */
+  stampDeg: number;
   stampMode: "place" | "remove";
+  /** Select: where X (or Back) goes back to. */
+  selectReturn: SelectReturn | null;
 }
 
 export interface MeasureOptions {
@@ -143,6 +148,12 @@ export interface RoomState {
   seasonsOff: boolean;
   /** How much of each map (by asset id) is open ground, once a season has analysed it. */
   mapOutdoor: Record<string, number>;
+  /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
+  buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
+  /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
+  buildClip: boolean;
+  /** What this device's mouse wheel does over objects in the Build tool (remembered in the browser). */
+  wheelTurns: WheelPref;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -155,12 +166,29 @@ export interface RoomState {
   uploading: number;
 }
 
+/** The buttons of Build › Select's bars. */
+export type BuildAction =
+  | "turnLeft"
+  | "turnRight"
+  | "turn90"
+  | "smaller"
+  | "bigger"
+  | "duplicate"
+  | "copy"
+  | "paste"
+  | "delete"
+  | "deselect";
+
 /** What the board exposes to the rest of the app. */
 export interface BoardApi {
   viewCenter(): Point;
   centerOn(p: Point): void;
   fit(): void;
   zoomBy(factor: number): void;
+  /** Build › Select: does what a button in its bars does. */
+  buildAction(a: BuildAction): void;
+  /** Build › Select: selects nothing. */
+  clearBuildSelection(): void;
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -183,6 +211,8 @@ interface UndoEntry {
   scene?: { before: ScenePatch; after: ScenePatch };
   /** Undo and redo worked out when they're used, from the items as they are then (build steps). */
   steps?: { undo: (items: ItemMap) => ItemOps; redo: (items: ItemMap) => ItemOps };
+  /** Build steps that fold into this one (a burst of turning): which burst, and when the last came. */
+  coalesce?: { key: string; at: number };
 }
 
 const MAX_MESSAGES = 300;
@@ -230,6 +260,7 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
 }
 
 const SEASONS_OFF_KEY = "tabletop-seasons-off";
+const WHEEL_TURNS_KEY = "tabletop-wheel-turns";
 
 /** Whether this device has seasonal looks turned off (remembered in the browser). */
 function loadSeasonsOff(): boolean {
@@ -237,6 +268,16 @@ function loadSeasonsOff(): boolean {
     return localStorage.getItem(SEASONS_OFF_KEY) === "1";
   } catch {
     return false;
+  }
+}
+
+/** What this device's mouse wheel does over objects (remembered in the browser; "auto" to begin with). */
+function loadWheelTurns(): WheelPref {
+  try {
+    const v = localStorage.getItem(WHEEL_TURNS_KEY);
+    return v === "always" || v === "never" ? v : "auto";
+  } catch {
+    return "auto";
   }
 }
 
@@ -331,8 +372,9 @@ export class RoomClient {
         doorStyle: "door",
         stamp: "table",
         stampSize: 1,
-        stampTurns: 0,
+        stampDeg: 0,
         stampMode: "place",
+        selectReturn: null,
       },
       measureOpts: { shape: "ruler", keep: false },
       textPrompt: null,
@@ -343,6 +385,9 @@ export class RoomClient {
       // GM's own browser mustn't take on the GM's "seasons off" for this device.
       seasonsOff: displayKey === null && loadSeasonsOff(),
       mapOutdoor: {},
+      buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
+      buildClip: false,
+      wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -374,9 +419,16 @@ export class RoomClient {
     if (this.disposed) return;
     const p = this.profile;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    // v: the protocol version this code speaks (2: it can draw built maps). b: its build,
-    // so the server can say when this tab is out of date.
-    const qs = new URLSearchParams({ uid: p.uid, name: p.name, color: p.color, sid: this.sid, v: "2", b: BUILD_ID });
+    // v: the protocol version this code speaks (3: objects at any angle and size). b: its
+    // build, so the server can say when this tab is out of date.
+    const qs = new URLSearchParams({
+      uid: p.uid,
+      name: p.name,
+      color: p.color,
+      sid: this.sid,
+      v: String(PROTOCOL_VERSION),
+      b: BUILD_ID,
+    });
     if (this.displayKey !== null) qs.set("display", this.displayKey);
     const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/ws?${qs}`);
     this.ws = ws;
@@ -862,13 +914,28 @@ export class RoomClient {
 
   /**
    * A change whose undo and redo are worked out when they're used, from the state as it
-   * is then (a build step, which must never put back more than it changed).
+   * is then (a build step, which must never put back more than it changed). With a
+   * `coalesce` key, it folds into the step on top when that one is from the same burst
+   * (turning with the mouse wheel, say), so one undo takes back the whole burst.
    */
-  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>): void {
+  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>, coalesce?: string): void {
     if (isEmptyOps(ops)) return;
-    this.undoStack.push({ sceneId, redo: ops, undo: inverseOps(this.state.items, ops), steps });
-    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
-    this.redoStack = [];
+    const now = Date.now();
+    const top = this.undoStack.at(-1);
+    if (coalesce !== undefined && top?.steps && canFold(top, coalesce, sceneId, now, !this.redoStack.length)) {
+      top.steps = composeBuildUndo(top.steps, steps);
+      top.coalesce = { key: coalesce, at: now };
+    } else {
+      this.undoStack.push({
+        sceneId,
+        redo: ops,
+        undo: inverseOps(this.state.items, ops),
+        steps,
+        ...(coalesce !== undefined ? { coalesce: { key: coalesce, at: now } } : {}),
+      });
+      if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+      this.redoStack = [];
+    }
     this.applyLocal(ops);
     this.refreshUndoFlags();
   }
@@ -902,6 +969,8 @@ export class RoomClient {
 
   /** Undoes your latest change on the scene you're looking at (never on a scene you can't see). */
   undo(): void {
+    // As in Dungeondraft, undo and redo leave nothing selected in Build › Select.
+    this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
     const i = this.undoStack.findLastIndex((e) => e.sceneId === view);
     if (i < 0) return;
@@ -912,6 +981,7 @@ export class RoomClient {
   }
 
   redo(): void {
+    this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
     const i = this.redoStack.findLastIndex((e) => e.sceneId === view);
     if (i < 0) return;
@@ -1084,11 +1154,65 @@ export class RoomClient {
     this.store.set({ seasonsOff: off });
   }
 
-  setTool(tool: ToolId): void {
+  /** What this device's mouse wheel does over objects in the Build tool. */
+  setWheelTurns(v: WheelPref): void {
+    if (this.display) return;
+    try {
+      if (v === "auto") localStorage.removeItem(WHEEL_TURNS_KEY);
+      else localStorage.setItem(WHEEL_TURNS_KEY, v);
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ wheelTurns: v });
+  }
+
+  /**
+   * Picks a tool. A change of tool other than X's forgets where X would go back to, and the
+   * Build tool starts with no tokens selected (so Delete and the arrow keys never reach a
+   * selection that can't be seen there). X passes the Build mode and the way back with it,
+   * so the board never sees the new tool in the old mode.
+   */
+  setTool(tool: ToolId, x?: { mode: BuildOptions["mode"]; selectReturn: SelectReturn | null }): void {
     if (GM_TOOLS.includes(tool) && !this.isGm) return;
     const s = this.state;
-    // "Player view" belongs to the fog tool; leaving the tool leaves the preview.
-    this.store.set({ tool, ...(tool !== "fog" && s.fogOpts.preview ? { fogOpts: { ...s.fogOpts, preview: false } } : {}) });
+    const build = s.buildOpts;
+    this.store.set({
+      tool,
+      // "Player view" belongs to the fog tool; leaving the tool leaves the preview.
+      ...(tool !== "fog" && s.fogOpts.preview ? { fogOpts: { ...s.fogOpts, preview: false } } : {}),
+      ...(x ? { buildOpts: { ...build, ...x } } : build.selectReturn ? { buildOpts: { ...build, selectReturn: null } } : {}),
+      ...(tool === "build" && s.selection.length ? { selection: [] } : {}),
+    });
+  }
+
+  /**
+   * Picks one of the Build tool's modes from its bar. Select remembers the mode it was
+   * picked from, for Back and X; picking any other mode forgets it.
+   */
+  setBuildMode(mode: BuildOptions["mode"]): void {
+    const o = this.state.buildOpts;
+    if (mode === o.mode) return;
+    const selectReturn: SelectReturn | null = mode === "select" ? { tool: "build", buildMode: o.mode } : null;
+    this.store.set({ buildOpts: { ...o, mode, selectReturn } });
+  }
+
+  /** X: Build › Select, and from there back to where you were (see pressX). */
+  toggleBuildSelect(): void {
+    const s = this.state;
+    const scene = this.viewScene;
+    const r = pressX({
+      tool: s.tool,
+      mode: s.buildOpts.mode,
+      ret: s.buildOpts.selectReturn,
+      gm: this.isGm,
+      hex: !!scene && isHex(scene.grid),
+    });
+    if (!r) return;
+    if ("toast" in r) {
+      this.toast(r.toast, "error");
+      return;
+    }
+    this.setTool(r.tool, { mode: r.mode, selectReturn: r.ret });
   }
 
   select(ids: string[]): void {

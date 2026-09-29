@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { terrainId } from "../src/shared/terrain";
-import type { Stamp } from "../src/shared/terrain";
+import type { Stamp, StampId } from "../src/shared/terrain";
 import type { Scene, TerrainItem } from "../src/shared/types";
 import {
   BuildModel,
@@ -13,7 +13,7 @@ import {
   indexTerrain,
   winterCover,
 } from "../src/client/room/build";
-import { autumnHues, drawStamp, floorVariant, hasSeasonalArt, mapToStamp, stampHash } from "../src/client/room/buildArt";
+import { autumnHues, drawStamp, floorVariant, hasSeasonalArt, mapToStamp, mapToStampDeg, stampHash } from "../src/client/room/buildArt";
 import type { StampLook } from "../src/client/room/buildArt";
 
 const SCENE = "Scene1234567";
@@ -126,6 +126,23 @@ describe("what counts as outdoors", () => {
     const loose = computeExposure(model(chunk([".SS"], {}, [["tree", 0, 0, 0, 1]])));
     expect(loose.dist(0, 0)).toBe(0);
     expect(loose.dist(2, 0)).toBe(2);
+  });
+
+  it("goes by the squares an object stands on, however big it's drawn", () => {
+    const paving = ["SSSSSSSSSS", "SSSSSSSSSS", "SSSSSSSSSS", "SSSSSSSSSS"];
+    const under = (size: number) => {
+      const e = computeExposure(model(chunk(paving, {}, [["tree", 3, 0, 0, size]])));
+      return [0, 1, 2, 3].flatMap((row) => [...Array(10).keys()].filter((col) => e.dist(col, row) === 0).map((col) => `${col},${row}`));
+    };
+    // Half a square and 1 1/4 squares stand on one; 2 1/4 on two by two, 2 1/2 on three by three.
+    expect(under(0.5)).toEqual(["3,0"]);
+    expect(under(1.25)).toEqual(["3,0"]);
+    expect(under(2.25)).toEqual(["3,0", "4,0", "3,1", "4,1"]);
+    expect(under(2.5)).toHaveLength(9);
+    // More leaves fall a square round the block, not round the drawing.
+    const e = computeExposure(model(chunk(paving, {}, [["tree", 3, 0, 0, 2.25]])));
+    expect([1, 2, 5, 6].map((c) => e.nearTree(c, 2))).toEqual([false, true, true, false]);
+    expect(e.nearTree(4, 3)).toBe(false);
   });
 
   it("works across chunk borders and for negative cells", () => {
@@ -467,14 +484,14 @@ describe("drawing in a season", () => {
     r.setSeason({ look: "winter", level: 2 }, 3);
     drawBoth(r);
     expect(r.stampLook("rock", 18, 0, 1)).toBeNull();
-    // Grass painted beside it: the rock is outdoors now, and only that chunk (with the two
+    // Grass painted beside it: the rock is outdoors now, and only that chunk (with the three
     // cells round it) is repainted, not the chunks next to it as well.
     r.update([...sampleBuild(), chunk(["gSSS"], {}, [["rock", 2, 0, 0, 1]], 1, 0)]);
     const log = drawBoth(r);
     expect(r.stampLook("rock", 18, 0, 1)?.cover).toBe(2);
     const painted = log.slice(log.lastIndexOf("---") + 1);
-    // Columns 14 to 33 at 40 pixels a square, cut off at the scene's edge.
-    expect(painted.filter((l) => l.startsWith("clearRect("))).toEqual(["clearRect(560,0,240,400)"]);
+    // Columns 13 to 34 at 40 pixels a square, cut off at the scene's edge.
+    expect(painted.filter((l) => l.startsWith("clearRect("))).toEqual(["clearRect(520,0,280,400)"]);
   });
 
   it("works out what's outdoors only when the build changes, not when other items do", () => {
@@ -625,9 +642,9 @@ describe("remembered drawings", () => {
     }
     return out;
   }
-  const draw = (id: "tree" | "bush", look: StampLook, turns: number) => {
+  const draw = (id: StampId, look: StampLook, turns: number, fine = 0) => {
     const c = fakeCanvas();
-    drawStamp(c.getContext("2d")!, id, look, turns);
+    drawStamp(c.getContext("2d")!, id, look, turns, fine);
     return c.log;
   };
 
@@ -664,5 +681,178 @@ describe("remembered drawings", () => {
     expect(draw("bush", look("winter"), 1)).not.toEqual(draw("bush", look("winter"), 0));
     // Nor does the ground round it (snow on it is for rocks and wells).
     expect(draw("tree", { ...look("winter"), cover: 1 }, 2)).toEqual(draw("tree", { ...look("winter"), cover: 3 }, 2));
+  });
+
+  it("draws one turned finer exactly as drawing it straight onto the canvas would", () => {
+    for (const id of ["tree", "bush"] as const) {
+      for (const level of [1, 2, 3] as const) {
+        for (const [turns, fine] of [
+          [1, 20],
+          [3, 85],
+          [0, 45],
+        ]) {
+          const s: StampLook = { look: "winter", level, hash: 0.37, cover: 2 };
+          const kept = draw(id, s, turns, fine);
+          g.Path2D = undefined;
+          try {
+            expect(kept, `${id} winter${level} ${turns} ${fine}`).toEqual(flatten(draw(id, s, turns, fine)));
+          } finally {
+            g.Path2D = FakePath;
+          }
+        }
+      }
+    }
+  });
+
+  it("in winter, draws trees and bushes turned to the nearest 30 degrees; rocks, rubble and wells exactly", () => {
+    const winter: StampLook = { look: "winter", level: 2, hash: 0.4, cover: 3 };
+    for (const id of ["tree", "bush"] as const) {
+      expect(draw(id, winter, 1, 10)).toEqual(draw(id, winter, 1, 0));
+      expect(draw(id, winter, 1, 20)).not.toEqual(draw(id, winter, 1, 0));
+      expect(draw(id, winter, 1, 20)).toEqual(draw(id, winter, 1, 40));
+      // 85 degrees on is nearest the next quarter turn.
+      expect(draw(id, winter, 1, 85)).toEqual(draw(id, winter, 2, 0));
+      expect(draw(id, winter, 3, 85)).toEqual(draw(id, winter, 0, 0));
+      // In another look the way it's turned doesn't matter at all.
+      const autumn: StampLook = { ...winter, look: "autumn" };
+      expect(draw(id, autumn, 1, 20)).toEqual(draw(id, autumn, 0, 0));
+    }
+    for (const id of ["rock", "rubble", "well"] as const) {
+      expect(draw(id, winter, 1, 10), id).not.toEqual(draw(id, winter, 1, 0));
+      expect(draw(id, winter, 1, 0)).toEqual(draw(id, winter, 1));
+    }
+  });
+});
+
+describe("objects turned to any 5 degrees", () => {
+  it("counter-rotate the way to the light at any angle, exactly as before for quarter turns", () => {
+    for (let deg = 0; deg < 360; deg += 5) {
+      const [x, y] = mapToStampDeg(-Math.SQRT1_2, -Math.SQRT1_2, deg);
+      // Turned back onto the map with the object, it points to the top left again.
+      const a = (deg * Math.PI) / 180;
+      expect(x * Math.cos(a) - y * Math.sin(a)).toBeCloseTo(-Math.SQRT1_2, 9);
+      expect(x * Math.sin(a) + y * Math.cos(a)).toBeCloseTo(-Math.SQRT1_2, 9);
+      if (deg % 90 === 0) expect(mapToStampDeg(0.3, -0.8, deg)).toEqual(mapToStamp(0.3, -0.8, deg / 90));
+    }
+  });
+
+  it("are drawn turned and sized about their block's middle, and ones turned by quarter turns exactly as they always were", () => {
+    const calls: [string, unknown[]][] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (_t, p) => (...a: unknown[]) => calls.push([String(p), a]),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    const r = new BuildRenderer();
+    r.update([chunk([], {}, [["table", 3, 2, 3, 2], ["chair", 6, 1, 2, 1], ["table", 9, 2, 0, 1.5, 15], ["rock", 12, 3, 1, 0.5, 85]])]);
+    r.draw(ctx, scene, { x0: 0, y0: 0, x1: scene.width, y1: scene.height }, 2, 2, true);
+    // Each object: the canvas saved, moved, turned and scaled, then its drawing.
+    const placed = calls.flatMap(([name, a], i) =>
+      name === "translate" && calls[i - 1][0] === "save" && calls[i + 1][0] === "rotate" && calls[i + 2][0] === "scale" ? [[a, calls[i + 1][1], calls[i + 2][1]]] : [],
+    );
+    expect(placed).toEqual([
+      [[280, 210], [(3 * Math.PI) / 2], [140, 140]],
+      [[455, 105], [(2 * Math.PI) / 2], [70, 70]],
+      [[700, 210], [(15 * Math.PI) / 180], [105, 105]],
+      [[875, 245], [Math.PI / 2 + (85 * Math.PI) / 180], [35, 35]],
+    ]);
+  });
+});
+
+describe("objects drawn past the squares they stand on", () => {
+  const big = { id: SCENE, width: 40 * 70, height: 40 * 70, grid: { type: "square", size: 70, offsetX: 0, offsetY: 0 } } as unknown as Scene;
+  const whole = { x0: 0, y0: 0, x1: big.width, y1: big.height };
+  /** The middles (in cells) of the objects drawn straight onto the board over part of the scene. */
+  const drawnOver = (r: BuildRenderer, view: { x0: number; y0: number; x1: number; y1: number }): string[] => {
+    const calls: [string, unknown[]][] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (_t, p) => (...a: unknown[]) => calls.push([String(p), a]),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    r.draw(ctx, big, view, 2, 2, true);
+    return calls.flatMap(([name, a], i) =>
+      name === "translate" && calls[i - 1][0] === "save" && calls[i + 1][0] === "rotate" ? [`${(a[0] as number) / 70},${(a[1] as number) / 70}`] : [],
+    );
+  };
+
+  it("are drawn wherever they reach into what's on screen: up to three squares on from their corner", () => {
+    const r = new BuildRenderer();
+    r.update([
+      // 3 squares at 45 degrees: from one square before its corner to three after.
+      chunk([], {}, [["table", 15, 15, 0, 3, 45], ["table", 15, 14, 0, 3, 45], ["table", 14, 15, 0, 3, 45]]),
+      // 1 1/4 squares, not turned: a little past its one square all round.
+      chunk([], {}, [["chair", 1, 1, 0, 1.25], ["chair", 0, 1, 0, 1.25]], 1, 1),
+    ]);
+    // The screen shows from square 19 on (so from 18, with the margin), both ways.
+    expect(drawnOver(r, { x0: 19 * 70, y0: 19 * 70, x1: big.width, y1: big.height })).toEqual(["16.5,16.5", "17.5,17.5"]);
+    expect(drawnOver(r, whole)).toHaveLength(5);
+  });
+
+  it("and up to one square before it", () => {
+    const r = new BuildRenderer();
+    r.update([chunk([], {}, [["rock", 3, 3, 0, 1]]), chunk([], {}, [["table", 0, 0, 0, 3, 45], ["table", 1, 0, 0, 3, 45], ["chair", 0, 0, 0, 1.25]], 1, 1)]);
+    // The screen shows up to square 14 (so to 15, with the margin), both ways.
+    expect(drawnOver(r, { x0: 0, y0: 0, x1: 14 * 70, y1: 14 * 70 })).toEqual(["3.5,3.5", "17.5,17.5", "16.5,16.5"]);
+  });
+
+  /** Draws zoomed out, and returns the parts of the cached image painted again, and the objects painted. */
+  const repainted = (r: BuildRenderer): { cleared: number[][]; drawn: string[] } => {
+    const cache = () => (r as unknown as { cache: { log: string[] } | null }).cache;
+    if (cache()) cache()!.log.length = 0;
+    r.draw(fakeCanvas().getContext("2d")!, big, whole, 0.3, 0.3, true);
+    const log = cache()!.log;
+    return {
+      cleared: log.filter((l) => l.startsWith("clearRect(")).map((l) => l.slice(10, -1).split(",").map(Number)),
+      drawn: log.filter((l, i) => l.startsWith("translate(") && log[i - 1] === "save()" && log[i + 1]?.startsWith("rotate(")),
+    };
+  };
+
+  it("are painted whole into the cached image when anything in their chunk, or under them, changes", () => {
+    const r = new BuildRenderer();
+    const table: Stamp = ["table", 15, 15, 0, 3, 45];
+    r.update([chunk([], {}, [table]), chunk([], {}, [], 1, 1)]);
+    repainted(r);
+    // A rock put in the table's chunk: squares -3 to 18 (the table reaches 18) at 40 pixels a square.
+    r.update([chunk([], {}, [table, ["rock", 2, 2, 0, 1]]), chunk([], {}, [], 1, 1)]);
+    const own = repainted(r);
+    expect(own.cleared).toEqual([[0, 0, 760, 760]]);
+    expect(own.drawn).toEqual(["translate(1155,1155)", "translate(175,175)"]);
+    // Grass under the table's corner, in the next chunk: squares 13 to 34, the whole table in them.
+    r.update([chunk([], {}, [table, ["rock", 2, 2, 0, 1]]), chunk(["g"], {}, [], 1, 1)]);
+    const next = repainted(r);
+    expect(next.cleared).toEqual([[520, 520, 880, 880]]);
+    expect(next.drawn).toEqual(["translate(1155,1155)"]);
+  });
+
+  it("are painted again where their shadows reach, just past the squares they're drawn on", () => {
+    // A tree's shadow falls a little below and right of its square. With the tree in row 12,
+    // grass in the chunk below repaints rows 13 on: the tree is painted too (clipped to those
+    // rows), or the top of its shadow there would be wiped out.
+    const r = new BuildRenderer();
+    const tree: Stamp = ["tree", 6, 12, 0, 1];
+    r.update([chunk([], {}, [tree]), chunk([], {}, [], 0, 1)]);
+    repainted(r);
+    r.update([chunk([], {}, [tree]), chunk(["g"], {}, [], 0, 1)]);
+    const below = repainted(r);
+    expect(below.cleared).toEqual([[0, 520, 760, 880]]);
+    expect(below.drawn).toEqual(["translate(455,875)"]);
+    // The same for one in column 12, with grass in the chunk to the right (columns 13 on).
+    const left: Stamp = ["tree", 12, 3, 0, 1];
+    r.update([chunk([], {}, [left]), chunk([], {}, [], 1, 0)]);
+    repainted(r);
+    r.update([chunk([], {}, [left]), chunk(["g"], {}, [], 1, 0)]);
+    const right = repainted(r);
+    expect(right.cleared).toEqual([[520, 0, 880, 760]]);
+    expect(right.drawn).toEqual(["translate(875,245)"]);
+  });
+
+  it("look the season of the squares they stand on", () => {
+    const r = new BuildRenderer();
+    r.update(sampleBuild());
+    r.setSeason({ look: "winter", level: 3 }, 3);
+    drawBoth(r);
+    // The 2-square tree on the grass, as 2 1/4 squares, and as 1 1/4 standing on one of its squares.
+    expect(r.lookFor({ id: "tree", col: 0, row: 0, deg: 15, size: 2.25 })).toEqual(r.stampLook("tree", 0, 0, 2));
+    expect(r.lookFor({ id: "tree", col: 0, row: 0, deg: 0, size: 1.25 })).toEqual(r.stampLook("tree", 0, 0, 1));
+    expect(r.lookFor({ id: "tree", col: 10, row: 1, deg: 0, size: 0.5 })).toBeNull();
   });
 });

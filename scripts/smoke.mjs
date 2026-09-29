@@ -265,8 +265,8 @@ async function main() {
     typeof gmHello.build === "string" && Boolean(await alice.waitFor((m) => m.t === "error" && /Reload this page/.test(m.message))),
     "a tab on code from before builds were compared is told to reload",
   );
-  const stale = connect(room.id, { uid: "stale" + rid(), name: "Stale", v: 2, b: "not-this-build" });
-  const current = connect(room.id, { uid: "current" + rid(), name: "Current", v: 2, b: gmHello.build });
+  const stale = connect(room.id, { uid: "stale" + rid(), name: "Stale", v: 3, b: "not-this-build" });
+  const current = connect(room.id, { uid: "current" + rid(), name: "Current", v: 3, b: gmHello.build });
   const staleNote = await stale.waitFor((m) => m.t === "outdated");
   await current.waitFor((m) => m.t === "hello");
   await sleep(300);
@@ -632,7 +632,7 @@ async function main() {
   alice.send({ t: "eph", e: { k: "view", sceneId: scene2.id, rect: [0, 0, 50, 50] } });
   await sleep(300);
   check(!screen.msgs.some((m) => m.t === "eph"), "views of a scene players can't see, or from a player, don't reach displays");
-  const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey, v: 2 });
+  const late = connect(room.id, { uid: "late" + rid(), name: "Late", display: displayKey, v: 3 });
   const lateView = await late.waitFor((m) => m.t === "eph" && m.e.k === "view");
   check(lateView?.e.rect?.join() === "10,20,300,200", "a display that connects later starts where the GM pointed");
   gm.items({ delete: [secret.id] });
@@ -656,9 +656,9 @@ async function main() {
     edges: "d" + noEdges.slice(1),
     stamps: [["table", 2, 0, 1, 2]],
   };
-  const carol = connect(room.id, { uid: "carol" + rid(), name: "Carol", v: 2 });
+  const carol = connect(room.id, { uid: "carol" + rid(), name: "Carol", v: 3 });
   const dave = connect(room.id, { uid: "dave" + rid(), name: "Dave" });
-  const gm2 = connect(room.id, { cookie, uid: "gm2" + rid(), name: "GM tab", v: 2 });
+  const gm2 = connect(room.id, { cookie, uid: "gm2" + rid(), name: "GM tab", v: 3 });
   await carol.waitFor((m) => m.t === "hello");
   await dave.waitFor((m) => m.t === "hello");
   // Told as soon as it connects (it's on old code), before there's anything built.
@@ -727,6 +727,34 @@ async function main() {
     carol.msgs.some((m) => m.t === "items" && m.refused?.includes(chunk.id) && m.upsert?.some((i) => i.id === chunk.id)),
     "a player can't change the build (refused and corrected)",
   );
+  // Objects turned to any 5 degrees and sized in quarter squares (protocol 3) are kept as sent.
+  carol.clear();
+  const fine = [
+    ["table", 2, 0, 1, 1.5, 15],
+    ["rock", 5, 5, 0, 0.5],
+  ];
+  gm2.items({ patch: [{ id: chunk.id, set: { stamps: fine } }] });
+  const fineEcho = await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+  const fineNews = await carol.waitFor((m) => m.t === "items" && m.patch?.some((p) => p.id === chunk.id && p.set.stamps));
+  check(
+    fineEcho && !fineEcho.refused && JSON.stringify(fineNews?.patch.find((p) => p.id === chunk.id).set.stamps) === JSON.stringify(fine),
+    "objects keep a fine angle and a quarter-square size",
+  );
+  let allRefused = true;
+  for (const bad of [
+    [["table", 2, 0, 1, 1.5, 0]],
+    [["table", 2, 0, 1, 3.25]],
+    [["table", 2, 0, 1, 0.3]],
+    [["table", 2, 0, 1, 1, 15, 0]],
+    [["table", 2, 0, 1, 1, 90]],
+    [["table", 2, 0, 4, 1]],
+  ]) {
+    gm2.items({ patch: [{ id: chunk.id, set: { stamps: bad } }] });
+    const answer = await gm2.waitFor((m) => m.t === "items" && m.seq === gm2.seq);
+    const corrected = answer?.upsert?.find((i) => i.id === chunk.id);
+    if (!answer?.refused?.includes(chunk.id) || JSON.stringify(corrected?.stamps) !== JSON.stringify(fine)) allRefused = false;
+  }
+  check(allRefused, "malformed objects are refused and corrected");
   // Chunk ids can be worked out: a player asking about one learns nothing either way.
   carol.clear();
   const built = tid(0, 0, sceneId);
@@ -753,13 +781,29 @@ async function main() {
     "a GM tab on old code can't create or change terrain, and its copy is corrected",
   );
   gmOld.ws.close();
-  const carol2 = connect(room.id, { uid: "carol" + rid(), name: "Carol again", v: 2 });
+  // A tab on this build but speaking protocol 2 (from before objects could turn freely) would
+  // write objects back without their angle: it's old code too.
+  const gmV2 = connect(room.id, { cookie, uid: "gmv2" + rid(), name: "v2 GM tab", v: 2, b: gmHello.build });
+  const gmV2Hello = await gmV2.waitFor((m) => m.t === "hello");
+  const gmV2Warned = await gmV2.waitFor((m) => m.t === "error" && /Reload/.test(m.message));
+  gmV2.clear();
+  gmV2.items({ patch: [{ id: chunk.id, set: { cells: noCells } }] });
+  const gmV2Answer = await gmV2.waitFor((m) => m.t === "items" && m.seq === gmV2.seq);
+  check(
+    gmV2Hello &&
+      !gmV2Hello.items.some((i) => i.kind === "terrain") &&
+      Boolean(gmV2Warned) &&
+      gmV2Answer?.refused?.includes(chunk.id),
+    "a tab on the code from before objects could turn freely (v2) is old code too: no terrain, can't write it, asked to reload",
+  );
+  gmV2.ws.close();
+  const carol2 = connect(room.id, { uid: "carol" + rid(), name: "Carol again", v: 3 });
   const carolHello = await carol2.waitFor((m) => m.t === "hello");
   check(
     carolHello?.items.some((i) => i.id === chunk.id) && !carolHello.items.some((i) => i.id === marker.id || i.hidden),
     "a player joining gets the build without its secret doors",
   );
-  const gm3 = connect(room.id, { cookie, uid: "gm3" + rid(), name: "GM tab 3", v: 2 });
+  const gm3 = connect(room.id, { cookie, uid: "gm3" + rid(), name: "GM tab 3", v: 3 });
   const gm3Hello = await gm3.waitFor((m) => m.t === "hello");
   check(gm3Hello?.items.some((i) => i.id === marker.id), "the GM gets the secret doors");
   const dave2 = connect(room.id, { uid: "dave" + rid(), name: "Dave again" });
@@ -792,7 +836,7 @@ async function main() {
     oldScreenHello && !oldScreenHello.items.some((i) => i.kind === "terrain") && Boolean(gmTold),
     "a table display on old code gets no terrain, and the GM is told to reload it",
   );
-  const gmLater = connect(room.id, { cookie, uid: "gmlater" + rid(), name: "GM later", v: 2 });
+  const gmLater = connect(room.id, { cookie, uid: "gmlater" + rid(), name: "GM later", v: 3 });
   const toldLater = await gmLater.waitFor((m) => m.t === "error" && /table display/.test(m.message));
   check(Boolean(toldLater), "a GM who connects later is told about the out-of-date display too");
   gmLater.ws.close();
