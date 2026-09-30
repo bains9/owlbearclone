@@ -11,6 +11,13 @@
 // moss, green tables and blue floors. Ink, deep shadow, saturated warm colours (lava,
 // fire, red roofs) and near-white labels never change at all.
 //
+// A map painted under snow (a Dungeondraft winter map) is the exception: it has next to no
+// vegetation to work on. The analysis recognises one (snowAnalysis, near the end), and the looks
+// melt its snow instead (bakeSnowy): spring, summer and autumn paint grass and leaves over it,
+// lit by the snow's own light and shade, so the grid and every outline carry over; winter, the
+// map's own season, only adds to it. For now analyse() doesn't look for one in the picture
+// (PIXEL_SNOWY): the melt runs on scenes with Dungeondraft data only.
+//
 // Everything is plain arithmetic on doubles and integers (no Math.sin, pow, exp or atan2,
 // whose last bits may differ between browsers), so a seed gives the same picture on
 // every device. Browsers also shrink the map for the analysis in their own ways (a
@@ -21,7 +28,7 @@
 import type { SeasonLook } from "../../shared/types";
 
 /** Part of the bake cache key: bump it whenever the same inputs would bake differently. */
-export const ALGO_VERSION = 3;
+export const ALGO_VERSION = 4;
 
 type Tri = readonly [number, number, number];
 
@@ -43,6 +50,17 @@ export const SEASON_PARAMS = {
     crownSnow: [0.12, 0.55, 0.85] as Tri,
     /** 0 no ice, 1 a shore rim, 2 frozen up to 3 squares from the shore. */
     ice: [0, 1, 2] as Tri,
+    // On a map painted under snow (it's winter already):
+    /** The snow's shaded tones lifted toward its lit tone (fresh snow). */
+    freshen: [0.04, 0.1, 0.16] as Tri,
+    /** Share of the grass patches, and of bare earth, under drifts. */
+    drift: [0.12, 0.55, 1] as Tri,
+    earthDrift: [0, 0.15, 0.3] as Tri,
+    /** Hoarfrost on the grass patches' lighter blades. */
+    lawnFrost: [0.75, 0.5, 0.2] as Tri,
+    /** Snow on the evergreens' lit needles, and on bare branches. */
+    everSnow: [0.12, 0.3, 0.5] as Tri,
+    branchSnow: [0, 0.4, 0.7] as Tri,
   },
   autumn: {
     grade: [0.04, 0.07, 0.1] as Tri,
@@ -58,6 +76,16 @@ export const SEASON_PARAMS = {
     straw: [0.25, 0.45, 0.65] as Tri,
     /** Fallen leaves per square on open ground (three times that next to crowns). */
     leaves: [0.5, 1.6, 4] as Tri,
+    // On a map painted under snow:
+    /** Leaves left on the bare trees' new crowns, and on the snow-capped crowns. */
+    treeLeaves: [0.85, 0.55, 0.2] as Tri,
+    capLeaves: [0.92, 0.7, 0.42] as Tri,
+    /** Share of their leaves still green (each tree 0.6-1.4 times this; the rest in the shares above). */
+    treeGreen: [0.7, 0.34, 0.15] as Tri,
+    /** Of the clumps left, the share of their leaves still on (the rest show the branches). */
+    clumpLeaves: [1, 0.8, 0.55] as Tri,
+    /** More fallen leaves per square under trees. */
+    litter: [3, 8, 14] as Tri,
   },
   spring: {
     grade: [0.03, 0.05, 0.07] as Tri,
@@ -68,6 +96,21 @@ export const SEASON_PARAMS = {
     bloomDensity: [0.4, 0.55, 0.72] as Tri,
     /** Wildflowers per square on open grass. */
     flowers: [0.5, 2, 5] as Tri,
+    // On a map painted under snow:
+    /** Share of the ground's snow left, in drifts in its own shade (later on, only out in the open). */
+    remnant: [0.45, 0.035, 0] as Tri,
+    /** Share of the bared ground sprouting (budding; later it's all grass). */
+    sprout: [0.5, 1, 1] as Tri,
+    /** Buds on bare branches (budding), then their leaf clumps out and how big (young leaves are small). */
+    buds: [0.6, 0, 0] as Tri,
+    leaves: [0, 0.55, 0.95] as Tri,
+    leafScale: [0.6, 0.75, 0.9] as Tri,
+    /** Share of a snow-capped crown's snow melted into leaf, and of an evergreen's frost. */
+    capMelt: [0.45, 1, 1] as Tri,
+    frostMelt: [0.5, 1, 1] as Tri,
+    /** Share of trees in blossom, and of their clumps. */
+    bloomTrees: [0, 0.45, 0.7] as Tri,
+    bloomClumps: [0, 0.35, 0.55] as Tri,
   },
   summer: {
     grade: [0.05, 0.08, 0.12] as Tri,
@@ -81,6 +124,10 @@ export const SEASON_PARAMS = {
     bare: [0, 0.1, 0.35] as Tri,
     /** Water turned murky. */
     murk: [0, 0.2, 0.45] as Tri,
+    // On a map painted under snow:
+    /** Leaves on the bare trees' new crowns, and how far toward olive. */
+    leaves: [1, 0.97, 0.9] as Tri,
+    leafOlive: [0, 0.2, 0.38] as Tri,
   },
 } as const;
 
@@ -440,8 +487,9 @@ let colourLut: Uint8Array | null = null;
 
 /**
  * Per colour (6 bits a channel): how much it looks like vegetation, like natural water,
- * and the guard (0 = never changes: ink and deep shadow, saturated warm colours such as
- * lava, fire and red roofs, and near-white paper and labels). Built once, about 1 MB.
+ * the guard (0 = never changes: ink and deep shadow, saturated warm colours such as
+ * lava, fire and red roofs, and near-white paper and labels), and how much like snow.
+ * Built once, about 1 MB.
  */
 function colourTable(): Uint8Array {
   if (colourLut) return colourLut;
@@ -470,6 +518,9 @@ function colourTable(): Uint8Array {
         t[o] = Math.round(255 * veg);
         t[o + 1] = Math.round(255 * water);
         t[o + 2] = Math.round(255 * guard);
+        // Snow: bright, hardly saturated, white to cool (cream paper and warm labels aren't).
+        const y = 0.299 * r + 0.587 * g + 0.114 * b;
+        t[o + 3] = Math.round(255 * ramp(y, 158, 184) * (1 - ramp(s, 0.16, 0.26)) * ramp(b - r, -8, 0));
       }
     }
   }
@@ -1235,7 +1286,8 @@ const F_MASS = 7;
 
 /**
  * What analyse() finds, at analysis resolution (aw x ah). Only typed arrays and numbers,
- * so it can be posted between threads. About 10 bytes a pixel: 7 MB at 1024 x 683.
+ * so it can be posted between threads. About 10 bytes a pixel: 7 MB at 1024 x 683 (12 on a
+ * map painted under snow).
  */
 export interface SeasonAnalysis {
   aw: number;
@@ -1266,18 +1318,51 @@ export interface SeasonAnalysis {
    * fallen leaves stay off the vegetation.
    */
   amb: number;
+  /**
+   * A map painted under snow (its own season is winter): what stands in the snow, for the
+   * looks to melt it (see snowAnalysis). Null on every other map. On a snowy map f, lab,
+   * crowns and under are empty: nothing reads them.
+   */
+  snow: SnowInfo | null;
 }
+
+/**
+ * Whether analyse() looks for a map painted under snow in the picture itself (snowAnalysis).
+ * Off for now: it still takes some graph paper, marble and blueprints for snow, so every
+ * picture analyses and bakes exactly as it did at ALGO_VERSION 3, and the snowy looks melt
+ * only scenes with Dungeondraft data, whose snow is known exactly (seasonExact.ts). It comes
+ * back once the picture's own snow detection is checked against those scenes.
+ */
+export const PIXEL_SNOWY = false;
 
 /**
  * Analyses the map once (per asset and grid): rgba is the map downscaled to aw x ah
  * covering the whole scene, cellA one grid square in those pixels. About 0.15-0.35 s at
- * 1024 px on a desktop.
+ * 1024 px on a desktop (a map painted under snow takes about three times as long).
  */
 export function analyse(rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number): SeasonAnalysis {
+  return analyseWith(rgba, aw, ah, cellA, PIXEL_SNOWY);
+}
+
+/**
+ * For tests only: analyse() with the picture's own snow detection on, whatever PIXEL_SNOWY
+ * says, so the snowy path keeps its tests (and its golden hashes) while it's off.
+ */
+export function analysePixelSnowy(rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number): SeasonAnalysis {
+  return analyseWith(rgba, aw, ah, cellA, true);
+}
+
+function analyseWith(rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number, pixelSnowy: boolean): SeasonAnalysis {
   const T = colourTable();
   const N = aw * ah;
   const cA = cellA > 1 ? cellA : 1;
   const sq = cA * cA;
+  // A map painted under snow gets its own analysis (any other map leaves it after one pass).
+  const snow = pixelSnowy ? snowAnalysis(rgba, aw, ah, cA) : null;
+  if (snow) {
+    const none = new Uint8Array(0);
+    return { aw, ah, cellA, f: none, lab: new Uint16Array(0), crowns: new Float32Array(0), nCrowns: 0, under: none, uw: 0, uh: 0, us: 1, frac: snow.frac, amb: 0, snow };
+  }
 
   // Per pixel classes from the colour table; luma and brightest channel.
   const veg = new Uint8Array(N);
@@ -1683,7 +1768,7 @@ export function analyse(rgba: Uint8ClampedArray, aw: number, ah: number, cellA: 
     }
   }
 
-  return { aw, ah, cellA, f, lab, crowns, nCrowns, under, uw, uh, us, frac, amb: amb ? 1 : 0 };
+  return { aw, ah, cellA, f, lab, crowns, nCrowns, under, uw, uh, us, frac, amb: amb ? 1 : 0, snow: null };
 }
 
 /** How much of the map is open-sky outdoors (below about 0.04 it's an indoor map). */
@@ -2038,6 +2123,10 @@ export function bake(rgba: Uint8ClampedArray, width: number, rows: number, opts:
   if (width <= 0 || rows <= 0 || opts.a.aw <= 0 || opts.a.ah <= 0) return;
   // Nonsense geometry leaves the map as drawn rather than writing NaN into it.
   if (!(opts.cell > 0 && opts.scale > 0 && opts.sceneW > 0 && opts.sceneH > 0)) return;
+  if (opts.a.snow) {
+    bakeSnowy(rgba, width, rows, opts);
+    return;
+  }
   const lf = lookFields(opts);
   const fr = new Frame(opts, width, lf);
   const L = opts.level - 1;
@@ -2733,6 +2822,3569 @@ function bakeSummer(px: Uint8ClampedArray, width: number, rows: number, fr: Fram
       px[o] = nr;
       px[o + 1] = ng;
       px[o + 2] = nb;
+    }
+  }
+}
+
+// ================================================================ maps painted under snow
+//
+// A map painted in winter (a Dungeondraft snow map: white and blue-grey painted ground, snow on
+// the round crowns, bare trees drawn as brown branches, frosted evergreens) gives the looks
+// above almost nothing to work on. snowAnalysis recognises one and finds what stands in the
+// snow; bakeSnowy then melts it: the snow turns into painted ground lit by the snow's own light
+// and shade (so the grid, every outline and the painterly shading carry over), snow-capped
+// crowns and bare trees grow leaves, evergreens lose their frost, ice thaws. Winter only adds.
+//
+// Snow needs outdoor context to count, so a white or pale stone floor, a marble hall, paper
+// margins and labels never do: it must be bright, lean blue and turn bluer in its shade, carry
+// soft painted shading, lie in one big field reaching the map's edges, and have plants or bare
+// trees standing in it, a good share of them wintry (capped with snow, frosted or bare).
+
+/** Bytes per analysis pixel in SnowInfo.s. */
+const NSN = 10;
+/** Open snow on the ground (what melts into grass), reaching a little under objects' rims. */
+const SN_GROUND = 0;
+/** The open snow's own luma round about (thin lines and objects left out): its painted light and shade. */
+const SN_TONE = 1;
+/** Anything besides open ground within a pixel or two (objects, trees, earth, water): a quick test. */
+const SN_OBJ = 2;
+/** Snow-capped crowns (trees that will leaf), with their green rims. */
+const SN_CROWN = 3;
+/** Evergreens and bushes: green, maybe frosted. */
+const SN_EVER = 4;
+/** Snow on a rock or a prop (outlined all round, no leaves). */
+const SN_PROP = 5;
+/** Patches of grass the snow left bare, with their soft edges. */
+const SN_LAWN = 6;
+/** Frozen water. */
+const SN_ICE = 7;
+/** Open water. */
+const SN_WATER = 8;
+/** Bare earth (a dirt patch, a road, a deck). */
+const SN_EARTH = 9;
+
+/** Floats per tree in SnowInfo.trees. */
+const TREE_N = 24;
+/** Directions a bare tree's reach is kept in (round the circle, from +x toward +y). */
+const TREE_DIRS = 16;
+// Per tree: 0-1 centre (analysis px), 2 radius (analysis px), 3 kind (K_*), 4-6 its own green
+// (RGB), 7 its snow's lit luma (0-1), 8-23 a bare tree's reach in each direction (analysis px).
+const K_CAP = 1;
+const K_EVER = 2;
+const K_BARE = 3;
+const K_PROP = 4;
+/** (Analysis only: a patch of grass.) */
+const K_LAWN = 5;
+
+export interface SnowInfo {
+  /** NSN bytes an analysis pixel (SN_*). */
+  s: Uint8Array;
+  /** The tree (1-based into trees) each analysis pixel belongs to or is next to; 0 none. */
+  tl: Uint16Array;
+  trees: Float32Array;
+  nTrees: number;
+  /** The snow's lit luma (0-1). */
+  ref: number;
+  /** The map's own grass (patches the snow left bare), RGB, when hasGrass. */
+  grass: Float64Array;
+  hasGrass: number;
+  /** That grass's mean luma (0-1). */
+  grassLum: number;
+  /** The map's own bare earth, RGB (a default when there's none). */
+  earth: Float64Array;
+  /** The snow's own colour at its lit tone (RGB). */
+  snow: Float64Array;
+  /** Outdoor share (what outdoorFraction reports). */
+  frac: number;
+}
+
+/**
+ * Fills the holes of mask (4-connected regions where it's clear) that one region of it encloses
+ * all round, up to maxArea pixels and smaller than that region. inv is scratch space.
+ */
+function fillEnclosed(mask: Uint8Array, w: number, h: number, maxArea: number, lab: Int32Array, stack: Int32Array, inv: Uint8Array): void {
+  const total = w * h;
+  const nM = label4(mask, w, h, lab, stack);
+  const mArea = new Float64Array(nM + 1);
+  for (let k = 0; k < total; k++) mArea[lab[k]]++;
+  const ml = new Int32Array(lab);
+  for (let k = 0; k < total; k++) inv[k] = mask[k] ? 0 : 1;
+  const nH = label4(inv, w, h, lab, stack);
+  const size = new Float64Array(nH + 1);
+  const owner = new Int32Array(nH + 1);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0, k = y * w; x < w; x++, k++) {
+      const o = lab[k];
+      if (!o) continue;
+      size[o]++;
+      if (owner[o] < 0) continue;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) {
+        owner[o] = -1;
+        continue;
+      }
+      for (let t = 0; t < 4; t++) {
+        const l = ml[t === 0 ? k - 1 : t === 1 ? k + 1 : t === 2 ? k - w : k + w];
+        if (l && owner[o] !== l) owner[o] = owner[o] ? -1 : l;
+      }
+    }
+  }
+  for (let k = 0; k < total; k++) {
+    const o = lab[k];
+    if (o && owner[o] > 0 && size[o] <= maxArea && size[o] < mArea[owner[o]]) mask[k] = 1;
+  }
+}
+
+/**
+ * The columns (or rows) a grid baked into the picture has its lines on: s and n are each
+ * column's summed darkness against its surroundings and pixel count. Folded over periods from
+ * 0.3 to 1.6 squares, a grid is a phase well darker than the typical column. None when there's
+ * no clear one.
+ */
+function gridLines(s: Float64Array, n: Float64Array, cA: number): Uint8Array {
+  const len = s.length;
+  const out = new Uint8Array(len);
+  const m = new Float64Array(len);
+  for (let i = 0; i < len; i++) m[i] = n[i] > 0 ? s[i] / n[i] : 0;
+  const med = Array.from(m).sort((a, b) => a - b)[len >> 1];
+  let bestScore = 0;
+  let bestP = 0;
+  let bestPh = 0;
+  for (let P = Math.max(4, 0.3 * cA); P <= 1.6 * cA && P <= len / 4; P += 0.05) {
+    for (let ph = 0; ph < P; ph += 0.25) {
+      let t = 0;
+      let c = 0;
+      for (let pos = ph; pos < len - 1; pos += P) {
+        const i = Math.floor(pos);
+        t += m[i] > m[i + 1] ? m[i] : m[i + 1];
+        c++;
+      }
+      if (c < 4) continue;
+      if (t / c > bestScore) {
+        bestScore = t / c;
+        bestP = P;
+        bestPh = ph;
+      }
+    }
+  }
+  if (!(bestScore >= 2 * med + 3)) return out;
+  const lim = med + 0.35 * (bestScore - med);
+  for (let pos = bestPh; pos < len; pos += bestP) {
+    const i = Math.floor(pos);
+    for (let j = i - 1; j <= i + 2; j++) if (j >= 0 && j < len && m[j] >= lim) out[j] = 1;
+  }
+  return out;
+}
+
+/** A 3x3 max (or min) filter of a byte image, edges repeated. */
+function maxMin3(src: Uint8Array, w: number, h: number, dst: Uint8Array, max: boolean): void {
+  const row = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    for (let x = 0; x < w; x++) {
+      const a = src[o + (x > 0 ? x - 1 : 0)];
+      const b = src[o + x];
+      const c = src[o + (x < w - 1 ? x + 1 : x)];
+      row[o + x] = max ? (a > b ? (a > c ? a : c) : b > c ? b : c) : a < b ? (a < c ? a : c) : b < c ? b : c;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    const o0 = (y > 0 ? y - 1 : 0) * w;
+    const o1 = y * w;
+    const o2 = (y < h - 1 ? y + 1 : y) * w;
+    for (let x = 0; x < w; x++) {
+      const a = row[o0 + x];
+      const b = row[o1 + x];
+      const c = row[o2 + x];
+      dst[o1 + x] = max ? (a > b ? (a > c ? a : c) : b > c ? b : c) : a < b ? (a < c ? a : c) : b < c ? b : c;
+    }
+  }
+}
+
+/** The diamond angle of (dx, dy): 0-4 round the circle from +x toward +y, with no atan2. */
+function diamond(dx: number, dy: number): number {
+  const ad = Math.abs(dx) + Math.abs(dy);
+  if (ad <= 0) return 0;
+  return dy >= 0 ? (dx >= 0 ? dy / ad : 2 - dy / ad) : dx < 0 ? 2 - dy / ad : 4 + dy / ad;
+}
+
+function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: number): SnowInfo | null {
+  const N = aw * ah;
+  const sq = cA * cA;
+  if (N < 4096 || cA < 4) return null;
+  const T = colourTable();
+  // 1. Snow by colour. Every map pays for this pass, so it's a table lookup and a count.
+  let n0 = 0;
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    if (rgba[o + 3] >= 128 && T[lutIndex(rgba[o], rgba[o + 1], rgba[o + 2]) + 3] >= 128) n0++;
+  }
+  if (n0 < 0.2 * N) return null;
+
+  const lum = new Uint8Array(N);
+  const mx = new Uint8Array(N);
+  const chroma = new Uint8Array(N);
+  const sc = new Uint8Array(N);
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    const r = rgba[o];
+    const g = rgba[o + 1];
+    const b = rgba[o + 2];
+    const max = r > g ? (r > b ? r : b) : g > b ? g : b;
+    const min = r < g ? (r < b ? r : b) : g < b ? g : b;
+    lum[k] = ((299 * r + 587 * g + 114 * b + 500) / 1000) | 0;
+    mx[k] = max;
+    chroma[k] = max - min;
+    sc[k] = rgba[o + 3] >= 128 ? T[lutIndex(r, g, b) + 3] : 0;
+  }
+  const tmp = new Int32Array(N);
+  const lumL = blur8(lum, aw, ah, Math.max(1, Math.round(0.25 * cA)), new Uint8Array(N), tmp);
+
+  // 2. The whole map's snow: bright on the whole, leaning blue and clearly bluer where it's
+  // darker (its painted shade), with some texture. Pale stone and paving are greyer and duller,
+  // paper is flat, and a tinted floor is no bluer in its shade.
+  let sw = 0;
+  let sBR = 0;
+  let sL = 0;
+  let sLL = 0;
+  let sLBR = 0;
+  let sTex = 0;
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    if (!sc[k]) continue;
+    const c = sc[k] * INV255;
+    const br = rgba[o + 2] - rgba[o];
+    const L = lum[k];
+    sw += c;
+    sBR += c * br;
+    sL += c * L;
+    sLL += c * L * L;
+    sLBR += c * L * br;
+    sTex += c * Math.abs(L - lumL[k]);
+  }
+  const share = sw / N;
+  const mL = sL / sw;
+  const mBR = sBR / sw;
+  const varL = sLL / sw - mL * mL;
+  const slope = varL > 1 ? (sLBR / sw - mL * mBR) / varL : 0;
+  if (share < 0.2 || mL < 205 || mBR < 2 || slope > -0.06 || sTex / sw < 1.5) {
+    return null;
+  }
+
+  const d = new Int32Array(N);
+  const lab = new Int32Array(N);
+  const stack = new Int32Array(N);
+  const inv = new Uint8Array(N);
+  const r1 = Math.max(1, Math.round(0.08 * cA));
+
+  // 3. What isn't snow. Plants: vegetation, and frosted leaves (grey to near-white, but still a
+  // little green). Ink: dark, or clearly darker than round about (outlines; a baked grid's lines
+  // are only a little darker). Ice: bluer and more colourful than the snow, in big pieces. Open
+  // water. Bare earth: solid warm areas.
+  const veg = new Uint8Array(N);
+  const frost = new Uint8Array(N);
+  const ink = new Uint8Array(N);
+  const iceM = new Uint8Array(N);
+  const wat = new Uint8Array(N);
+  const earth = new Uint8Array(N);
+  const iceBR = Math.max(12, mBR + 6);
+  let iceC = 0;
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    const r = rgba[o];
+    const g = rgba[o + 1];
+    const b = rgba[o + 2];
+    const li = lutIndex(r, g, b);
+    const gd = T[li + 2];
+    const m = mx[k];
+    veg[k] = T[li] * gd >= 80 * 255 ? 1 : 0;
+    ink[k] = m < DARK || lum[k] * 100 < lumL[k] * 84 ? 1 : 0;
+    if (!veg[k] && m >= 90 && g >= r + 3 && g >= b + 2 && chroma[k] < 0.3 * m) frost[k] = 1;
+    if (lum[k] >= 140 && b >= g && b - r >= iceBR && chroma[k] >= 0.08 * m && chroma[k] <= 0.35 * m) {
+      iceM[k] = 1;
+      iceC++;
+    } else if (T[li + 1] * gd >= 128 * 255) wat[k] = 1;
+    if (!veg[k] && sc[k] < 128 && r > b + 6 && chroma[k] >= 0.1 * m) {
+      const h = hueOf(r, g, b);
+      if (h < 55 || h > 330) earth[k] = 1;
+    }
+  }
+  if (iceC >= 2 * sq) {
+    erode(iceM, 1, aw, ah, d);
+    dilate(iceM, 1, aw, ah, d);
+    dropSmall(iceM, aw, ah, 2 * sq, lab, stack);
+    // Its ink (cracks, the shore's outline) is part of it.
+    fillPinholes(iceM, new Uint8Array(N), aw, ah, Math.max(4, 0.1 * sq), inv, lab, stack);
+    // Frozen water has a shore drawn round it; the snow's own blue shade fades into its light.
+    // (A shore is drawn in grey or black; brown is earth and branches.)
+    const inkN = new Uint8Array(N);
+    for (let k = 0, o = 0; k < N; k++, o += 4) inkN[k] = ink[k] && rgba[o] <= rgba[o + 2] + 6 ? 1 : 0;
+    dilate(inkN, 2, aw, ah, d);
+    const nI = label4(iceM, aw, ah, lab, stack);
+    const per = new Float64Array(nI + 1);
+    const shore = new Float64Array(nI + 1);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const l = lab[k];
+        if (!l) continue;
+        const edge = (x > 0 && !iceM[k - 1]) || (x < aw - 1 && !iceM[k + 1]) || (y > 0 && !iceM[k - aw]) || (y < ah - 1 && !iceM[k + aw]);
+        if (!edge) continue;
+        per[l]++;
+        if (inkN[k]) shore[l]++;
+      }
+    }
+    for (let k = 0; k < N; k++) if (iceM[k] && shore[lab[k]] < 0.5 * per[lab[k]]) iceM[k] = 0;
+  } else if (iceC) iceM.fill(0);
+  for (let k = 0; k < N; k++) if (iceM[k]) wat[k] = 0;
+  dropSmall(wat, aw, ah, sq, lab, stack);
+  erode(earth, r1, aw, ah, d);
+  dilate(earth, r1, aw, ah, d);
+  // Small light patches of it (a stump's cut top, a well): roots round one aren't a tree.
+  const stumps: number[] = [];
+  {
+    const nE = label4(earth, aw, ah, lab, stack);
+    const es = new Float64Array((nE + 1) * 4);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const e = lab[k];
+        if (!e) continue;
+        es[e * 4] += x + 0.5;
+        es[e * 4 + 1] += y + 0.5;
+        es[e * 4 + 2]++;
+        es[e * 4 + 3] += lum[k];
+      }
+    }
+    for (let e = 1; e <= nE; e++) {
+      const n = es[e * 4 + 2];
+      if (n > 4 * sq || n < 0.2 * sq || es[e * 4 + 3] / n < 0.5 * mL) continue;
+      stumps.push(es[e * 4] / n, es[e * 4 + 1] / n, Math.sqrt(n / Math.PI) + 0.7 * cA);
+    }
+  }
+  dropSmall(earth, aw, ah, sq, lab, stack);
+
+  // 4. The snow cut at ink into pieces: the open snow is one big piece or a few; the smaller
+  // pieces with a green rim, or outlined all round, are snow on crowns and props.
+  const cutD = new Uint8Array(N);
+  const sm = new Uint8Array(N);
+  const plantN = new Uint8Array(N);
+  for (let k = 0; k < N; k++) plantN[k] = veg[k] || frost[k] ? 1 : 0;
+  dilate(plantN, 2, aw, ah, d);
+  let nS = 0;
+  let sArea = new Float64Array(1);
+  let sPer = sArea;
+  let sVeg = sArea;
+  let sDark = sArea;
+  let sBorder = new Uint8Array(1);
+  let bigA = 0;
+  let allA = 0;
+  const split = (gridX: Uint8Array | null, gridY: Uint8Array | null): boolean => {
+    cutD.set(ink);
+    dilate(cutD, 1, aw, ah, d);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        let onGrid = false;
+        if (gridX && gridY && (gridX[x] || gridY[y]) && sc[k] < 128 && mx[k] >= DARK) {
+          // (Only between snow on both sides: it mustn't bridge a crown's rim.)
+          if (gridX[x]) {
+            let xl = x - 1;
+            while (xl > 0 && gridX[xl] && x - xl < 4) xl--;
+            let xr = x + 1;
+            while (xr < aw - 1 && gridX[xr] && xr - x < 4) xr++;
+            onGrid = xl >= 0 && xr < aw && sc[k - x + xl] >= 128 && sc[k - x + xr] >= 128;
+          }
+          if (!onGrid && gridY[y]) {
+            let yu = y - 1;
+            while (yu > 0 && gridY[yu] && y - yu < 4) yu--;
+            let yd = y + 1;
+            while (yd < ah - 1 && gridY[yd] && yd - y < 4) yd++;
+            onGrid = yu >= 0 && yd < ah && sc[yu * aw + x] >= 128 && sc[yd * aw + x] >= 128;
+          }
+        }
+        sm[k] = (sc[k] >= 128 || onGrid) && !cutD[k] && !frost[k] && !iceM[k] ? 1 : 0;
+      }
+    }
+    fillPinholes(sm, cutD, aw, ah, Math.max(4, 0.05 * sq), inv, lab, stack);
+    nS = label4(sm, aw, ah, lab, stack);
+    sArea = new Float64Array(nS + 1);
+    sPer = new Float64Array(nS + 1);
+    sVeg = new Float64Array(nS + 1);
+    sDark = new Float64Array(nS + 1);
+    sBorder = new Uint8Array(nS + 1);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const l = lab[k];
+        if (!l) continue;
+        sArea[l]++;
+        if (x === 0 || y === 0 || x === aw - 1 || y === ah - 1) {
+          sBorder[l] = 1;
+          sPer[l]++;
+          continue;
+        }
+        let edge = false;
+        let dark = false;
+        for (let t = 0; t < 4; t++) {
+          const j = t === 0 ? k - 1 : t === 1 ? k + 1 : t === 2 ? k - aw : k + aw;
+          if (lab[j] !== l) {
+            edge = true;
+            if (cutD[j]) dark = true;
+          }
+        }
+        if (!edge) continue;
+        sPer[l]++;
+        if (plantN[k]) sVeg[l]++;
+        if (dark) sDark[l]++;
+      }
+    }
+    // Snow lies in one big field (cut only by what stands in it); a floor of flagstones or
+    // paving is cut by its joints into stones.
+    bigA = 0;
+    allA = 0;
+    for (let l = 1; l <= nS; l++) {
+      allA += sArea[l];
+      if (sArea[l] > bigA) bigA = sArea[l];
+    }
+    return bigA >= 0.4 * allA && bigA >= 15 * sq;
+  };
+  if (!split(null, null)) {
+    // A grid baked into the picture: thin lines every square or so that, shrunk sharply, stay
+    // dark enough to cut the snow into squares. Found by folding "darker than round about" over
+    // its period, across and down; then only what's next to an off-grid cut cuts on its lines.
+    const colS = new Float64Array(aw);
+    const colN = new Float64Array(aw);
+    const rowS = new Float64Array(ah);
+    const rowN = new Float64Array(ah);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        if (lumL[k] < 170) continue;
+        const dk = lumL[k] - lum[k];
+        const v = dk > 0 ? dk : 0;
+        colS[x] += v;
+        colN[x]++;
+        rowS[y] += v;
+        rowN[y]++;
+      }
+    }
+    const gridX = gridLines(colS, colN, cA);
+    const gridY = gridLines(rowS, rowN, cA);
+    let anyGrid = false;
+    for (let x = 0; x < aw && !anyGrid; x++) if (gridX[x]) anyGrid = true;
+    for (let y = 0; y < ah && !anyGrid; y++) if (gridY[y]) anyGrid = true;
+    if (!anyGrid) {
+      return null;
+    }
+    const offCut = new Uint8Array(N);
+    for (let y = 0; y < ah; y++) for (let x = 0, k = y * aw; x < aw; x++, k++) offCut[k] = ink[k] && !gridX[x] && !gridY[y] ? 1 : 0;
+    dilate(offCut, 2, aw, ah, d);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) if (ink[k] && (gridX[x] || gridY[y]) && !offCut[k]) ink[k] = 0;
+    }
+    if (!split(gridX, gridY)) {
+      return null;
+    }
+  }
+  const snowL = new Int32Array(lab);
+  // A piece of snow that's largely ice is a frozen pond or river with paler patches: all ice.
+  {
+    const nI = new Float64Array(nS + 1);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const l = snowL[k];
+        if (!l) continue;
+        // (Ice is cut out of the snow: count the ice next to each piece.)
+        if ((x > 0 && iceM[k - 1]) || (x < aw - 1 && iceM[k + 1]) || (y > 0 && iceM[k - aw]) || (y < ah - 1 && iceM[k + aw])) nI[l]++;
+      }
+    }
+    let any = false;
+    for (let l = 1; l <= nS; l++) {
+      if (sArea[l] >= 0.4 * allA || sArea[l] < 0.5 * sq || nI[l] < 0.15 * sPer[l]) nI[l] = 0;
+      else any = true;
+    }
+    if (any) {
+      for (let k = 0; k < N; k++) {
+        const l = snowL[k];
+        if (l && nI[l]) {
+          iceM[k] = 1;
+          sm[k] = 0;
+          snowL[k] = 0;
+        }
+      }
+    }
+  }
+  const cand = new Uint8Array(nS + 1);
+  for (let l = 1; l <= nS; l++) {
+    const a = sArea[l];
+    if (a >= 40 * sq || a < 0.02 * sq || sBorder[l]) continue;
+    if (sVeg[l] >= 0.06 * sPer[l] || (a >= 0.05 * sq && sDark[l] >= 0.8 * sPer[l])) cand[l] = 1;
+  }
+  const capM = new Uint8Array(N);
+  for (let k = 0; k < N; k++) capM[k] = cand[snowL[k]];
+  // A crown's outline that faded in the shrink leaves its cap joined to the ground's snow: cut
+  // again with the leaves as well as the ink, over gaps of up to 0.4 square. What that cut
+  // encloses (away from the edge and the big field), with its outline and the contour lines drawn
+  // on it, is a cap when it's round, of a crown's size, mostly snow, with some leaves and no
+  // branches (a bare tree's twigs, closed over, enclose snow too).
+  const warm0 = new Uint8Array(N);
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    const r = rgba[o];
+    const b = rgba[o + 2];
+    if (veg[k] || sc[k] >= 128 || r <= b + 6 || lum[k] * 100 >= lumL[k] * 94) continue;
+    const h = hueOf(r, rgba[o + 1], b);
+    if (h < 50 || h > 330) warm0[k] = 1;
+  }
+  {
+    const cutC = new Uint8Array(N);
+    for (let k = 0; k < N; k++) cutC[k] = ink[k] || veg[k] || frost[k] ? 1 : 0;
+    const rr = Math.max(1, 0.2 * cA);
+    dilate(cutC, rr, aw, ah, d);
+    erode(cutC, rr, aw, ah, d);
+    for (let k = 0; k < N; k++) inv[k] = cutC[k] || iceM[k] || wat[k] ? 0 : 1;
+    const nP = label4(inv, aw, ah, lab, stack);
+    const open = new Uint8Array(nP + 1);
+    const pA = new Float64Array(nP + 1);
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const l = lab[k];
+        if (!l) continue;
+        pA[l]++;
+        if (x === 0 || y === 0 || x === aw - 1 || y === ah - 1) open[l] = 1;
+      }
+    }
+    for (let l = 1; l <= nP; l++) if (pA[l] >= 40 * sq) open[l] = 1;
+    for (let k = 0; k < N; k++) inv[k] = open[lab[k]] || iceM[k] || wat[k] ? 0 : 1;
+    const nB = label4(inv, aw, ah, lab, stack);
+    const bA = new Float64Array(nB + 1);
+    const bS = new Float64Array(nB + 1);
+    const bG = new Float64Array(nB + 1);
+    const bW = new Float64Array(nB + 1);
+    for (let k = 0; k < N; k++) {
+      const l = lab[k];
+      if (!l) continue;
+      bA[l]++;
+      if (sc[k] >= 128 && !frost[k] && !ink[k]) bS[l]++;
+      if (veg[k] || frost[k]) bG[l]++;
+      if (warm0[k]) bW[l]++;
+    }
+    // (How much of each one's rim is ink: an outline drawn round it, or strokes the closing joined.)
+    const bE = new Float64Array(nB + 1);
+    const bK = new Float64Array(nB + 1);
+    for (let y = 1; y < ah - 1; y++) {
+      for (let x = 1, k = y * aw + 1; x < aw - 1; x++, k++) {
+        const l = lab[k];
+        if (!l || (lab[k - 1] === l && lab[k + 1] === l && lab[k - aw] === l && lab[k + aw] === l)) continue;
+        bE[l]++;
+        if (ink[k] || ink[k - 1] || ink[k + 1] || ink[k - aw] || ink[k + aw]) bK[l]++;
+      }
+    }
+    distTo(inv, 0, aw, ah, d);
+    const bIn = new Float64Array(nB + 1);
+    for (let k = 0; k < N; k++) if (lab[k] && d[k] > bIn[lab[k]]) bIn[lab[k]] = d[k];
+
+    let any = false;
+    for (let l = 1; l <= nB; l++) {
+      const A = bA[l];
+      const rIn = Math.max(1, bIn[l] / D1);
+      // (Or a small bush under snow, its outline enclosing it all round: plenty of green.)
+      const big = A >= 0.6 * sq && bS[l] >= 0.3 * A && bG[l] >= 0.08 * A && bW[l] < 0.05 * A;
+      const small = A >= 0.08 * sq && A < 0.6 * sq && bS[l] >= 0.4 * A && bG[l] >= 0.1 * A && bW[l] < 0.03 * A && bK[l] >= 0.75 * bE[l];
+      const ok = (big || small) && A <= 30 * sq && A <= 3.5 * Math.PI * rIn * rIn;
+      if (ok) any = true;
+      else bA[l] = 0;
+    }
+    if (any) {
+      // (Not the snow among a bare tree's twigs next to it.)
+      const tw = new Uint8Array(warm0);
+      dilate(tw, Math.max(2, 0.15 * cA), aw, ah, d);
+      for (let k = 0; k < N; k++) if (bA[lab[k]] && sc[k] >= 128 && !tw[k]) capM[k] = 1;
+    }
+  }
+
+  // 5. Objects: plants and the snow on them, closed over the ink drawn on them, with what
+  // their outline encloses (the contour rings of a snow cap).
+  const obj = new Uint8Array(N);
+  for (let k = 0; k < N; k++) obj[k] = veg[k] || frost[k] || capM[k] ? 1 : 0;
+  const rc = Math.max(1, Math.round(0.1 * cA));
+  dilate(obj, rc, aw, ah, d);
+  fillEnclosed(obj, aw, ah, 25 * sq, lab, stack, inv);
+  erode(obj, rc, aw, ah, d);
+  for (let k = 0; k < N; k++) if (iceM[k] || wat[k]) obj[k] = 0;
+  const nO = label4(obj, aw, ah, lab, stack);
+  const objL = new Int32Array(lab);
+  const oArea = new Float64Array(nO + 1);
+  const oSnow = new Float64Array(nO + 1);
+  const oFrost = new Float64Array(nO + 1);
+  const oVeg = new Float64Array(nO + 1);
+  const oPer = new Float64Array(nO + 1);
+  const oDark = new Float64Array(nO + 1);
+  const oGP = new Float64Array(nO + 1);
+  for (let y = 0; y < ah; y++) {
+    for (let x = 0, k = y * aw; x < aw; x++, k++) {
+      const l = objL[k];
+      if (!l) continue;
+      oArea[l]++;
+      if (sc[k] >= 128 && !frost[k]) oSnow[l]++;
+      if (frost[k]) oFrost[l]++;
+      if (veg[k]) oVeg[l]++;
+      let dark = false;
+      let edge = x === 0 || y === 0 || x === aw - 1 || y === ah - 1;
+      for (let t = 0; t < 4 && !edge; t++) {
+        const j = t === 0 ? k - 1 : t === 1 ? k + 1 : t === 2 ? k - aw : k + aw;
+        if (objL[j] !== l) {
+          edge = true;
+          if (ink[j] || mx[j] < DARK) dark = true;
+        }
+      }
+      if (!edge) continue;
+      oPer[l]++;
+      if (veg[k] || frost[k]) oGP[l]++;
+      if (dark || ink[k]) oDark[l]++;
+    }
+  }
+  // How thick each object is (the biggest disc inside it), and the warm strokes round it (a
+  // bare tree's branches: snow caught among them is no crown's cap and no rock's).
+  distTo(obj, 0, aw, ah, d);
+  const oIn = new Float64Array(nO + 1);
+  for (let k = 0; k < N; k++) if (objL[k] && d[k] > oIn[objL[k]]) oIn[objL[k]] = d[k];
+  // What lies just inside the snow on an object: a capped crown's snow is ringed by its leaves, a
+  // rock's by its grey face and outline (the green round it is grass outside the outline).
+  const inG = new Float64Array(nO + 1);
+  const inN = new Float64Array(nO + 1);
+  {
+    for (let k = 0; k < N; k++) inv[k] = objL[k] && sc[k] >= 128 && !frost[k] ? 1 : 0;
+    distTo(inv, 1, aw, ah, d);
+    const rr = Math.max(1.5, 0.15 * cA) * D1;
+    for (let k = 0; k < N; k++) {
+      const l = objL[k];
+      if (!l || d[k] === 0 || d[k] > rr || ink[k]) continue;
+      inN[l]++;
+      if (veg[k] || frost[k]) inG[l]++;
+    }
+  }
+  const ringW = new Float64Array(nO + 1);
+  const ringN = new Float64Array(nO + 1);
+  {
+    // (stack is free here: it's scratch for labelling.)
+    const near = stack;
+    distLabel(objL, aw, ah, d, near);
+    const rr = 0.3 * cA * D1;
+    for (let k = 0; k < N; k++) {
+      if (objL[k] || !near[k] || d[k] > rr) continue;
+      ringN[near[k]]++;
+      if (warm0[k]) ringW[near[k]]++;
+    }
+  }
+  const oKind = new Uint8Array(nO + 1);
+  for (let l = 1; l <= nO; l++) {
+    const a = oArea[l];
+    if (a < 0.15 * sq) continue;
+    const green = oVeg[l] + oFrost[l];
+    // Mostly snow: a snow-capped crown (with some green: plenty on a small one) or snow on a
+    // prop (none). Else outlined: an evergreen or bush; soft-edged: a patch of grass.
+    let kd: number;
+    // (A small one is a snowed-on bush when it's nearly all snow: a rock under snow shows more of its
+    // grey face.)
+    if (oSnow[l] >= 0.35 * a) kd = green >= 0.08 * a && (a >= 1.5 * sq || (oSnow[l] >= 0.62 * a && (oSnow[l] >= 0.72 * a || inG[l] >= (a >= 0.5 * sq ? 0.15 : 0.3) * inN[l]))) ? K_CAP : K_PROP;
+    else kd = oDark[l] >= 0.25 * oPer[l] || a < 0.5 * sq ? K_EVER : K_LAWN;
+    // Crowns, bushes and props are round-ish: a long thin strip is a river's bank or a path's edge.
+    const ri = Math.max(1, oIn[l] / D1);
+    if (kd !== K_LAWN && a > 4 * Math.PI * ri * ri) continue;
+    // Snow among a bare tree's branches.
+    if (((kd === K_CAP && ringW[l] >= 0.2 * ringN[l]) || (kd === K_PROP && ringW[l] >= 0.12 * ringN[l])) && green < 0.15 * a) continue;
+    // (A small one among roots or branches at all is snow caught there, whatever green is near.)
+    if (kd === K_CAP && a < 1.5 * sq && ringW[l] >= 0.05 * ringN[l]) continue;
+    oKind[l] = kd;
+  }
+
+  // 6. Bare trees: thin warm strokes on the snow (and the ink drawn along them), away from
+  // objects and bare earth, dense round a trunk.
+  const away = new Uint8Array(N);
+  for (let k = 0; k < N; k++) away[k] = oKind[objL[k]] || earth[k] || iceM[k] || wat[k] ? 1 : 0;
+  dilate(away, 2, aw, ah, d);
+  const warmM = new Uint8Array(N);
+  for (let k = 0, o = 0; k < N; k++, o += 4) {
+    if (away[k] || veg[k] || sc[k] >= 160) continue;
+    const r = rgba[o];
+    const b = rgba[o + 2];
+    if (r <= b + 6) continue;
+    const h = hueOf(r, rgba[o + 1], b);
+    if ((h < 50 || h > 330) && lum[k] * 100 < lumL[k] * 94) warmM[k] = 1;
+  }
+  const warmD = new Uint8Array(warmM);
+  dilate(warmD, 1, aw, ah, d);
+  const branch = new Uint8Array(N);
+  const inkB = new Uint8Array(N);
+  for (let k = 0; k < N; k++) {
+    const free = !away[k] && !veg[k] && sc[k] < 160;
+    if (warmM[k] || (ink[k] && warmD[k] && free)) branch[k] = 255;
+    else if (ink[k] && free) inkB[k] = 255;
+  }
+  const rB = Math.max(1, Math.round(0.3 * cA));
+  // (Ink on its own: a thicket of dark twigs counts where it's dense.)
+  blur8(inkB, aw, ah, rB, inkB, tmp);
+  for (let k = 0; k < N; k++) if (inkB[k] >= 70 && !branch[k] && !away[k] && ink[k]) branch[k] = 128;
+  const bd = blur8(branch, aw, ah, rB, new Uint8Array(N), tmp);
+  const treeM = new Uint8Array(N);
+  for (let k = 0; k < N; k++) treeM[k] = bd[k] >= 30 ? 1 : 0;
+  dropSmall(treeM, aw, ah, 0.25 * sq, lab, stack);
+  const nT0 = label4(treeM, aw, ah, lab, stack);
+  // Per network: stroke pixels, warm ones, its densest point (the trunk).
+  const tA = new Float64Array(nT0 + 1);
+  const tStroke = new Float64Array(nT0 + 1);
+  const tWarm = new Float64Array(nT0 + 1);
+  const tThick = new Float64Array(nT0 + 1);
+  // (Warm strokes that survive a thin erosion: solid things, a rock or a crate, not twigs.)
+  const thick = new Uint8Array(warmM);
+  erode(thick, Math.max(1, 0.07 * cA), aw, ah, d);
+  const tPk = new Int32Array(nT0 + 1).fill(-1);
+  const tCx = new Float64Array(nT0 + 1);
+  const tCy = new Float64Array(nT0 + 1);
+  const tx0 = new Int32Array(nT0 + 1).fill(aw);
+  const tx1 = new Int32Array(nT0 + 1).fill(-1);
+  const ty0 = new Int32Array(nT0 + 1).fill(ah);
+  const ty1 = new Int32Array(nT0 + 1).fill(-1);
+  for (let y = 0; y < ah; y++) {
+    for (let x = 0, k = y * aw; x < aw; x++, k++) {
+      const l = lab[k];
+      if (!l) continue;
+      tA[l]++;
+      if (x < tx0[l]) tx0[l] = x;
+      if (x > tx1[l]) tx1[l] = x;
+      if (y < ty0[l]) ty0[l] = y;
+      if (y > ty1[l]) ty1[l] = y;
+      if (branch[k]) {
+        tStroke[l]++;
+        if (branch[k] === 255 && warmM[k]) {
+          tWarm[l]++;
+          if (thick[k]) tThick[l]++;
+        }
+      }
+      if (tPk[l] < 0 || bd[k] > bd[tPk[l]]) tPk[l] = k;
+      if (branch[k]) {
+        tCx[l] += x + 0.5;
+        tCy[l] += y + 0.5;
+      }
+    }
+  }
+  const bareList: number[] = [];
+  const NB = 24;
+  const binW = (4 * cA) / NB;
+  const hist = new Float64Array(NB);
+  const dirR = new Float64Array(TREE_DIRS * NB);
+  const rCore = Math.max(1.5, 0.3 * cA);
+  let topArea = 0;
+  for (let l = 1; l <= nT0; l++) {
+    if (tA[l] < 0.25 * sq || tStroke[l] > 0.75 * tA[l] || tWarm[l] < 0.08 * tStroke[l] || tThick[l] > 0.35 * tWarm[l]) continue;
+    const pk = tPk[l];
+    const px0 = (pk % aw) + 0.5;
+    const py0 = Math.floor(pk / aw) + 0.5;
+    let rooted = false;
+    for (let e = 0; e < stumps.length && !rooted; e += 3) rooted = (px0 - stumps[e]) ** 2 + (py0 - stumps[e + 1]) ** 2 < stumps[e + 2] ** 2;
+    if (rooted) continue;
+    // Roots round a stump (or rocks round a well) are a ring: hollow where their middle is. A
+    // bare tree is densest at its trunk, in its middle.
+    {
+      const mx0 = Math.floor(tCx[l] / tStroke[l]);
+      const my0 = Math.floor(tCy[l] / tStroke[l]);
+      let mid = 0;
+      let mn = 0;
+      for (let y = my0 - 1; y <= my0 + 1; y++) {
+        for (let x = mx0 - 1; x <= mx0 + 1; x++) {
+          if (x < 0 || y < 0 || x >= aw || y >= ah) continue;
+          mid += bd[y * aw + x];
+          mn++;
+        }
+      }
+      if (mn && mid / mn < 0.4 * bd[pk]) continue;
+      // Or an outlined disc of snow right in their middle (a snowed-over stump's cut top), with
+      // the roots round it short beside it.
+      const rs = Math.max(2, 0.15 * cA);
+      let top = -1;
+      for (let y = Math.max(0, Math.floor(my0 - rs)); y <= Math.min(ah - 1, Math.ceil(my0 + rs)) && top < 0; y++) {
+        for (let x = Math.max(0, Math.floor(mx0 - rs)); x <= Math.min(aw - 1, Math.ceil(mx0 + rs)) && top < 0; x++) {
+          if ((x + 0.5 - mx0) ** 2 + (y + 0.5 - my0) ** 2 <= rs * rs && capM[y * aw + x]) top = y * aw + x;
+        }
+      }
+      topArea = 0;
+      if (top >= 0) {
+        // (Its size: a flood over the snow island, up to 2 squares.)
+        let qn = 0;
+        stack[qn++] = top;
+        inv[top] = 2;
+        for (let qi = 0; qi < qn && qn < 2 * sq; qi++) {
+          const k = stack[qi];
+          const x = k % aw;
+          for (const j of [x > 0 ? k - 1 : -1, x < aw - 1 ? k + 1 : -1, k - aw, k + aw]) {
+            if (j < 0 || j >= N || !capM[j] || inv[j] === 2) continue;
+            inv[j] = 2;
+            stack[qn++] = j;
+          }
+        }
+        for (let qi = 0; qi < qn; qi++) inv[stack[qi]] = 0;
+        topArea = qn;
+      }
+    }
+    hist.fill(0);
+    dirR.fill(0);
+    let tot = 0;
+    let solidN = 0;
+    let coreN = 0;
+    for (let y = ty0[l]; y <= ty1[l]; y++) {
+      for (let x = tx0[l], k = y * aw + tx0[l]; x <= tx1[l]; x++, k++) {
+        const dx = x + 0.5 - px0;
+        const dy = y + 0.5 - py0;
+        const dc = Math.sqrt(dx * dx + dy * dy);
+        if (dc <= rCore) {
+          coreN++;
+          // (Solid and lighter than a trunk: a stump's cut top, a well, a cart.)
+          if (earth[k] || (sc[k] < 128 && !ink[k] && lum[k] >= 0.55 * mL && chroma[k] >= 0.12 * mx[k])) solidN++;
+        }
+        if (lab[k] !== l || !branch[k]) continue;
+        const bi = Math.min(NB - 1, Math.floor(dc / binW));
+        hist[bi]++;
+        tot++;
+        const di = Math.floor(diamond(dx, dy) * (TREE_DIRS / 4)) & (TREE_DIRS - 1);
+        dirR[di * NB + bi]++;
+      }
+    }
+    if (coreN && solidN >= 0.3 * coreN) continue;
+    let acc = 0;
+    let i85 = 0;
+    for (; i85 < NB - 1; i85++) {
+      acc += hist[i85];
+      if (acc >= 0.85 * tot) break;
+    }
+    const ext = (i85 + 1) * binW;
+    // Its strokes thin out away from the trunk; a deck or a fence is as dense all over.
+    let inner = 0;
+    let outer = 0;
+    for (let j = 0; j <= i85; j++) {
+      if ((j + 0.5) * binW < 0.5 * ext) inner += hist[j];
+      else outer += hist[j];
+    }
+    const radial = ext >= cA ? inner / 0.25 / Math.max(1, outer / 0.75) : 9;
+    if (radial < 1.2) continue;
+    if (topArea >= 0.08 * sq && ext < 3 * Math.sqrt(topArea / Math.PI) + 0.1 * cA) continue;
+    const R = Math.max(0.4 * cA, Math.min(3.5 * cA, ext));
+    bareList.push(px0, py0, R);
+    // Reach per direction: where 85% of that direction's strokes lie.
+    for (let di = 0; di < TREE_DIRS; di++) {
+      let t = 0;
+      for (let j = 0; j < NB; j++) t += dirR[di * NB + j];
+      let a2 = 0;
+      let j = 0;
+      for (; j < NB - 1 && t > 0; j++) {
+        a2 += dirR[di * NB + j];
+        if (a2 >= 0.85 * t) break;
+      }
+      const reach = t >= 3 ? Math.min(R * 1.25, (j + 1) * binW) : 0.35 * R;
+      bareList.push(Math.max(0.35 * R, reach));
+    }
+  }
+  const BL = 3 + TREE_DIRS;
+  const nBare = bareList.length / BL;
+
+  // 7. Is it snow? Outdoor context: a good share of the map's edge is snow, the snow has soft
+  // painted shading, plants and bare trees stand in it (a good share of them wintry: capped,
+  // frosted or bare), nothing big and foreign sits in it (a coloured map in a white margin), and
+  // there are no thick walls.
+  let bS = 0;
+  let bN = 0;
+  const edgePx = (k: number): void => {
+    bN++;
+    if (sc[k] >= 128 || lumL[k] >= 0.9 * mL) bS++;
+  };
+  for (let x = 0; x < aw; x++) for (const y of [0, 1, ah - 2, ah - 1]) edgePx(y * aw + x);
+  for (let y = 2; y < ah - 2; y++) for (const x of [0, 1, aw - 2, aw - 1]) edgePx(y * aw + x);
+  const border = bS / bN;
+  let plantA = 0;
+  let wintryA = 0;
+  let bigObj = 0;
+  let nPlants = 0;
+  for (let l = 1; l <= nO; l++) {
+    const kd = oKind[l];
+    if (!kd || kd === K_PROP) continue;
+    const a = oArea[l];
+    if (a > bigObj) bigObj = a;
+    plantA += a;
+    nPlants++;
+    if (kd === K_CAP) wintryA += a;
+    else if (kd === K_EVER && oFrost[l] + oSnow[l] >= 0.1 * a) wintryA += a;
+  }
+  for (let t = 0; t < nBare; t++) {
+    const R = bareList[t * BL + 2];
+    const a = 0.5 * R * R;
+    plantA += a;
+    wintryA += a;
+    nPlants++;
+  }
+  // Broad shading: the spread of the open snow's tone at half a square.
+  const sSum = new Float64Array(N);
+  const sCnt = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    if (sm[k] && !capM[k]) {
+      sSum[k] = lum[k];
+      sCnt[k] = 1;
+    }
+  }
+  const rBroad = Math.max(1, Math.round(0.25 * cA));
+  blurF(sSum, aw, ah, rBroad);
+  blurF(sCnt, aw, ah, rBroad);
+  let b1 = 0;
+  let b2 = 0;
+  let bn = 0;
+  for (let k = 0; k < N; k += 3) {
+    if (sCnt[k] < 0.5) continue;
+    const v = sSum[k] / sCnt[k];
+    b1 += v;
+    b2 += v * v;
+    bn++;
+  }
+  const broad = bn ? Math.sqrt(Math.max(0, b2 / bn - (b1 / bn) * (b1 / bn))) : 0;
+  // Thick walls: dark areas over 0.2 square across.
+  const wall = new Uint8Array(N);
+  for (let k = 0; k < N; k++) wall[k] = mx[k] < 60 ? 1 : 0;
+  erode(wall, Math.max(1, 0.1 * cA), aw, ah, d);
+  let nWall = 0;
+  for (let k = 0; k < N; k++) nWall += wall[k];
+  // What's none of these: not snow, a line, a plant, a tree, earth, ice or water.
+  let foreign = 0;
+  for (let k = 0; k < N; k++) {
+    if (sc[k] >= 64 || ink[k] || oKind[objL[k]] || earth[k] || iceM[k] || wat[k] || treeM[k] || frost[k] || lumL[k] >= 0.9 * mL) continue;
+    foreign++;
+  }
+  const verdict =
+    border < 0.3
+      ? "border"
+      : broad < 2
+        ? "broad"
+        : nWall > 0.04 * N
+          ? "walls"
+          : plantA < 0.003 * N || nPlants < 2
+            ? "plants"
+            : wintryA < 0.25 * plantA
+              ? "wintry"
+              : bigObj > 0.12 * N
+                ? "bigObj"
+                : foreign > 0.12 * N
+                  ? "foreign"
+                  : "";
+  if (verdict) return null;
+
+  // 8. The fields.
+  const s = new Uint8Array(N * NSN);
+  const m = new Uint8Array(N);
+  const put = (ch: number, r: number): void => {
+    for (let k = 0; k < N; k++) m[k] = m[k] ? 255 : 0;
+    if (r > 0) blur8(m, aw, ah, r, m, tmp);
+    for (let k = 0, o = ch; k < N; k++, o += NSN) s[o] = m[k];
+  };
+  const isKind = (k: number, kd: number): boolean => oKind[objL[k]] === kd;
+  for (const [ch, kd] of [
+    [SN_CROWN, K_CAP],
+    [SN_EVER, K_EVER],
+    [SN_PROP, K_PROP],
+  ]) {
+    for (let k = 0; k < N; k++) m[k] = isKind(k, kd) ? 1 : 0;
+    put(ch, 1);
+  }
+  // A patch of grass with its soft painted edge (the pale greens and snow round it).
+  for (let k = 0; k < N; k++) m[k] = isKind(k, K_LAWN) ? 1 : 0;
+  dilate(m, Math.max(1, 0.12 * cA), aw, ah, d);
+  put(SN_LAWN, 1);
+  for (let k = 0; k < N; k++) m[k] = iceM[k];
+  put(SN_ICE, 1);
+  for (let k = 0; k < N; k++) m[k] = wat[k];
+  put(SN_WATER, 1);
+  for (let k = 0; k < N; k++) m[k] = earth[k];
+  put(SN_EARTH, 1);
+  // Open ground: everything but crowns, bushes, props, earth, ice and water, reaching a couple
+  // of pixels under their rims (the pixel's own colour decides what melts there).
+  for (let k = 0; k < N; k++) {
+    const kd = oKind[objL[k]];
+    m[k] = (kd && kd !== K_LAWN) || iceM[k] || wat[k] ? 0 : 1;
+  }
+  const core = new Uint8Array(earth);
+  erode(core, 1, aw, ah, d);
+  for (let k = 0; k < N; k++) if (core[k]) m[k] = 0;
+  dilate(m, 2, aw, ah, d);
+  put(SN_GROUND, 1);
+
+  // The open snow's own tone: its luma with thin dark lines closed over (a baked grid, outlines),
+  // averaged over the open snow only, so a tree's dark rim or a dirt patch doesn't pull the
+  // snow's shading down next to it. Against it, a pixel's own detail (grain, grid lines, contour
+  // strokes) carries over to what replaces the snow.
+  const lc = new Uint8Array(N);
+  maxMin3(lum, aw, ah, lc, true);
+  maxMin3(lc, aw, ah, m, false);
+  sSum.fill(0);
+  sCnt.fill(0);
+  const hL = new Float64Array(256);
+  let nOpen = 0;
+  for (let k = 0; k < N; k++) {
+    if (!sm[k] || capM[k] || oKind[objL[k]]) continue;
+    sSum[k] = m[k];
+    sCnt[k] = 1;
+    hL[lum[k]]++;
+    nOpen++;
+  }
+  let ref = 255;
+  for (let i = 0, acc = 0; i < 256; i++) {
+    acc += hL[i];
+    if (acc >= 0.85 * nOpen) {
+      ref = i;
+      break;
+    }
+  }
+  // Where there's no open snow near, the snow's mean over a wider round. (The near mean and how
+  // much of it counts wait in the tone channel and lc while the same sums are spread wider.)
+  blurF(sSum, aw, ah, 2);
+  blurF(sCnt, aw, ah, 2);
+  for (let k = 0; k < N; k++) {
+    const c = sCnt[k];
+    lc[k] = Math.round(255 * ramp(c, 0.04, 0.2));
+    s[k * NSN + SN_TONE] = c > 0 ? Math.round(sSum[k] / c) : 0;
+    sSum[k] = 0;
+    sCnt[k] = 0;
+  }
+  for (let k = 0; k < N; k++) {
+    if (!sm[k] || capM[k] || oKind[objL[k]]) continue;
+    sSum[k] = m[k];
+    sCnt[k] = 1;
+  }
+  blurF(sSum, aw, ah, Math.max(2, Math.round(cA)));
+  blurF(sCnt, aw, ah, Math.max(2, Math.round(cA)));
+  for (let k = 0, o = SN_TONE; k < N; k++, o += NSN) {
+    const wide = sCnt[k] > 0.02 ? sSum[k] / sCnt[k] : mL;
+    const kk = lc[k] * INV255;
+    s[o] = Math.round(s[o] * kk + wide * (1 - kk));
+  }
+
+  // 9. Trees: capped crowns, bushes and props as found; bare trees as their trunk and reach.
+  const oIdx = new Int32Array(nO + 1);
+  let nC = 0;
+  for (let l = 1; l <= nO; l++) if (oKind[l] === K_CAP || oKind[l] === K_EVER || oKind[l] === K_PROP) oIdx[l] = ++nC;
+  const nT = Math.min(nC + nBare, 65535);
+  const acc = new Float64Array((nC + 1) * 8);
+  for (let y = 0; y < ah; y++) {
+    for (let x = 0, k = y * aw; x < aw; x++, k++) {
+      const t = oIdx[objL[k]];
+      if (!t) continue;
+      const o = t * 8;
+      acc[o]++;
+      acc[o + 1] += x + 0.5;
+      acc[o + 2] += y + 0.5;
+      const q = k * 4;
+      if (veg[k] && chroma[k] >= 0.22 * mx[k]) {
+        acc[o + 3] += rgba[q];
+        acc[o + 4] += rgba[q + 1];
+        acc[o + 5] += rgba[q + 2];
+        acc[o + 6]++;
+      }
+      if (sc[k] >= 128) acc[o + 7] += lum[k];
+    }
+  }
+  // All the bushes' own green, for a crown with none of its own (a Dungeondraft green when none).
+  let er = 0;
+  let eg = 0;
+  let eb = 0;
+  let en = 0;
+  for (let t = 1; t <= nC; t++) {
+    er += acc[t * 8 + 3];
+    eg += acc[t * 8 + 4];
+    eb += acc[t * 8 + 5];
+    en += acc[t * 8 + 6];
+  }
+  const EVER_G = en >= 8 ? [er / en, eg / en, eb / en] : [62, 98, 56];
+  const trees = new Float32Array(Math.max(1, nT) * TREE_N);
+  // (lab is free here.)
+  const tlab = lab;
+  tlab.fill(0);
+  for (let l = 1; l <= nO; l++) {
+    const t = oIdx[l];
+    if (!t || t > nT) continue;
+    const o = t * 8;
+    const n = acc[o];
+    const b = (t - 1) * TREE_N;
+    trees[b] = acc[o + 1] / n;
+    trees[b + 1] = acc[o + 2] / n;
+    trees[b + 2] = Math.sqrt(n / Math.PI);
+    trees[b + 3] = oKind[l];
+    for (let c = 0; c < 3; c++) trees[b + 4 + c] = acc[o + 6] >= 4 ? acc[o + 3 + c] / acc[o + 6] : EVER_G[c];
+    trees[b + 7] = ref * INV255;
+  }
+  // A crown's snow: its lit luma (the 85th percentile of its snow pixels, roughly).
+  {
+    const top = new Float64Array(nC + 1);
+    const cnt = new Float64Array(nC + 1);
+    for (let k = 0; k < N; k++) {
+      const t = oIdx[objL[k]];
+      if (!t || sc[k] < 128) continue;
+      top[t] += lum[k];
+      cnt[t]++;
+    }
+    for (let t = 1; t <= Math.min(nC, nT); t++) if (cnt[t] >= 4) trees[(t - 1) * TREE_N + 7] = Math.min(1, (1.08 * top[t]) / cnt[t] / 255);
+  }
+  for (let k = 0; k < N; k++) {
+    const t = oIdx[objL[k]];
+    if (t && t <= nT) tlab[k] = t;
+  }
+  for (let i = 0; i < nBare && nC + i < nT; i++) {
+    const b = (nC + i) * TREE_N;
+    const q = i * BL;
+    trees[b] = bareList[q];
+    trees[b + 1] = bareList[q + 1];
+    trees[b + 2] = bareList[q + 2];
+    trees[b + 3] = K_BARE;
+    for (let c = 0; c < 3; c++) trees[b + 4 + c] = EVER_G[c];
+    trees[b + 7] = ref * INV255;
+    for (let di = 0; di < TREE_DIRS; di++) trees[b + 8 + di] = bareList[q + 3 + di];
+  }
+  // Each pixel near a crown, bush or prop knows it; a bare tree's domain is as far as its leaves
+  // may reach (where no crown or bush is nearer).
+  const tl = new Uint16Array(N);
+  distLabel(tlab, aw, ah, d, stack);
+  // (Only a pixel or two past a crown or a bush: their new leaves stay on them.)
+  const reachC = Math.max(2, 0.1 * cA) * D1;
+  for (let k = 0; k < N; k++) if (stack[k] && d[k] <= reachC) tl[k] = stack[k];
+  const best = new Float32Array(N).fill(2);
+  for (let t = nC; t < nT; t++) {
+    const b = t * TREE_N;
+    const cx = trees[b];
+    const cy = trees[b + 1];
+    let far = 0;
+    for (let di = 0; di < TREE_DIRS; di++) if (trees[b + 8 + di] > far) far = trees[b + 8 + di];
+    const R = far + 0.4 * cA + 1;
+    const x0 = Math.max(0, Math.floor(cx - R));
+    const x1 = Math.min(aw - 1, Math.ceil(cx + R));
+    const y0 = Math.max(0, Math.floor(cy - R));
+    const y1 = Math.min(ah - 1, Math.ceil(cy + R));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0, k = y * aw + x0; x <= x1; x++, k++) {
+        const dn = Math.sqrt((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) / R;
+        if (dn >= 1 || dn >= best[k]) continue;
+        if (tl[k] && tl[k] <= nC && d[k] <= 0.1 * cA * D1) continue;
+        best[k] = dn;
+        tl[k] = t + 1;
+      }
+    }
+  }
+  // Anything besides open ground here or next door.
+  for (let k = 0, o = 0; k < N; k++, o += NSN) {
+    m[k] = tl[k] || s[o + SN_CROWN] || s[o + SN_EVER] || s[o + SN_PROP] || s[o + SN_LAWN] || s[o + SN_ICE] || s[o + SN_WATER] || s[o + SN_EARTH] ? 1 : 0;
+  }
+  dilate(m, 1, aw, ah, d);
+  for (let k = 0; k < N; k++) s[k * NSN + SN_OBJ] = m[k] ? 255 : 0;
+
+  // The map's own grass and earth.
+  const grass = new Float64Array([98, 128, 60]);
+  const earthC = new Float64Array([118, 100, 80]);
+  let hasGrass = 0;
+  let grassLum = 0.5;
+  {
+    const gs = [0, 0, 0, 0, 0];
+    const es = [0, 0, 0, 0];
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const kd = oKind[objL[k]];
+      const a = kd === K_LAWN && veg[k] ? gs : earth[k] ? es : null;
+      if (!a) continue;
+      a[0] += rgba[o];
+      a[1] += rgba[o + 1];
+      a[2] += rgba[o + 2];
+      a[3]++;
+      if (a === gs) gs[4] += lum[k];
+    }
+    if (gs[3] >= 0.5 * sq) {
+      for (let c = 0; c < 3; c++) grass[c] = gs[c] / gs[3];
+      hasGrass = 1;
+      grassLum = gs[4] / gs[3] / 255;
+    }
+    if (es[3] >= sq) for (let c = 0; c < 3; c++) earthC[c] = es[c] / es[3];
+  }
+  let out = 0;
+  for (let k = 0; k < N; k++) if (s[k * NSN + SN_GROUND] >= 128 || oKind[objL[k]] || tl[k]) out++;
+  // The snow's colour at its lit tone.
+  const snowC = new Float64Array([ref - 4, ref, ref + 4]);
+  {
+    let sr = 0;
+    let sg = 0;
+    let sb = 0;
+    let n = 0;
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      if (!sm[k] || capM[k] || oKind[objL[k]] || Math.abs(lum[k] - ref) > 6) continue;
+      sr += rgba[o];
+      sg += rgba[o + 1];
+      sb += rgba[o + 2];
+      n++;
+    }
+    if (n >= 16) {
+      snowC[0] = sr / n;
+      snowC[1] = sg / n;
+      snowC[2] = sb / n;
+    }
+  }
+  return { s, tl, trees, nTrees: nT, ref: ref * INV255, grass, hasGrass, grassLum, earth: earthC, snow: snowC, frac: out / N };
+}
+
+// ---------------------------------------------------------------- snowy maps: tiles
+
+// The fine texture of the new ground and leaves comes from small periodic tiles built once per
+// seed, so the kernel reads them instead of evaluating noise per pixel: grass (brightness
+// detail, blade strokes, colour jitter), leaves (small lens-shaped leaves), and leaf clumps (an
+// index of the clumps that may cover each texel; the clumps themselves are evaluated exactly,
+// so their edges are sharp at any size).
+
+/** Value noise on a lattice that repeats every n cells, so a tile wraps without a seam. */
+class PNoise {
+  n: number;
+  /** The lattice's values, with the first column and row repeated after the last. */
+  v: Float64Array;
+  constructor(n: number, seed: number) {
+    this.n = n;
+    const m = n + 1;
+    this.v = new Float64Array(m * m);
+    for (let y = 0; y <= n; y++) for (let x = 0; x <= n; x++) this.v[y * m + x] = hash2(x % n, y % n, seed);
+  }
+  at(x: number, y: number): number {
+    const n = this.n;
+    let ix = Math.floor(x);
+    let iy = Math.floor(y);
+    let fx = x - ix;
+    let fy = y - iy;
+    if (ix < 0 || ix >= n) ix = ((ix % n) + n) % n;
+    if (iy < 0 || iy >= n) iy = ((iy % n) + n) % n;
+    fx = fx * fx * (3 - 2 * fx);
+    fy = fy * fy * (3 - 2 * fy);
+    const v = this.v;
+    const o = iy * (n + 1) + ix;
+    const a = v[o];
+    const b = v[o + 1];
+    const c = v[o + n + 1];
+    const d = v[o + n + 2];
+    const t = a + (b - a) * fx;
+    return t + (c + (d - c) * fx - t) * fy;
+  }
+}
+
+interface Tile {
+  /** Texels a square. */
+  res: number;
+  /** Side in texels (a power of two), and side - 1. */
+  size: number;
+  mask: number;
+  /** Channel planes, one after another (size * size bytes each). */
+  data: Uint8Array;
+}
+
+/** Halves a tile, plane by plane (box-filtered). */
+function halve(t: Tile, planes: number): Tile {
+  const s = t.size >> 1;
+  const n = s * s;
+  const N0 = t.size * t.size;
+  const out = new Uint8Array(n * planes);
+  for (let p = 0; p < planes; p++) {
+    const src = p * N0;
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const a = src + 2 * y * t.size + 2 * x;
+        out[p * n + y * s + x] = (t.data[a] + t.data[a + 1] + t.data[a + t.size] + t.data[a + t.size + 1] + 2) >> 2;
+      }
+    }
+  }
+  return { res: t.res / 2, size: s, mask: s - 1, data: out };
+}
+
+/** The finest mip no finer than about a bake pixel (texels a square <= 1.3 times its pixels a square). */
+function pickMip(ts: Tile[], ppsq: number): Tile {
+  for (const t of ts) if (t.res <= ppsq * 1.3) return t;
+  return ts[ts.length - 1];
+}
+
+/** Keeps the last two seeds' tiles (a scene switches between two at most). */
+function lru<T>(cache: Map<number, T>, seed: number, make: () => T): T {
+  const hit = cache.get(seed);
+  if (hit) {
+    cache.delete(seed);
+    cache.set(seed, hit);
+    return hit;
+  }
+  const v = make();
+  cache.set(seed, v);
+  while (cache.size > 2) cache.delete(cache.keys().next().value as number);
+  return v;
+}
+
+/**
+ * Grass tile planes: brightness detail with blade strokes (128 = none), the mottles alone (128 =
+ * none), blade roll, colour jitter (128 = none), and drought cracks (0 none, 255 a crack's middle).
+ */
+const GT_LUM = 0;
+const GT_MOT = 1;
+const GT_ID = 2;
+const GT_JIT = 3;
+const GT_CRK = 4;
+const GT_PLANES = 5;
+const GT_SQ = 4;
+const GT_RES = 128;
+
+const grassCache = new Map<number, Tile[]>();
+function grassTiles(seed: number): Tile[] {
+  return lru(grassCache, seed, () => {
+    const S = GT_SQ * GT_RES;
+    const lumD = new Float32Array(S * S);
+    const mot = new Uint8Array(S * S);
+    const blade = new Float32Array(S * S);
+    const bid = new Uint8Array(S * S);
+    const jit = new Uint8Array(S * S);
+    const s1 = mix(seed, 201);
+    const s2 = mix(seed, 202);
+    const s3 = mix(seed, 203);
+    const s4 = mix(seed, 204);
+    const s5 = mix(seed, 205);
+    // Mottles at 2, 5 and 12 a square, and grain at 32.
+    const n1 = new PNoise(2 * GT_SQ, s1);
+    const n2 = new PNoise(5 * GT_SQ, s2);
+    const n3 = new PNoise(12 * GT_SQ, s3);
+    const n4 = new PNoise(32 * GT_SQ, s4);
+    const n5 = new PNoise(3 * GT_SQ, s5);
+    for (let y = 0; y < S; y++) {
+      const w = y / GT_RES;
+      for (let x = 0; x < S; x++) {
+        const u = x / GT_RES;
+        const k = y * S + x;
+        const m =
+          0.07 * (n1.at(u * 2, w * 2) - 0.5) + 0.06 * (n2.at(u * 5, w * 5) - 0.5) + 0.05 * (n3.at(u * 12, w * 12) - 0.5);
+        mot[k] = Math.round(128 + 255 * m);
+        lumD[k] = m + 0.045 * (n4.at(u * 32, w * 32) - 0.5);
+        jit[k] = Math.round(255 * n5.at(u * 3, w * 3));
+      }
+    }
+    // Blades: short tapered strokes, most leaning one way, darker (some lighter) than the grass.
+    const nB = GT_SQ * GT_SQ * 150;
+    const sb = mix(seed, 206);
+    for (let i = 0; i < nB; i++) {
+      const cx = hash2(i, 1, sb) * S;
+      const cy = hash2(i, 2, sb) * S;
+      const ai = (8 + ((hash2(i, 3, sb) * 18) | 0)) % 32;
+      const dx = ANG[ai * 2];
+      const dy = -ANG[ai * 2 + 1];
+      const len = (0.045 + 0.05 * hash2(i, 4, sb)) * GT_RES;
+      const wid = (0.011 + 0.006 * hash2(i, 5, sb)) * GT_RES;
+      const tone = hash2(i, 6, sb) < 0.62 ? -0.13 : 0.1;
+      const id = (hash2(i, 7, sb) * 255) | 0;
+      const x0 = Math.floor(cx - len - 2);
+      const x1 = Math.ceil(cx + len + 2);
+      const y0 = Math.floor(cy - len - 2);
+      const y1 = Math.ceil(cy + len + 2);
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const px = x + 0.5 - cx;
+          const py = y + 0.5 - cy;
+          let t = (px * dx + py * dy) / len;
+          if (t < 0) t = 0;
+          else if (t > 1) t = 1;
+          const qx = px - dx * t * len;
+          const qy = py - dy * t * len;
+          const cov = 0.5 * wid * (1 - 0.75 * t) + 0.75 - Math.sqrt(qx * qx + qy * qy);
+          if (cov <= 0) continue;
+          const cv = cov > 1 ? 1 : cov;
+          const k = (y & (S - 1)) * S + (x & (S - 1));
+          lumD[k] += tone * cv;
+          if (cv > blade[k]) {
+            blade[k] = cv;
+            if (cv > 0.5) bid[k] = id;
+          }
+        }
+      }
+    }
+    const n = S * S;
+    const data = new Uint8Array(n * GT_PLANES);
+    for (let k = 0; k < n; k++) {
+      const v = 128 + 255 * lumD[k];
+      data[GT_LUM * n + k] = v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+      data[GT_MOT * n + k] = mot[k];
+      data[GT_ID * n + k] = bid[k];
+      data[GT_JIT * n + k] = jit[k];
+    }
+    cracks(data.subarray(GT_CRK * n, GT_CRK * n + n), S, mix(seed, 207));
+    const t0: Tile = { res: GT_RES, size: S, mask: S - 1, data };
+    const t1 = halve(t0, GT_PLANES);
+    const t2 = halve(t1, GT_PLANES);
+    return [t0, t1, t2];
+  });
+}
+
+/**
+ * Drought cracks into out (S x S texels, GT_RES a square, repeating): the edges of polygons a
+ * third of a square across (a Voronoi pattern), with finer cracks across some of them, both broken
+ * off in places.
+ */
+function cracks(out: Uint8Array, S: number, seed: number): void {
+  const levels: [number, number, number][] = [
+    // Cells a square, line half-width (squares), how much of it is broken off.
+    [3, 0.011, 0.25],
+    [7, 0.006, 0.55],
+  ];
+  const acc = new Float32Array(S * S);
+  for (const [cells, hw, broken] of levels) {
+    // The cells' points, with a border of the far side's (the tile repeats).
+    const n = cells * GT_SQ;
+    const m = n + 2;
+    const px = new Float64Array(m * m);
+    const py = new Float64Array(m * m);
+    const sd = mix(seed, cells);
+    for (let j = -1; j <= n; j++) {
+      for (let i = -1; i <= n; i++) {
+        const iw = (i + n) % n;
+        const jw = (j + n) % n;
+        px[(j + 1) * m + i + 1] = (i + 0.15 + 0.7 * hash2(iw, jw, sd)) / cells;
+        py[(j + 1) * m + i + 1] = (j + 0.15 + 0.7 * hash2(iw, jw, sd ^ 0x51ed)) / cells;
+      }
+    }
+    const keepN = new PNoise(2.5 * GT_SQ, mix(seed, cells + 100));
+    const far = hw + 0.625 / GT_RES;
+    for (let y = 0; y < S; y++) {
+      const v = (y + 0.5) / GT_RES;
+      const cj = Math.floor(v * cells);
+      for (let x = 0; x < S; x++) {
+        const u = (x + 0.5) / GT_RES;
+        const ci = Math.floor(u * cells);
+        // The nearest two points (F1, F2): a crack runs where they're about as near.
+        let f1 = 1e9;
+        let f2 = 1e9;
+        for (let dj = 0; dj <= 2; dj++) {
+          const row = (cj + dj) * m + ci;
+          for (let di = 0; di <= 2; di++) {
+            const dx = u - px[row + di];
+            const dy = v - py[row + di];
+            const d = dx * dx + dy * dy;
+            if (d < f1) {
+              f2 = f1;
+              f1 = d;
+            } else if (d < f2) f2 = d;
+          }
+        }
+        // (Half the gap between them: about the distance to the edge between the two cells.)
+        const e = 0.5 * (Math.sqrt(f2) - Math.sqrt(f1));
+        if (e >= far) continue;
+        const k = clamp01((hw - e) * GT_RES * 0.8 + 0.5);
+        const keep = keepN.at(u * 2.5, v * 2.5);
+        const a = k * ramp(keep, broken - 0.06, broken + 0.06);
+        const o = y * S + x;
+        if (a > acc[o]) acc[o] = a;
+      }
+    }
+  }
+  for (let o = 0; o < S * S; o++) out[o] = Math.round(255 * acc[o]);
+}
+
+const LT_SQ = 2;
+const LT_RES = 128;
+const leafCache = new Map<number, Tile[]>();
+/** Leaf detail (128 = none): small lens-shaped leaves, lighter or darker, lit on their upper left. */
+function leafTiles(seed: number): Tile[] {
+  return lru(leafCache, seed, () => {
+    const S = LT_SQ * LT_RES;
+    const leaf = new Float32Array(S * S);
+    const sl = mix(seed, 302);
+    const nLeaf = LT_SQ * LT_SQ * 700;
+    for (let i = 0; i < nLeaf; i++) {
+      const cx = hash2(i, 1, sl) * S;
+      const cy = hash2(i, 2, sl) * S;
+      const ai = (hash2(i, 3, sl) * 32) | 0;
+      const ca = ANG[ai * 2];
+      const sa = ANG[ai * 2 + 1];
+      const len = (0.026 + 0.016 * hash2(i, 4, sl)) * LT_RES;
+      const wid = len * 0.45;
+      const tone = hash2(i, 5, sl) < 0.5 ? -0.8 : 0.7;
+      const x0 = Math.floor(cx - len - 1);
+      const x1 = Math.ceil(cx + len + 1);
+      const y0 = Math.floor(cy - len - 1);
+      const y1 = Math.ceil(cy + len + 1);
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const dx = x + 0.5 - cx;
+          const dy = y + 0.5 - cy;
+          const p = (dx * ca + dy * sa) / len;
+          const q = (dy * ca - dx * sa) / wid;
+          const e = p * p + q * q;
+          if (e >= 1) continue;
+          const k = (y & (S - 1)) * S + (x & (S - 1));
+          const cv = clamp01((1 - e) * 2.5);
+          const tilt = 0.25 * (-(dx * 0.55 + dy * 0.83) / len);
+          leaf[k] += (tone + tilt - leaf[k]) * cv;
+        }
+      }
+    }
+    const data = new Uint8Array(S * S);
+    for (let k = 0; k < S * S; k++) {
+      const v = 128 + 127 * leaf[k];
+      data[k] = v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+    }
+    const t0: Tile = { res: LT_RES, size: S, mask: S - 1, data };
+    const t1 = halve(t0, 1);
+    return [t0, t1, halve(t1, 1)];
+  });
+}
+
+const CL_SQ = 4;
+/** How far a clump's leafy edge reaches past its radius. */
+const CL_LOBE = 0.22;
+
+interface ClumpSet {
+  /** Centre (tile squares), radius, height above the others, roll, colour patch (0-1), fall order. */
+  cx: Float64Array;
+  cy: Float64Array;
+  rc: Float64Array;
+  z0: Float64Array;
+  id: Float64Array;
+  patch: Float64Array;
+  fall: Float64Array;
+  /** 1 / radius². */
+  irc2: Float64Array;
+}
+
+const clumpCache = new Map<number, ClumpSet>();
+/** Leaf clumps (domes) on a jittered grid, overlapping about three deep, repeating every CL_SQ squares. */
+function clumpSet(seed: number): ClumpSet {
+  return lru(clumpCache, seed, () => {
+    const cell = 0.25;
+    const nc = Math.round(CL_SQ / cell);
+    const n = nc * nc;
+    const cx = new Float64Array(n);
+    const cy = new Float64Array(n);
+    const rc = new Float64Array(n);
+    const z0 = new Float64Array(n);
+    const id = new Float64Array(n);
+    const patch = new Float64Array(n);
+    const fall = new Float64Array(n);
+    const sc = mix(seed, 301);
+    const sf = mix(seed, 304);
+    const pN = new PNoise(5, mix(seed, 303));
+    const fN = new PNoise(6, sf);
+    for (let j = 0; j < nc; j++) {
+      for (let i = 0; i < nc; i++) {
+        const c = j * nc + i;
+        cx[c] = (i + 0.5 + 0.85 * (hash2(i, j, sc) - 0.5)) * cell;
+        cy[c] = (j + 0.5 + 0.85 * (hash2(i, j, sc ^ 0x51ed) - 0.5)) * cell;
+        rc[c] = 0.17 + 0.08 * hash2(i, j, sc ^ 0x1234);
+        z0[c] = 0.55 * hash2(i, j, sc ^ 0x7777);
+        id[c] = hash2(i, j, sc ^ 0x2545);
+        patch[c] = rank(RANK_OCTAVE, pN.at(cx[c] * 1.25, cy[c] * 1.25));
+        fall[c] = rank2(0.55 * rank(RANK_OCTAVE, fN.at(cx[c] * 1.5, cy[c] * 1.5)) + 0.45 * hash2(i, j, sf), 0.55, 0.45);
+      }
+    }
+    const irc2 = new Float64Array(n);
+    for (let c = 0; c < n; c++) irc2[c] = 1 / (rc[c] * rc[c]);
+    return { cx, cy, rc, z0, id, patch, fall, irc2 };
+  });
+}
+
+let meltLut: Uint8Array | null = null;
+/** Per colour (6 bits a channel), how much it melts: snow, greys and the lines drawn on them (not earth, wood, leaves or ink). */
+function meltTable(): Uint8Array {
+  if (meltLut) return meltLut;
+  const t = new Uint8Array(64 * 64 * 64);
+  for (let ri = 0; ri < 64; ri++) {
+    for (let gi = 0; gi < 64; gi++) {
+      for (let bi = 0; bi < 64; bi++) {
+        const r = ri * 4 + 2;
+        const g = gi * 4 + 2;
+        const b = bi * 4 + 2;
+        const max = Math.max(r, g, b);
+        const c = max - Math.min(r, g, b);
+        const v = max / 255;
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        // (Blue-grey shade may be quite colourful and still snow.)
+        const neutral = b >= g && b >= r ? 1 - ramp(c / max, 0.3, 0.4) : 1 - ramp(c, 12 + 18 * v, 20 + 22 * v);
+        const cool = ramp(b - r, -12, -5);
+        const green = g > r + 4 && g > b + 2 ? ramp(c / max, 0.1, 0.18) : 0;
+        // (Ink never melts: nothing as dark as the guard keeps.)
+        t[(ri << 12) | (gi << 6) | bi] = v < 0.14 ? 0 : Math.round(255 * neutral * cool * (1 - green) * ramp(lum, 0.12, 0.22));
+      }
+    }
+  }
+  meltLut = t;
+  return t;
+}
+
+// ---------------------------------------------------------------- snowy maps: per-look fields
+
+/** Look field channels (at analysis resolution). */
+const MC = 6;
+/** Broad colour variation (yellower or bluer greens), a rank. */
+const M_VAR = 0;
+/** The look's patches: sprouts (spring), dry grass (summer), straw (autumn); a rank. */
+const M_P1 = 1;
+/** Bare earth (summer); a rank. */
+const M_P2 = 2;
+/** Remnant snow (spring) or drifts on grass and earth (winter): 128 at the level's threshold. */
+const M_REM = 3;
+/** The soft shadow new foliage casts. */
+const M_SHD = 4;
+/** Next to a tree (fallen leaves gather there). */
+const M_NEAR = 5;
+
+/** Floats per tree in SnowFields.tp. */
+const TP = 44;
+// 0 cos, 1 sin, 2 1/scale, 3-4 clump tile offset (tile squares), 5 roll, 6-9 autumn cumulative
+// shares (green, +yellow, +orange, +red), 10-12 leaf RGB, 13 in blossom, 14 leaf share, 15
+// scale, 16-31 a bare tree's reach per direction (squares), 32 radius (squares), 33-34 centre
+// (squares), 35 kind, 36 its snow's lit luma, 37-39 its own green (RGB), 40 that green's
+// saturation, 41 how far its clumps can reach from its centre, 42 how far past its reach
+// (squares).
+const TP_REACH = 16;
+
+interface SnowFields {
+  key: string;
+  f: Uint8Array;
+  tp: Float64Array;
+  /** Ground colours: base, broad variation, fine jitter, patch colour, earth patch colour (RGB each). */
+  gBase: Float64Array;
+  gVar: Float64Array;
+  gJit: Float64Array;
+  gP1: Float64Array;
+  gP2: Float64Array;
+  p1Share: number;
+  p1Amt: number;
+  p2Share: number;
+  /** The analysis channels this map has anything in (SN_*). */
+  has: Uint8Array;
+  /** Per tree, the leaf clumps still on it (see treeIndex), made when a bake first needs them. */
+  ix: (TreeIndex | null)[];
+  /** Whether new foliage casts any shadow. */
+  anyShd: boolean;
+  /** The snow's own colour at its lit tone (RGB). */
+  snow: Float64Array;
+}
+
+const snowFieldCache = new WeakMap<SnowInfo, SnowFields>();
+
+function snowFields(o: BakeOptions): SnowFields {
+  const sn = o.a.snow as SnowInfo;
+  const key = `${o.look}|${o.level}|${o.seed | 0}|${o.cell}|${o.sceneW}|${o.sceneH}`;
+  const hit = snowFieldCache.get(sn);
+  if (hit && hit.key === key) return hit;
+  const sf = buildSnowFields(o, key);
+  snowFieldCache.set(sn, sf);
+  return sf;
+}
+
+function lerp3(out: Float64Array, a: Tri | Float64Array, b: Tri | Float64Array, t: number): void {
+  for (let ch = 0; ch < 3; ch++) out[ch] = a[ch] + (b[ch] - a[ch]) * t;
+}
+
+const LEAF_SUMMER: Tri = [72, 112, 42];
+const LEAF_SPRING: Tri = [112, 158, 56];
+/** Autumn leaves: still green, yellow, orange, red, withered brown. */
+const AUT_LEAF: readonly Tri[] = [
+  [104, 126, 48],
+  [226, 184, 56],
+  [218, 124, 38],
+  [182, 56, 32],
+  [132, 88, 44],
+];
+const G_LUSH: Tri = [84, 122, 44];
+const G_FRESH: Tri = [108, 146, 56];
+const G_OLIVE: Tri = [130, 126, 62];
+const G_STRAW: Tri = [194, 168, 100];
+const G_AUT3: Tri = [138, 114, 62];
+const G_WET: Tri = [94, 80, 60];
+const G_MATTED: Tri = [124, 116, 76];
+const G_SHOOT: Tri = [136, 166, 78];
+
+/** How much of its leaf a tree of this kind carries in this look (0 none). */
+function leafShare(look: SeasonLook, L: number, kind: number): number {
+  const P = SEASON_PARAMS;
+  if (look === "summer") return P.summer.leaves[L];
+  if (look === "autumn") return kind === K_BARE ? P.autumn.treeLeaves[L] : P.autumn.capLeaves[L];
+  if (look === "spring") return kind === K_BARE ? P.spring.leaves[L] : P.spring.capMelt[L];
+  return 0;
+}
+
+function buildSnowFields(o: BakeOptions, key: string): SnowFields {
+  const a = o.a;
+  const sn = a.snow as SnowInfo;
+  const L = o.level - 1;
+  const look = o.look;
+  const seed = o.seed | 0;
+  const aw = a.aw;
+  const ah = a.ah;
+  const N = aw * ah;
+  const toU = o.sceneW / (aw * o.cell);
+  const toW = o.sceneH / (ah * o.cell);
+  const S = sn.s;
+  const P = SEASON_PARAMS;
+  const f = new Uint8Array(N * MC);
+  const has = new Uint8Array(NSN);
+  for (let k = 0; k < N; k++) for (let c = 0; c < NSN; c++) if (S[k * NSN + c]) has[c] = 1;
+
+  // Broad variation and the look's patches: ranks of soft noise.
+  const varN = new Fbm(0.3, mix(seed, 71));
+  const p1N = new Fbm(look === "spring" ? 0.8 : 0.5, mix(seed, 72));
+  const p2N = new Fbm(0.42, mix(seed, 73));
+  for (let y = 0; y < ah; y++) {
+    const w = (y + 0.5) * toW;
+    for (let x = 0, k = y * aw; x < aw; x++, k++) {
+      const u = (x + 0.5) * toU;
+      const b = k * MC;
+      f[b + M_VAR] = Math.round(255 * rank(RANK_FBM, varN.at(u, w)));
+      if (look !== "winter") f[b + M_P1] = Math.round(255 * rank(RANK_FBM, p1N.at(u, w)));
+      if (look === "summer") f[b + M_P2] = Math.round(255 * rank(RANK_FBM, p2N.at(u, w)));
+    }
+  }
+  // Remnant snow (spring) and drifts (winter): where the snow is most shaded and on the shadow
+  // side of what stands in it, broken up by soft noise; the level's share, by rank.
+  const share = look === "spring" ? P.spring.remnant[L] : look === "winter" ? P.winter.drift[L] : 0;
+  if (share > 0) {
+    const rn = new Fbm(0.45, mix(seed, 51));
+    const ref = sn.ref * 255;
+    const sc = new Float64Array(N);
+    const hist = new Float64Array(512);
+    let tot = 0;
+    // (The shadow side of objects: down and to the right, as maps are lit. But not right round
+    // them: no crescents of snow hugging a tree.)
+    const sh = Math.max(1, Math.round(0.3 * a.cellA));
+    const near = new Uint8Array(N);
+    for (let k = 0; k < N; k++) near[k] = Math.max(S[k * NSN + SN_CROWN], S[k * NSN + SN_EVER], S[k * NSN + SN_PROP]) >= 128 ? 1 : 0;
+    // (And a bare tree's dense middle, where its new leaves will be.)
+    for (let t = 0; t < sn.nTrees; t++) {
+      const tb = t * TREE_N;
+      if (sn.trees[tb + 3] !== K_BARE) continue;
+      const cx = sn.trees[tb];
+      const cy = sn.trees[tb + 1];
+      const rr = 0.25 * sn.trees[tb + 2];
+      for (let y = Math.max(0, Math.floor(cy - rr)); y <= Math.min(ah - 1, Math.ceil(cy + rr)); y++) {
+        for (let x = Math.max(0, Math.floor(cx - rr)); x <= Math.min(aw - 1, Math.ceil(cx + rr)); x++) {
+          if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= rr * rr) near[y * aw + x] = 1;
+        }
+      }
+    }
+    const dd = new Int32Array(N);
+    const lateSpring = look === "spring" && L > 0;
+    const farD = 0.4 * a.cellA * D1;
+    // (The snow's shade softened over half a square, so how a browser shrank the map, sharper
+    // or softer, hardly moves where the drifts lie.)
+    const tone = new Float64Array(N);
+    for (let k = 0; k < N; k++) tone[k] = S[k * NSN + SN_TONE];
+    blurF(tone, aw, ah, Math.max(1, Math.round(0.5 * a.cellA)));
+    distTo(near, 1, aw, ah, dd);
+    for (let y = 0; y < ah; y++) {
+      const w = (y + 0.5) * toW;
+      for (let x = 0, k = y * aw; x < aw; x++, k++) {
+        const s = k * NSN;
+        // (In spring, frozen water too: its floes last as long as the drifts.)
+        const g = look === "winter" ? Math.max(S[s + SN_LAWN], S[s + SN_EARTH]) : Math.max(S[s + SN_GROUND], S[s + SN_ICE]);
+        if (g < 16) continue;
+        const shade = ramp((ref - tone[k]) / ref, 0, 0.25);
+        const kb = y >= sh && x >= sh ? (y - sh) * aw + x - sh : -1;
+        const lee = kb >= 0 && S[kb * NSN + SN_OBJ] && !S[s + SN_OBJ] ? 1 : 0;
+        const v = 0.62 * shade + 0.3 * rank(RANK_FBM, rn.at((x + 0.5) * toU, w)) + 0.08 * lee - (look === "spring" && L === 0 ? 0.1 * (1 - ramp(dd[k] / D1 / a.cellA, 0.1, 0.5)) : 0);
+        sc[k] = v;
+        // (Later in spring the last drifts lie out in the open: what's by a tree doesn't count.)
+        if (lateSpring && dd[k] < farD) continue;
+        hist[v <= 0 ? 0 : Math.min(511, Math.floor(v * 512))] += g;
+        tot += g;
+      }
+    }
+    if (look === "winter") {
+      // Winter: each pixel's rank (the kernel covers the grass first, then the earth).
+      const cdf = new Float64Array(513);
+      for (let i = 0; i < 512; i++) cdf[i + 1] = cdf[i] + hist[i];
+      for (let k = 0; k < N; k++) {
+        if (!sc[k]) continue;
+        const v = sc[k] <= 0 ? 0 : sc[k] >= 1 ? 511.99 : sc[k] * 512;
+        const i = Math.floor(v);
+        f[k * MC + M_REM] = Math.round((255 * (cdf[i] + hist[i] * (v - i))) / Math.max(1, tot));
+      }
+    } else {
+      let thr = 1;
+      let acc = 0;
+      for (let i = 511; i >= 0; i--) {
+        acc += hist[i];
+        if (acc >= share * tot) {
+          thr = i / 512;
+          break;
+        }
+      }
+      for (let k = 0; k < N; k++) if (sc[k]) f[k * MC + M_REM] = Math.max(0, Math.min(255, Math.round(128 + (sc[k] - thr) * 260)));
+      if (lateSpring) {
+        // A drift (with its wet rim) that reaches a tree melts whole: no crescent of snow is left
+        // hugging a trunk.
+        const dm = new Uint8Array(N);
+        for (let k = 0; k < N; k++) dm[k] = sc[k] && sc[k] >= thr - 0.06 ? 1 : 0;
+        const lab = new Int32Array(N);
+        const nD = label4(dm, aw, ah, lab, new Int32Array(N));
+        const byTree = new Uint8Array(nD + 1);
+        for (let k = 0; k < N; k++) if (lab[k] && dd[k] < farD) byTree[lab[k]] = 1;
+        for (let k = 0; k < N; k++) if (byTree[lab[k]]) f[k * MC + M_REM] = Math.min(f[k * MC + M_REM], 60);
+      }
+    }
+  }
+
+  // Trees: each leans its own way, from values tied to where it stands (to the nearest square,
+  // so a tree found a little off elsewhere looks the same).
+  const nT = sn.nTrees;
+  const tp = new Float64Array(Math.max(1, nT) * TP);
+  const A = P.autumn;
+  const shd = new Float64Array(N);
+  const near = new Float64Array(N);
+  const leafScale = look === "spring" ? P.spring.leafScale[L] : 1;
+  const ts = mix(seed, 141);
+  for (let t = 0; t < nT; t++) {
+    const tb = t * TREE_N;
+    const cx = sn.trees[tb];
+    const cy = sn.trees[tb + 1];
+    const cu = cx * toU;
+    const cw = cy * toW;
+    const R = sn.trees[tb + 2] * toU;
+    const kind = sn.trees[tb + 3];
+    const qx = Math.floor(cu);
+    const qy = Math.floor(cw);
+    const bias = hash2(qx, qy, ts ^ 0x11);
+    const warm = hash2(qx, qy, ts ^ 0x22);
+    const q = t * TP;
+    const ai = (hash2(qx, qy, ts ^ 0x33) * 32) | 0;
+    tp[q] = ANG[ai * 2];
+    tp[q + 1] = ANG[ai * 2 + 1];
+    // Clumps scale with the tree: a sapling's are small, a big oak's bigger.
+    const sc = Math.max(0.5, Math.min(1.5, 0.35 + 0.35 * R)) * leafScale;
+    tp[q + 2] = 1 / sc;
+    tp[q + 15] = sc;
+    tp[q + 3] = hash2(qx, qy, ts ^ 0x44) * CL_SQ;
+    tp[q + 4] = hash2(qx, qy, ts ^ 0x55) * CL_SQ;
+    tp[q + 5] = hash2(qx, qy, ts ^ 0x66);
+    // Autumn: the level's shares, each tree greener or further on (0.6-1.4 times the green) and
+    // warmer or more golden. Red stays at most about a third, so no tree is all red, and every
+    // tree keeps some green.
+    const g0 = Math.max(0.06, Math.min(0.85, A.treeGreen[L] * (0.6 + 0.8 * bias)));
+    let yy = A.yellow[L] * (1.3 - 0.6 * warm);
+    const oo = A.orange[L];
+    let rr = A.red[L] * (0.7 + 0.6 * warm);
+    const tsum = yy + oo + rr;
+    const rest = 1 - g0;
+    yy = (yy / tsum) * rest;
+    let o2 = (oo / tsum) * rest;
+    rr = (rr / tsum) * rest;
+    if (rr > 0.33) {
+      o2 += rr - 0.33;
+      rr = 0.33;
+    }
+    tp[q + 6] = g0;
+    tp[q + 7] = g0 + yy;
+    tp[q + 8] = g0 + yy + o2;
+    tp[q + 9] = g0 + yy + o2 + rr;
+    // Leaf colour: the look's green, each tree a little yellower or bluer, lighter or darker.
+    const base = look === "spring" ? LEAF_SPRING : LEAF_SUMMER;
+    const ol = look === "summer" ? P.summer.leafOlive[L] : 0;
+    const hv = (bias - 0.5) * 2;
+    const vv = 1 + (warm - 0.5) * 0.24;
+    tp[q + 10] = (base[0] + 12 * hv + (148 - base[0]) * ol) * vv;
+    tp[q + 11] = (base[1] + 5 * hv + (140 - base[1]) * ol) * vv;
+    tp[q + 12] = (base[2] - 8 * hv + (64 - base[2]) * ol) * vv;
+    tp[q + 13] = look === "spring" && hash2(qx, qy, ts ^ 0x77) < P.spring.bloomTrees[L] ? 1 : 0;
+    const ls = leafShare(look, L, kind);
+    tp[q + 14] = ls;
+    for (let di = 0; di < TREE_DIRS; di++) tp[q + TP_REACH + di] = (kind === K_BARE ? sn.trees[tb + 8 + di] : sn.trees[tb + 2]) * toU;
+    tp[q + 32] = R;
+    tp[q + 33] = cu;
+    tp[q + 34] = cw;
+    tp[q + 35] = kind;
+    tp[q + 36] = sn.trees[tb + 7];
+    {
+      const g0r = sn.trees[tb + 4];
+      const g1 = sn.trees[tb + 5];
+      const g2 = sn.trees[tb + 6];
+      const gv = Math.max(g0r, g1, g2) * INV255;
+      hsv(hueOf(g0r, g1, g2), Math.max(0.45, satOf(g0r, g1, g2)), gv < 0.3 ? 0.3 : gv > 0.58 ? 0.58 : gv);
+      tp[q + 37] = HSV_OUT[0];
+      tp[q + 38] = HSV_OUT[1];
+      tp[q + 39] = HSV_OUT[2];
+      tp[q + 40] = satOf(HSV_OUT[0], HSV_OUT[1], HSV_OUT[2]);
+    }
+    {
+      let far = 0;
+      for (let di = 0; di < TREE_DIRS; di++) far = Math.max(far, tp[q + TP_REACH + di]);
+      // (A clump's centre within the reach, and the clump round it with its lobes.)
+      tp[q + 42] = 0.25 * (1 + CL_LOBE) * sc + 0.02;
+      tp[q + 43] = R > 0 ? 1 / R : 1;
+      tp[q + 41] = far * 1.15 * leafScale + tp[q + 42];
+    }
+    // Fallen leaves gather under trees; new foliage casts a soft shadow down and to the right.
+    if (kind === K_EVER || kind === K_PROP) continue;
+    const Ra = sn.trees[tb + 2];
+    let far = Ra;
+    if (kind === K_BARE) for (let di = 0; di < TREE_DIRS; di++) far = Math.max(far, sn.trees[tb + 8 + di]);
+    const reach = far * 1.3 + 1;
+    const cover = look === "winter" ? 0 : kind === K_BARE ? ls * (1 - 0.35 * (1 - ls)) : 0;
+    const rs = kind === K_BARE ? 0.75 * far : Ra;
+    const sx = cx + 0.1 * rs + 0.12 / toU;
+    const sy = cy + 0.15 * rs + 0.16 / toW;
+    const x0 = Math.max(0, Math.floor(cx - reach));
+    const x1 = Math.min(aw - 1, Math.ceil(cx + reach + 0.3 * rs));
+    const y0 = Math.max(0, Math.floor(cy - reach));
+    const y1 = Math.min(ah - 1, Math.ceil(cy + reach + 0.3 * rs));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0, k = y * aw + x0; x <= x1; x++, k++) {
+        const dn = Math.sqrt((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) / reach;
+        if (dn < 1 && 1 - dn * dn > near[k]) near[k] = 1 - dn * dn;
+        if (cover > 0) {
+          const ds = Math.sqrt((x + 0.5 - sx) ** 2 + (y + 0.5 - sy) ** 2) / rs;
+          const v = cover * (1 - ramp(ds, 0.55, 1.05));
+          if (v > shd[k]) shd[k] = v;
+        }
+      }
+    }
+  }
+  blurF(shd, aw, ah, Math.max(1, Math.round(0.15 / toU)));
+  let anyShd = false;
+  for (let k = 0; k < N && !anyShd; k++) if (shd[k] > 0.002) anyShd = true;
+  for (let k = 0; k < N; k++) {
+    f[k * MC + M_SHD] = Math.round(255 * clamp01(shd[k]));
+    f[k * MC + M_NEAR] = Math.round(255 * near[k]);
+  }
+
+  // The ground's colours for this look and level.
+  const gBase = new Float64Array(3);
+  const gP1 = new Float64Array(3);
+  const gP2 = new Float64Array(3);
+  let p1Share = 0;
+  let p1Amt = 0;
+  let p2Share = 0;
+  if (look === "spring") {
+    if (L === 0) {
+      // Last year's grass, with wet earth in patches (fresh green tufts are added per pixel).
+      gBase.set(G_MATTED);
+      gP1.set(G_WET);
+      p1Share = 0.4;
+      p1Amt = 0.8;
+    } else {
+      lerp3(gBase, G_FRESH, G_LUSH, L === 1 ? 0.2 : 0.45);
+      lerp3(gP1, G_FRESH, [150, 176, 70], 0.6);
+      p1Share = 0.3;
+      p1Amt = 0.45;
+    }
+  } else if (look === "summer") {
+    if (L === 0) gBase.set(G_LUSH);
+    else lerp3(gBase, G_LUSH, G_OLIVE, L === 1 ? 0.35 : 0.7);
+    lerp3(gP1, G_OLIVE, G_STRAW, L === 1 ? 0.45 : 0.85);
+    p1Share = P.summer.dry[L];
+    p1Amt = 0.75;
+    lerp3(gP2, sn.earth, [176, 146, 104], 0.55);
+    p2Share = P.summer.bare[L];
+  } else if (look === "autumn") {
+    if (L === 2) lerp3(gBase, G_OLIVE, G_AUT3, 0.55);
+    else lerp3(gBase, G_LUSH, G_OLIVE, L === 0 ? 0.45 : 0.8);
+    lerp3(gP1, G_OLIVE, G_STRAW, 0.35 + 0.25 * L);
+    p1Share = P.autumn.straw[L];
+    p1Amt = 0.62;
+  }
+  // A little of the map's own grass, so the new ground belongs to the map.
+  if (sn.hasGrass && look !== "winter" && !(look === "spring" && L === 0)) {
+    const g = sn.grass;
+    const oc = Math.max(g[0], g[1], g[2]);
+    const bc = Math.max(gBase[0], gBase[1], gBase[2]);
+    for (let ch = 0; ch < 3; ch++) gBase[ch] += ((g[ch] / oc) * bc - gBase[ch]) * 0.15;
+  }
+  return {
+    key,
+    f,
+    tp,
+    gBase,
+    gVar: new Float64Array([22, 16, -8]),
+    gJit: new Float64Array([16, 10, -8]),
+    gP1,
+    gP2,
+    p1Share,
+    p1Amt,
+    p2Share,
+    has,
+    ix: new Array<TreeIndex | null>(nT).fill(null),
+    anyShd,
+    snow: sn.snow,
+  };
+}
+
+// ---------------------------------------------------------------- snowy maps: the strip's fields
+
+// Row buffer slots: the snow analysis's channels (SN_*, same numbers), then the look's (M_*).
+const Q_LOOK = NSN;
+/** 1 / the snow's tone (so a pixel's detail against it needs no division). */
+const Q_ITONE = NSN + MC;
+const QC = NSN + MC + 1;
+
+/**
+ * The fields for a strip, blended per row as Frame does: only the channels in use, and the
+ * objects' channels only where SN_OBJ says there are any (elsewhere they read 0).
+ */
+class SnowFrame {
+  S: Uint8Array;
+  M: Uint8Array;
+  sAct: Int32Array;
+  mAct: Int32Array;
+  oAct: Int32Array;
+  aw: number;
+  ah: number;
+  rb: Float64Array;
+  colI: Int32Array;
+  colF: Float64Array;
+  colU: Float64Array;
+  colQ: Int32Array;
+  ix0: number;
+  ix1: number;
+  y0: number;
+  scale: number;
+  ky: number;
+  inv: number;
+  w = 0;
+  rowQ = 0;
+  lastIy = -1;
+  lastFy = -1;
+  constructor(o: BakeOptions, width: number, M: Uint8Array, sAct: number[], mAct: number[], oAct: number[]) {
+    const a = o.a;
+    this.S = (a.snow as SnowInfo).s;
+    this.M = M;
+    this.sAct = Int32Array.from(sAct.filter((ch) => !oAct.includes(ch)));
+    this.oAct = Int32Array.from(oAct.filter((ch) => sAct.includes(ch)));
+    this.mAct = Int32Array.from(mAct);
+    this.aw = a.aw;
+    this.ah = a.ah;
+    this.y0 = o.y0;
+    this.scale = o.scale;
+    this.ky = a.ah / o.sceneH;
+    this.inv = 1 / o.cell;
+    const kx = a.aw / o.sceneW;
+    const aw = a.aw;
+    this.colI = new Int32Array(width);
+    this.colF = new Float64Array(width);
+    this.colU = new Float64Array(width);
+    this.colQ = new Int32Array(width);
+    let ix0 = aw;
+    let ix1 = 0;
+    const ixs = new Int32Array(width);
+    for (let i = 0; i < width; i++) {
+      const sx = snap(o.x0 + (i + 0.5) * o.scale);
+      this.colU[i] = sx * this.inv;
+      let x = sx * kx - 0.5;
+      if (x < 0) x = 0;
+      else if (x > aw - 1) x = aw - 1;
+      let ix = Math.floor(x);
+      if (ix > aw - 2) ix = aw > 1 ? aw - 2 : 0;
+      ixs[i] = ix;
+      this.colF[i] = aw > 1 ? x - ix : 0;
+      const q = Math.floor(sx * kx);
+      this.colQ[i] = q < 0 ? 0 : q > aw - 1 ? aw - 1 : q;
+      if (ix < ix0) ix0 = ix;
+      if (ix + 1 > ix1) ix1 = ix + 1;
+    }
+    if (width === 0) ix0 = ix1 = 0;
+    this.ix0 = ix0;
+    this.ix1 = ix1;
+    for (let i = 0; i < width; i++) this.colI[i] = (ixs[i] - ix0) * QC;
+    this.rb = new Float64Array((ix1 - ix0 + 2) * QC);
+  }
+  row(j: number): void {
+    const aw = this.aw;
+    const ah = this.ah;
+    const sy = snap(this.y0 + (j + 0.5) * this.scale);
+    this.w = sy * this.inv;
+    const q = Math.floor(sy * this.ky);
+    this.rowQ = (q < 0 ? 0 : q > ah - 1 ? ah - 1 : q) * aw;
+    let y = sy * this.ky - 0.5;
+    if (y < 0) y = 0;
+    else if (y > ah - 1) y = ah - 1;
+    let iy = Math.floor(y);
+    if (iy > ah - 2) iy = ah > 1 ? ah - 2 : 0;
+    const fy = ah > 1 ? y - iy : 0;
+    if (iy === this.lastIy && fy === this.lastFy) return;
+    this.lastIy = iy;
+    this.lastFy = fy;
+    const iy1 = ah > 1 ? iy + 1 : iy;
+    const S = this.S;
+    const M = this.M;
+    const rb = this.rb;
+    const sAct = this.sAct;
+    const mAct = this.mAct;
+    const oAct = this.oAct;
+    const ns = sAct.length;
+    const nm = mAct.length;
+    const no = oAct.length;
+    for (let c = this.ix0, o = 0; c <= this.ix1; c++, o += QC) {
+      const cc = c < aw ? c : aw - 1;
+      const k0 = iy * aw + cc;
+      const k1 = iy1 * aw + cc;
+      const s0 = k0 * NSN;
+      const s1 = k1 * NSN;
+      for (let t = 0; t < ns; t++) {
+        const ch = sAct[t];
+        const v0 = S[s0 + ch];
+        rb[o + ch] = (v0 + (S[s1 + ch] - v0) * fy) * INV255;
+      }
+      const tn = rb[o + SN_TONE];
+      rb[o + Q_ITONE] = tn > 0.02 ? 1 / tn : 1;
+      if (S[s0 + SN_OBJ] || S[s1 + SN_OBJ]) {
+        for (let t = 0; t < no; t++) {
+          const ch = oAct[t];
+          const v0 = S[s0 + ch];
+          rb[o + ch] = (v0 + (S[s1 + ch] - v0) * fy) * INV255;
+        }
+      } else for (let t = 0; t < no; t++) rb[o + oAct[t]] = 0;
+      const m0 = k0 * MC;
+      const m1 = k1 * MC;
+      for (let t = 0; t < nm; t++) {
+        const ch = mAct[t];
+        const v0 = M[m0 + ch];
+        rb[o + Q_LOOK + ch] = (v0 + (M[m1 + ch] - v0) * fy) * INV255;
+      }
+    }
+  }
+  /** Where channel ch of the look's fields starts for the nearest analysis row (add colQ * MC). */
+  nearRow(ch: number): number {
+    return this.rowQ * MC + ch;
+  }
+}
+
+// ---------------------------------------------------------------- snowy maps: the bake
+
+// Spring, summer and autumn paint the map over the way a Dungeondraft map is built: a painted
+// ground (grass, or wet earth early in spring, with brush strokes and mottles) lit by the snow's
+// own light and shade, so the grid, every outline and the painterly shading carry over; snow left
+// in its own shade in spring; leaf clumps with a dark outline on the bare trees and the
+// snow-capped crowns; evergreens freed of their frost. Winter keeps the snow as painted and adds
+// to it. Ink never changes.
+
+/** Light for the leaf clumps: from the top left, a little above. */
+const LX = -0.5 / 0.9955;
+const LY = -0.62 / 0.9955;
+const LZ = 0.6 / 0.9955;
+const LEAF_INK: Tri = [16, 22, 12];
+const STONE: Tri = [132, 130, 126];
+const WATER_C: Tri = [52, 132, 146];
+const BLOSSOM_L: readonly Tri[] = [
+  [248, 196, 212],
+  [252, 236, 242],
+  [236, 158, 188],
+];
+
+/** Wildflowers on melted ground (no white ones: here they'd read as snow). */
+const FLOWERS_S: readonly Tri[] = [
+  [250, 222, 86],
+  [244, 176, 204],
+  [178, 140, 222],
+  [236, 112, 108],
+];
+
+/** Linear ramp: 0 below 0, 1 above 1/k. */
+function lin(v: number, k: number): number {
+  const t = v * k;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+
+/** How much darker a leaf clump is where another dips under it (d: distance to its rim). */
+function creaseOf(d: number): number {
+  let t = d * 20;
+  t = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+  return 0.62 + 0.38 * t;
+}
+
+/** Fractional part (for rolls). */
+function frac1(v: number): number {
+  return v - Math.floor(v);
+}
+
+/** The clump clumpAt found: index, height, r² over its radius², offset (tile squares), another under it, tile x, y. */
+const CQ = new Float64Array(8);
+
+/** Grid cells a tile square in a tree's clump index. */
+const TI_G = 16;
+
+/**
+ * The leaf clumps still on one tree, and a grid over them (in the clump tile's coordinates, where
+ * the tree's crown lies), listing in each cell the clumps that may cover it: a pixel looks at a
+ * few clumps, and anywhere past the crown at none.
+ */
+interface TreeIndex {
+  /** Per clump on the tree: its index in the clump set, and its centre (tile squares). */
+  cl: Int32Array;
+  cX: Float64Array;
+  cY: Float64Array;
+  /** The grid's first cell, its size, and each cell's run in list (off[cell] to off[cell + 1]). */
+  gx0: number;
+  gy0: number;
+  gw: number;
+  gh: number;
+  off: Int32Array;
+  list: Uint16Array;
+}
+
+const NO_CLUMPS: TreeIndex = {
+  cl: new Int32Array(0),
+  cX: new Float64Array(0),
+  cY: new Float64Array(0),
+  gx0: 0,
+  gy0: 0,
+  gw: 0,
+  gh: 0,
+  off: new Int32Array(1),
+  list: new Uint16Array(0),
+};
+
+/**
+ * Which of the leaf clumps round tree q are still on it (the clump tile repeats every CL_SQ tile
+ * squares, so each copy of it across the crown is looked at), and their index. Whether a clump is
+ * on is decided at its centre: its roll against limA + limB * (distance from the tree's centre, as
+ * a share of its radius, up to 1), and for a bare tree, whether it lies within the tree's reach
+ * that way (times reachK).
+ */
+function treeIndex(cs: ClumpSet, tp: Float64Array, q: number, bare: boolean, reachK: number, limA: number, limB: number): TreeIndex {
+  const ca = tp[q];
+  const sa = tp[q + 1];
+  const sc = tp[q + 15];
+  const iS = tp[q + 2];
+  const ox = tp[q + 3];
+  const oy = tp[q + 4];
+  const roll = tp[q + 5];
+  const R = tp[q + 32];
+  const iR = R > 0 ? 1 / R : 1;
+  const far = tp[q + 41];
+  // The crown's reach in tile squares, with room for a clump's lobes.
+  const rt = far * iS + 0.5;
+  const cx0 = Math.floor((ox - rt) / CL_SQ);
+  const cy0 = Math.floor((oy - rt) / CL_SQ);
+  const ncx = Math.floor((ox + rt) / CL_SQ) - cx0 + 1;
+  const ncy = Math.floor((oy + rt) / CL_SQ) - cy0 + 1;
+  const n = cs.cx.length;
+  const cl: number[] = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let j = 0; j < ncy; j++) {
+    for (let i = 0; i < ncx; i++) {
+      for (let c = 0; c < n; c++) {
+        // The clump's centre, and back in the tree's frame (squares).
+        const Xc = (cx0 + i) * CL_SQ + cs.cx[c];
+        const Yc = (cy0 + j) * CL_SQ + cs.cy[c];
+        const X = Xc - ox;
+        const Y = Yc - oy;
+        const tu = (X * ca + Y * sa) * sc;
+        const tw = (Y * ca - X * sa) * sc;
+        const d2 = tu * tu + tw * tw;
+        if (d2 > far * far) continue;
+        const dn = Math.sqrt(d2) * iR;
+        if (frac1(cs.fall[c] + roll) >= limA + limB * (dn > 1 ? 1 : dn)) continue;
+        if (bare) {
+          const pos = diamond(tu, tw) * (TREE_DIRS / 4);
+          const i0 = Math.floor(pos);
+          const t = pos - i0;
+          const r0 = tp[q + TP_REACH + (i0 & (TREE_DIRS - 1))];
+          const r1 = tp[q + TP_REACH + ((i0 + 1) & (TREE_DIRS - 1))];
+          const rr = (r0 + (r1 - r0) * t) * reachK;
+          if (d2 > rr * rr) continue;
+        }
+        cl.push(c);
+        xs.push(Xc);
+        ys.push(Yc);
+      }
+    }
+  }
+  const m = cl.length;
+  if (!m || m > 65535) return NO_CLUMPS;
+  // The grid: each clump listed in the cells its leafy edge may reach.
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  const reach = new Float64Array(m);
+  for (let k = 0; k < m; k++) {
+    const r = cs.rc[cl[k]] * (1 + CL_LOBE) + 0.01;
+    reach[k] = r;
+    if (xs[k] - r < x0) x0 = xs[k] - r;
+    if (xs[k] + r > x1) x1 = xs[k] + r;
+    if (ys[k] - r < y0) y0 = ys[k] - r;
+    if (ys[k] + r > y1) y1 = ys[k] + r;
+  }
+  const gx0 = Math.floor(x0 * TI_G);
+  const gy0 = Math.floor(y0 * TI_G);
+  const gw = Math.floor(x1 * TI_G) - gx0 + 1;
+  const gh = Math.floor(y1 * TI_G) - gy0 + 1;
+  const off = new Int32Array(gw * gh + 1);
+  let list = new Uint16Array(0);
+  let fill = off;
+  for (let pass = 0; pass < 2; pass++) {
+    if (pass) {
+      for (let i = 0; i < gw * gh; i++) off[i + 1] += off[i];
+      list = new Uint16Array(off[gw * gh]);
+      fill = off.slice();
+    }
+    for (let k = 0; k < m; k++) {
+      const r = reach[k];
+      const a0 = Math.max(0, Math.floor((xs[k] - r) * TI_G) - gx0);
+      const a1 = Math.min(gw - 1, Math.floor((xs[k] + r) * TI_G) - gx0);
+      const b0 = Math.max(0, Math.floor((ys[k] - r) * TI_G) - gy0);
+      const b1 = Math.min(gh - 1, Math.floor((ys[k] + r) * TI_G) - gy0);
+      for (let b = b0; b <= b1; b++) {
+        // (Whether the clump reaches the cell: the cell's nearest point to its centre.)
+        const cy = (gy0 + b) / TI_G;
+        const ny = ys[k] < cy ? cy : ys[k] > cy + 1 / TI_G ? cy + 1 / TI_G : ys[k];
+        for (let a = a0; a <= a1; a++) {
+          const cx = (gx0 + a) / TI_G;
+          const nx = xs[k] < cx ? cx : xs[k] > cx + 1 / TI_G ? cx + 1 / TI_G : xs[k];
+          if ((nx - xs[k]) * (nx - xs[k]) + (ny - ys[k]) * (ny - ys[k]) > r * r) continue;
+          const cell = b * gw + a;
+          if (pass) list[fill[cell]++] = k;
+          else off[cell + 1]++;
+        }
+      }
+    }
+  }
+  return { cl: Int32Array.from(cl), cX: Float64Array.from(xs), cY: Float64Array.from(ys), gx0, gy0, gw, gh, off, list };
+}
+
+/**
+ * The highest leaf clump at offset (du, dw) squares from tree q's centre, of those still on it (ix:
+ * see treeIndex), so a crown is whole clumps and its outline is lumpy. A clump's edge is its
+ * leaves: it reaches a little further where the leaf tile has a leaf. False when none covers the
+ * point.
+ */
+function clumpAt(cs: ClumpSet, tp: Float64Array, q: number, du: number, dw: number, ix: TreeIndex, lt: Tile): boolean {
+  const ca = tp[q];
+  const sa = tp[q + 1];
+  const iS = tp[q + 2];
+  const X = (du * ca - dw * sa) * iS + tp[q + 3];
+  const Y = (du * sa + dw * ca) * iS + tp[q + 4];
+  const gx = Math.floor(X * TI_G) - ix.gx0;
+  const gy = Math.floor(Y * TI_G) - ix.gy0;
+  if (gx < 0 || gy < 0 || gx >= ix.gw || gy >= ix.gh) return false;
+  const cell = gy * ix.gw + gx;
+  const e0 = ix.off[cell];
+  const e1 = ix.off[cell + 1];
+  if (e0 === e1) return false;
+  const list = ix.list;
+  const cl = ix.cl;
+  const cX = ix.cX;
+  const cY = ix.cY;
+  let best = -1;
+  let bz = -1e9;
+  let br2 = 0;
+  let bdx = 0;
+  let bdy = 0;
+  let other = 0;
+  let lp = -1;
+  const outer = (1 + CL_LOBE) * (1 + CL_LOBE);
+  for (let e = e0; e < e1; e++) {
+    const k = list[e];
+    const c = cl[k];
+    const dx = X - cX[k];
+    const dy = Y - cY[k];
+    const r2 = (dx * dx + dy * dy) * cs.irc2[c];
+    if (r2 >= outer) continue;
+    if (r2 >= 1) {
+      // The leafy edge: a leaf here carries the clump a little further out. (The leaf tile repeats
+      // within the clump tile, so it's read at the clump tile's coordinates as they are.)
+      if (lp < 0) {
+        const lv = lt.data[(Math.floor(Y * lt.res) & lt.mask) * lt.size + (Math.floor(X * lt.res) & lt.mask)] - 128;
+        lp = (lv < 0 ? -lv : lv) * (1 / 110);
+        if (lp > 1) lp = 1;
+      }
+      const el = 1 + CL_LOBE * lp;
+      if (r2 >= el * el) continue;
+    }
+    const z = cs.z0[c] + 0.7 * (1 - r2);
+    if (z > bz) {
+      if (best >= 0) other = 1;
+      best = c;
+      bz = z;
+      br2 = r2;
+      bdx = dx;
+      bdy = dy;
+    } else other = 1;
+  }
+  if (best < 0) return false;
+  CQ[0] = best;
+  CQ[1] = bz;
+  CQ[2] = br2;
+  CQ[3] = bdx;
+  CQ[4] = bdy;
+  CQ[5] = other;
+  CQ[6] = X;
+  CQ[7] = Y;
+  return true;
+}
+
+/** The clump clumpAt found, as seen: colour (before shading), light, leaf detail, distance to its rim (squares), another under it, height. */
+const CC = new Float64Array(8);
+
+function clumpColour(cs: ClumpSet, tp: Float64Array, q: number, lt: Tile, look: number, bloomK: number): void {
+  const ci = CQ[0];
+  const ca = tp[q];
+  const sa = tp[q + 1];
+  const rc = cs.rc[ci];
+  const irc = 1.5 / rc;
+  // The dome's slope, turned back into the scene (the light is the scene's).
+  const ex = (CQ[3] * ca + CQ[4] * sa) * irc;
+  const ey = (CQ[4] * ca - CQ[3] * sa) * irc;
+  let lam = (ex * LX + ey * LY + LZ) / Math.sqrt(ex * ex + ey * ey + 1);
+  if (lam < 0) lam = 0;
+  const leaf = (lt.data[(Math.floor(CQ[7] * lt.res) & lt.mask) * lt.size + (Math.floor(CQ[6] * lt.res) & lt.mask)] - 128) * (1 / 127);
+  const id = cs.id[ci];
+  if (look === 2) {
+    // Autumn: a mottled mix. Each clump takes a colour (neighbours alike in patches), and single
+    // leaves of the neighbouring colours run all through it: an amalgam, never one red blob.
+    // (Each leaf strays from its clump's colour, so even a crown down to its last clumps is a
+    // mix; the darkest leaves stay a withered green.)
+    const pk = rank2(0.72 * id + 0.28 * cs.patch[ci], 0.72, 0.28) + 0.24 * leaf;
+    autumnColour(pk, tp, q);
+    if (leaf < -0.6) {
+      CC[0] = 92 + 16 * id;
+      CC[1] = 114;
+      CC[2] = 44;
+    }
+    const tv = 0.92 + 0.16 * frac1(id * 2.3);
+    CC[0] *= tv;
+    CC[1] *= tv;
+    CC[2] *= tv;
+  } else if (look === 0 && tp[q + 13] && frac1(id * 5.3 + tp[q + 5]) < bloomK) {
+    const col = BLOSSOM_L[leaf > 0.2 ? 1 : frac1(id * 7.1) < 0.5 ? 0 : 2];
+    CC[0] = col[0];
+    CC[1] = col[1];
+    CC[2] = col[2];
+  } else {
+    const tv = 0.9 + 0.2 * frac1(id * 2.3);
+    CC[0] = tp[q + 10] * tv;
+    CC[1] = tp[q + 11] * tv;
+    CC[2] = tp[q + 12] * tv;
+  }
+  CC[3] = lam;
+  CC[4] = leaf;
+  CC[5] = (1 - Math.sqrt(CQ[2])) * rc * tp[q + 15];
+  CC[6] = CQ[5];
+  CC[7] = CQ[1];
+}
+
+// Autumn leaves along a tree's shares: green, then lime to gold, amber to orange, orange-red to
+// red, then withered brown.
+const AUT_SEG: readonly (readonly number[])[] = [
+  [104, 126, 48, 104, 126, 48],
+  [200, 188, 70, 228, 172, 50],
+  [226, 150, 46, 206, 104, 36],
+  [192, 76, 36, 160, 48, 32],
+  [134, 90, 46, 120, 80, 42],
+];
+
+/** The colour at position pk (0-1) along tree q's autumn shares, into CC[0-2]. */
+function autumnColour(pk: number, tp: Float64Array, q: number): void {
+  let lo = 0;
+  let seg = 0;
+  let hi = tp[q + 6];
+  if (pk >= hi) {
+    for (seg = 1; seg < 4; seg++) {
+      lo = hi;
+      hi = tp[q + 6 + seg];
+      if (pk < hi) break;
+    }
+    if (seg === 4) {
+      lo = hi;
+      hi = 1;
+    }
+  }
+  let t = hi > lo ? (pk - lo) / (hi - lo) : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const c = AUT_SEG[seg];
+  CC[0] = c[0] + (c[3] - c[0]) * t;
+  CC[1] = c[1] + (c[4] - c[1]) * t;
+  CC[2] = c[2] + (c[5] - c[2]) * t;
+}
+
+/** Recolours a strip of a map painted under snow (see bake). */
+function bakeSnowy(px: Uint8ClampedArray, width: number, rows: number, o: BakeOptions): void {
+  if (o.look === "winter") winterSnowy(px, width, rows, o);
+  else meltSnowy(px, width, rows, o);
+}
+
+/**
+ * Spring, summer and autumn on a map painted under snow: the snow melts into painted ground
+ * (lit by the snow's light and shade, keeping the grid and every outline), drifts stay in its
+ * shade in spring, snow-capped crowns and bare trees come into leaf, evergreens lose their frost,
+ * ice thaws.
+ */
+function meltSnowy(px: Uint8ClampedArray, width: number, rows: number, o: BakeOptions): void {
+  const m = new Melt(o, width);
+  for (let j = 0; j < rows; j++) m.row(px, j, width);
+}
+
+/**
+ * The melt, a row at a time. The open ground (most of a map) is worked out inline; objects
+ * (crowns, bushes, props, ice, grass patches, earth, trees) in their own method, from the pixel
+ * values the row leaves in fields.
+ */
+class Melt {
+  sn: SnowInfo;
+  sf: SnowFields;
+  L: number;
+  look: number;
+  spring: boolean;
+  summer: boolean;
+  autumn: boolean;
+  fr: SnowFrame;
+  T: Uint8Array;
+  MT: Uint8Array;
+  invRef: number;
+  pxSq: number;
+  gtD: Uint8Array;
+  gtM: number;
+  gtS: number;
+  gtR: number;
+  gtJ: number;
+  gtId: number;
+  gtMot: number;
+  gtCrk: number;
+  lt: Tile;
+  cs: ClumpSet;
+  usesP1: boolean;
+  anyShd: boolean;
+  gB: Float64Array;
+  gV: Float64Array;
+  gJ: Float64Array;
+  gP1: Float64Array;
+  gP2: Float64Array;
+  p1Share: number;
+  p1Amt: number;
+  p2Share: number;
+  hasRem: boolean;
+  budding: boolean;
+  cracks: boolean;
+  flowers: number;
+  flowerN: Dots;
+  litterD: number;
+  underD: number;
+  leafN: Leaves;
+  budN: Dots;
+  buds: number;
+  bloomK: number;
+  frostMelt: number;
+  everS: number;
+  everV: number;
+  tp: Float64Array;
+  tl: Uint16Array;
+  inkW: number;
+  olive: number;
+  reachK: number;
+  thinK: number;
+  thinT: number;
+  murk: number;
+  colTu: Float64Array;
+  colTv: Float64Array;
+  colFx: Int32Array;
+  colLx: Int32Array;
+  bil: boolean;
+  sproutK: number;
+  gradeK: number;
+  gR: number;
+  gG: number;
+  gGT: number;
+  hasEarth: boolean;
+  earthK: number;
+  gsR0: number;
+  gsG0: number;
+  gsB0: number;
+  gsDR: number;
+  gsDG: number;
+  gsDB: number;
+  gsInv: number;
+  gsL0: number;
+  gsDL: number;
+  /** The map's earth, and the way from it to the snow's lit colour (and 1 / its length²). */
+  eR: number;
+  eG: number;
+  eB: number;
+  esR: number;
+  esG: number;
+  esB: number;
+  esInv: number;
+  snR: number;
+  snG: number;
+  snB: number;
+  // The pixel objects() works on, and what it gives back.
+  r = 0;
+  g = 0;
+  b = 0;
+  li = 0;
+  lum = 0.5;
+  det = 0.5;
+  ta = 0;
+  gr = 0.5;
+  gg = 0.5;
+  gb = 0.5;
+  qr = 0.5;
+  qg = 0.5;
+  qb = 0.5;
+  keep = 0.5;
+  shd = 0.5;
+  mB = 0.5;
+  crw = 0.5;
+  evr = 0.5;
+  prp = 0.5;
+  ice = 0.5;
+  earth = 0.5;
+  nr = 0.5;
+  ng = 0.5;
+  nb = 0.5;
+  own = 0.5;
+
+  constructor(o: BakeOptions, width: number) {
+    const a = o.a;
+    const sn = a.snow as SnowInfo;
+    this.sn = sn;
+    const P = SEASON_PARAMS;
+    const L = o.level - 1;
+    this.L = L;
+    const look = o.look === "spring" ? 0 : o.look === "summer" ? 1 : 2;
+    this.look = look;
+    const spring = look === 0;
+    const summer = look === 1;
+    const autumn = look === 2;
+    this.spring = spring;
+    this.summer = summer;
+    this.autumn = autumn;
+    const sf = snowFields(o);
+    this.sf = sf;
+    const has = sf.has;
+    const sAct: number[] = [SN_GROUND, SN_TONE, SN_OBJ];
+    for (const ch of [SN_CROWN, SN_EVER, SN_PROP, SN_LAWN, SN_ICE, SN_WATER, SN_EARTH]) if (has[ch]) sAct.push(ch);
+    const mAct: number[] = [];
+    this.usesP1 = sf.p1Share > 0;
+    if (this.usesP1) mAct.push(M_P1);
+    this.anyShd = sf.anyShd;
+    if (sf.anyShd) mAct.push(M_SHD);
+    if (sf.p2Share > 0) mAct.push(M_P2);
+    if (spring && P.spring.remnant[L] > 0) mAct.push(M_REM);
+    this.fr = new SnowFrame(o, width, sf.f, sAct, mAct, [SN_CROWN, SN_EVER, SN_PROP, SN_LAWN, SN_ICE, SN_WATER, SN_EARTH]);
+    const fr = this.fr;
+    this.T = colourTable();
+    this.MT = meltTable();
+    const seed = o.seed | 0;
+    this.invRef = 1 / sn.ref;
+    this.pxSq = o.scale / o.cell;
+    const ppsq = o.cell / o.scale;
+    const gt = pickMip(grassTiles(seed), ppsq);
+    this.gtD = gt.data;
+    this.gtM = gt.mask;
+    this.gtS = gt.size;
+    this.gtR = gt.res;
+    const gtP = gt.size * gt.size;
+    this.gtJ = gtP * GT_JIT;
+    this.gtId = gtP * GT_ID;
+    this.gtMot = gtP * GT_MOT;
+    this.gtCrk = gtP * GT_CRK;
+    this.lt = pickMip(leafTiles(seed), ppsq);
+    this.cs = clumpSet(seed);
+    this.gB = sf.gBase;
+    this.gV = sf.gVar;
+    this.gJ = sf.gJit;
+    this.gP1 = sf.gP1;
+    this.gP2 = sf.gP2;
+    this.p1Share = sf.p1Share;
+    this.p1Amt = sf.p1Amt;
+    this.p2Share = sf.p2Share;
+    this.hasRem = spring && P.spring.remnant[L] > 0;
+    this.budding = spring && L === 0;
+    this.cracks = summer && L === 2;
+    this.flowers = spring && L > 0 ? P.spring.flowers[L] * 0.04 : 0;
+    this.flowerN = new Dots(0.2, 0.2, mix(seed, 34));
+    this.litterD = autumn ? P.autumn.leaves[L] : 0;
+    this.underD = autumn ? P.autumn.litter[L] : 0;
+    this.leafN = new Leaves(mix(seed, 27));
+    this.budN = new Dots(0.05, 0.36, mix(seed, 91));
+    this.buds = P.spring.buds[L];
+    this.bloomK = spring ? P.spring.bloomClumps[L] : 0;
+    this.frostMelt = spring ? P.spring.frostMelt[L] : 1;
+    this.everS = spring ? 1.4 : summer ? 1.5 - 0.1 * L : 1.35;
+    this.everV = spring ? 0.96 : summer ? 0.9 : 0.86;
+    this.tp = sf.tp;
+    this.tl = sn.tl;
+    this.inkW = 0.012 + 0.3 * this.pxSq;
+    this.olive = summer ? P.summer.leafOlive[L] : 0;
+    this.reachK = 1.15 * (spring ? P.spring.leafScale[L] : 1);
+    // Autumn thins the crowns two ways: whole clumps fall, and the clumps left lose leaves.
+    const thinL = autumn ? P.autumn.clumpLeaves[L] : 1;
+    this.thinK = 1 / thinL;
+    this.thinT = thinL < 1 ? (1 - thinL) * 0.9 : 0;
+    this.murk = summer ? P.summer.murk[L] : 0;
+    // The grass tile is laid at an angle, so its repeats don't line up with the grid.
+    this.colTu = new Float64Array(width);
+    this.colTv = new Float64Array(width);
+    // Stamp cells per column (as Dots and Leaves find them).
+    this.colFx = new Int32Array(width);
+    this.colLx = new Int32Array(width);
+    for (let i = 0; i < width; i++) {
+      this.colTu[i] = fr.colU[i] * ROT[0] * gt.res;
+      this.colTv[i] = fr.colU[i] * ROT[1] * gt.res;
+      this.colFx[i] = Math.floor(fr.colU[i] / this.flowerN.size);
+      this.colLx[i] = Math.floor(fr.colU[i] * 5);
+    }
+    // The tile is read texel by texel unless it's magnified (then blended).
+    this.bil = ppsq > gt.res * 1.3;
+    this.sproutK = this.budding ? P.spring.sprout[0] : 0;
+    // The look's colour grade (as its kernel grades any map), on what the melt leaves as drawn.
+    this.gradeK = (spring ? P.spring.grade[L] : summer ? P.summer.grade[L] : P.autumn.grade[L]) * (0.3 + 0.7 * ramp(sn.frac, 0.04, 0.35));
+    this.gR = spring ? 0.3 : 0.5;
+    this.gG = spring ? 0.4 : 0.25;
+    this.gGT = spring ? 255 : 225;
+    this.hasEarth = has[SN_EARTH] > 0;
+    this.earthK = spring ? 0.82 : summer ? 1 + 0.06 * L : 0.95;
+    // The grass patches' colour and the snow's (RGB, and luma 0-1), for their soft rims.
+    this.gsR0 = sn.grass[0];
+    this.gsG0 = sn.grass[1];
+    this.gsB0 = sn.grass[2];
+    this.gsDR = sn.snow[0] - this.gsR0;
+    this.gsDG = sn.snow[1] - this.gsG0;
+    this.gsDB = sn.snow[2] - this.gsB0;
+    this.gsInv = 1 / Math.max(1, this.gsDR * this.gsDR + this.gsDG * this.gsDG + this.gsDB * this.gsDB);
+    this.gsL0 = (0.299 * this.gsR0 + 0.587 * this.gsG0 + 0.114 * this.gsB0) * INV255;
+    this.gsDL = (0.299 * sn.snow[0] + 0.587 * sn.snow[1] + 0.114 * sn.snow[2]) * INV255 - this.gsL0;
+    this.eR = sn.earth[0];
+    this.eG = sn.earth[1];
+    this.eB = sn.earth[2];
+    this.snR = sn.snow[0];
+    this.snG = sn.snow[1];
+    this.snB = sn.snow[2];
+    this.esR = this.snR - this.eR;
+    this.esG = this.snG - this.eG;
+    this.esB = this.snB - this.eB;
+    this.esInv = 1 / Math.max(1, this.esR * this.esR + this.esG * this.esG + this.esB * this.esB);
+  }
+
+  /** Recolours row j of the strip. */
+  row(px: Uint8ClampedArray, j: number, width: number): void {
+    const fr = this.fr;
+    fr.row(j);
+    const w = fr.w;
+    const rowQ = fr.rowQ;
+    const rb = fr.rb;
+    const colI = fr.colI;
+    const colF = fr.colF;
+    const colU = fr.colU;
+    const T = this.T;
+    const MT = this.MT;
+    const gtD = this.gtD;
+    const gtM = this.gtM;
+    const gtS = this.gtS;
+    const gtJ = this.gtJ;
+    const gtMot = this.gtMot;
+    const gtCrk = this.gtCrk;
+    const colTu = this.colTu;
+    const colTv = this.colTv;
+    const rowTu = w * ROT[1] * this.gtR;
+    const rowTv = w * ROT[0] * this.gtR;
+    const bil = this.bil;
+    const invRef = this.invRef;
+    const gB0 = this.gB[0];
+    const gB1 = this.gB[1];
+    const gB2 = this.gB[2];
+    const gV0 = this.gV[0];
+    const gV1 = this.gV[1];
+    const gV2 = this.gV[2];
+    const gJ0 = this.gJ[0];
+    const gJ1 = this.gJ[1];
+    const gJ2 = this.gJ[2];
+    const gP1 = this.gP1;
+    const gP2 = this.gP2;
+    const p1Share = this.p1Share;
+    const usesP1 = this.usesP1;
+    const anyShd = this.anyShd;
+    const p1Amt = this.p1Amt;
+    const p2Share = this.p2Share;
+    const cracks = this.cracks;
+    const budding = this.budding;
+    const sproutK = this.sproutK;
+    const hasRem = this.hasRem;
+    const flowers = this.flowers;
+    const flowerN = this.flowerN;
+    const colFx = this.colFx;
+    const litterD = this.litterD;
+    const leafN = this.leafN;
+    const colLx = this.colLx;
+    const gradeK = this.gradeK;
+    const vRow = fr.nearRow(M_VAR);
+    const colQ = fr.colQ;
+    const nRow = litterD > 0 ? fr.nearRow(M_NEAR) : 0;
+    const M = fr.M;
+    const fcy = Math.floor(w / flowerN.size);
+    const lcy = Math.floor(w * 5);
+    const C = QC;
+    const Q_P1 = Q_LOOK + M_P1;
+    const Q_P2 = Q_LOOK + M_P2;
+    const Q_REM = Q_LOOK + M_REM;
+    const Q_SHD = Q_LOOK + M_SHD;
+    // The stamp cells (wildflowers, fallen leaves) looked at last, and their rolls.
+    let lastFx = 0x7fffffff;
+    let fRoll = 1;
+    let lastLx = 0x7fffffff;
+    let lRoll = 1;
+    for (let i = 0, p = j * width * 4; i < width; i++, p += 4) {
+      const r = px[p];
+      const g = px[p + 1];
+      const b = px[p + 2];
+      const li = lutIndex(r, g, b);
+      const mi = li >> 2;
+      const mt = MT[mi];
+      // Ink and deep shadow never change (near-white does here: it's snow). (The colour table is
+      // big: it's read only when the melt table can't decide.)
+      if (mt === 0 && T[li + 2] === 0) continue;
+      const c = colI[i];
+      const fx = colF[i];
+      const g0 = rb[c + SN_GROUND];
+      const gnd = g0 + (rb[c + C + SN_GROUND] - g0) * fx;
+      const o0 = rb[c + SN_OBJ];
+      const obj = o0 + (rb[c + C + SN_OBJ] - o0) * fx;
+      let nr = r;
+      let ng = g;
+      let nb = b;
+      let own = 0;
+      if (gnd > 0 || obj > 0) {
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) * INV255;
+        // Grass tile at this spot: brightness detail and colour jitter.
+        const tu = colTu[i] - rowTu;
+        const tv = colTv[i] + rowTv;
+        const tx0 = (tu + 1048576) | 0;
+        const ty0 = (tv + 1048576) | 0;
+        const ta = (ty0 & gtM) * gtS + (tx0 & gtM);
+        let det: number;
+        if (bil) {
+          const tfx = tu + 1048576 - tx0;
+          const tfy = tv + 1048576 - ty0;
+          const tb2 = (ty0 & gtM) * gtS + ((tx0 + 1) & gtM);
+          const tc = ((ty0 + 1) & gtM) * gtS + (tx0 & gtM);
+          const td = ((ty0 + 1) & gtM) * gtS + ((tx0 + 1) & gtM);
+          const d0 = gtD[ta] + (gtD[tb2] - gtD[ta]) * tfx;
+          det = (d0 + (gtD[tc] + (gtD[td] - gtD[tc]) * tfx - d0) * tfy - 128) * INV255;
+        } else det = (gtD[ta] - 128) * INV255;
+        const jit = (gtD[ta + gtJ] - 128) * (2 * INV255);
+        // What the objects here claim (crowns, bushes, props, ice, water): at their soft edges
+        // the ground takes the rest, so no snow is left between an object and the ground.
+        let gw = gnd;
+        if (obj > 0) {
+          const crw = rb[c + SN_CROWN] + (rb[c + C + SN_CROWN] - rb[c + SN_CROWN]) * fx;
+          const evr = rb[c + SN_EVER] + (rb[c + C + SN_EVER] - rb[c + SN_EVER]) * fx;
+          const prp = rb[c + SN_PROP] + (rb[c + C + SN_PROP] - rb[c + SN_PROP]) * fx;
+          const ice = rb[c + SN_ICE] + (rb[c + C + SN_ICE] - rb[c + SN_ICE]) * fx;
+          const wat = rb[c + SN_WATER] + (rb[c + C + SN_WATER] - rb[c + SN_WATER]) * fx;
+          this.crw = crw;
+          this.evr = evr;
+          this.prp = prp;
+          this.ice = ice;
+          let claim = crw > evr ? crw : evr;
+          if (prp > claim) claim = prp;
+          if (ice > claim) claim = ice;
+          if (wat > claim) claim = wat;
+          if (1 - claim > gw) gw = 1 - claim;
+        }
+        const mel = gw > 0 ? mt * INV255 * gw : 0;
+        // 1. Snow left in drifts where it lay deepest (spring), frayed at the edge by the grass's
+        // mottles (not its blades: no grass pokes through it). Where it stays, nothing under it
+        // needs working out.
+        let keep = 0;
+        let rs = 0;
+        if (hasRem && mel > 0) {
+          rs = rb[c + Q_REM] + (rb[c + C + Q_REM] - rb[c + Q_REM]) * fx + 0.5 * (gtD[ta + gtMot] - 128) * INV255 + 0.03 * jit;
+          const tk = (rs - 0.48) * 11;
+          keep = tk < 0 ? 0 : tk > 1 ? 1 : tk;
+        }
+        if (keep >= 1 && obj <= 0) own = mel;
+        else {
+          // 2. The ground: painted grass (last year's grass early in spring). Broad colour changes
+          // read the nearest field pixel: they're far smoother than a pixel.
+          const vr = M[vRow + colQ[i] * MC] * INV255 - 0.5;
+          let gr = gB0 + gV0 * vr + gJ0 * jit;
+          let gg = gB1 + gV1 * vr + gJ1 * jit;
+          let gb = gB2 + gV2 * vr + gJ2 * jit;
+          let k2 = 0;
+          if (usesP1) {
+            const p1 = rb[c + Q_P1] + (rb[c + C + Q_P1] - rb[c + Q_P1]) * fx;
+            const t2 = (p1Share - p1 + 0.35 * det + 0.05) * 10;
+            k2 = p1Amt * (t2 < 0 ? 0 : t2 > 1 ? 1 : t2);
+            gr += (gP1[0] - gr) * k2;
+            gg += (gP1[1] - gg) * k2;
+            gb += (gP1[2] - gb) * k2;
+          }
+          if (budding) {
+            // Fresh green coming through in fine tufts.
+            const sp = sproutK * lin(0.45 * jit + 1.8 * det + 0.02, 7) * (1 - 0.6 * k2);
+            gr += (G_SHOOT[0] - gr) * sp;
+            gg += (G_SHOOT[1] - gg) * sp;
+            gb += (G_SHOOT[2] - gb) * sp;
+          } else if (p2Share > 0) {
+            // Worn to bare earth in patches (cracked in a drought).
+            const p2 = rb[c + Q_P2] + (rb[c + C + Q_P2] - rb[c + Q_P2]) * fx;
+            const t3 = (p2Share - p2 + 0.4 * det + 0.03) * 16.7;
+            const k3 = t3 < 0 ? 0 : t3 > 1 ? 1 : t3;
+            if (k3 > 0) {
+              let cr = 1 + 1.4 * det;
+              if (cracks) cr *= 1 - 0.42 * gtD[ta + gtCrk] * INV255;
+              gr += (gP2[0] * cr - gr) * k3;
+              gg += (gP2[1] * cr - gg) * k3;
+              gb += (gP2[2] * cr - gb) * k3;
+            }
+          }
+          // The snow's broad light and shade (a little stronger) and its fine detail (grain, the
+          // grid, outlines) at full strength.
+          const t0 = rb[c + SN_TONE];
+          const tone = t0 + (rb[c + C + SN_TONE] - t0) * fx;
+          let mB = 1 + 1.15 * (tone * invRef - 1);
+          mB = mB < 0.5 ? 0.5 : mB > 1.06 ? 1.06 : mB;
+          const i0 = rb[c + Q_ITONE];
+          const fine = lum * (i0 + (rb[c + C + Q_ITONE] - i0) * fx);
+          const mF = fine >= 0.95 ? 1 + 1.5 * (fine - 1) : fine - 0.025;
+          let shd = 0;
+          if (anyShd) {
+            const s0 = rb[c + Q_SHD];
+            shd = s0 + (rb[c + C + Q_SHD] - s0) * fx;
+          }
+          const k = mB * mF * (1 + 1.3 * det) * (1 - 0.3 * shd);
+          // (Cool in the shade, as the snow was.)
+          let qr = gr * k;
+          let qg = gg * k;
+          let qb = gb * k + 10 * (1 - mB) + 8 * shd;
+          if (mel > 0) {
+            if (hasRem) {
+              // Greyer slush along the drifts' edges, and a dark, wet rim round them.
+              const slush = keep * (1 - keep) * 4;
+              const tw = (rs - 0.36) * 7;
+              const wet = (tw < 0 ? 0 : tw > 1 ? 1 : tw) * (1 - keep);
+              qr *= 1 - 0.3 * wet;
+              qg *= 1 - 0.26 * wet;
+              qb *= 1 - 0.18 * wet;
+              if (slush > 0) {
+                qr += (r * 0.9 - qr) * slush * 0.25;
+                qg += (g * 0.91 - qg) * slush * 0.25;
+                qb += (b * 0.93 - qb) * slush * 0.25;
+              }
+            }
+            // Wildflowers on the grass (most cells hold none: their roll is checked first).
+            if (flowers > 0 && keep < 1) {
+              const fcx = colFx[i];
+              if (fcx !== lastFx) {
+                lastFx = fcx;
+                fRoll = hash2(fcx, fcy, flowerN.sd);
+              }
+              if (fRoll <= flowers) {
+                const cov = flowerN.at(colU[i], w, flowers);
+                if (cov > 0) {
+                  const col = FLOWERS_S[(flowerN.pick * 4) | 0];
+                  const al = cov * lin(mF - 0.6, 5);
+                  qr += (col[0] * (0.8 + 0.25 * mB) - qr) * al;
+                  qg += (col[1] * (0.8 + 0.25 * mB) - qg) * al;
+                  qb += (col[2] * (0.8 + 0.25 * mB) - qb) * al;
+                }
+              }
+            }
+            const t = mel * (1 - keep);
+            nr += (qr - nr) * t;
+            ng += (qg - ng) * t;
+            nb += (qb - nb) * t;
+            own = mel;
+          }
+          let earth = 0;
+          if (obj > 0) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.li = li;
+            this.lum = lum;
+            this.det = det;
+            this.ta = ta;
+            this.gr = gr;
+            this.gg = gg;
+            this.gb = gb;
+            this.qr = qr;
+            this.qg = qg;
+            this.qb = qb;
+            this.keep = keep;
+            this.shd = shd;
+            this.mB = mB;
+            this.nr = nr;
+            this.ng = ng;
+            this.nb = nb;
+            this.own = own;
+            this.objects(i, c, fx, w, rowQ);
+            nr = this.nr;
+            ng = this.ng;
+            nb = this.nb;
+            own = this.own;
+            earth = this.earth;
+          }
+          // Fallen leaves (autumn), on the new ground and the earth, thick under the trees: not on
+          // what an object here took over (a crown, a bush, a rock).
+          const took = own > mel + 0.02 ? own : 0;
+          if (litterD > 0 && took < 1) {
+            const nearT = M[nRow + colQ[i] * MC] * INV255;
+            const dens = litterD + this.underD * nearT * nearT;
+            const lcx = colLx[i];
+            if (lcx !== lastLx) {
+              lastLx = lcx;
+              lRoll = hash2(lcx, lcy, leafN.sd);
+            }
+            if (lRoll <= dens * 0.04 && (mel > 0 || earth > 0.5)) {
+              const lv = leafN.at(colU[i], w, dens) * (1 - took) * (1 - keep);
+              if (lv > 0) {
+                this.litter(i, rowQ, nearT, mB, mF, mel);
+                nr += (this.lr - nr) * lv;
+                ng += (this.lg - ng) * lv;
+                nb += (this.lb - nb) * lv;
+              }
+            }
+          }
+        }
+      }
+      // The look's grade on what the melt left as drawn (earth, trunks, rocks, outlines).
+      if (gradeK > 0 && own < 1) {
+        const gk = gradeK * T[li + 2] * INV255 * (1 - own);
+        const tr = nr + (255 - nr) * gk * this.gR;
+        const tg = ng + (this.gGT - ng) * gk * this.gG;
+        nb = this.spring ? nb + (255 - nb) * gk * 0.2 : nb * (1 - gk * 0.6);
+        nr = tr;
+        ng = tg;
+      }
+      px[p] = nr;
+      px[p + 1] = ng;
+      px[p + 2] = nb;
+    }
+  }
+
+  // The colour litter() found.
+  lr = 0.5;
+  lg = 0.5;
+  lb = 0.5;
+
+  /** The colour of the fallen leaf leafN just found at this pixel, into lr, lg, lb. */
+  litter(i: number, rowQ: number, nearT: number, mB: number, mF: number, mel: number): void {
+    const leafN = this.leafN;
+    const tp = this.tp;
+    const t = nearT > 0.05 ? this.tl[rowQ + this.fr.colQ[i]] - 1 : -1;
+    const pk = leafN.pick;
+    let cr: number;
+    let cg: number;
+    let cb: number;
+    if (t >= 0 && tp[t * TP + 35] !== K_EVER) {
+      const q = t * TP;
+      autumnColour(tp[q + 6] + pk * (1 - tp[q + 6]), tp, q);
+      cr = CC[0];
+      cg = CC[1];
+      cb = CC[2];
+    } else {
+      const col = LEAF_COLOURS[(pk * (this.L === 2 ? 6 : 5)) | 0];
+      cr = col[0];
+      cg = col[1];
+      cb = col[2];
+    }
+    const lk = (0.72 + 0.32 * mB) * (leafN.edge > 0.55 ? 0.8 : 1) * (mel > 0 ? lin(mF - 0.5, 3.33) : 0.9);
+    this.lr = cr * lk;
+    this.lg = cg * lk;
+    this.lb = cb * lk;
+  }
+
+  /** Objects at the pixel left in the fields (ice, props, grass patches, earth, water, trees). */
+  objects(i: number, c: number, fx: number, w: number, rowQ: number): void {
+    const fr = this.fr;
+    const rb = fr.rb;
+    const C = QC;
+    const T = this.T;
+    const MT = this.MT;
+    const r = this.r;
+    const g = this.g;
+    const b = this.b;
+    const li = this.li;
+    const mi = li >> 2;
+    const lum = this.lum;
+    const det = this.det;
+    const keep = this.keep;
+    const invRef = this.invRef;
+    const spring = this.spring;
+    const autumn = this.autumn;
+    let nr = this.nr;
+    let ng = this.ng;
+    let nb = this.nb;
+    let own = this.own;
+    const crw = this.crw;
+    const evr = this.evr;
+    const prp = this.prp;
+    const ice = this.ice;
+    const lawn = rb[c + SN_LAWN] + (rb[c + C + SN_LAWN] - rb[c + SN_LAWN]) * fx;
+    const earth = rb[c + SN_EARTH] + (rb[c + C + SN_EARTH] - rb[c + SN_EARTH]) * fx;
+    this.earth = earth;
+    const u = fr.colU[i];
+    // 2. Ice thaws to water (the lines on it stay). Early in spring it only breaks up: floes stay
+    // where the snow on the ground stays, frayed as the drifts are.
+    if (ice > 0) {
+      let kI = ice * MT[mi] * INV255;
+      if (this.budding) {
+        const Q = Q_LOOK + M_REM;
+        const rs = rb[c + Q] + (rb[c + C + Q] - rb[c + Q]) * fx + 0.5 * (this.gtD[this.ta + this.gtMot] - 128) * INV255 + 0.03 * (this.gtD[this.ta + this.gtJ] - 128) * (2 * INV255);
+        kI *= 1 - lin(rs - 0.48, 11);
+      }
+      if (kI > 0) {
+        const l = lum * invRef;
+        nr += (WATER_C[0] * l - nr) * kI;
+        ng += (WATER_C[1] * l - ng) * kI;
+        nb += (WATER_C[2] * l - nb) * kI;
+        if (kI > own) own = kI;
+      }
+    }
+    // 3. Snow on rocks and props melts off to grey stone, keeping its shading.
+    if (prp > 0) {
+      const kP = prp * T[li + 3] * INV255;
+      if (kP > 0) {
+        const l = lum * invRef;
+        nr += (STONE[0] * l - nr) * kP;
+        ng += (STONE[1] * l - ng) * kP;
+        nb += (STONE[2] * l - nb) * kP;
+        if (kP > own) own = kP;
+      }
+    }
+    // 4. A patch of grass the snow left bare joins the new ground. How much of this pixel is
+    // the patch's green and how much snow (its soft painted rim), and the detail on it (grid
+    // lines, grain) against that mix: the new ground takes it all, so no ghost of the patch is
+    // left. Early in spring the patch stays green; only its snowy rim melts.
+    if (lawn > 0) {
+      let kL = (lum - 0.1) * 10;
+      kL = kL <= 0 ? 0 : kL >= 1 ? lawn * (1 - keep) : kL * kL * (3 - 2 * kL) * lawn * (1 - keep);
+      if (kL > 0) {
+        let al = ((r - this.gsR0) * this.gsDR + (g - this.gsG0) * this.gsDG + (b - this.gsB0) * this.gsDB) * this.gsInv;
+        al = al < 0 ? 0 : al > 1 ? 1 : al;
+        const eL = this.gsL0 + al * this.gsDL;
+        const dt = eL > 0.05 ? lum / eL : 1;
+        const mD = dt >= 0.95 ? 1 + 0.8 * (dt - 1) : dt - 0.01;
+        const kk = mD * (1 + 1.3 * det) * (1 - 0.3 * this.shd);
+        let lr = this.gr * kk;
+        let lg = this.gg * kk;
+        let lb = this.gb * kk;
+        if (this.budding) {
+          lr += (r * 1.03 + 3 - lr) * (1 - al);
+          lg += (g * 1.06 + 5 - lg) * (1 - al);
+          lb += (b - lb) * (1 - al);
+        }
+        nr += (lr - nr) * kL;
+        ng += (lg - ng) * kL;
+        nb += (lb - nb) * kL;
+        if (kL > own) own = kL;
+      }
+    }
+    // 5. Bare earth: wetter in spring, dustier in a drought. Its soft edge and the flecks of snow
+    // on it are part earth, part snow (by how far each lies from the earth's colour toward the
+    // snow's): the snow part turns to the new ground round the patch and to earth on it, so no
+    // pale fringe or white fleck is left.
+    if (earth > 0 && this.hasEarth) {
+      let al = ((r - this.eR) * this.esR + (g - this.eG) * this.esG + (b - this.eB) * this.esB) * this.esInv;
+      al = al < 0 ? 0 : al > 1 ? 1 : al;
+      let er = r;
+      let eg = g;
+      let eb = b;
+      if (al > 0) {
+        // (The snow here, and what replaces it: the new ground lit as the snow was, or earth.)
+        const mB = this.mB;
+        const sl = 1 + (mB - 1) * (1 / 1.15);
+        const kq = mB * (1 + 1.3 * det) * (1 - 0.3 * this.shd);
+        // (Round the patch the new ground, on it earth: by how deep in the patch this is.)
+        const gd = earth <= 0.6 ? 1 : earth >= 0.85 ? 0 : (0.85 - earth) * 4;
+        const ka = (1 - gd) * (1.04 + 0.5 * det);
+        er += (this.gr * kq * gd + this.eR * ka - this.snR * sl) * al;
+        eg += (this.gg * kq * gd + this.eG * ka - this.snG * sl) * al;
+        eb += (this.gb * kq * gd + this.eB * ka - this.snB * sl) * al;
+      }
+      const eK = this.earthK;
+      const add = this.summer ? this.L : 0;
+      er += (er * eK + 6 * add - er) * (1 - al);
+      eg += (eg * eK + 5 * add - eg) * (1 - al);
+      eb += (eb * eK - eb) * (1 - al);
+      const kE = earth >= 0.5 ? 1 : earth * 2;
+      nr += (er - nr) * kE;
+      ng += (eg - ng) * kE;
+      nb += (eb - nb) * kE;
+      if (kE * al > own) own = kE * al;
+    }
+    // Summer: open water murkier.
+    if (this.murk > 0) {
+      const wat = rb[c + SN_WATER] + (rb[c + C + SN_WATER] - rb[c + SN_WATER]) * fx;
+      const m = wat * this.murk * (1 - MT[mi] * INV255);
+      if (m > 0) {
+        nr += (96 * (0.6 + lum) - nr) * m;
+        ng += (116 * (0.6 + lum) - ng) * m;
+        nb += (78 * (0.6 + lum) - nb) * m;
+      }
+    }
+    const t = this.tl[rowQ + fr.colQ[i]] - 1;
+    if (t >= 0) {
+      const tp = this.tp;
+      const q = t * TP;
+      const kind = tp[q + 35];
+      const max = r > g ? (r > b ? r : b) : g > b ? g : b;
+      const min = r < g ? (r < b ? r : b) : g < b ? g : b;
+      const chroma = max - min;
+      const du = u - tp[q + 33];
+      const dw = w - tp[q + 34];
+      if (kind === K_EVER) {
+        // 6. Evergreens and bushes lose their frost: greys and pale greens go back to the
+        // bush's own green; out of the cold, a richer, deeper green.
+        if (evr > 0 && max >= 40) {
+          const sat = max > 0 ? chroma / max : 0;
+          const greenish = sat < 0.12 || (g >= r && g >= b) ? 1 : 0;
+          const us = tp[q + 40];
+          let fz = (1 - sat / (0.9 * us)) * 2;
+          fz = fz <= 0 ? 0 : fz >= 1 ? evr * greenish : evr * greenish * fz * fz * (3 - 2 * fz);
+          let melt = this.frostMelt;
+          if (melt < 1) melt = ramp(melt - (0.7 * (this.gtD[this.ta + this.gtJ] * INV255) + 0.3 * (det + 0.5)), -0.05, 0.05);
+          const kF = fz * melt * (1 - keep);
+          if (kF > 0) {
+            // (Its own green, lighter where the frost was lighter, with the grass tile's mottles
+            // for leaves; snow-white at its soft edge melts as the ground does.)
+            const lb = lum * invRef;
+            const v = (0.5 + 0.36 * (lb > 1.1 ? 1.1 : lb)) * (1 + 1.2 * det);
+            let w1 = (lb - 0.82) * (1 / 0.12);
+            w1 = w1 <= 0 ? 0 : w1 >= 1 ? 1 : w1 * w1 * (3 - 2 * w1);
+            let w2 = (evr - 0.45) * 2.5;
+            w2 = w2 <= 0 ? 0 : w2 >= 1 ? 1 : w2 * w2 * (3 - 2 * w2);
+            const wW = w1 * (1 - w2);
+            nr += (tp[q + 37] * v + (this.qr - tp[q + 37] * v) * wW - nr) * kF;
+            ng += (tp[q + 38] * v + (this.qg - tp[q + 38] * v) * wW - ng) * kF;
+            nb += (tp[q + 39] * v + (this.qb - tp[q + 39] * v) * wW - nb) * kF;
+          }
+          let lk = (max - 40) * (1 / 40);
+          lk = lk <= 0 ? 0 : lk >= 1 ? evr * melt : lk * lk * (3 - 2 * lk) * evr * melt;
+          if (lk > 0) {
+            const l = 0.299 * nr + 0.587 * ng + 0.114 * nb;
+            const S = this.everS;
+            const V = this.everV;
+            nr += ((l + (nr - l) * S) * V - nr) * lk;
+            ng += ((l + (ng - l) * S) * V - ng) * lk;
+            nb += ((l + (nb - l) * S) * V - nb) * lk;
+          }
+          if (evr > own) own = evr;
+        }
+      } else if (kind === K_CAP) {
+        // 7. A snow-capped crown comes into leaf: its white cap turns to leaf clumps, lit as the
+        // snow was (its contour lines stay as darker leaf), and its green rim takes the same
+        // colours. Melting in spring, the cap goes from its rim in.
+        if (crw > 0) {
+          const litL = tp[q + 36];
+          let wl = (lum / litL - 0.3) * (1 / 0.15);
+          wl = wl <= 0 ? 0 : wl >= 1 ? 1 : wl * wl * (3 - 2 * wl);
+          const white = crw * MT[mi] * INV255 * wl;
+          const rimLeaf = chroma >= 0.12 * max && max >= 45 && g >= b;
+          if (white > 0 || rimLeaf) {
+            const iR = tp[q + 43];
+            const ls = tp[q + 14];
+            const melting = spring && ls < 1;
+            const lk = ls * this.thinK;
+            const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, false, 1, melting ? 0.2 * lk : 1.12 * lk, melting ? 1.6 * lk : -0.24 * lk));
+            let found = clumpAt(this.cs, tp, q, du, dw, ix, this.lt);
+            if (found) {
+              clumpColour(this.cs, tp, q, this.lt, this.look, this.bloomK);
+              // (Late in autumn a clump thins to its last leaves.)
+              if (this.thinT > 0 && (CC[4] < 0 ? -CC[4] : CC[4]) < this.thinT) found = false;
+            }
+            const crownLit = 1 - 0.14 * (du * 0.55 + dw * 0.83) * iR;
+            if (white > 0) {
+              let l = lum / litL;
+              l = l < 0.25 ? 0.25 : l > 1.1 ? 1.1 : l;
+              let lr: number;
+              let lg: number;
+              let lb: number;
+              if (found) {
+                const crease = CC[6] ? creaseOf(CC[5] + 0.015 * CC[4]) : 1;
+                const sh = l * (0.6 + 0.48 * CC[3]) * (0.9 + 0.2 * (CC[7] - 0.35)) * crownLit * (1 + 0.28 * CC[4]) * crease;
+                lr = CC[0] * sh;
+                lg = CC[1] * sh;
+                lb = CC[2] * sh;
+              } else if (melting) {
+                // Not melted yet.
+                lr = r;
+                lg = g;
+                lb = b;
+              } else if (!autumn) {
+                // A gap in the leaves: the ground in the crown's shade.
+                const gk = 0.78 * l * (1 + det);
+                lr = this.gr * gk;
+                lg = this.gg * gk;
+                lb = this.gb * gk;
+              } else {
+                // Fallen: bare branches over the leaf-strewn ground below.
+                const tree = (Math.floor(tp[q + 33] * 2) * 73856093) ^ (Math.floor(tp[q + 34] * 2) * 19349663);
+                const ba = branchAlpha(du, dw, tp[q + 32] * 1.02, hash2(tree, 17, 0xb4a) * 4, tree, 0.5 * this.pxSq);
+                const gk = 0.78 * l * (1 + det);
+                lr = this.gr * gk;
+                lg = this.gg * gk;
+                lb = this.gb * gk;
+                if (autumn && det > 0.03) {
+                  const lc = AUT_LEAF[1 + ((this.gtD[this.ta + this.gtId] * 3) >> 8)];
+                  lr += (lc[0] * 0.8 * l - lr) * 0.7;
+                  lg += (lc[1] * 0.8 * l - lg) * 0.7;
+                  lb += (lc[2] * 0.8 * l - lb) * 0.7;
+                }
+                lr += (58 - lr) * ba * 0.65;
+                lg += (42 - lg) * ba * 0.65;
+                lb += (32 - lb) * ba * 0.65;
+              }
+              nr += (lr - nr) * white;
+              ng += (lg - ng) * white;
+              nb += (lb - nb) * white;
+              if (white > own) own = white;
+            }
+            if (rimLeaf) {
+              // (Greens and yellow-greens, not blues: g the brightest, r not far behind or below.)
+              const leafy = g >= b ? crw * (g >= r ? 1 : clamp01((g - 0.8 * r) / (0.2 * r))) : 0;
+              if (leafy > 0) {
+                // The rim's leaves in the look's colour, at their own brightness.
+                let cr = CC[0];
+                let cg = CC[1];
+                let cb = CC[2];
+                if (!found) {
+                  cr = autumn ? AUT_LEAF[2][0] : tp[q + 10];
+                  cg = autumn ? AUT_LEAF[2][1] : tp[q + 11];
+                  cb = autumn ? AUT_LEAF[2][2] : tp[q + 12];
+                }
+                const cm = cr > cg ? (cr > cb ? cr : cb) : cg > cb ? cg : cb;
+                const kk = (max / cm) * (autumn ? 1.05 : 0.95);
+                let rr2 = cr * kk;
+                let rg2 = cg * kk;
+                let rb2 = cb * kk;
+                if (!autumn && this.olive <= 0) {
+                  // (Leaves drawn in a good green keep half of it; frost-pale ones take the new.)
+                  const ko = 0.5 * ramp(chroma / max, 0.18, 0.32);
+                  rr2 += (r - rr2) * ko;
+                  rg2 += (g - rg2) * ko;
+                  rb2 += (b - rb2) * ko;
+                }
+                nr += (rr2 - nr) * leafy;
+                ng += (rg2 - ng) * leafy;
+                nb += (rb2 - nb) * leafy;
+                if (leafy > own) own = leafy;
+              }
+            }
+          }
+        }
+      } else if (kind === K_BARE) {
+        const d2 = du * du + dw * dw;
+        const ls = tp[q + 14];
+        if (this.budding) {
+          // 8a. Buds: tiny pale green dots along the branches.
+          const R = tp[q + 32];
+          if (d2 < R * R && MT[mi] < 128) {
+            const cov = this.budN.at(u, w, this.buds);
+            if (cov > 0) {
+              const bk = 0.85 + 0.3 * this.budN.pick;
+              nr += (152 * bk - nr) * cov;
+              ng += (192 * bk - ng) * cov;
+              nb += (94 * bk - nb) * cov;
+            }
+          }
+        } else if (ls > 0) {
+          // 8b. A bare tree in leaf: whole clumps round its branches, so the crown follows them
+          // and its outline is lumpy, with a dark, leafy rim and the branch tips showing past it.
+          const dn = Math.sqrt(d2) * tp[q + 43];
+          const thinT = this.thinT;
+          const lk = ls * this.thinK;
+          const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, true, this.reachK, 1.12 * lk, -0.24 * lk));
+          if (clumpAt(this.cs, tp, q, du, dw, ix, this.lt)) {
+            clumpColour(this.cs, tp, q, this.lt, this.look, this.bloomK);
+            const leaf = CC[4];
+            if (thinT <= 0 || (leaf < 0 ? -leaf : leaf) >= thinT) {
+              const other = CC[6];
+              const pxSq = this.pxSq;
+              const rj = CC[5] + 0.024 * leaf;
+              const cov = other ? 1 : clamp01(rj / pxSq + 0.5);
+              if (cov > 0) {
+                const crownLit = 1 - 0.1 * (du * 0.55 + dw * 0.83) * tp[q + 43] - 0.08 * (dn > 1 ? 1 : dn * dn);
+                const crease = other ? creaseOf(CC[5] + 0.015 * leaf) : 1;
+                const inkA = other ? 0 : 1 - clamp01((rj - this.inkW) / pxSq + 0.5);
+                const sh = (0.58 + 0.5 * CC[3]) * (0.86 + 0.28 * (CC[7] - 0.35)) * crownLit * (1 + 0.3 * leaf) * crease;
+                let lr = CC[0] * sh;
+                let lg = CC[1] * sh;
+                let lb = CC[2] * sh;
+                lr += (LEAF_INK[0] - lr) * inkA;
+                lg += (LEAF_INK[1] - lg) * inkA;
+                lb += (LEAF_INK[2] - lb) * inkA;
+                nr += (lr - nr) * cov;
+                ng += (lg - ng) * cov;
+                nb += (lb - nb) * cov;
+                if (cov > own) own = cov;
+              }
+            }
+          }
+        }
+      }
+    }
+    this.nr = nr;
+    this.ng = ng;
+    this.nb = nb;
+    this.own = own;
+  }
+}
+
+/**
+ * Winter on a map painted under snow (it's winter already): light touches. The snow freshened
+ * (its shaded tones lifted a little), frost and then drifts on the patches of grass (right over
+ * their soft edges) and the earth, snow settling on evergreens' lit needles and on bare
+ * branches, open water freezing.
+ */
+function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: BakeOptions): void {
+  const a = o.a;
+  const sn = a.snow as SnowInfo;
+  const W = SEASON_PARAMS.winter;
+  const L = o.level - 1;
+  const sf = snowFields(o);
+  const has = sf.has;
+  const sAct: number[] = [SN_GROUND, SN_TONE, SN_OBJ];
+  for (const ch of [SN_CROWN, SN_EVER, SN_LAWN, SN_WATER, SN_EARTH]) if (has[ch]) sAct.push(ch);
+  const mAct = [M_REM];
+  const fr = new SnowFrame(o, width, sf.f, sAct, mAct, []);
+  const T = colourTable();
+  const MT = meltTable();
+  const seed = o.seed | 0;
+  const ppsq = o.cell / o.scale;
+  const gt = pickMip(grassTiles(seed), ppsq);
+  const gtD = gt.data;
+  const gtM = gt.mask;
+  const gtS = gt.size;
+  const gtR = gt.res;
+  const gtJ = gt.size * gt.size * GT_JIT;
+  const gc = ROT[0];
+  const gs = ROT[1];
+  const fresh = W.freshen[L];
+  const bs = W.branchSnow[L];
+  const es = W.everSnow[L];
+  const frost = W.lawnFrost[L];
+  const driftL = W.drift[L];
+  const driftE = W.earthDrift[L];
+  const ice = W.ice[L];
+  const ref255 = sn.ref * 255;
+  const invRef = 1 / sn.ref;
+  const snow = sf.snow;
+  const fleck = new Octave(9, 1, mix(seed, 61));
+  const clumpN = new Octave(4.2, 3, mix(seed, 62));
+  const crackN = new Octave(1.6, 2, mix(seed, 4));
+  const tp = sf.tp;
+  const tl = sn.tl;
+  const rb = fr.rb;
+  const C = QC;
+  const Q_REM = Q_LOOK + M_REM;
+  for (let j = 0; j < rows; j++) {
+    fr.row(j);
+    const w = fr.w;
+    const rowQ = fr.rowQ;
+    for (let i = 0, p = j * width * 4; i < width; i++, p += 4) {
+      const r = px[p];
+      const g = px[p + 1];
+      const b = px[p + 2];
+      const li = lutIndex(r, g, b);
+      if (T[li + 2] === 0 && MT[li >> 2] === 0) continue;
+      const c = fr.colI[i];
+      const fx = fr.colF[i];
+      const g0 = rb[c + SN_GROUND];
+      const gnd = g0 + (rb[c + C + SN_GROUND] - g0) * fx;
+      const o0 = rb[c + SN_OBJ];
+      const obj = o0 + (rb[c + C + SN_OBJ] - o0) * fx;
+      if (gnd <= 0 && obj <= 0) continue;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const snowy = T[li + 3] * INV255;
+      let nr = r;
+      let ng = g;
+      let nb = b;
+      // Fresh snow: the shaded tones lifted toward the lit one.
+      if (fresh > 0 && snowy > 0 && gnd > 0 && lum > 0 && lum < ref255) {
+        const k = 1 + fresh * snowy * gnd * (ref255 / lum - 1);
+        nr *= k;
+        ng *= k;
+        nb *= k;
+      }
+      if (obj > 0) {
+        const t0 = rb[c + SN_TONE];
+        const tone = t0 + (rb[c + C + SN_TONE] - t0) * fx;
+        // The snow as painted round about: its colour at this tone, with this pixel's own detail.
+        const tk = tone * invRef;
+        // Grass patches and earth: frost, then drifts over them (right over their soft edges).
+        const lawn = has[SN_LAWN] ? rb[c + SN_LAWN] + (rb[c + C + SN_LAWN] - rb[c + SN_LAWN]) * fx : 0;
+        const earth = has[SN_EARTH] ? rb[c + SN_EARTH] + (rb[c + C + SN_EARTH] - rb[c + SN_EARTH]) * fx : 0;
+        const patch = lawn > earth ? lawn : earth;
+        if (patch > 0) {
+          const tu = fr.colU[i] * gc * gtR - w * gs * gtR;
+          const tv = fr.colU[i] * gs * gtR + w * gc * gtR;
+          const ta = (Math.floor(tv) & gtM) * gtS + (Math.floor(tu) & gtM);
+          const det = (gtD[ta] - 128) * INV255;
+          const jit = (gtD[ta + gtJ] - 128) * INV255;
+          const rs = rb[c + Q_REM] + (rb[c + C + Q_REM] - rb[c + Q_REM]) * fx + 0.12 * det + 0.04 * jit;
+          // (Earth takes less: drifts gather on grass first.)
+          const dL = lin(rs - 1 + driftL + 0.05, 12) * lawn;
+          const dE = lin(rs - 1 + driftE + 0.05, 12) * earth;
+          const drift = dL > dE ? dL : dE;
+          // Hoarfrost: pale speckle on the grass's lighter blades.
+          const fz = frost * lawn * lin(det + 0.02, 12) * (1 - drift);
+          const sl = tk * (1 + 1.2 * det);
+          const sr = snow[0] * sl;
+          const sg = snow[1] * sl;
+          const sb = snow[2] * sl;
+          if (fz > 0) {
+            nr += (sr * 0.95 - nr) * fz * 0.8;
+            ng += (sg * 0.95 - ng) * fz * 0.8;
+            nb += (sb * 0.97 - nb) * fz * 0.8;
+          }
+          if (drift > 0 && MT[li >> 2] < 200) {
+            nr += (sr - nr) * drift;
+            ng += (sg - ng) * drift;
+            nb += (sb - nb) * drift;
+          }
+        }
+        const t = tl[rowQ + fr.colQ[i]] - 1;
+        if (t >= 0) {
+          const q = t * TP;
+          const kind = tp[q + 35];
+          const max = r > g ? (r > b ? r : b) : g > b ? g : b;
+          if (kind === K_EVER && es > 0) {
+            // Snow in clumps on the evergreens' lit needles.
+            const evr = rb[c + SN_EVER] + (rb[c + C + SN_EVER] - rb[c + SN_EVER]) * fx;
+            if (evr > 0 && max >= 50 && snowy < 0.5) {
+              const lit = (lum - tone * 255 * 0.55) / (tone * 255 * 0.45);
+              const k = evr * lin(es * 1.2 + 0.35 * lit + 0.5 * (clumpN.at(fr.colU[i], w) - 0.5) - 0.55, 6);
+              if (k > 0) {
+                const l = 0.75 + 0.3 * (lit < 0 ? 0 : lit > 1 ? 1 : lit);
+                nr += (snow[0] * l * tk - nr) * k;
+                ng += (snow[1] * l * tk - ng) * k;
+                nb += (snow[2] * l * tk - nb) * k;
+              }
+            }
+          } else if (kind === K_BARE && bs > 0 && snowy < 0.5 && max < 200) {
+            // Branches: flecks of snow along them, thicker toward the trunk.
+            const du = fr.colU[i] - tp[q + 33];
+            const dw = w - tp[q + 34];
+            const dn = Math.sqrt(du * du + dw * dw) / tp[q + 32];
+            if (dn < 1.2) {
+              const f = ramp(fleck.at(fr.colU[i], w), 0.52, 0.6) * bs * (1 - ramp(dn, 0.7, 1.2));
+              nr += (snow[0] * 0.96 - nr) * f;
+              ng += (snow[1] * 0.96 - ng) * f;
+              nb += (snow[2] * 0.97 - nb) * f;
+            }
+          }
+        }
+        // Open water freezes: a rim of ice, then (deep snow) all of it.
+        if (ice > 0 && has[SN_WATER]) {
+          const wat = rb[c + SN_WATER] + (rb[c + C + SN_WATER] - rb[c + SN_WATER]) * fx;
+          if (wat > 0 && snowy < 0.5) {
+            const fz = wat * (ice === 2 ? 1 : ramp(0.9 - wat + 0.3 * (fleck.at(fr.colU[i] * 0.2, w * 0.2) - 0.5), 0, 0.15));
+            if (fz > 0) {
+              const iv = 0.86 + 0.25 * (lum / 255 - tone);
+              let iR = 196 * iv + 30;
+              let iG = 220 * iv + 22;
+              let iB = 236 * iv + 18;
+              if (ice === 2) {
+                const cv = Math.abs(crackN.at(fr.colU[i], w) - 0.5);
+                if (cv < 0.012) {
+                  const kc = 1 - cv / 0.012;
+                  iR -= 80 * kc;
+                  iG -= 60 * kc;
+                  iB -= 36 * kc;
+                }
+              }
+              nr += (iR - nr) * fz;
+              ng += (iG - ng) * fz;
+              nb += (iB - nb) * fz;
+            }
+          }
+        }
+      }
+      px[p] = nr;
+      px[p + 1] = ng;
+      px[p + 2] = nb;
     }
   }
 }

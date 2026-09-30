@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SEASON_LOOKS } from "../src/shared/types";
 import type { SeasonLook } from "../src/shared/types";
-import { ALGO_VERSION, analyse, bake, outdoorFraction, seedFrom } from "../src/client/room/seasonPixels";
+import { ALGO_VERSION, PIXEL_SNOWY, analyse, analysePixelSnowy, bake, outdoorFraction, seedFrom } from "../src/client/room/seasonPixels";
 import type { SeasonAnalysis } from "../src/client/room/seasonPixels";
+import { readPng } from "./helpers/png";
+import type { PngImage } from "./helpers/png";
 
 // Small synthetic maps built in code. Each is CELL px a square; the analysis runs at half
 // size (as the app analyses a downscaled copy) and bakes run on the full image.
@@ -96,9 +98,12 @@ function half(p: Pic): { rgba: Uint8ClampedArray; aw: number; ah: number } {
   return { rgba, aw, ah };
 }
 
-function analysed(p: Pic): SeasonAnalysis {
+/** analyse(), or the test-only analysePixelSnowy (the picture's own snow detection on). */
+type Analyse = typeof analyse;
+
+function analysed(p: Pic, entry: Analyse = analyse): SeasonAnalysis {
   const { rgba, aw, ah } = half(p);
-  return analyse(rgba, aw, ah, p.cell / 2);
+  return entry(rgba, aw, ah, p.cell / 2);
 }
 
 function baked(p: Pic, a: SeasonAnalysis, look: SeasonLook, level: 1 | 2 | 3, seed = 777): Uint8ClampedArray {
@@ -523,14 +528,14 @@ interface HiResult {
   bushCanopy: number;
 }
 
-function analyseHi(m: HiMap, how: Shrink): HiResult {
+function analyseHi(m: HiMap, how: Shrink, entry: Analyse = analyse): HiResult {
   // The app's analysis size: about 20 px a square, 512-1024 px across.
   const long = Math.max(m.w, m.h);
   const kA = Math.min(1, Math.min(1024 / long, Math.max(512 / long, 20 / HI)));
   const aw = Math.round(m.w * kA);
   const ah = Math.round(m.h * kA);
   const cA = HI * kA;
-  const a = analyse(shrink(m, aw, ah, how), aw, ah, cA);
+  const a = entry(shrink(m, aw, ah, how), aw, ah, cA);
   const crowns: number[][] = [];
   for (let i = 0; i < a.nCrowns; i++) {
     const r = a.crowns[i * 4 + 2] / cA;
@@ -1038,4 +1043,701 @@ describe("seasonPixels analysis, however the map was downscaled", () => {
       expect(turned / n).toBeLessThan(0.03);
     }
   });
+});
+
+// ---- Maps painted under snow (a Dungeondraft winter map), and look-alikes that aren't.
+
+/** Pixels a square of the maps below; the analysis runs at half that, 20 a square. */
+const SC = 40;
+
+/** Smooth value noise on a lattice `step` pixels apart, 0-1. */
+function lattice(w: number, h: number, step: number, rnd: () => number): (x: number, y: number) => number {
+  const gw = Math.ceil(w / step) + 2;
+  const vals = Array.from({ length: gw * (Math.ceil(h / step) + 2) }, rnd);
+  return (x, y) => {
+    const fx = x / step;
+    const fy = y / step;
+    const ix = Math.floor(fx);
+    const iy = Math.floor(fy);
+    const tx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix));
+    const ty = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy));
+    const a = vals[iy * gw + ix] + (vals[iy * gw + ix + 1] - vals[iy * gw + ix]) * tx;
+    const b = vals[(iy + 1) * gw + ix] + (vals[(iy + 1) * gw + ix + 1] - vals[(iy + 1) * gw + ix]) * tx;
+    return a + (b - a) * ty;
+  };
+}
+
+/** A canvas SC pixels a square, drawn in squares. */
+class Canvas implements HiMap {
+  w: number;
+  h: number;
+  px: Uint8ClampedArray;
+  rnd: () => number;
+  constructor(cols: number, rows: number, seed: number) {
+    this.w = cols * SC;
+    this.h = rows * SC;
+    this.px = new Uint8ClampedArray(this.w * this.h * 4).fill(255);
+    let s = seed;
+    this.rnd = (): number => {
+      s = (Math.imul(s, 1664525) + 1013904223) | 0;
+      return (s >>> 0) / 4294967296;
+    };
+  }
+  set(x: number, y: number, c: RGB, jitter = 0): void {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    const o = (y * this.w + x) * 4;
+    for (let k = 0; k < 3; k++) this.px[o + k] = c[k] + (this.rnd() - 0.5) * jitter;
+  }
+  get(x: number, y: number): RGB {
+    const o = (y * this.w + x) * 4;
+    return [this.px[o], this.px[o + 1], this.px[o + 2]];
+  }
+  /** Calls f for each pixel within r squares of (cx, cy), with its distance and angle. */
+  around(cx: number, cy: number, r: number, f: (x: number, y: number, d: number, a: number) => void): void {
+    for (let y = Math.max(0, Math.floor((cy - r) * SC)); y < Math.min(this.h, Math.ceil((cy + r) * SC)); y++) {
+      for (let x = Math.max(0, Math.floor((cx - r) * SC)); x < Math.min(this.w, Math.ceil((cx + r) * SC)); x++) {
+        const dx = (x + 0.5) / SC - cx;
+        const dy = (y + 0.5) / SC - cy;
+        const d = Math.hypot(dx, dy);
+        if (d < r) f(x, y, d, Math.atan2(dy, dx));
+      }
+    }
+  }
+  /** A stroke from (x0, y0) to (x1, y1) in squares, w0 to w1 squares wide. */
+  stroke(x0: number, y0: number, x1: number, y1: number, w0: number, w1: number, c: RGB, jitter = 6): void {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.max(2, Math.ceil(len * SC * 2));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const hw = (w0 + (w1 - w0) * t) / 2;
+      this.around(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, Math.max(hw, 0.6 / SC), (x, y) => this.set(x, y, c, jitter));
+    }
+  }
+}
+
+const INK_D: RGB = [24, 30, 24];
+
+interface SnowyMap extends HiMap {
+  /** Centre x, y and radius in squares of the snow-capped crowns, evergreens and bare trees. */
+  caps: number[][];
+  evergreens: number[][];
+  bare: number[][];
+  /** Where nothing stands: centre and radius (squares) of each thing drawn on the snow. */
+  things: number[][];
+}
+
+/**
+ * A map painted under snow, as Dungeondraft paints one: bright bluish-white snow, bluer and
+ * darker in soft painted shade, with grain; a grid baked into the picture as thin dotted lines;
+ * snow-capped crowns (a white cap with contour rings and a leafy green rim, outlined), frosted
+ * evergreens, bare trees drawn as brown branches, a patch of bare earth and one of grass.
+ */
+function snowyMap(): SnowyMap {
+  const p = new Canvas(24, 16, 2718);
+  const n1 = lattice(p.w, p.h, 1.4 * SC, p.rnd);
+  const n2 = lattice(p.w, p.h, 0.5 * SC, p.rnd);
+  const lit: RGB = [236, 240, 246];
+  const shade: RGB = [190, 203, 222];
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      let t = (0.7 * n1(x, y) + 0.3 * n2(x, y) - 0.35) / 0.4;
+      t = t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
+      p.set(x, y, [shade[0] + (lit[0] - shade[0]) * t, shade[1] + (lit[1] - shade[1]) * t, shade[2] + (lit[2] - shade[2]) * t], 10);
+    }
+  }
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      if (x % SC !== 0 && y % SC !== 0) continue;
+      if ((x % SC === 0 ? y : x) % 6 >= 3) continue;
+      const [r, g, b] = p.get(x, y);
+      p.set(x, y, [r * 0.8, g * 0.82, b * 0.85]);
+    }
+  }
+  const caps = [
+    [4, 4, 1.5],
+    [19, 11.5, 1.9],
+    [21, 3, 1.2],
+  ];
+  const evergreens = [
+    [10, 3, 1.1],
+    [3, 12, 1.0],
+    [14, 13, 1.2],
+  ];
+  const bare = [
+    [15, 4.5, 1.9],
+    [7.5, 8.5, 1.7],
+    [13.5, 9.2, 1.4],
+  ];
+  const earth = lattice(p.w, p.h, 0.3 * SC, p.rnd);
+  p.around(10.5, 6.5, 2.2, (x, y) => {
+    const e = Math.max(Math.abs((x + 0.5) / SC - 10.5) / 1.6, Math.abs((y + 0.5) / SC - 6.5) / 1.0);
+    if (e < 1) p.set(x, y, [106 + 18 * earth(x, y), 92 + 14 * earth(x, y), 78 + 10 * earth(x, y)], 8);
+  });
+  p.around(8, 13.5, 1.3, (x, y, d) => {
+    const k = Math.min(1, (1.3 - d) / 0.3);
+    const [r, g, b] = p.get(x, y);
+    p.set(x, y, [r + (96 - r) * k, g + (140 - g) * k, b + (70 - b) * k], 6);
+  });
+  for (const [cx, cy, r] of caps) {
+    p.around(cx, cy, r + 0.08, (x, y, d, a) => {
+      const edge = r * (0.95 + 0.04 * Math.sin(a * 11));
+      if (d >= edge) {
+        if (d < edge + 0.07) p.set(x, y, INK_D, 4);
+        return;
+      }
+      const rim = r * (0.78 + 0.06 * Math.sin(a * 13 + 1) + 0.05 * Math.sin(a * 5));
+      if (d > rim) {
+        p.set(x, y, [58, 98, 54], 20);
+        return;
+      }
+      const lit = 1 - 0.1 * (((x + 0.5) / SC - cx + (y + 0.5) / SC - cy) / r);
+      const ring = [0.3, 0.52, 0.72].some((q) => Math.abs(d / rim - q) < 0.025) ? 0.78 : 1;
+      p.set(x, y, [226 * lit * ring, 231 * lit * ring, 238 * lit * ring], 6);
+    });
+  }
+  for (const [cx, cy, r] of evergreens) {
+    const fr = lattice(p.w, p.h, 0.12 * SC, p.rnd);
+    p.around(cx, cy, r + 0.08, (x, y, d, a) => {
+      const edge = r * (0.92 + 0.07 * Math.abs(Math.sin(a * 8)));
+      if (d >= edge) {
+        if (d < edge + 0.07) p.set(x, y, INK_D, 4);
+        return;
+      }
+      const f = fr(x, y);
+      if (f > 0.68) p.set(x, y, [214, 226, 218], 10);
+      else p.set(x, y, [50 + 30 * f, 92 + 40 * f, 58 + 20 * f], 14);
+    });
+  }
+  // Bare trees: limbs from the trunk, forking twice, thinner as they go.
+  for (const [cx, cy, R] of bare) {
+    const branch = (x: number, y: number, ang: number, len: number, wid: number, gen: number): void => {
+      const x1 = x + Math.cos(ang) * len;
+      const y1 = y + Math.sin(ang) * len;
+      p.stroke(x, y, x1, y1, wid + 0.03, wid * 0.7 + 0.03, INK_D, 0);
+      p.stroke(x, y, x1, y1, wid, wid * 0.7, [112, 72, 50], 10);
+      if (gen < 2) for (const da of [-0.45, 0.4]) branch(x1, y1, ang + da + (p.rnd() - 0.5) * 0.3, len * 0.62, wid * 0.6, gen + 1);
+    };
+    for (let i = 0; i < 7; i++) branch(cx, cy, (i / 7) * Math.PI * 2 + p.rnd() * 0.5, R * 0.48, 0.1, 0);
+    p.around(cx, cy, 0.22, (x, y) => p.set(x, y, [70, 46, 34], 8));
+  }
+  const things = [...caps, ...evergreens, ...bare, [10.5, 6.5, 2], [8, 13.5, 1.3]];
+  return { w: p.w, h: p.h, px: p.px, caps, evergreens, bare, things };
+}
+
+/** A dungeon floored in pale flagstones (near-white, or a little cool), with dark walls and crates. */
+function paleFloorDungeon(cool: boolean): HiMap {
+  const p = new Canvas(24, 16, 99);
+  const n = lattice(p.w, p.h, 0.6 * SC, p.rnd);
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      const u = x / SC;
+      const v = y / SC;
+      if (u < 1 || u > 23 || v < 1 || v > 15 || (Math.abs(v - 8) < 0.35 && (u < 10 || u > 13))) {
+        p.set(x, y, [44, 40, 38], 8);
+        continue;
+      }
+      const su = (u * 1.5) % 1;
+      const sv = (v * 1.5 + (Math.floor(u * 1.5) % 2) * 0.5) % 1;
+      const t = n(x, y);
+      const c: RGB = cool ? [214 + 20 * t, 220 + 18 * t, 230 + 14 * t] : [222 + 20 * t, 220 + 20 * t, 214 + 20 * t];
+      p.set(x, y, su < 0.05 || sv < 0.05 ? [c[0] * 0.62, c[1] * 0.64, c[2] * 0.68] : c, 10);
+    }
+  }
+  for (const [cx, cy] of [
+    [4, 4],
+    [18, 12],
+    [20, 4],
+  ]) {
+    p.around(cx, cy, 0.7, (x, y) => {
+      const u = Math.abs((x + 0.5) / SC - cx);
+      const v = Math.abs((y + 0.5) / SC - cy);
+      if (u < 0.5 && v < 0.5) p.set(x, y, u > 0.44 || v > 0.44 ? INK_D : [150, 104, 60], 10);
+    });
+  }
+  return p;
+}
+
+/** A hall floored in white-blue marble slabs with grey veins, dark walls, and potted plants. */
+function marbleHall(): HiMap {
+  const p = new Canvas(24, 16, 314);
+  const n1 = lattice(p.w, p.h, 1.2 * SC, p.rnd);
+  const n2 = lattice(p.w, p.h, 0.2 * SC, p.rnd);
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      const u = x / SC;
+      const v = y / SC;
+      if (u < 1.2 || u > 22.8 || v < 1.2 || v > 14.8) {
+        p.set(x, y, [52, 48, 50], 6);
+        continue;
+      }
+      const t = n1(x, y);
+      const vein = Math.abs(n2(x, y) - 0.5) < 0.025 ? 0.72 : 1;
+      p.set(x, y, [(224 + 22 * t) * vein, (230 + 18 * t) * vein, (238 + 14 * t) * vein], 6);
+      if (u % 2 < 0.04 || v % 2 < 0.04) p.set(x, y, [150, 150, 158], 4);
+    }
+  }
+  for (const [cx, cy] of [
+    [4, 4],
+    [20, 4],
+    [4, 12],
+    [20, 12],
+  ]) {
+    p.around(cx, cy, 0.62, (x, y, d) => p.set(x, y, d > 0.55 ? INK_D : d > 0.45 ? [140, 90, 60] : [60, 120, 56], 18));
+  }
+  return p;
+}
+
+/** A lawn with outlined trees in a wide cool-white paper margin, with a title and a scale in dark type. */
+function paperMargin(): HiMap {
+  const p = new Canvas(24, 16, 777);
+  const n = lattice(p.w, p.h, 1.5 * SC, p.rnd);
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      const u = x / SC;
+      const v = y / SC;
+      const t = n(x, y);
+      if (u > 4 && u < 20 && v > 3 && v < 13) p.set(x, y, [88 + 20 * t, 128 + 20 * t, 58], 20);
+      else p.set(x, y, [236 + 12 * t, 240 + 10 * t, 246 + 8 * t], 6);
+    }
+  }
+  for (const [cx, cy, r] of [
+    [7, 6, 1.4],
+    [12, 9, 1.8],
+    [17, 6, 1.2],
+  ]) {
+    p.around(cx, cy, r + 0.1, (x, y, d) => p.set(x, y, d > r ? INK_D : [46, 96, 62], d > r ? 0 : 16));
+  }
+  for (const [x0, y0, len] of [
+    [4, 1.2, 9],
+    [16, 14.2, 4],
+  ]) {
+    for (let i = 0; i < len * 3; i++) {
+      if (p.rnd() < 0.25) continue;
+      p.around(x0 + i * 0.33 + 0.15, y0 + 0.25, 0.14, (x, y) => p.set(x, y, [30, 30, 36], 4));
+    }
+  }
+  return p;
+}
+
+/**
+ * Analysed at half size, box-filtered (as a browser's high-quality shrink does, roughly), by
+ * analyse() or by the test-only entry that looks for snow in the picture itself.
+ */
+function analysedHalf(m: HiMap, entry: Analyse = analyse): SeasonAnalysis {
+  const aw = m.w >> 1;
+  const ah = m.h >> 1;
+  return entry(shrink(m, aw, ah, "box"), aw, ah, SC / 2);
+}
+
+function bakedFull(m: HiMap, a: SeasonAnalysis, look: SeasonLook, level: 1 | 2 | 3, seed = 777): Uint8ClampedArray {
+  const img = new Uint8ClampedArray(m.px);
+  bake(img, m.w, m.h, { x0: 0, y0: 0, scale: 1, cell: SC, seed, look, level, a, sceneW: m.w, sceneH: m.h });
+  return img;
+}
+
+/** FNV-1a of some arrays' bytes, as 8 hex digits. */
+function fnv(...arrays: ArrayBufferView[]): string {
+  let h = 0x811c9dc5;
+  for (const a of arrays) {
+    const b = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    for (let i = 0; i < b.length; i++) h = Math.imul(h ^ b[i], 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/** Floats per tree in SnowInfo.trees, and the kinds. */
+const TREE_N = 24;
+const K_CAP = 1;
+const K_EVER = 2;
+const K_BARE = 3;
+const K_PROP = 4;
+
+/** The trees a snowy map's analysis found: centre x, y in squares and kind. */
+function snowTrees(a: SeasonAnalysis): number[][] {
+  const sn = a.snow!;
+  const out: number[][] = [];
+  for (let t = 0; t < sn.nTrees; t++) {
+    const b = t * TREE_N;
+    out.push([sn.trees[b] / a.cellA, sn.trees[b + 1] / a.cellA, sn.trees[b + 3]]);
+  }
+  return out;
+}
+
+// What the engine made of maps with no snow before snowy maps were recognised (ALGO_VERSION 3),
+// FNV-1a hashes: of the analysis, and of all twelve looks baked full size with seed 777.
+const GOLDEN: Record<string, string> = {
+  trees: "7204ba3e adf9bcc0",
+  lawn: "3b59576c 4902eed7",
+  dungeon: "244900ae b21fcdcd",
+  forest: "a1351155 67919eeb",
+  hires: "1bb908cb 2a105771",
+  paleFloor: "467b4c74 4d10c9e7",
+  coolFloor: "ec8a581a 306425ce",
+  marble: "cb1db0ff 434a910d",
+  paper: "4f82bf1d 5222a45f",
+};
+
+/** A plain analysis's hash, and of all twelve looks baked full size with seed 777. */
+function plainHash(m: HiMap, a: SeasonAnalysis, cell: number): string {
+  const bakes: Uint8ClampedArray[] = [];
+  for (const look of SEASON_LOOKS) {
+    for (const level of LEVELS) {
+      const img = new Uint8ClampedArray(m.px);
+      bake(img, m.w, m.h, { x0: 0, y0: 0, scale: 1, cell, seed: 777, look, level, a, sceneW: m.w, sceneH: m.h });
+      bakes.push(img);
+    }
+  }
+  return `${fnv(a.f, a.lab, a.crowns, a.under, new Float64Array([a.frac, a.amb, a.nCrowns]))} ${fnv(...bakes)}`;
+}
+
+describe("seasonPixels on maps with no snow", () => {
+  // Maps without snow come out exactly as they did before snowy maps were recognised: the same
+  // analysis and the same bytes in all twelve looks, whether the picture's own snow detection is
+  // off (analyse, for now) or on (the snow test leaves them after one pass).
+  const cases: [string, (entry: Analyse) => [HiMap, SeasonAnalysis, number]][] = [
+    ...(
+      [
+        ["trees", treeMap],
+        ["lawn", lawnMap],
+        ["dungeon", dungeonMap],
+        ["forest", forestMap],
+      ] as const
+    ).map(([name, make]): [string, (entry: Analyse) => [HiMap, SeasonAnalysis, number]] => [
+      name,
+      (entry) => {
+        const p = make();
+        return [{ w: p.w, h: p.h, px: p.px }, analysed(p, entry), p.cell];
+      },
+    ]),
+    [
+      "hires",
+      (entry) => {
+        const hi = hiResMap(true);
+        return [hi, analyseHi(hi, "bilinear", entry).a, HI];
+      },
+    ],
+    ...(
+      [
+        ["paleFloor", () => paleFloorDungeon(false)],
+        ["coolFloor", () => paleFloorDungeon(true)],
+        ["marble", marbleHall],
+        ["paper", paperMargin],
+      ] as const
+    ).map(([name, make]): [string, (entry: Analyse) => [HiMap, SeasonAnalysis, number]] => [
+      name,
+      (entry) => {
+        const m = make();
+        return [m, analysedHalf(m, entry), SC];
+      },
+    ]),
+  ];
+  for (const [name, make] of cases) {
+    it(`analyses and bakes the ${name} map exactly as before`, () => {
+      for (const entry of [analyse, analysePixelSnowy]) {
+        const [m, a, cell] = make(entry);
+        expect(a.snow ?? null).toBeNull();
+        expect(plainHash(m, a, cell)).toBe(GOLDEN[name]);
+      }
+    }, 30_000);
+  }
+});
+
+// Kdir Topside (Vern's map, 32 x 18 squares at 108 px), reduced for the tests: the whole map at
+// 20 px a square for the analysis, and for the bakes a crop of 10 x 4.5 squares from square
+// (10.5, 0.5) at 54 px a square (a capped crown, bushes, an evergreen and bare trees).
+const KDIR = { sceneW: 3456, sceneH: 1944, cell: 108, cellA: 20, x0: 1134, y0: 54, scale: 2 };
+let kdirPics: Promise<[PngImage, PngImage]> | null = null;
+
+function kdirPictures(): Promise<[PngImage, PngImage]> {
+  kdirPics ??= Promise.all([
+    readPng(new URL("./fixtures/snow/kdir-analysis.png", import.meta.url)),
+    readPng(new URL("./fixtures/snow/kdir-crop.png", import.meta.url)),
+  ]);
+  return kdirPics;
+}
+
+/** Kdir's crop baked in all twelve looks with seed 777. */
+function kdirBakes(crop: PngImage, a: SeasonAnalysis): Uint8ClampedArray[] {
+  const bakes: Uint8ClampedArray[] = [];
+  for (const look of SEASON_LOOKS) {
+    for (const level of LEVELS) {
+      const img = new Uint8ClampedArray(crop.px);
+      bake(img, crop.w, crop.h, { ...KDIR, seed: 777, look, level, a });
+      bakes.push(img);
+    }
+  }
+  return bakes;
+}
+
+// The snowy maps below, analysed by analyse() while the picture's own snow detection is off
+// (PIXEL_SNOWY): taken for plain pictures, exactly as before snowy maps were recognised
+// (ALGO_VERSION 3). Hashes as above (Kdir: its crop's bakes).
+const GOLDEN_PLAIN: Record<string, string> = {
+  snowy: "dc76e417 1c184385",
+  kdir: "075327b1 be812b76",
+};
+
+describe("seasonPixels while the picture's own snow detection is off", () => {
+  it("is off, and analyse() takes a map painted under snow for a plain picture, exactly as before", async () => {
+    expect(PIXEL_SNOWY).toBe(false);
+    const map = snowyMap();
+    const a = analysedHalf(map);
+    expect(a.snow).toBeNull();
+    expect(plainHash(map, a, SC)).toBe(GOLDEN_PLAIN.snowy);
+    const [pic, crop] = await kdirPictures();
+    const k = analyse(pic.px, pic.w, pic.h, KDIR.cellA);
+    expect(k.snow).toBeNull();
+    expect(`${fnv(k.f, k.lab, k.crowns, k.under, new Float64Array([k.frac, k.amb, k.nCrowns]))} ${fnv(...kdirBakes(crop, k))}`).toBe(GOLDEN_PLAIN.kdir);
+  }, 30_000);
+});
+
+/** A snowy analysis's hash (all of SnowInfo). */
+function snowHash(a: SeasonAnalysis): string {
+  const sn = a.snow!;
+  return fnv(sn.s, sn.tl, sn.trees, sn.grass, sn.earth, sn.snow, new Float64Array([sn.nTrees, sn.ref, sn.hasGrass, sn.grassLum, sn.frac, a.frac]));
+}
+
+// What the picture's own snow detection and the melt (ALGO_VERSION 4) made of the snowy maps when
+// the detection was turned off (PIXEL_SNOWY), through the test-only analysePixelSnowy: FNV-1a of
+// the analysis, and of all twelve looks baked with seed 777 (snowy: full size; Kdir: its crop).
+// The melt kernels are shared with the Dungeondraft path, so these hold while it's off.
+const GOLDEN_SNOWY: Record<string, string> = {
+  snowy: "13a63aba 56fb0269",
+  kdir: "f361cb9e 72f6ec84",
+};
+
+describe("seasonPixels on a map painted under snow", () => {
+  const map = snowyMap();
+  const a = analysedHalf(map, analysePixelSnowy);
+
+  it("analyses and bakes the synthetic snowy map exactly as when it was frozen", () => {
+    expect(a.snow).not.toBeNull();
+    const bakes: Uint8ClampedArray[] = [];
+    for (const look of SEASON_LOOKS) for (const level of LEVELS) bakes.push(bakedFull(map, a, look, level));
+    expect(`${snowHash(a)} ${fnv(...bakes)}`).toBe(GOLDEN_SNOWY.snowy);
+  }, 30_000);
+
+  it("analyses and bakes Kdir Topside exactly as when it was frozen", async () => {
+    const [pic, crop] = await kdirPictures();
+    const k = analysePixelSnowy(pic.px, pic.w, pic.h, KDIR.cellA);
+    expect(k.snow).not.toBeNull();
+    // It found capped crowns, evergreens, bare trees and props.
+    const kinds = new Set(snowTrees(k).map((t) => t[2]));
+    for (const kd of [K_CAP, K_EVER, K_BARE, K_PROP]) expect(kinds.has(kd)).toBe(true);
+    expect(`${snowHash(k)} ${fnv(...kdirBakes(crop, k))}`).toBe(GOLDEN_SNOWY.kdir);
+  }, 30_000);
+
+  it("recognises it, and what stands in the snow", () => {
+    expect(a.snow).not.toBeNull();
+    expect(outdoorFraction(a)).toBeGreaterThan(0.5);
+    const trees = snowTrees(a);
+    const near = (list: number[][], kind: number): void => {
+      for (const [x, y] of list) {
+        const t = trees.filter((q) => Math.hypot(q[0] - x, q[1] - y) < 0.6);
+        expect(t.length).toBe(1);
+        expect(t[0][2]).toBe(kind);
+      }
+    };
+    near(map.caps, K_CAP);
+    near(map.evergreens, K_EVER);
+    near(map.bare, K_BARE);
+    // Nothing else is a tree: not the patch of earth, nor the patch of grass.
+    expect(trees.length).toBe(map.caps.length + map.evergreens.length + map.bare.length);
+    // The same trees from a bilinear shrink.
+    const b = analysePixelSnowy(shrink(map, map.w >> 1, map.h >> 1, "bilinear"), map.w >> 1, map.h >> 1, SC / 2);
+    expect(b.snow).not.toBeNull();
+    const kinds = (q: SeasonAnalysis): number[] => snowTrees(q).map((t) => t[2]).sort();
+    expect(kinds(b)).toEqual(kinds(a));
+  }, 30_000);
+
+  it("doesn't take a pale stone floor, a marble hall or a paper margin for snow", () => {
+    for (const m of [paleFloorDungeon(false), paleFloorDungeon(true), marbleHall(), paperMargin()]) {
+      for (const how of ["box", "bilinear", "nearest"] as const) {
+        const q = analysePixelSnowy(shrink(m, m.w >> 1, m.h >> 1, how), m.w >> 1, m.h >> 1, SC / 2);
+        expect(q.snow).toBeNull();
+      }
+    }
+  }, 30_000);
+
+  it("is deterministic, and the seed matters", () => {
+    const b = analysedHalf(map, analysePixelSnowy);
+    expect(firstDiff(b.snow!.s, a.snow!.s)).toBe(-1);
+    expect(firstDiff(b.snow!.tl, a.snow!.tl)).toBe(-1);
+    expect(firstDiff(b.snow!.trees, a.snow!.trees)).toBe(-1);
+    for (const look of SEASON_LOOKS) {
+      const x = bakedFull(map, a, look, 3, 99);
+      expect(firstDiff(bakedFull(map, b, look, 3, 99), x)).toBe(-1);
+      expect(firstDiff(bakedFull(map, a, look, 3, 100), x)).not.toBe(-1);
+    }
+  }, 30_000);
+
+  it("bakes strips and sub-rectangles exactly like a whole pass", () => {
+    const bw = 377;
+    const bh = Math.round((bw * map.h) / map.w);
+    const scale = map.w / bw;
+    const src = new Uint8ClampedArray(bw * bh * 4);
+    for (let y = 0; y < bh; y++) {
+      for (let x = 0; x < bw; x++) {
+        const o = (Math.floor(y * scale) * map.w + Math.floor(x * scale)) * 4;
+        src.set(map.px.subarray(o, o + 4), (y * bw + x) * 4);
+      }
+    }
+    for (const look of SEASON_LOOKS) {
+      for (const level of LEVELS) {
+        const opts = { cell: SC, seed: 4242, look, level, a, sceneW: map.w, sceneH: map.h, scale };
+        const whole = new Uint8ClampedArray(src);
+        bake(whole, bw, bh, { ...opts, x0: 0, y0: 0 });
+        const strips = new Uint8ClampedArray(src);
+        for (let y = 0, s = 0; y < bh; s++) {
+          const rows = Math.min([23, 1, 57, 7][s % 4], bh - y);
+          bake(strips.subarray(y * bw * 4, (y + rows) * bw * 4), bw, rows, { ...opts, x0: 0, y0: y * scale });
+          y += rows;
+        }
+        expect(firstDiff(strips, whole)).toBe(-1);
+        const rx = 101;
+        const ry = 57;
+        const rw = 90;
+        const rh = 70;
+        const rect = new Uint8ClampedArray(rw * rh * 4);
+        for (let y = 0; y < rh; y++) rect.set(src.subarray(((ry + y) * bw + rx) * 4, ((ry + y) * bw + rx + rw) * 4), y * rw * 4);
+        bake(rect, rw, rh, { ...opts, x0: rx * scale, y0: ry * scale });
+        for (let y = 0; y < rh; y++) {
+          expect(firstDiff(rect.subarray(y * rw * 4, (y + 1) * rw * 4), whole.subarray(((ry + y) * bw + rx) * 4, ((ry + y) * bw + rx + rw) * 4))).toBe(-1);
+        }
+      }
+    }
+  }, 30_000);
+
+  // Where nothing stands, the snow as drawn: open ground.
+  const open = (u: number, v: number): boolean => map.things.every(([x, y, r]) => Math.hypot(u - x, v - y) > r + 0.6);
+  const lum = (img: Uint8ClampedArray, x: number, y: number): number => {
+    const o = (y * map.w + x) * 4;
+    return 0.299 * img[o] + 0.587 * img[o + 1] + 0.114 * img[o + 2];
+  };
+
+  it("melts the snow into grass in summer, keeps half of it early in spring and all of it in winter, and strews leaves in autumn", () => {
+    const share = (img: Uint8ClampedArray, test: (q: RGB) => boolean): number => {
+      let n = 0;
+      let k = 0;
+      for (let y = 0; y < map.h; y += 3) {
+        for (let x = 0; x < map.w; x += 3) {
+          if (!open((x + 0.5) / SC, (y + 0.5) / SC)) continue;
+          n++;
+          const o = (y * map.w + x) * 4;
+          if (test([img[o], img[o + 1], img[o + 2]])) k++;
+        }
+      }
+      return k / n;
+    };
+    const snowy = (q: RGB): boolean => Math.min(...q) > 160 && Math.max(...q) - Math.min(...q) < 0.25 * Math.max(...q);
+    const green = (q: RGB): boolean => hue(q) > 60 && hue(q) < 170 && Math.max(...q) - Math.min(...q) > 0.2 * Math.max(...q);
+    expect(share(map.px, snowy)).toBeGreaterThan(0.95);
+    for (const level of LEVELS) expect(share(bakedFull(map, a, "winter", level), snowy)).toBeGreaterThan(0.95);
+    expect(share(bakedFull(map, a, "summer", 1), green)).toBeGreaterThan(0.95);
+    expect(share(bakedFull(map, a, "summer", 1), snowy)).toBeLessThan(0.01);
+    const budding = share(bakedFull(map, a, "spring", 1), snowy);
+    expect(budding).toBeGreaterThan(0.25);
+    expect(budding).toBeLessThan(0.65);
+    expect(share(bakedFull(map, a, "spring", 2), snowy)).toBeLessThan(0.1);
+    expect(share(bakedFull(map, a, "spring", 3), snowy)).toBeLessThan(0.01);
+    // Autumn: fallen leaves (reds, oranges, golds) on the new ground, more as the season goes on.
+    const leaf = (q: RGB): boolean => hue(q) < 50 && Math.max(...q) - Math.min(...q) > 0.45 * Math.max(...q);
+    const fallen = LEVELS.map((level) => share(bakedFull(map, a, "autumn", level), leaf));
+    expect(fallen[0]).toBeGreaterThan(0.001);
+    expect(fallen[2]).toBeGreaterThan(2 * fallen[0]);
+  }, 30_000);
+
+  it("keeps the grid baked into the picture straight and visible through the melt", () => {
+    for (const [look, level] of [
+      ["summer", 1],
+      ["autumn", 2],
+      ["spring", 3],
+    ] as const) {
+      const img = bakedFull(map, a, look, level);
+      let n = 0;
+      let dark = 0;
+      for (let k = 1; k < 24; k++) {
+        const x = k * SC;
+        for (let y = 2; y < map.h - 2; y++) {
+          // The dotted line's pixels, over open snow.
+          if (y % 6 >= 3 || y % SC === 0 || !open(x / SC, (y + 0.5) / SC)) continue;
+          n++;
+          const side = (lum(img, x - 2, y) + lum(img, x + 2, y)) / 2;
+          if (lum(img, x, y) < 0.94 * side) dark++;
+        }
+      }
+      expect(n).toBeGreaterThan(1000);
+      expect(dark / n).toBeGreaterThan(0.9);
+    }
+  }, 30_000);
+
+  it("never changes ink or alpha", () => {
+    const m = { ...map, px: new Uint8ClampedArray(map.px) };
+    for (let i = 3; i < m.px.length; i += 4 * 97) m.px[i] = 128;
+    const inked: number[] = [];
+    for (let k = 0; k < m.w * m.h; k++) if (Math.max(m.px[k * 4], m.px[k * 4 + 1], m.px[k * 4 + 2]) < 32) inked.push(k);
+    expect(inked.length).toBeGreaterThan(5000);
+    for (const look of SEASON_LOOKS) {
+      for (const level of LEVELS) {
+        const img = bakedFull(m, a, look, level);
+        for (const k of inked) for (let ch = 0; ch < 3; ch++) if (img[k * 4 + ch] !== m.px[k * 4 + ch]) throw new Error(`ink changed at ${k} in ${look} ${level}`);
+        for (let i = 3; i < img.length; i += 4) if (img[i] !== m.px[i]) throw new Error(`alpha changed at ${i}`);
+      }
+    }
+  }, 30_000);
+
+  // The owner's rule for autumn trees: "all trees should not turn red, they should be a amalgam of
+  // red yellow green, and less foliage" as the season goes on.
+  it("grows leaves on the bare trees, and in autumn turns each a mottled mix, never all red, thinning", () => {
+    // The foliage: what a bake with the trees forgotten doesn't draw.
+    const noTrees: SeasonAnalysis = { ...a, snow: { ...a.snow!, tl: new Uint16Array(a.aw * a.ah) } };
+    const foliage = (look: SeasonLook, level: 1 | 2 | 3): { n: number; green: number; yellow: number; orange: number; red: number }[] => {
+      const img = bakedFull(map, a, look, level);
+      const ref = bakedFull(map, noTrees, look, level);
+      return map.bare.map(([cx, cy, R]) => {
+        const t = { n: 0, green: 0, yellow: 0, orange: 0, red: 0 };
+        for (let y = Math.floor((cy - R) * SC); y < (cy + R) * SC; y++) {
+          for (let x = Math.floor((cx - R) * SC); x < (cx + R) * SC; x++) {
+            if (Math.hypot((x + 0.5) / SC - cx, (y + 0.5) / SC - cy) > R) continue;
+            const o = (y * map.w + x) * 4;
+            const q: RGB = [img[o], img[o + 1], img[o + 2]];
+            if (Math.abs(q[0] - ref[o]) + Math.abs(q[1] - ref[o + 1]) + Math.abs(q[2] - ref[o + 2]) < 40) continue;
+            if (Math.max(...q) - Math.min(...q) < 0.25 * Math.max(...q)) continue;
+            t.n++;
+            const h = hue(q);
+            if (h >= 62 && h < 170) t.green++;
+            else if (h >= 38 && h < 62) t.yellow++;
+            else if (h >= 18 && h < 38) t.orange++;
+            else if (h < 18 || h >= 330) t.red++;
+          }
+        }
+        return t;
+      });
+    };
+    // Summer: every bare tree in full green leaf.
+    const summer = foliage("summer", 1);
+    for (const t of summer) {
+      expect(t.n).toBeGreaterThan(0.5 * Math.PI * SC * SC);
+      expect(t.green / t.n).toBeGreaterThan(0.9);
+    }
+    const autumn = LEVELS.map((level) => foliage("autumn", level));
+    for (const [i, trees] of autumn.entries()) {
+      for (const t of trees) {
+        const s = [t.green, t.yellow, t.orange, t.red].map((v) => v / t.n);
+        // An amalgam: several colours on every tree, some green left, red never dominant.
+        expect(s.filter((v) => v > 0.04).length).toBeGreaterThanOrEqual(3);
+        expect(s[0]).toBeGreaterThan(i === 2 ? 0.02 : 0.08);
+        expect(s[3]).toBeLessThan(0.4);
+        expect(Math.max(...s)).toBeLessThan(i === 0 ? 0.9 : 0.75);
+      }
+    }
+    // Turning is mostly green, with the first colours.
+    const sum = (trees: { n: number; green: number }[], k: "n" | "green"): number => trees.reduce((v, t) => v + t[k], 0);
+    expect(sum(autumn[0], "green") / sum(autumn[0], "n")).toBeGreaterThan(0.45);
+    // Less foliage as the season goes on: mostly bare branches by late autumn.
+    for (const [i, t] of autumn[2].entries()) {
+      expect(t.n).toBeLessThan(0.6 * autumn[0][i].n);
+      expect(autumn[1][i].n).toBeLessThan(autumn[0][i].n);
+    }
+  }, 30_000);
 });
