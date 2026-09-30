@@ -156,7 +156,7 @@ function clamp01(v: number): number {
 }
 
 /** Smoothstep from a to b. */
-function ramp(v: number, a: number, b: number): number {
+export function ramp(v: number, a: number, b: number): number {
   const t = clamp01((v - a) / (b - a));
   return t * t * (3 - 2 * t);
 }
@@ -473,7 +473,7 @@ function hsv(h: number, s: number, v: number): void {
 }
 
 /** Hue in degrees of an RGB colour (0 for greys). */
-function hueOf(r: number, g: number, b: number): number {
+export function hueOf(r: number, g: number, b: number): number {
   const max = r > g ? (r > b ? r : b) : g > b ? g : b;
   const min = r < g ? (r < b ? r : b) : g < b ? g : b;
   const d = max - min;
@@ -491,7 +491,7 @@ let colourLut: Uint8Array | null = null;
  * lava, fire and red roofs, and near-white paper and labels), and how much like snow.
  * Built once, about 1 MB.
  */
-function colourTable(): Uint8Array {
+export function colourTable(): Uint8Array {
   if (colourLut) return colourLut;
   const t = new Uint8Array(64 * 64 * 64 * 4);
   for (let ri = 0; ri < 64; ri++) {
@@ -528,14 +528,14 @@ function colourTable(): Uint8Array {
   return t;
 }
 
-function lutIndex(r: number, g: number, b: number): number {
+export function lutIndex(r: number, g: number, b: number): number {
   return (((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2)) << 2;
 }
 
 // ---------------------------------------------------------------- analysis helpers
 
 /** Box blur of a byte image (edges repeated), rounded back to bytes. dst may be src. */
-function blur8(src: Uint8Array, w: number, h: number, r: number, dst: Uint8Array, tmp: Int32Array): Uint8Array {
+export function blur8(src: Uint8Array, w: number, h: number, r: number, dst: Uint8Array, tmp: Int32Array): Uint8Array {
   if (r > 1400) r = 1400;
   if (r < 1) {
     if (dst !== src) dst.set(src);
@@ -572,7 +572,7 @@ function blur8(src: Uint8Array, w: number, h: number, r: number, dst: Uint8Array
 }
 
 /** Box blur of a float grid (edges repeated), in place. */
-function blurF(src: Float64Array, w: number, h: number, r: number): void {
+export function blurF(src: Float64Array, w: number, h: number, r: number): void {
   if (r < 1) return;
   const n = 2 * r + 1;
   const line = new Float64Array(Math.max(w, h));
@@ -602,12 +602,12 @@ function blurF(src: Float64Array, w: number, h: number, r: number): void {
 }
 
 // Chamfer distances in fifths of a pixel (5 across, 7 diagonally): integers, so exact.
-const D1 = 5;
+export const D1 = 5;
 const D2 = 7;
 const FAR = 1 << 28;
 
 /** Distance to the nearest pixel whose mask is set (want 1) or clear (want 0). */
-function distTo(mask: Uint8Array, want: number, w: number, h: number, d: Int32Array): Int32Array {
+export function distTo(mask: Uint8Array, want: number, w: number, h: number, d: Int32Array): Int32Array {
   const n = w * h;
   for (let k = 0; k < n; k++) d[k] = (mask[k] !== 0 ? 1 : 0) === want ? 0 : FAR;
   for (let y = 0; y < h; y++) {
@@ -640,7 +640,7 @@ function distTo(mask: Uint8Array, want: number, w: number, h: number, d: Int32Ar
 }
 
 /** Distance to the nearest labelled pixel, and which label that is (Voronoi by label). */
-function distLabel(lab: Int32Array, w: number, h: number, d: Int32Array, near: Int32Array): void {
+export function distLabel(lab: Int32Array, w: number, h: number, d: Int32Array, near: Int32Array): void {
   const n = w * h;
   for (let k = 0; k < n; k++) {
     near[k] = lab[k];
@@ -677,14 +677,14 @@ function distLabel(lab: Int32Array, w: number, h: number, d: Int32Array, near: I
 }
 
 /** Keeps pixels farther than r from the background (r in pixels). */
-function erode(m: Uint8Array, r: number, w: number, h: number, d: Int32Array): void {
+export function erode(m: Uint8Array, r: number, w: number, h: number, d: Int32Array): void {
   distTo(m, 0, w, h, d);
   const lim = r * D1;
   for (let k = 0; k < w * h; k++) m[k] = d[k] > lim ? 1 : 0;
 }
 
 /** Adds pixels within r of the mask (r in pixels). */
-function dilate(m: Uint8Array, r: number, w: number, h: number, d: Int32Array): void {
+export function dilate(m: Uint8Array, r: number, w: number, h: number, d: Int32Array): void {
   distTo(m, 1, w, h, d);
   const lim = r * D1;
   for (let k = 0; k < w * h; k++) m[k] = d[k] <= lim ? 1 : 0;
@@ -1093,7 +1093,7 @@ function edgeCrispness(
   return crisp;
 }
 
-function satOf(r: number, g: number, b: number): number {
+export function satOf(r: number, g: number, b: number): number {
   const max = Math.max(r, g, b);
   return max > 0 ? (max - Math.min(r, g, b)) / max : 0;
 }
@@ -1265,24 +1265,24 @@ function otsu(hist: Float64Array, total: number): Split {
 // ---------------------------------------------------------------- analysis
 
 /** Bytes per analysis pixel in SeasonAnalysis.f. */
-const NF = 8;
+export const NF = 8;
 // Channels of SeasonAnalysis.f.
 /** Plant weight: blurred vegetation x (0.3 + 0.7 sky). */
-const F_PLANT = 0;
+export const F_PLANT = 0;
 /** Outdoor ground under open sky (sharpened outdoor x not water x sky). */
-const F_GROUND = 1;
+export const F_GROUND = 1;
 /** Tree crowns, softened. */
-const F_CANOPY = 2;
+export const F_CANOPY = 2;
 /** Open sky: plenty of vegetation within 3 squares. */
-const F_SKY = 3;
+export const F_SKY = 3;
 /** Local mean luma over a quarter square. */
-const F_LUML = 4;
+export const F_LUML = 4;
 /** Natural water, softened. */
-const F_WATER = 5;
+export const F_WATER = 5;
 /** Inside water, the distance to the shore in 1/16 square. */
-const F_SHORE = 6;
+export const F_SHORE = 6;
 /** Vegetation masses that might be canopy (only when the canopy split is ambiguous). */
-const F_MASS = 7;
+export const F_MASS = 7;
 
 /**
  * What analyse() finds, at analysis resolution (aw x ah). Only typed arrays and numbers,
@@ -2841,40 +2841,40 @@ function bakeSummer(px: Uint8ClampedArray, width: number, rows: number, fr: Fram
 // trees standing in it, a good share of them wintry (capped with snow, frosted or bare).
 
 /** Bytes per analysis pixel in SnowInfo.s. */
-const NSN = 10;
+export const NSN = 10;
 /** Open snow on the ground (what melts into grass), reaching a little under objects' rims. */
-const SN_GROUND = 0;
+export const SN_GROUND = 0;
 /** The open snow's own luma round about (thin lines and objects left out): its painted light and shade. */
-const SN_TONE = 1;
+export const SN_TONE = 1;
 /** Anything besides open ground within a pixel or two (objects, trees, earth, water): a quick test. */
-const SN_OBJ = 2;
+export const SN_OBJ = 2;
 /** Snow-capped crowns (trees that will leaf), with their green rims. */
-const SN_CROWN = 3;
+export const SN_CROWN = 3;
 /** Evergreens and bushes: green, maybe frosted. */
-const SN_EVER = 4;
+export const SN_EVER = 4;
 /** Snow on a rock or a prop (outlined all round, no leaves). */
-const SN_PROP = 5;
+export const SN_PROP = 5;
 /** Patches of grass the snow left bare, with their soft edges. */
-const SN_LAWN = 6;
+export const SN_LAWN = 6;
 /** Frozen water. */
-const SN_ICE = 7;
+export const SN_ICE = 7;
 /** Open water. */
-const SN_WATER = 8;
+export const SN_WATER = 8;
 /** Bare earth (a dirt patch, a road, a deck). */
-const SN_EARTH = 9;
+export const SN_EARTH = 9;
 
 /** Floats per tree in SnowInfo.trees. */
-const TREE_N = 24;
+export const TREE_N = 24;
 /** Directions a bare tree's reach is kept in (round the circle, from +x toward +y). */
-const TREE_DIRS = 16;
+export const TREE_DIRS = 16;
 // Per tree: 0-1 centre (analysis px), 2 radius (analysis px), 3 kind (K_*), 4-6 its own green
 // (RGB), 7 its snow's lit luma (0-1), 8-23 a bare tree's reach in each direction (analysis px).
-const K_CAP = 1;
-const K_EVER = 2;
-const K_BARE = 3;
-const K_PROP = 4;
+export const K_CAP = 1;
+export const K_EVER = 2;
+export const K_BARE = 3;
+export const K_PROP = 4;
 /** (Analysis only: a patch of grass.) */
-const K_LAWN = 5;
+export const K_LAWN = 5;
 
 export interface SnowInfo {
   /** NSN bytes an analysis pixel (SN_*). */
@@ -3001,10 +3001,263 @@ function maxMin3(src: Uint8Array, w: number, h: number, dst: Uint8Array, max: bo
 }
 
 /** The diamond angle of (dx, dy): 0-4 round the circle from +x toward +y, with no atan2. */
-function diamond(dx: number, dy: number): number {
+export function diamond(dx: number, dy: number): number {
   const ad = Math.abs(dx) + Math.abs(dy);
   if (ad <= 0) return 0;
   return dy >= 0 ? (dx >= 0 ? dy / ad : 2 - dy / ad) : dx < 0 ? 2 - dy / ad : 4 + dy / ad;
+}
+
+/** Where snowColours measures, at analysis resolution (non-zero where set). */
+export interface SnowMasks {
+  /** Open snow: snow on the ground with nothing standing on it. */
+  open: Uint8Array;
+  /** The map's own grass (patches the snow left bare). */
+  grass: Uint8Array;
+  /** Bare earth (where it isn't grass). */
+  earth: Uint8Array;
+}
+
+/** What snowColours measures: the open snow's tone (SN_TONE) and SnowInfo's colours. */
+export interface SnowColours {
+  /** Per analysis pixel, the open snow's own luma round about (0-255). */
+  tone: Uint8Array;
+  /** The snow's lit luma (0-1). */
+  ref: number;
+  grass: Float64Array;
+  hasGrass: number;
+  grassLum: number;
+  earth: Float64Array;
+  snow: Float64Array;
+}
+
+/** Luma per pixel, rounded as the snowy maps' analysis rounds it (0-255). */
+function snowLuma(rgba: Uint8ClampedArray, N: number): Uint8Array {
+  const lum = new Uint8Array(N);
+  for (let k = 0, o = 0; k < N; k++, o += 4) lum[k] = ((299 * rgba[o] + 587 * rgba[o + 1] + 114 * rgba[o + 2] + 500) / 1000) | 0;
+  return lum;
+}
+
+/**
+ * The snow's and the ground's own colours, over masks (snowAnalysis's from the picture, or exact
+ * ones from Dungeondraft data): the open snow's tone, its lit luma and colour, and the map's own
+ * grass and earth (defaults where there's too little of either). pre gives what the caller has
+ * already worked out: the luma (rounded as snowLuma does) and the snow's mean luma, the tone
+ * where no open snow is near (by default the colour table's snow, weighted by how snowy).
+ */
+export function snowColours(
+  rgba: Uint8ClampedArray,
+  aw: number,
+  ah: number,
+  cA: number,
+  masks: SnowMasks,
+  pre: { lum?: Uint8Array; meanLum?: number } = {},
+): SnowColours {
+  const N = aw * ah;
+  const sq = cA * cA;
+  const lum = pre.lum ?? snowLuma(rgba, N);
+  let mL = pre.meanLum;
+  if (mL === undefined) {
+    const T = colourTable();
+    let sw = 0;
+    let sL = 0;
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const c = rgba[o + 3] >= 128 ? T[lutIndex(rgba[o], rgba[o + 1], rgba[o + 2]) + 3] * INV255 : 0;
+      if (!c) continue;
+      sw += c;
+      sL += c * lum[k];
+    }
+    mL = sw > 0 ? sL / sw : 255;
+  }
+  const open = masks.open;
+
+  // The open snow's own tone: its luma with thin dark lines closed over (a baked grid, outlines),
+  // averaged over the open snow only, so a tree's dark rim or a dirt patch doesn't pull the
+  // snow's shading down next to it. Against it, a pixel's own detail (grain, grid lines, contour
+  // strokes) carries over to what replaces the snow.
+  const tone = new Uint8Array(N);
+  const m = new Uint8Array(N);
+  const lc = new Uint8Array(N);
+  maxMin3(lum, aw, ah, lc, true);
+  maxMin3(lc, aw, ah, m, false);
+  const sSum = new Float64Array(N);
+  const sCnt = new Float64Array(N);
+  const hL = new Float64Array(256);
+  let nOpen = 0;
+  for (let k = 0; k < N; k++) {
+    if (!open[k]) continue;
+    sSum[k] = m[k];
+    sCnt[k] = 1;
+    hL[lum[k]]++;
+    nOpen++;
+  }
+  let ref = 255;
+  for (let i = 0, acc = 0; i < 256; i++) {
+    acc += hL[i];
+    if (acc >= 0.85 * nOpen) {
+      ref = i;
+      break;
+    }
+  }
+  // Where there's no open snow near, the snow's mean over a wider round. (The near mean and how
+  // much of it counts wait in tone and lc while the same sums are spread wider.)
+  blurF(sSum, aw, ah, 2);
+  blurF(sCnt, aw, ah, 2);
+  for (let k = 0; k < N; k++) {
+    const c = sCnt[k];
+    lc[k] = Math.round(255 * ramp(c, 0.04, 0.2));
+    tone[k] = c > 0 ? Math.round(sSum[k] / c) : 0;
+    sSum[k] = 0;
+    sCnt[k] = 0;
+  }
+  for (let k = 0; k < N; k++) {
+    if (!open[k]) continue;
+    sSum[k] = m[k];
+    sCnt[k] = 1;
+  }
+  blurF(sSum, aw, ah, Math.max(2, Math.round(cA)));
+  blurF(sCnt, aw, ah, Math.max(2, Math.round(cA)));
+  for (let k = 0; k < N; k++) {
+    const wide = sCnt[k] > 0.02 ? sSum[k] / sCnt[k] : mL;
+    const kk = lc[k] * INV255;
+    tone[k] = Math.round(tone[k] * kk + wide * (1 - kk));
+  }
+
+  // The map's own grass and earth.
+  const grass = new Float64Array([98, 128, 60]);
+  const earth = new Float64Array([118, 100, 80]);
+  let hasGrass = 0;
+  let grassLum = 0.5;
+  {
+    const gs = [0, 0, 0, 0, 0];
+    const es = [0, 0, 0, 0];
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const a = masks.grass[k] ? gs : masks.earth[k] ? es : null;
+      if (!a) continue;
+      a[0] += rgba[o];
+      a[1] += rgba[o + 1];
+      a[2] += rgba[o + 2];
+      a[3]++;
+      if (a === gs) gs[4] += lum[k];
+    }
+    if (gs[3] >= 0.5 * sq) {
+      for (let c = 0; c < 3; c++) grass[c] = gs[c] / gs[3];
+      hasGrass = 1;
+      grassLum = gs[4] / gs[3] / 255;
+    }
+    if (es[3] >= sq) for (let c = 0; c < 3; c++) earth[c] = es[c] / es[3];
+  }
+  // The snow's colour at its lit tone.
+  const snow = new Float64Array([ref - 4, ref, ref + 4]);
+  {
+    let sr = 0;
+    let sg = 0;
+    let sb = 0;
+    let n = 0;
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      if (!open[k] || Math.abs(lum[k] - ref) > 6) continue;
+      sr += rgba[o];
+      sg += rgba[o + 1];
+      sb += rgba[o + 2];
+      n++;
+    }
+    if (n >= 16) {
+      snow[0] = sr / n;
+      snow[1] = sg / n;
+      snow[2] = sb / n;
+    }
+  }
+  return { tone, ref: ref * INV255, grass, hasGrass, grassLum, earth, snow };
+}
+
+/** A bare tree's size, from its branch strokes (see bareReach). Lengths in pixels. */
+export interface BareReach {
+  /** Stroke pixels counted. */
+  n: number;
+  /** How far out 85% of them lie, in steps of a sixth of a square. */
+  ext: number;
+  /**
+   * How much denser they are in the inner half of that than beyond (9 under a square): a bare
+   * tree's strokes thin out away from its trunk, a deck's or a fence's don't (under 1.2).
+   */
+  radial: number;
+  /** Its radius: ext, kept to 0.4-3.5 squares. */
+  R: number;
+  /** Directions with at least 3 stroke pixels. */
+  dirs: number;
+}
+
+/**
+ * A bare tree's reach from its branch strokes, round a centre (cx, cy): its trunk (snowAnalysis)
+ * or the object's own centre (Dungeondraft data, so roots and stumps aren't taken for trunks).
+ * The strokes are the pixels in the box x0..x1, y0..y1 (inclusive) where stroke is non-zero and,
+ * when lab is given, lab is l; pixel (x, y) stands at (x + 0.5, y + 0.5), and cA is a square in
+ * pixels. Fills reach (TREE_DIRS values) with how far 85% of each direction's strokes lie, 0.35
+ * to 1.25 times R (0.35 R with fewer than 3): direction k is diamond() from k to k + 1, times
+ * TREE_DIRS / 4.
+ */
+export function bareReach(
+  stroke: Uint8Array,
+  lab: Int32Array | null,
+  l: number,
+  aw: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  cx: number,
+  cy: number,
+  cA: number,
+  reach: Float32Array | Float64Array,
+): BareReach {
+  const NB = 24;
+  const binW = (4 * cA) / NB;
+  const hist = new Float64Array(NB);
+  const dirR = new Float64Array(TREE_DIRS * NB);
+  let tot = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0, k = y * aw + x0; x <= x1; x++, k++) {
+      if (!stroke[k] || (lab && lab[k] !== l)) continue;
+      const dx = x + 0.5 - cx;
+      const dy = y + 0.5 - cy;
+      const bi = Math.min(NB - 1, Math.floor(Math.sqrt(dx * dx + dy * dy) / binW));
+      hist[bi]++;
+      tot++;
+      const di = Math.floor(diamond(dx, dy) * (TREE_DIRS / 4)) & (TREE_DIRS - 1);
+      dirR[di * NB + bi]++;
+    }
+  }
+  let acc = 0;
+  let i85 = 0;
+  for (; i85 < NB - 1; i85++) {
+    acc += hist[i85];
+    if (acc >= 0.85 * tot) break;
+  }
+  const ext = (i85 + 1) * binW;
+  // Its strokes thin out away from the trunk; a deck or a fence is as dense all over.
+  let inner = 0;
+  let outer = 0;
+  for (let j = 0; j <= i85; j++) {
+    if ((j + 0.5) * binW < 0.5 * ext) inner += hist[j];
+    else outer += hist[j];
+  }
+  const radial = ext >= cA ? inner / 0.25 / Math.max(1, outer / 0.75) : 9;
+  const R = Math.max(0.4 * cA, Math.min(3.5 * cA, ext));
+  // Reach per direction: where 85% of that direction's strokes lie.
+  let dirs = 0;
+  for (let di = 0; di < TREE_DIRS; di++) {
+    let t = 0;
+    for (let j = 0; j < NB; j++) t += dirR[di * NB + j];
+    let a2 = 0;
+    let j = 0;
+    for (; j < NB - 1 && t > 0; j++) {
+      a2 += dirR[di * NB + j];
+      if (a2 >= 0.85 * t) break;
+    }
+    if (t >= 3) dirs++;
+    const r = t >= 3 ? Math.min(R * 1.25, (j + 1) * binW) : 0.35 * R;
+    reach[di] = Math.max(0.35 * R, r);
+  }
+  return { n: tot, ext, radial, R, dirs };
 }
 
 function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: number): SnowInfo | null {
@@ -3560,10 +3813,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
     }
   }
   const bareList: number[] = [];
-  const NB = 24;
-  const binW = (4 * cA) / NB;
-  const hist = new Float64Array(NB);
-  const dirR = new Float64Array(TREE_DIRS * NB);
+  const reachB = new Float64Array(TREE_DIRS);
   const rCore = Math.max(1.5, 0.3 * cA);
   let topArea = 0;
   for (let l = 1; l <= nT0; l++) {
@@ -3617,62 +3867,24 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
         topArea = qn;
       }
     }
-    hist.fill(0);
-    dirR.fill(0);
-    let tot = 0;
     let solidN = 0;
     let coreN = 0;
     for (let y = ty0[l]; y <= ty1[l]; y++) {
       for (let x = tx0[l], k = y * aw + tx0[l]; x <= tx1[l]; x++, k++) {
         const dx = x + 0.5 - px0;
         const dy = y + 0.5 - py0;
-        const dc = Math.sqrt(dx * dx + dy * dy);
-        if (dc <= rCore) {
-          coreN++;
-          // (Solid and lighter than a trunk: a stump's cut top, a well, a cart.)
-          if (earth[k] || (sc[k] < 128 && !ink[k] && lum[k] >= 0.55 * mL && chroma[k] >= 0.12 * mx[k])) solidN++;
-        }
-        if (lab[k] !== l || !branch[k]) continue;
-        const bi = Math.min(NB - 1, Math.floor(dc / binW));
-        hist[bi]++;
-        tot++;
-        const di = Math.floor(diamond(dx, dy) * (TREE_DIRS / 4)) & (TREE_DIRS - 1);
-        dirR[di * NB + bi]++;
+        if (Math.sqrt(dx * dx + dy * dy) > rCore) continue;
+        coreN++;
+        // (Solid and lighter than a trunk: a stump's cut top, a well, a cart.)
+        if (earth[k] || (sc[k] < 128 && !ink[k] && lum[k] >= 0.55 * mL && chroma[k] >= 0.12 * mx[k])) solidN++;
       }
     }
     if (coreN && solidN >= 0.3 * coreN) continue;
-    let acc = 0;
-    let i85 = 0;
-    for (; i85 < NB - 1; i85++) {
-      acc += hist[i85];
-      if (acc >= 0.85 * tot) break;
-    }
-    const ext = (i85 + 1) * binW;
-    // Its strokes thin out away from the trunk; a deck or a fence is as dense all over.
-    let inner = 0;
-    let outer = 0;
-    for (let j = 0; j <= i85; j++) {
-      if ((j + 0.5) * binW < 0.5 * ext) inner += hist[j];
-      else outer += hist[j];
-    }
-    const radial = ext >= cA ? inner / 0.25 / Math.max(1, outer / 0.75) : 9;
-    if (radial < 1.2) continue;
-    if (topArea >= 0.08 * sq && ext < 3 * Math.sqrt(topArea / Math.PI) + 0.1 * cA) continue;
-    const R = Math.max(0.4 * cA, Math.min(3.5 * cA, ext));
-    bareList.push(px0, py0, R);
-    // Reach per direction: where 85% of that direction's strokes lie.
-    for (let di = 0; di < TREE_DIRS; di++) {
-      let t = 0;
-      for (let j = 0; j < NB; j++) t += dirR[di * NB + j];
-      let a2 = 0;
-      let j = 0;
-      for (; j < NB - 1 && t > 0; j++) {
-        a2 += dirR[di * NB + j];
-        if (a2 >= 0.85 * t) break;
-      }
-      const reach = t >= 3 ? Math.min(R * 1.25, (j + 1) * binW) : 0.35 * R;
-      bareList.push(Math.max(0.35 * R, reach));
-    }
+    const br = bareReach(branch, lab, l, aw, tx0[l], ty0[l], tx1[l], ty1[l], px0, py0, cA, reachB);
+    if (br.radial < 1.2) continue;
+    if (topArea >= 0.08 * sq && br.ext < 3 * Math.sqrt(topArea / Math.PI) + 0.1 * cA) continue;
+    bareList.push(px0, py0, br.R);
+    for (let di = 0; di < TREE_DIRS; di++) bareList.push(reachB[di]);
   }
   const BL = 3 + TREE_DIRS;
   const nBare = bareList.length / BL;
@@ -3803,55 +4015,17 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
   dilate(m, 2, aw, ah, d);
   put(SN_GROUND, 1);
 
-  // The open snow's own tone: its luma with thin dark lines closed over (a baked grid, outlines),
-  // averaged over the open snow only, so a tree's dark rim or a dirt patch doesn't pull the
-  // snow's shading down next to it. Against it, a pixel's own detail (grain, grid lines, contour
-  // strokes) carries over to what replaces the snow.
-  const lc = new Uint8Array(N);
-  maxMin3(lum, aw, ah, lc, true);
-  maxMin3(lc, aw, ah, m, false);
-  sSum.fill(0);
-  sCnt.fill(0);
-  const hL = new Float64Array(256);
-  let nOpen = 0;
+  // The open snow's own tone and colour, and the map's own grass and earth (see snowColours).
+  const openM = new Uint8Array(N);
+  const grassM = new Uint8Array(N);
   for (let k = 0; k < N; k++) {
-    if (!sm[k] || capM[k] || oKind[objL[k]]) continue;
-    sSum[k] = m[k];
-    sCnt[k] = 1;
-    hL[lum[k]]++;
-    nOpen++;
+    const kd = oKind[objL[k]];
+    openM[k] = sm[k] && !capM[k] && !kd ? 1 : 0;
+    grassM[k] = kd === K_LAWN && veg[k] ? 1 : 0;
   }
-  let ref = 255;
-  for (let i = 0, acc = 0; i < 256; i++) {
-    acc += hL[i];
-    if (acc >= 0.85 * nOpen) {
-      ref = i;
-      break;
-    }
-  }
-  // Where there's no open snow near, the snow's mean over a wider round. (The near mean and how
-  // much of it counts wait in the tone channel and lc while the same sums are spread wider.)
-  blurF(sSum, aw, ah, 2);
-  blurF(sCnt, aw, ah, 2);
-  for (let k = 0; k < N; k++) {
-    const c = sCnt[k];
-    lc[k] = Math.round(255 * ramp(c, 0.04, 0.2));
-    s[k * NSN + SN_TONE] = c > 0 ? Math.round(sSum[k] / c) : 0;
-    sSum[k] = 0;
-    sCnt[k] = 0;
-  }
-  for (let k = 0; k < N; k++) {
-    if (!sm[k] || capM[k] || oKind[objL[k]]) continue;
-    sSum[k] = m[k];
-    sCnt[k] = 1;
-  }
-  blurF(sSum, aw, ah, Math.max(2, Math.round(cA)));
-  blurF(sCnt, aw, ah, Math.max(2, Math.round(cA)));
-  for (let k = 0, o = SN_TONE; k < N; k++, o += NSN) {
-    const wide = sCnt[k] > 0.02 ? sSum[k] / sCnt[k] : mL;
-    const kk = lc[k] * INV255;
-    s[o] = Math.round(s[o] * kk + wide * (1 - kk));
-  }
+  const col = snowColours(rgba, aw, ah, cA, { open: openM, grass: grassM, earth }, { lum, meanLum: mL });
+  for (let k = 0, o = SN_TONE; k < N; k++, o += NSN) s[o] = col.tone[k];
+  const ref = col.ref;
 
   // 9. Trees: capped crowns, bushes and props as found; bare trees as their trunk and reach.
   const oIdx = new Int32Array(nO + 1);
@@ -3904,7 +4078,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
     trees[b + 2] = Math.sqrt(n / Math.PI);
     trees[b + 3] = oKind[l];
     for (let c = 0; c < 3; c++) trees[b + 4 + c] = acc[o + 6] >= 4 ? acc[o + 3 + c] / acc[o + 6] : EVER_G[c];
-    trees[b + 7] = ref * INV255;
+    trees[b + 7] = ref;
   }
   // A crown's snow: its lit luma (the 85th percentile of its snow pixels, roughly).
   {
@@ -3930,7 +4104,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
     trees[b + 2] = bareList[q + 2];
     trees[b + 3] = K_BARE;
     for (let c = 0; c < 3; c++) trees[b + 4 + c] = EVER_G[c];
-    trees[b + 7] = ref * INV255;
+    trees[b + 7] = ref;
     for (let di = 0; di < TREE_DIRS; di++) trees[b + 8 + di] = bareList[q + 3 + di];
   }
   // Each pixel near a crown, bush or prop knows it; a bare tree's domain is as far as its leaves
@@ -3969,54 +4143,9 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
   dilate(m, 1, aw, ah, d);
   for (let k = 0; k < N; k++) s[k * NSN + SN_OBJ] = m[k] ? 255 : 0;
 
-  // The map's own grass and earth.
-  const grass = new Float64Array([98, 128, 60]);
-  const earthC = new Float64Array([118, 100, 80]);
-  let hasGrass = 0;
-  let grassLum = 0.5;
-  {
-    const gs = [0, 0, 0, 0, 0];
-    const es = [0, 0, 0, 0];
-    for (let k = 0, o = 0; k < N; k++, o += 4) {
-      const kd = oKind[objL[k]];
-      const a = kd === K_LAWN && veg[k] ? gs : earth[k] ? es : null;
-      if (!a) continue;
-      a[0] += rgba[o];
-      a[1] += rgba[o + 1];
-      a[2] += rgba[o + 2];
-      a[3]++;
-      if (a === gs) gs[4] += lum[k];
-    }
-    if (gs[3] >= 0.5 * sq) {
-      for (let c = 0; c < 3; c++) grass[c] = gs[c] / gs[3];
-      hasGrass = 1;
-      grassLum = gs[4] / gs[3] / 255;
-    }
-    if (es[3] >= sq) for (let c = 0; c < 3; c++) earthC[c] = es[c] / es[3];
-  }
   let out = 0;
   for (let k = 0; k < N; k++) if (s[k * NSN + SN_GROUND] >= 128 || oKind[objL[k]] || tl[k]) out++;
-  // The snow's colour at its lit tone.
-  const snowC = new Float64Array([ref - 4, ref, ref + 4]);
-  {
-    let sr = 0;
-    let sg = 0;
-    let sb = 0;
-    let n = 0;
-    for (let k = 0, o = 0; k < N; k++, o += 4) {
-      if (!sm[k] || capM[k] || oKind[objL[k]] || Math.abs(lum[k] - ref) > 6) continue;
-      sr += rgba[o];
-      sg += rgba[o + 1];
-      sb += rgba[o + 2];
-      n++;
-    }
-    if (n >= 16) {
-      snowC[0] = sr / n;
-      snowC[1] = sg / n;
-      snowC[2] = sb / n;
-    }
-  }
-  return { s, tl, trees, nTrees: nT, ref: ref * INV255, grass, hasGrass, grassLum, earth: earthC, snow: snowC, frac: out / N };
+  return { s, tl, trees, nTrees: nT, ref, grass: col.grass, hasGrass: col.hasGrass, grassLum: col.grassLum, earth: col.earth, snow: col.snow, frac: out / N };
 }
 
 // ---------------------------------------------------------------- snowy maps: tiles

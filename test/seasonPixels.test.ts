@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { SEASON_LOOKS } from "../src/shared/types";
 import type { SeasonLook } from "../src/shared/types";
-import { ALGO_VERSION, PIXEL_SNOWY, analyse, analysePixelSnowy, bake, outdoorFraction, seedFrom } from "../src/client/room/seasonPixels";
+import {
+  ALGO_VERSION,
+  PIXEL_SNOWY,
+  TREE_DIRS,
+  analyse,
+  analysePixelSnowy,
+  bake,
+  bareReach,
+  outdoorFraction,
+  seedFrom,
+  snowColours,
+} from "../src/client/room/seasonPixels";
 import type { SeasonAnalysis } from "../src/client/room/seasonPixels";
 import { readPng } from "./helpers/png";
 import type { PngImage } from "./helpers/png";
@@ -1740,4 +1751,75 @@ describe("seasonPixels on a map painted under snow", () => {
       expect(autumn[1][i].n).toBeLessThan(autumn[0][i].n);
     }
   }, 30_000);
+});
+
+describe("seasonPixels helpers for the Dungeondraft path", () => {
+  it("measures the snow's tone and colours over the masks it's given", () => {
+    const w = 120;
+    const h = 80;
+    const px = new Uint8ClampedArray(w * h * 4);
+    const open = new Uint8Array(w * h);
+    const grass = new Uint8Array(w * h);
+    const earth = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const k = y * w + x;
+        const c: RGB = x < 20 ? [96, 140, 70] : x < 40 ? [120, 100, 80] : [230, 236, 246];
+        px.set([c[0], c[1], c[2], 255], k * 4);
+        if (x < 20) grass[k] = 1;
+        else if (x < 40) earth[k] = 1;
+        else open[k] = 1;
+      }
+    }
+    const c = snowColours(px, w, h, 10, { open, grass, earth });
+    const snowLum = Math.floor((299 * 230 + 587 * 236 + 114 * 246 + 500) / 1000);
+    expect(c.ref).toBeCloseTo(snowLum / 255, 9);
+    expect([...c.snow]).toEqual([230, 236, 246]);
+    expect(c.hasGrass).toBe(1);
+    expect([...c.grass]).toEqual([96, 140, 70]);
+    expect([...c.earth]).toEqual([120, 100, 80]);
+    // Out on the open snow, its tone is its own luma.
+    for (let y = 5; y < h - 5; y++) for (let x = 60; x < w - 5; x++) expect(c.tone[y * w + x]).toBe(snowLum);
+    // Too little grass or earth: the defaults.
+    const none = snowColours(px, w, h, 30, { open, grass: new Uint8Array(w * h), earth: new Uint8Array(w * h) });
+    expect(none.hasGrass).toBe(0);
+    expect([...none.earth]).toEqual([118, 100, 80]);
+  });
+
+  it("finds a bare tree's reach along its strokes, in the directions they go", () => {
+    const w = 160;
+    const h = 160;
+    const cA = 20;
+    const cx = 80;
+    const cy = 80;
+    const stroke = new Uint8Array(w * h);
+    // Eight branches two squares long, along every other reach direction (design 2.9).
+    const dirOf = (k: number): [number, number] => {
+      const p = ((k & 3) + 0.5) / 4;
+      const v: [number, number] = k < 4 ? [1 - p, p] : k < 8 ? [-p, 1 - p] : k < 12 ? [p - 1, -p] : [p, p - 1];
+      const n = Math.hypot(v[0], v[1]);
+      return [v[0] / n, v[1] / n];
+    };
+    for (let k = 0; k < TREE_DIRS; k += 2) {
+      const [ux, uy] = dirOf(k);
+      for (let t = 3; t <= 2 * cA; t += 0.25) stroke[Math.floor(cy + uy * t) * w + Math.floor(cx + ux * t)] = 255;
+    }
+    const reach = new Float64Array(TREE_DIRS);
+    const r = bareReach(stroke, null, 0, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach);
+    expect(r.n).toBeGreaterThan(8 * 30);
+    expect(r.R).toBeGreaterThan(1.5 * cA);
+    expect(r.R).toBeLessThanOrEqual(2 * cA);
+    expect(r.radial).toBeGreaterThan(1.2);
+    expect(r.dirs).toBe(8);
+    for (let k = 0; k < TREE_DIRS; k++) {
+      if (k % 2 === 0) {
+        expect(reach[k]).toBeGreaterThan(1.5 * cA);
+        expect(reach[k]).toBeLessThanOrEqual(1.25 * r.R);
+      } else expect(reach[k]).toBeCloseTo(0.35 * r.R, 9);
+    }
+    // Only the strokes labelled l count.
+    const lab = new Int32Array(w * h).fill(2);
+    expect(bareReach(stroke, lab, 1, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach).n).toBe(0);
+    expect(bareReach(stroke, lab, 2, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach).n).toBe(r.n);
+  });
 });
