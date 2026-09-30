@@ -52,7 +52,8 @@ export function displayUrl(roomId: string, key: string): string {
   return `${location.origin}/r/${roomId}?display=${encodeURIComponent(key)}`;
 }
 
-const LIMITS: Record<AssetKind, { maxDim: number; maxBytes: number }> = {
+// Pictures only: a "mapdata" sidecar goes straight to uploadBlob, so it is never re-encoded.
+const LIMITS: Record<"map" | "token", { maxDim: number; maxBytes: number }> = {
   // Big enough for detailed battle maps, small enough for a phone to hold in memory.
   map: { maxDim: 6144, maxBytes: 12 * 1024 * 1024 },
   token: { maxDim: 1024, maxBytes: 1.5 * 1024 * 1024 },
@@ -70,7 +71,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
  */
 export async function prepareImage(
   file: Blob,
-  kind: AssetKind,
+  kind: "map" | "token",
 ): Promise<{ blob: Blob; width: number; height: number; sourceWidth: number; sourceHeight: number }> {
   let bitmap: ImageBitmap;
   try {
@@ -140,7 +141,7 @@ export interface Uploaded {
 export async function uploadImage(
   roomId: string,
   file: File,
-  kind: AssetKind,
+  kind: "map" | "token",
   uid: string,
   name = file.name.replace(/\.[a-z0-9]+$/i, ""),
 ): Promise<Uploaded> {

@@ -55,9 +55,37 @@ export interface Scene {
   createdAt: number;
   /** A seasonal look (snow, autumn leaves...). Missing: the map as drawn. */
   season?: SceneSeason;
+  /** Exact data for seasons from the map's Dungeondraft project file. Missing: seasons guess from the picture. */
+  mapData?: SceneMapData;
+  /**
+   * The picture's rectangle in its Dungeondraft map, in squares [x, y, w, h] (from a .dd2vtt).
+   * Cleared when the picture changes.
+   */
+  mapRect?: [number, number, number, number];
 }
 
-export type AssetKind = "map" | "token";
+/** A Dungeondraft map's exact data for Seasons, compiled from its .dungeondraft_map (no picture in it). */
+export interface SceneMapData {
+  /** The sidecar asset (kind "mapdata"). */
+  assetId: string;
+  /** The map picture it was lined up with: used only while scene.mapAssetId is the same. */
+  forAssetId: string;
+  /** Bare trees ("dead_tree"): come into leaf, or stay dead. Missing: by the map (snowy: leaf; green: dead). */
+  bare?: "leaf" | "dead";
+  /** What the picture shows. Missing: by the map (snow on at least half the open soft ground: winter). */
+  drawn?: "winter" | "green";
+  /** Attached but not used until the GM checks it: it didn't seem to line up, or the level was unclear. */
+  hold?: true;
+  /**
+   * Asset-pack items. Missing: left as drawn. "guess": seasons may treat the trees and snow caps the
+   * picture shows inside their measured areas as the picture-guessing path would. Pack files are
+   * never opened either way.
+   */
+  packs?: "guess";
+}
+
+/** "mapdata": a compiled Dungeondraft sidecar, packed losslessly in a PNG (GM only, never shown as a picture). */
+export type AssetKind = "map" | "token" | "mapdata";
 
 export interface Asset {
   id: string;

@@ -1,6 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import { Pencil, Trash, Upload } from "lucide-preact";
-import type { Asset, AssetKind } from "../../shared/types";
+import type { Asset } from "../../shared/types";
 import { fileUrl } from "../api";
 import { PLAYER_COLORS } from "../identity";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
@@ -13,7 +13,7 @@ export function LibraryPanel() {
   const uploading = useRoomState((s) => s.uploading);
   const items = useRoomState((s) => s.items);
   const scenes = useRoomState((s) => s.scenes);
-  const [tab, setTab] = useState<AssetKind>("token");
+  const [tab, setTab] = useState<"map" | "token">("token");
   const [label, setLabel] = useState("");
   const [renaming, setRenaming] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<Asset | null>(null);

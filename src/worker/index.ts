@@ -5,7 +5,7 @@
 
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
-import type { Asset, AssetKind, Role } from "../shared/types";
+import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -13,7 +13,7 @@ import { fileKey } from "./room";
 export { Directory } from "./directory";
 export { Room } from "./room";
 
-const MAX_UPLOAD_BYTES: Record<AssetKind, number> = {
+const MAX_UPLOAD_BYTES: Record<"map" | "token", number> = {
   map: 30 * 1024 * 1024,
   token: 5 * 1024 * 1024,
 };

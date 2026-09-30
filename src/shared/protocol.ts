@@ -12,6 +12,7 @@ import type {
   RoomInfo,
   RoomSettings,
   Scene,
+  SceneMapData,
   SceneSeason,
 } from "./types";
 
@@ -44,8 +45,16 @@ export interface ItemOps {
   delete?: string[];
 }
 
-/** Some of a scene's settings: the ones left out stay as they are (a season of null turns it off). */
-export type ScenePatch = Partial<Omit<Scene, "season">> & { id: string; season?: SceneSeason | null };
+/**
+ * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
+ * a mapData or mapRect of null removes it).
+ */
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect">> & {
+  id: string;
+  season?: SceneSeason | null;
+  mapData?: SceneMapData | null;
+  mapRect?: [number, number, number, number] | null;
+};
 
 /** Everything a browser can ask the server to change. */
 export type ClientAction =

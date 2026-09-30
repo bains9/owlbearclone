@@ -14,7 +14,6 @@ import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
 import type { Point } from "../../shared/geometry";
 import type {
   Asset,
-  AssetKind,
   ChatMessage,
   DrawShape,
   DrawingItem,
@@ -1291,7 +1290,7 @@ export class RoomClient {
     return this.profile;
   }
 
-  async upload(files: File[], kind: AssetKind): Promise<Asset[]> {
+  async upload(files: File[], kind: "map" | "token"): Promise<Asset[]> {
     const done = await this.uploadEach(files.map((file) => ({ file })), kind);
     return done.map((d) => d.asset);
   }
@@ -1304,7 +1303,7 @@ export class RoomClient {
 
   private async uploadEach<T extends { file: File; name?: string; map?: MapFile }>(
     list: T[],
-    kind: AssetKind,
+    kind: "map" | "token",
   ): Promise<(Uploaded & T)[]> {
     const out: (Uploaded & T)[] = [];
     this.store.set((s) => ({ uploading: s.uploading + list.length }));
