@@ -3182,18 +3182,25 @@ export interface BareReach {
   radial: number;
   /** Its radius: ext, kept to 0.4-3.5 squares. */
   R: number;
-  /** Directions with at least 3 stroke pixels. */
+  /** Directions with at least 3 stroke pixels (snowAnalysis's test for a tree's shape). */
   dirs: number;
+  /**
+   * Directions with any stroke pixel: design 2.5's presence test for a Dungeondraft bare tree
+   * (at least 6 of 16 rays meet strokes within the prior) counts these, with the strokes outside
+   * the prior left out (by lab). A direction is its whole sector, so a thin stroke between two
+   * rays still counts.
+   */
+  hit: number;
 }
 
 /**
  * A bare tree's reach from its branch strokes, round a centre (cx, cy): its trunk (snowAnalysis)
  * or the object's own centre (Dungeondraft data, so roots and stumps aren't taken for trunks).
- * The strokes are the pixels in the box x0..x1, y0..y1 (inclusive) where stroke is non-zero and,
- * when lab is given, lab is l; pixel (x, y) stands at (x + 0.5, y + 0.5), and cA is a square in
- * pixels. Fills reach (TREE_DIRS values) with how far 85% of each direction's strokes lie, 0.35
- * to 1.25 times R (0.35 R with fewer than 3): direction k is diamond() from k to k + 1, times
- * TREE_DIRS / 4.
+ * The strokes are the pixels in the box x0..x1, y0..y1 (inclusive, clipped to the image, which is
+ * aw wide and stroke.length / aw high) where stroke is non-zero and, when lab is given, lab is l;
+ * pixel (x, y) stands at (x + 0.5, y + 0.5), and cA is a square in pixels. Fills reach
+ * (TREE_DIRS values) with how far 85% of each direction's strokes lie, 0.35 to 1.25 times R
+ * (0.35 R with fewer than 3): direction k is diamond() from k to k + 1, times TREE_DIRS / 4.
  */
 export function bareReach(
   stroke: Uint8Array,
@@ -3213,6 +3220,11 @@ export function bareReach(
   const binW = (4 * cA) / NB;
   const hist = new Float64Array(NB);
   const dirR = new Float64Array(TREE_DIRS * NB);
+  // (A box round an object's centre may run off the map's edge.)
+  x0 = Math.max(0, x0);
+  y0 = Math.max(0, y0);
+  x1 = Math.min(aw - 1, x1);
+  y1 = Math.min(Math.floor(stroke.length / aw) - 1, y1);
   let tot = 0;
   for (let y = y0; y <= y1; y++) {
     for (let x = x0, k = y * aw + x0; x <= x1; x++, k++) {
@@ -3244,6 +3256,7 @@ export function bareReach(
   const R = Math.max(0.4 * cA, Math.min(3.5 * cA, ext));
   // Reach per direction: where 85% of that direction's strokes lie.
   let dirs = 0;
+  let hit = 0;
   for (let di = 0; di < TREE_DIRS; di++) {
     let t = 0;
     for (let j = 0; j < NB; j++) t += dirR[di * NB + j];
@@ -3254,10 +3267,11 @@ export function bareReach(
       if (a2 >= 0.85 * t) break;
     }
     if (t >= 3) dirs++;
+    if (t > 0) hit++;
     const r = t >= 3 ? Math.min(R * 1.25, (j + 1) * binW) : 0.35 * R;
     reach[di] = Math.max(0.35 * R, r);
   }
-  return { n: tot, ext, radial, R, dirs };
+  return { n: tot, ext, radial, R, dirs, hit };
 }
 
 function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: number): SnowInfo | null {

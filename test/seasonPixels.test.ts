@@ -13,7 +13,7 @@ import {
   seedFrom,
   snowColours,
 } from "../src/client/room/seasonPixels";
-import type { SeasonAnalysis } from "../src/client/room/seasonPixels";
+import type { BareReach, SeasonAnalysis } from "../src/client/room/seasonPixels";
 import { readPng } from "./helpers/png";
 import type { PngImage } from "./helpers/png";
 
@@ -1141,9 +1141,10 @@ interface SnowyMap extends HiMap {
  * A map painted under snow, as Dungeondraft paints one: bright bluish-white snow, bluer and
  * darker in soft painted shade, with grain; a grid baked into the picture as thin dotted lines;
  * snow-capped crowns (a white cap with contour rings and a leafy green rim, outlined), frosted
- * evergreens, bare trees drawn as brown branches, a patch of bare earth and one of grass.
+ * evergreens, bare trees drawn as brown branches, a patch of bare earth and one of grass. With
+ * bareOnly, no crowns or evergreens: only the bare trees stand in it.
  */
-function snowyMap(): SnowyMap {
+function snowyMap(bareOnly = false): SnowyMap {
   const p = new Canvas(24, 16, 2718);
   const n1 = lattice(p.w, p.h, 1.4 * SC, p.rnd);
   const n2 = lattice(p.w, p.h, 0.5 * SC, p.rnd);
@@ -1164,12 +1165,12 @@ function snowyMap(): SnowyMap {
       p.set(x, y, [r * 0.8, g * 0.82, b * 0.85]);
     }
   }
-  const caps = [
+  const caps = bareOnly ? [] : [
     [4, 4, 1.5],
     [19, 11.5, 1.9],
     [21, 3, 1.2],
   ];
-  const evergreens = [
+  const evergreens = bareOnly ? [] : [
     [10, 3, 1.1],
     [3, 12, 1.0],
     [14, 13, 1.2],
@@ -1455,7 +1456,10 @@ describe("seasonPixels on maps with no snow", () => {
 
 // Kdir Topside (Vern's map, 32 x 18 squares at 108 px), reduced for the tests: the whole map at
 // 20 px a square for the analysis, and for the bakes a crop of 10 x 4.5 squares from square
-// (10.5, 0.5) at 54 px a square (a capped crown, bushes, an evergreen and bare trees).
+// (10.5, 0.5) at 54 px a square (a capped crown, bushes, an evergreen and bare trees). Both are
+// sharp lanczos3 resizes of kdir-topside.webp (alpha removed; the crop from a 1728 x 972 resize at
+// 567, 27), saved as lossless RGB PNGs: `png({ palette: false })`, since sharp's `effort` option
+// turns palette mode on and would dither them to 256 colours.
 const KDIR = { sceneW: 3456, sceneH: 1944, cell: 108, cellA: 20, x0: 1134, y0: 54, scale: 2 };
 let kdirPics: Promise<[PngImage, PngImage]> | null = null;
 
@@ -1465,6 +1469,13 @@ function kdirPictures(): Promise<[PngImage, PngImage]> {
     readPng(new URL("./fixtures/snow/kdir-crop.png", import.meta.url)),
   ]);
   return kdirPics;
+}
+
+/** How many colours a picture uses. */
+function colourCount(p: PngImage): number {
+  const seen = new Set<number>();
+  for (let o = 0; o < p.px.length; o += 4) seen.add((p.px[o] << 16) | (p.px[o + 1] << 8) | p.px[o + 2]);
+  return seen.size;
 }
 
 /** Kdir's crop baked in all twelve looks with seed 777. */
@@ -1485,7 +1496,7 @@ function kdirBakes(crop: PngImage, a: SeasonAnalysis): Uint8ClampedArray[] {
 // (ALGO_VERSION 3). Hashes as above (Kdir: its crop's bakes).
 const GOLDEN_PLAIN: Record<string, string> = {
   snowy: "dc76e417 1c184385",
-  kdir: "075327b1 be812b76",
+  kdir: "10ee0add b2debe02",
 };
 
 describe("seasonPixels while the picture's own snow detection is off", () => {
@@ -1514,7 +1525,7 @@ function snowHash(a: SeasonAnalysis): string {
 // The melt kernels are shared with the Dungeondraft path, so these hold while it's off.
 const GOLDEN_SNOWY: Record<string, string> = {
   snowy: "13a63aba 56fb0269",
-  kdir: "f361cb9e 72f6ec84",
+  kdir: "27284aee ff4893ed",
 };
 
 describe("seasonPixels on a map painted under snow", () => {
@@ -1530,6 +1541,9 @@ describe("seasonPixels on a map painted under snow", () => {
 
   it("analyses and bakes Kdir Topside exactly as when it was frozen", async () => {
     const [pic, crop] = await kdirPictures();
+    // Kdir's own pixels, not a palette's (its true resizes have 12,794 and 15,375 colours).
+    expect(colourCount(pic)).toBe(12794);
+    expect(colourCount(crop)).toBe(15375);
     const k = analysePixelSnowy(pic.px, pic.w, pic.h, KDIR.cellA);
     expect(k.snow).not.toBeNull();
     // It found capped crowns, evergreens, bare trees and props.
@@ -1559,6 +1573,47 @@ describe("seasonPixels on a map painted under snow", () => {
     expect(b.snow).not.toBeNull();
     const kinds = (q: SeasonAnalysis): number[] => snowTrees(q).map((t) => t[2]).sort();
     expect(kinds(b)).toEqual(kinds(a));
+  }, 30_000);
+
+  it("takes it for snow only while the snow is bright", () => {
+    // The whole map's snow must average a luma of at least 205: at 95.5% it still does, at 94%
+    // it no longer does (and nothing else about it has changed enough to matter).
+    const aw = map.w >> 1;
+    const ah = map.h >> 1;
+    const small = shrink(map, aw, ah, "box");
+    const dimmed = (f: number): Uint8ClampedArray => {
+      const px = new Uint8ClampedArray(small);
+      for (let o = 0; o < px.length; o += 4) for (let c = 0; c < 3; c++) px[o + c] = Math.round(px[o + c] * f);
+      return px;
+    };
+    expect(analysePixelSnowy(dimmed(0.955), aw, ah, SC / 2).snow).not.toBeNull();
+    expect(analysePixelSnowy(dimmed(0.94), aw, ah, SC / 2).snow).toBeNull();
+  }, 30_000);
+
+  it("gives a bare tree the crowns' own green for its leaves, or Dungeondraft's when there are none", () => {
+    const green = (a: SeasonAnalysis, kind: number): number[][] => {
+      const sn = a.snow!;
+      const out: number[][] = [];
+      for (let t = 0; t < sn.nTrees; t++) if (sn.trees[t * TREE_N + 3] === kind) out.push([...sn.trees.subarray(t * TREE_N + 4, t * TREE_N + 7)]);
+      return out;
+    };
+    // Among the crowns' greens, not the default.
+    const crowns = [...green(a, K_CAP), ...green(a, K_EVER)];
+    const bare = green(a, K_BARE);
+    expect(bare.length).toBe(map.bare.length);
+    for (const g of bare) {
+      expect(g).not.toEqual([62, 98, 56]);
+      for (let c = 0; c < 3; c++) {
+        expect(g[c]).toBeGreaterThanOrEqual(Math.min(...crowns.map((q) => q[c])));
+        expect(g[c]).toBeLessThanOrEqual(Math.max(...crowns.map((q) => q[c])));
+      }
+    }
+    // Only bare trees on the snow: Dungeondraft's green.
+    const only = snowyMap(true);
+    const b = analysedHalf(only, analysePixelSnowy);
+    expect(b.snow).not.toBeNull();
+    expect(snowTrees(b).map((t) => t[2])).toEqual(only.bare.map(() => K_BARE));
+    for (const g of green(b, K_BARE)) expect(g).toEqual([62, 98, 56]);
   }, 30_000);
 
   it("doesn't take a pale stone floor, a marble hall or a paper margin for snow", () => {
@@ -1784,6 +1839,27 @@ describe("seasonPixels helpers for the Dungeondraft path", () => {
     const none = snowColours(px, w, h, 30, { open, grass: new Uint8Array(w * h), earth: new Uint8Array(w * h) });
     expect(none.hasGrass).toBe(0);
     expect([...none.earth]).toEqual([118, 100, 80]);
+    // Grass from half a square up (50 pixels at 10 a square), earth from a whole square (100).
+    const band = (x0: number, n: number): Uint8Array => {
+      const m = new Uint8Array(w * h);
+      for (let i = 0; i < n; i++) m[(i % h) * w + x0 + Math.floor(i / h)] = 1;
+      return m;
+    };
+    for (const [n, has] of [
+      [49, 0],
+      [50, 1],
+    ] as const) {
+      const g = snowColours(px, w, h, 10, { open, grass: band(0, n), earth: new Uint8Array(w * h) });
+      expect(g.hasGrass).toBe(has);
+      expect([...g.grass]).toEqual(has ? [96, 140, 70] : [98, 128, 60]);
+    }
+    for (const [n, has] of [
+      [99, 0],
+      [100, 1],
+    ] as const) {
+      const e = snowColours(px, w, h, 10, { open, grass: new Uint8Array(w * h), earth: band(20, n) });
+      expect([...e.earth]).toEqual(has ? [120, 100, 80] : [118, 100, 80]);
+    }
   });
 
   it("finds a bare tree's reach along its strokes, in the directions they go", () => {
@@ -1811,6 +1887,7 @@ describe("seasonPixels helpers for the Dungeondraft path", () => {
     expect(r.R).toBeLessThanOrEqual(2 * cA);
     expect(r.radial).toBeGreaterThan(1.2);
     expect(r.dirs).toBe(8);
+    expect(r.hit).toBe(8);
     for (let k = 0; k < TREE_DIRS; k++) {
       if (k % 2 === 0) {
         expect(reach[k]).toBeGreaterThan(1.5 * cA);
@@ -1821,5 +1898,34 @@ describe("seasonPixels helpers for the Dungeondraft path", () => {
     const lab = new Int32Array(w * h).fill(2);
     expect(bareReach(stroke, lab, 1, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach).n).toBe(0);
     expect(bareReach(stroke, lab, 2, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach).n).toBe(r.n);
+    // A single stroke pixel meets a direction (design 2.5's presence test), three make its shape.
+    const dots = new Uint8Array(w * h);
+    for (let k = 0; k < 6; k++) {
+      const [ux, uy] = dirOf(2 * k);
+      dots[Math.floor(cy + uy * cA) * w + Math.floor(cx + ux * cA)] = 1;
+    }
+    const d = bareReach(dots, null, 0, w, 0, 0, w - 1, h - 1, cx, cy, cA, reach);
+    expect([d.n, d.hit, d.dirs]).toEqual([6, 6, 0]);
+  });
+
+  it("keeps a bare tree's box to the picture, however far past its edge it runs", () => {
+    // Strokes down the left and right edges; a box round a tree at either edge runs past it, and
+    // must not wrap round into the row above or below (the strokes at the other edge).
+    const w = 50;
+    const h = 50;
+    const stroke = new Uint8Array(w * h);
+    for (let y = 20; y <= 30; y++) for (const x of [0, 1, 2, 47, 48, 49]) stroke[y * w + x] = 1;
+    const reach = new Float64Array(TREE_DIRS);
+    const at = (x0: number, y0: number, x1: number, y1: number, cx: number, cy: number): BareReach =>
+      bareReach(stroke, null, 0, w, x0, y0, x1, y1, cx, cy, 10, reach);
+    const inside = (cx: number): BareReach => at(Math.max(0, Math.floor(cx) - 10), 15, Math.min(w - 1, Math.floor(cx) + 10), 35, cx, 25);
+    for (const cx of [0.5, 49.5]) {
+      const r = at(Math.floor(cx) - 10, -5, Math.floor(cx) + 10, h + 5, cx, 25);
+      expect(r.n).toBe(33);
+      expect(r).toEqual(inside(cx));
+    }
+    // A box wholly off the picture holds nothing.
+    expect(at(60, 60, 70, 70, 65, 65).n).toBe(0);
+    expect(at(-20, 20, -5, 30, -10, 25).n).toBe(0);
   });
 });
