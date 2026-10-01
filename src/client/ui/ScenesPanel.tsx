@@ -175,6 +175,8 @@ export function NewSceneDialog(props: {
       const r = await importFiles(room, files, { name: name.trim(), order, covered, onProgress: setWorking });
       if (!r.scenes.length) {
         for (const n of r.notes) room.toast(n, "error");
+        // Opened by a drop that brought nothing in: don't leave an empty window behind.
+        if (props.files) props.onClose();
         return;
       }
       room.viewSceneLocally(r.scenes[0].id);

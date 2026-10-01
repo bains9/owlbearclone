@@ -15,8 +15,19 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 29 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 30 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Dungeondraft project files explained (30 September 2026)",
+        "steps": [
+          "GM: in Dungeondraft, choose **Export** and set the export mode to **Universal VTT**.",
+          "Bring the .dd2vtt file it makes into Tabletop: **Import Dungeondraft map**, **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "Dungeondraft's own project file (its name ends in .dungeondraft_map) has the map's data but no picture, so Tabletop can't make a scene from it. Bringing one in now says so and asks for the export, instead of doing nothing.",
+          "See **Coming from Dungeondraft**."
+        ]
+      },
       {
         "title": "Pointing on the table display (29 September 2026, later)",
         "steps": [
@@ -449,8 +460,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
-          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token.",
-          "If a player drops a map file (a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
+          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. A Dungeondraft project file (.dungeondraft_map) gets a message asking for its Universal VTT export instead.",
+          "If a player drops a map file (a Dungeondraft or other Universal VTT file, a Dungeondraft project file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
         ]
       },
       {
@@ -1442,7 +1453,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
           "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not.",
-          "Universal VTT files saved with a .json ending work too."
+          "Universal VTT files saved with a .json ending work too.",
+          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture: bring in its Universal VTT export instead. If you bring in the project file, Tabletop says so."
         ]
       },
       {
@@ -1526,6 +1538,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
+          "Bring in the export, not the map you save in Dungeondraft (the .dungeondraft_map file): that one has no picture in it, and Tabletop tells you so if you try.",
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
           "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",

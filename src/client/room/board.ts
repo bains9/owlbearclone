@@ -86,7 +86,7 @@ import { getImage, imageFailed } from "./images";
 import { SeasonBaker } from "./seasons";
 import type { SeasonJob } from "./seasons";
 import { ALGO_VERSION, seedFrom } from "./seasonPixels";
-import { isVttFile, looksLikeMap } from "../mapImport";
+import { isDungeondraftProject, isVttFile, looksLikeMap } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -4008,7 +4008,7 @@ export class Board implements BoardApi {
     for (const f of files) {
       if (this.isGm && (await looksLikeMap(f))) maps.push(f);
       else if (f.type.startsWith("image/")) tokens.push(f);
-      else if (isVttFile(f) || /\.(ob2|owlbear)$/i.test(f.name)) this.room.toast("Only the GM can add maps.", "error");
+      else if (isVttFile(f) || isDungeondraftProject(f) || /\.(ob2|owlbear)$/i.test(f.name)) this.room.toast("Only the GM can add maps.", "error");
     }
     if (maps.length) this.room.store.set({ mapImport: maps });
     if (tokens.length && at) void this.room.uploadTokens(tokens, at);
