@@ -691,7 +691,7 @@ export function dilate(m: Uint8Array, r: number, w: number, h: number, d: Int32A
 }
 
 /** Labels the 4-connected regions of mask 1..n; returns n. */
-function label4(mask: Uint8Array, w: number, h: number, lab: Int32Array, stack: Int32Array): number {
+export function label4(mask: Uint8Array, w: number, h: number, lab: Int32Array, stack: Int32Array): number {
   const total = w * h;
   lab.fill(0, 0, total);
   let n = 0;
@@ -2875,6 +2875,35 @@ export const K_BARE = 3;
 export const K_PROP = 4;
 /** (Analysis only: a patch of grass.) */
 export const K_LAWN = 5;
+/** Dungeondraft data only (seasonExact.ts): an uncapped leafy crown (a deciduous tree or a bush drawn green). */
+export const K_BROAD = 6;
+/** Dungeondraft data only: a bare tree that stays dead (SceneMapData.bare "dead"). */
+export const K_DEAD = 7;
+
+/**
+ * What a snowy map's analysis knows besides SnowInfo's own fields when it comes from Dungeondraft
+ * data (seasonExact.ts; design 5.4). Analysis resolution throughout; never set by snowAnalysis.
+ */
+export interface ExactSnow {
+  /** 3 bytes an analysis pixel: keep (0..255: left as drawn), roof snow (0..255), earth path (0..255). */
+  x: Uint8Array;
+  /**
+   * 1 byte an analysis pixel: the melt partner (a terrain role, roles.ts TR: ROCK, EARTH, SAND or
+   * PAVED) where the snow is partial (its weight under 0.9) or its rim reaches, that role has at
+   * least half the rest of the ground's weight and the picture shows it near; 0 for the new ground
+   * (and wherever the snow is whole). The bake melts what's snow-coloured there to the partner's
+   * colour (roleColour), and leaves the rest.
+   */
+  partner: Uint8Array;
+  /** Per tree (as trees): its own colour, RGB 0..255: the median of its footprint's pixels that aren't snow or ink. */
+  own: Float32Array;
+  /** Per terrain role (roles.ts TR, 0..8; 3 floats each): its colour where pure, RGB, sampled from the picture. */
+  roleColour: Float32Array;
+  /** 1 byte an analysis pixel: inside outdoor water, the distance to its shore in 1/16 square (map edges aren't shores). */
+  shore: Uint8Array;
+  /** 3 bytes an analysis pixel where roof snow lies (x[1] > 0): that roof's own colour, RGB (the median of its pixels that aren't snow or ink). */
+  roof: Uint8Array;
+}
 
 export interface SnowInfo {
   /** NSN bytes an analysis pixel (SN_*). */
@@ -2896,6 +2925,8 @@ export interface SnowInfo {
   snow: Float64Array;
   /** Outdoor share (what outdoorFraction reports). */
   frac: number;
+  /** Set only by analyseExact (Dungeondraft data): the exact extras the kernels' guarded branches read. */
+  exact?: ExactSnow;
 }
 
 /**
@@ -3038,42 +3069,13 @@ function snowLuma(rgba: Uint8ClampedArray, N: number): Uint8Array {
 }
 
 /**
- * The snow's and the ground's own colours, over masks (snowAnalysis's from the picture, or exact
- * ones from Dungeondraft data): the open snow's tone, its lit luma and colour, and the map's own
- * grass and earth (defaults where there's too little of either). pre gives what the caller has
- * already worked out: the luma (rounded as snowLuma does) and the snow's mean luma, the tone
- * where no open snow is near (by default the colour table's snow, weighted by how snowy).
+ * The open snow's own tone: its luma with thin dark lines closed over (a baked grid, outlines),
+ * averaged over the open snow only, so a tree's dark rim or a dirt patch doesn't pull the snow's
+ * shading down next to it. Against it, a pixel's own detail (grain, grid lines, contour strokes)
+ * carries over to what replaces the snow. mL: the tone where no open snow is near.
  */
-export function snowColours(
-  rgba: Uint8ClampedArray,
-  aw: number,
-  ah: number,
-  cA: number,
-  masks: SnowMasks,
-  pre: { lum?: Uint8Array; meanLum?: number } = {},
-): SnowColours {
+function openTone(lum: Uint8Array, open: Uint8Array, aw: number, ah: number, cA: number, mL: number): Uint8Array {
   const N = aw * ah;
-  const sq = cA * cA;
-  const lum = pre.lum ?? snowLuma(rgba, N);
-  let mL = pre.meanLum;
-  if (mL === undefined) {
-    const T = colourTable();
-    let sw = 0;
-    let sL = 0;
-    for (let k = 0, o = 0; k < N; k++, o += 4) {
-      const c = rgba[o + 3] >= 128 ? T[lutIndex(rgba[o], rgba[o + 1], rgba[o + 2]) + 3] * INV255 : 0;
-      if (!c) continue;
-      sw += c;
-      sL += c * lum[k];
-    }
-    mL = sw > 0 ? sL / sw : 255;
-  }
-  const open = masks.open;
-
-  // The open snow's own tone: its luma with thin dark lines closed over (a baked grid, outlines),
-  // averaged over the open snow only, so a tree's dark rim or a dirt patch doesn't pull the
-  // snow's shading down next to it. Against it, a pixel's own detail (grain, grid lines, contour
-  // strokes) carries over to what replaces the snow.
   const tone = new Uint8Array(N);
   const m = new Uint8Array(N);
   const lc = new Uint8Array(N);
@@ -3081,22 +3083,10 @@ export function snowColours(
   maxMin3(lc, aw, ah, m, false);
   const sSum = new Float64Array(N);
   const sCnt = new Float64Array(N);
-  const hL = new Float64Array(256);
-  let nOpen = 0;
   for (let k = 0; k < N; k++) {
     if (!open[k]) continue;
     sSum[k] = m[k];
     sCnt[k] = 1;
-    hL[lum[k]]++;
-    nOpen++;
-  }
-  let ref = 255;
-  for (let i = 0, acc = 0; i < 256; i++) {
-    acc += hL[i];
-    if (acc >= 0.85 * nOpen) {
-      ref = i;
-      break;
-    }
   }
   // Where there's no open snow near, the snow's mean over a wider round. (The near mean and how
   // much of it counts wait in tone and lc while the same sums are spread wider.)
@@ -3120,6 +3110,60 @@ export function snowColours(
     const wide = sCnt[k] > 0.02 ? sSum[k] / sCnt[k] : mL;
     const kk = lc[k] * INV255;
     tone[k] = Math.round(tone[k] * kk + wide * (1 - kk));
+  }
+  return tone;
+}
+
+/**
+ * The snow's and the ground's own colours, over masks (snowAnalysis's from the picture, or exact
+ * ones from Dungeondraft data): the open snow's tone, its lit luma and colour, and the map's own
+ * grass and earth (defaults where there's too little of either). pre gives what the caller has
+ * already worked out: the luma (rounded as snowLuma does) and the snow's mean luma, the tone
+ * where no open snow is near (by default the colour table's snow, weighted by how snowy); and the
+ * open snow's tone itself (pre.tone, used as it is).
+ */
+export function snowColours(
+  rgba: Uint8ClampedArray,
+  aw: number,
+  ah: number,
+  cA: number,
+  masks: SnowMasks,
+  pre: { lum?: Uint8Array; meanLum?: number; tone?: Uint8Array } = {},
+): SnowColours {
+  const N = aw * ah;
+  const sq = cA * cA;
+  const lum = pre.lum ?? snowLuma(rgba, N);
+  let mL = pre.meanLum;
+  if (mL === undefined) {
+    const T = colourTable();
+    let sw = 0;
+    let sL = 0;
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const c = rgba[o + 3] >= 128 ? T[lutIndex(rgba[o], rgba[o + 1], rgba[o + 2]) + 3] * INV255 : 0;
+      if (!c) continue;
+      sw += c;
+      sL += c * lum[k];
+    }
+    mL = sw > 0 ? sL / sw : 255;
+  }
+  const open = masks.open;
+
+  // The open snow's own tone (pre.tone: a caller that works it out its own way), and its lit luma.
+  const tone = pre.tone ?? openTone(lum, open, aw, ah, cA, mL);
+  const hL = new Float64Array(256);
+  let nOpen = 0;
+  for (let k = 0; k < N; k++) {
+    if (!open[k]) continue;
+    hL[lum[k]]++;
+    nOpen++;
+  }
+  let ref = 255;
+  for (let i = 0, acc = 0; i < 256; i++) {
+    acc += hL[i];
+    if (acc >= 0.85 * nOpen) {
+      ref = i;
+      break;
+    }
   }
 
   // The map's own grass and earth.
@@ -3274,7 +3318,17 @@ export function bareReach(
   return { n: tot, ext, radial, R, dirs, hit };
 }
 
-function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: number): SnowInfo | null {
+/**
+ * snowAnalysis without its tests of whether the picture is a map painted under snow (for a map
+ * whose Dungeondraft data says it is: seasonExact.ts, packs "guess"): what stands in the snow, as
+ * the picture shows it. Null only when the picture is too small to look at (under 4096 pixels or
+ * 4 pixels a square), or has no snow-coloured pixel at all.
+ */
+export function pixelSnowInfo(rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number): SnowInfo | null {
+  return snowAnalysis(rgba, aw, ah, cellA > 1 ? cellA : 1, false);
+}
+
+function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: number, gates = true): SnowInfo | null {
   const N = aw * ah;
   const sq = cA * cA;
   if (N < 4096 || cA < 4) return null;
@@ -3284,7 +3338,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
   for (let k = 0, o = 0; k < N; k++, o += 4) {
     if (rgba[o + 3] >= 128 && T[lutIndex(rgba[o], rgba[o + 1], rgba[o + 2]) + 3] >= 128) n0++;
   }
-  if (n0 < 0.2 * N) return null;
+  if (gates && n0 < 0.2 * N) return null;
 
   const lum = new Uint8Array(N);
   const mx = new Uint8Array(N);
@@ -3330,7 +3384,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
   const mBR = sBR / sw;
   const varL = sLL / sw - mL * mL;
   const slope = varL > 1 ? (sLBR / sw - mL * mBR) / varL : 0;
-  if (share < 0.2 || mL < 205 || mBR < 2 || slope > -0.06 || sTex / sw < 1.5) {
+  if (!(sw > 0) || (gates && (share < 0.2 || mL < 205 || mBR < 2 || slope > -0.06 || sTex / sw < 1.5))) {
     return null;
   }
 
@@ -3531,17 +3585,19 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
     let anyGrid = false;
     for (let x = 0; x < aw && !anyGrid; x++) if (gridX[x]) anyGrid = true;
     for (let y = 0; y < ah && !anyGrid; y++) if (gridY[y]) anyGrid = true;
+    // (Without the tests, the snow is taken as it was cut.)
     if (!anyGrid) {
-      return null;
-    }
-    const offCut = new Uint8Array(N);
-    for (let y = 0; y < ah; y++) for (let x = 0, k = y * aw; x < aw; x++, k++) offCut[k] = ink[k] && !gridX[x] && !gridY[y] ? 1 : 0;
-    dilate(offCut, 2, aw, ah, d);
-    for (let y = 0; y < ah; y++) {
-      for (let x = 0, k = y * aw; x < aw; x++, k++) if (ink[k] && (gridX[x] || gridY[y]) && !offCut[k]) ink[k] = 0;
-    }
-    if (!split(gridX, gridY)) {
-      return null;
+      if (gates) return null;
+    } else {
+      const offCut = new Uint8Array(N);
+      for (let y = 0; y < ah; y++) for (let x = 0, k = y * aw; x < aw; x++, k++) offCut[k] = ink[k] && !gridX[x] && !gridY[y] ? 1 : 0;
+      dilate(offCut, 2, aw, ah, d);
+      for (let y = 0; y < ah; y++) {
+        for (let x = 0, k = y * aw; x < aw; x++, k++) if (ink[k] && (gridX[x] || gridY[y]) && !offCut[k]) ink[k] = 0;
+      }
+      if (!split(gridX, gridY) && gates) {
+        return null;
+      }
     }
   }
   const snowL = new Int32Array(lab);
@@ -3988,7 +4044,7 @@ function snowAnalysis(rgba: Uint8ClampedArray, aw: number, ah: number, cA: numbe
                 : foreign > 0.12 * N
                   ? "foreign"
                   : "";
-  if (verdict) return null;
+  if (verdict && gates) return null;
 
   // 8. The fields.
   const s = new Uint8Array(N * NSN);
@@ -4651,6 +4707,7 @@ function buildSnowFields(o: BakeOptions, key: string): SnowFields {
   const toW = o.sceneH / (ah * o.cell);
   const S = sn.s;
   const P = SEASON_PARAMS;
+  const exact = !!sn.exact;
   const f = new Uint8Array(N * MC);
   const has = new Uint8Array(NSN);
   for (let k = 0; k < N; k++) for (let c = 0; c < NSN; c++) if (S[k * NSN + c]) has[c] = 1;
@@ -4819,9 +4876,11 @@ function buildSnowFields(o: BakeOptions, key: string): SnowFields {
     tp[q + 11] = (base[1] + 5 * hv + (140 - base[1]) * ol) * vv;
     tp[q + 12] = (base[2] - 8 * hv + (64 - base[2]) * ol) * vv;
     tp[q + 13] = look === "spring" && hash2(qx, qy, ts ^ 0x77) < P.spring.bloomTrees[L] ? 1 : 0;
-    const ls = leafShare(look, L, kind);
+    // (Dungeondraft data: a dead tree grows no leaves; a crown drawn green keeps all its own.)
+    const ls = kind === K_DEAD ? 0 : kind === K_BROAD ? 1 : leafShare(look, L, kind);
     tp[q + 14] = ls;
-    for (let di = 0; di < TREE_DIRS; di++) tp[q + TP_REACH + di] = (kind === K_BARE ? sn.trees[tb + 8 + di] : sn.trees[tb + 2]) * toU;
+    // (Dungeondraft data gives every kind its reach all round; the pixel path only bare trees.)
+    for (let di = 0; di < TREE_DIRS; di++) tp[q + TP_REACH + di] = (kind === K_BARE || exact ? sn.trees[tb + 8 + di] : sn.trees[tb + 2]) * toU;
     tp[q + 32] = R;
     tp[q + 33] = cu;
     tp[q + 34] = cw;
@@ -4847,7 +4906,7 @@ function buildSnowFields(o: BakeOptions, key: string): SnowFields {
       tp[q + 41] = far * 1.15 * leafScale + tp[q + 42];
     }
     // Fallen leaves gather under trees; new foliage casts a soft shadow down and to the right.
-    if (kind === K_EVER || kind === K_PROP) continue;
+    if (kind === K_EVER || kind === K_PROP || kind === K_DEAD) continue;
     const Ra = sn.trees[tb + 2];
     let far = Ra;
     if (kind === K_BARE) for (let di = 0; di < TREE_DIRS; di++) far = Math.max(far, sn.trees[tb + 8 + di]);
@@ -4948,6 +5007,34 @@ const Q_LOOK = NSN;
 /** 1 / the snow's tone (so a pixel's detail against it needs no division). */
 const Q_ITONE = NSN + MC;
 const QC = NSN + MC + 1;
+const exactAnyCache = new WeakMap<ExactSnow, Uint8Array>();
+/**
+ * Per analysis pixel k: 1 when any of the pixels k, k + 1, k + aw and k + aw + 1 (those in the
+ * picture) has keep, roof snow, an earth path or a melt partner, so a kernel needn't read them
+ * pixel by pixel where none lies (most of a map).
+ */
+function exactAny(X: ExactSnow, aw: number, ah: number): Uint8Array {
+  const hit = exactAnyCache.get(X);
+  if (hit) return hit;
+  const N = aw * ah;
+  const one = new Uint8Array(N);
+  const x = X.x;
+  const pt = X.partner;
+  for (let k = 0, q = 0; k < N; k++, q += 3) one[k] = x[q] | x[q + 1] | x[q + 2] | pt[k] ? 1 : 0;
+  const out = new Uint8Array(N);
+  for (let y = 0; y < ah; y++) {
+    const y1 = y < ah - 1 ? y + 1 : y;
+    for (let c = 0; c < aw; c++) {
+      const c1 = c < aw - 1 ? c + 1 : c;
+      out[y * aw + c] = one[y * aw + c] | one[y * aw + c1] | one[y1 * aw + c] | one[y1 * aw + c1];
+    }
+  }
+  exactAnyCache.set(X, out);
+  return out;
+}
+
+/** roles.ts TR.EARTH (ExactSnow.roleColour is indexed by terrain role). */
+const TR_EARTH = 4;
 
 /**
  * The fields for a strip, blended per row as Frame does: only the channels in use, and the
@@ -4976,6 +5063,19 @@ class SnowFrame {
   rowQ = 0;
   lastIy = -1;
   lastFy = -1;
+  /**
+   * Dungeondraft data only (SnowInfo.exact; null otherwise), read pixel by pixel where a kernel
+   * needs it (see xAt): per strip column its two analysis columns, and the row's two analysis rows
+   * (their starts) and the blend between them.
+   */
+  X: ExactSnow | null;
+  /** Per analysis pixel: whether the 2 x 2 pixels from it hold any of X's keep, roof snow, earth path or partner (see exactAny). */
+  xany: Uint8Array | null = null;
+  xc0: Int32Array | null = null;
+  xc1: Int32Array | null = null;
+  xr0 = 0;
+  xr1 = 0;
+  xfy = 0;
   constructor(o: BakeOptions, width: number, M: Uint8Array, sAct: number[], mAct: number[], oAct: number[]) {
     const a = o.a;
     this.S = (a.snow as SnowInfo).s;
@@ -5018,6 +5118,12 @@ class SnowFrame {
     this.ix1 = ix1;
     for (let i = 0; i < width; i++) this.colI[i] = (ixs[i] - ix0) * QC;
     this.rb = new Float64Array((ix1 - ix0 + 2) * QC);
+    this.X = (a.snow as SnowInfo).exact ?? null;
+    if (this.X) {
+      this.xany = exactAny(this.X, aw, a.ah);
+      this.xc0 = ixs;
+      this.xc1 = Int32Array.from(ixs, (ix) => (ix + 1 < aw ? ix + 1 : aw - 1));
+    }
   }
   row(j: number): void {
     const aw = this.aw;
@@ -5036,6 +5142,9 @@ class SnowFrame {
     this.lastIy = iy;
     this.lastFy = fy;
     const iy1 = ah > 1 ? iy + 1 : iy;
+    this.xr0 = iy * aw;
+    this.xr1 = iy1 * aw;
+    this.xfy = fy;
     const S = this.S;
     const M = this.M;
     const rb = this.rb;
@@ -5074,6 +5183,25 @@ class SnowFrame {
       }
     }
   }
+  /** Dungeondraft data: whether anything of it (but the shore) lies round strip column i of the row (see xany). */
+  xHere(i: number): boolean {
+    return (this.xany as Uint8Array)[this.xr0 + (this.xc0 as Int32Array)[i]] !== 0;
+  }
+  /**
+   * Dungeondraft data: byte ch of plane p (n bytes an analysis pixel) at strip column i of the row,
+   * blended between the four analysis pixels round it as the channels are (down, then across).
+   */
+  xAt(i: number, p: Uint8Array, n: number, ch: number): number {
+    const c0 = (this.xc0 as Int32Array)[i] * n + ch;
+    const c1 = (this.xc1 as Int32Array)[i] * n + ch;
+    const r0 = this.xr0 * n;
+    const r1 = this.xr1 * n;
+    const fy = this.xfy;
+    const a0 = p[r0 + c0];
+    const v0 = a0 + (p[r1 + c0] - a0) * fy;
+    const a1 = p[r0 + c1];
+    return v0 + (a1 + (p[r1 + c1] - a1) * fy - v0) * this.colF[i];
+  }
   /** Where channel ch of the look's fields starts for the nearest analysis row (add colQ * MC). */
   nearRow(ch: number): number {
     return this.rowQ * MC + ch;
@@ -5088,6 +5216,15 @@ class SnowFrame {
 // in its own shade in spring; leaf clumps with a dark outline on the bare trees and the
 // snow-capped crowns; evergreens freed of their frost. Winter keeps the snow as painted and adds
 // to it. Ink never changes.
+//
+// With Dungeondraft data (SnowInfo.exact, design 5.5) a few branches more, each guarded by it, so
+// pixel analyses bake exactly as before: what's left as drawn (pack items, structures, walls,
+// floors, roofs) keeps its bytes but for a soft rim; snow on a roof melts to the roof's colour,
+// on an earth path to earth, and at a drawn snow edge to the partner's colour (rock, earth, sand,
+// paving), a pixel at a time; a prop's snow to its own colour; every tree's clumps keep within its
+// measured reach; a leafy crown drawn green (K_BROAD) is an evergreen until autumn turns its own
+// leaves; a dead tree (K_DEAD) grows none; water freezes by its exact distance to the shore; and
+// there's no overall grade (Par).
 
 /** Light for the leaf clumps: from the top left, a little above. */
 const LX = -0.5 / 0.9955;
@@ -5171,8 +5308,13 @@ const NO_CLUMPS: TreeIndex = {
  * on is decided at its centre: its roll against limA + limB * (distance from the tree's centre, as
  * a share of its radius, up to 1), and for a bare tree, whether it lies within the tree's reach
  * that way (times reachK).
+ * exact (Dungeondraft data, design 5.5): every kind's clumps are culled by its reach, read where
+ * the data's samples lie (2.9: sample k at diamond position k + 0.5), and with inset, a clump
+ * whole inside it (its centre that far in from the reach, by its leafy edge; at least half way
+ * out), so its leaves grow within the real footprint.
  */
-function treeIndex(cs: ClumpSet, tp: Float64Array, q: number, bare: boolean, reachK: number, limA: number, limB: number): TreeIndex {
+function treeIndex(cs: ClumpSet, tp: Float64Array, q: number, bare: boolean, reachK: number, limA: number, limB: number,
+  exact = false, inset = false): TreeIndex {
   const ca = tp[q];
   const sa = tp[q + 1];
   const sc = tp[q + 15];
@@ -5207,7 +5349,19 @@ function treeIndex(cs: ClumpSet, tp: Float64Array, q: number, bare: boolean, rea
         if (d2 > far * far) continue;
         const dn = Math.sqrt(d2) * iR;
         if (frac1(cs.fall[c] + roll) >= limA + limB * (dn > 1 ? 1 : dn)) continue;
-        if (bare) {
+        if (exact) {
+          const pos = diamond(tu, tw) * (TREE_DIRS / 4) - 0.5;
+          const i0 = Math.floor(pos);
+          const t = pos - i0;
+          const r0 = tp[q + TP_REACH + (i0 & (TREE_DIRS - 1))];
+          const r1 = tp[q + TP_REACH + ((i0 + 1) & (TREE_DIRS - 1))];
+          let rr = (r0 + (r1 - r0) * t) * reachK;
+          if (inset) {
+            const e = cs.rc[c] * (1 + CL_LOBE) * sc;
+            rr = rr - e > 0.5 * rr ? rr - e : 0.5 * rr;
+          }
+          if (d2 > rr * rr) continue;
+        } else if (bare) {
           const pos = diamond(tu, tw) * (TREE_DIRS / 4);
           const i0 = Math.floor(pos);
           const t = pos - i0;
@@ -5539,6 +5693,11 @@ class Melt {
   snR: number;
   snG: number;
   snB: number;
+  /** Dungeondraft data (null on pixel analyses), and how far a bare tree's leaves reach past its branches with it. */
+  ex: ExactSnow | null;
+  reachX: number;
+  /** Where a roof's snow lasts longest (Budding), in patches a few to the square. */
+  roofN: Octave;
   // The pixel objects() works on, and what it gives back.
   r = 0;
   g = 0;
@@ -5640,6 +5799,15 @@ class Melt {
     this.inkW = 0.012 + 0.3 * this.pxSq;
     this.olive = summer ? P.summer.leafOlive[L] : 0;
     this.reachK = 1.15 * (spring ? P.spring.leafScale[L] : 1);
+    this.ex = sn.exact ?? null;
+    if (this.ex) {
+      // (Dungeondraft's own trees aren't drawn frosted: their greens only a little deeper.)
+      this.everS = spring ? 1.12 : summer ? 1.18 - 0.04 * L : 1.08;
+      this.everV = spring ? 1 : summer ? 0.97 : 0.95;
+    }
+    // (With Dungeondraft data the branches' reach is measured: young leaves keep within it.)
+    this.reachX = spring ? P.spring.leafScale[L] : 1;
+    this.roofN = new Octave(2.2, 2, mix(o.seed | 0, 83));
     // Autumn thins the crowns two ways: whole clumps fall, and the clumps left lose leaves.
     const thinL = autumn ? P.autumn.clumpLeaves[L] : 1;
     this.thinK = 1 / thinL;
@@ -5661,7 +5829,9 @@ class Melt {
     this.bil = ppsq > gt.res * 1.3;
     this.sproutK = this.budding ? P.spring.sprout[0] : 0;
     // The look's colour grade (as its kernel grades any map), on what the melt leaves as drawn.
-    this.gradeK = (spring ? P.spring.grade[L] : summer ? P.summer.grade[L] : P.autumn.grade[L]) * (0.3 + 0.7 * ramp(sn.frac, 0.04, 0.35));
+    // (Par: no overall grade on what's left as drawn. With Dungeondraft data that's known: rock,
+    // paving, trunks and props keep their colours.)
+    this.gradeK = this.ex ? 0 : (spring ? P.spring.grade[L] : summer ? P.summer.grade[L] : P.autumn.grade[L]) * (0.3 + 0.7 * ramp(sn.frac, 0.04, 0.35));
     this.gR = spring ? 0.3 : 0.5;
     this.gG = spring ? 0.4 : 0.25;
     this.gGT = spring ? 255 : 225;
@@ -5756,6 +5926,8 @@ class Melt {
     let fRoll = 1;
     let lastLx = 0x7fffffff;
     let lRoll = 1;
+    // Dungeondraft data (null on pixel analyses).
+    const ex = this.ex;
     for (let i = 0, p = j * width * 4; i < width; i++, p += 4) {
       const r = px[p];
       const g = px[p + 1];
@@ -5772,6 +5944,24 @@ class Melt {
       const gnd = g0 + (rb[c + C + SN_GROUND] - g0) * fx;
       const o0 = rb[c + SN_OBJ];
       const obj = o0 + (rb[c + C + SN_OBJ] - o0) * fx;
+      // Dungeondraft data: what's left as drawn (pack items, structures, walls, floors, roofs) keeps
+      // its bytes, with a soft rim (kp: how much of the drawn pixel comes back); the snow on a
+      // roof (rfK) and an earth path (ptK) melt their own way; at a snow edge the melt partner (pt).
+      // (Where there's no snow or object, nothing changes: with this data there's no grade.)
+      let kp = 0;
+      let rfK = 0;
+      let ptK = 0;
+      let pt = 0;
+      if (ex !== null && fr.xHere(i)) {
+        if (gnd <= 0 && obj <= 0) continue;
+        const X = ex.x;
+        const kv = fr.xAt(i, X, 3, 0) * INV255;
+        if (kv >= 0.5) continue;
+        kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
+        rfK = fr.xAt(i, X, 3, 1) * INV255;
+        ptK = fr.xAt(i, X, 3, 2) * INV255;
+        pt = ex.partner[rowQ + colQ[i]];
+      }
       let nr = r;
       let ng = g;
       let nb = b;
@@ -5814,7 +6004,18 @@ class Melt {
           if (wat > claim) claim = wat;
           if (1 - claim > gw) gw = 1 - claim;
         }
-        const mel = gw > 0 ? mt * INV255 * gw : 0;
+        // (Roof snow isn't the ground's. At a snow edge with a partner, only what's snow-coloured
+        // or a pale fringe well lighter than the partner melts: the edge as drawn, not a ramp
+        // across it.)
+        if (rfK > 0) gw *= 1 - rfK;
+        let mw = mt;
+        if (pt) {
+          const RC = (ex as ExactSnow).roleColour;
+          const dl = (0.299 * (r - RC[pt * 3]) + 0.587 * (g - RC[pt * 3 + 1]) + 0.114 * (b - RC[pt * 3 + 2])) * INV255;
+          const pale = mt * lin(dl - 0.08, 8);
+          mw = T[li + 3] > pale ? T[li + 3] : pale;
+        }
+        const mel = gw > 0 ? mw * INV255 * gw : 0;
         // 1. Snow left in drifts where it lay deepest (spring), frayed at the edge by the grass's
         // mottles (not its blades: no grass pokes through it). Where it stays, nothing under it
         // needs working out.
@@ -5880,6 +6081,24 @@ class Melt {
           let qr = gr * k;
           let qg = gg * k;
           let qb = gb * k + 10 * (1 - mB) + 8 * shd;
+          if (ex !== null && (pt || ptK > 0)) {
+            const RC = (ex as ExactSnow).roleColour;
+            if (pt) {
+              // A snow edge: the partner's own colour (rock, earth, sand, paving), with the
+              // pixel's own detail.
+              let rl = mF * (1 + 0.6 * det);
+              rl = rl < 0.6 ? 0.6 : rl > 1.1 ? 1.1 : rl;
+              qr = RC[pt * 3] * rl;
+              qg = RC[pt * 3 + 1] * rl;
+              qb = RC[pt * 3 + 2] * rl;
+            } else {
+              // An earth path: snow on it melts to earth.
+              const ke = mB * mF * (1 + 0.5 * det) * this.earthK;
+              qr += (RC[TR_EARTH * 3] * ke - qr) * ptK;
+              qg += (RC[TR_EARTH * 3 + 1] * ke - qg) * ptK;
+              qb += (RC[TR_EARTH * 3 + 2] * ke - qb) * ptK;
+            }
+          }
           if (mel > 0) {
             if (hasRem) {
               // Greyer slush along the drifts' edges, and a dark, wet rim round them.
@@ -5896,7 +6115,7 @@ class Melt {
               }
             }
             // Wildflowers on the grass (most cells hold none: their roll is checked first).
-            if (flowers > 0 && keep < 1) {
+            if (flowers > 0 && keep < 1 && pt === 0) {
               const fcx = colFx[i];
               if (fcx !== lastFx) {
                 lastFx = fcx;
@@ -5971,6 +6190,23 @@ class Melt {
           }
         }
       }
+      // Snow on a roof melts to the roof's own colour, with the snow's relief (its luma against its
+      // lit tone; Budding: most of it stays, in patches).
+      if (rfK > 0) {
+        let k = rfK * T[li + 3] * INV255;
+        if (budding && k > 0) k *= lin(0.44 - rank(RANK_OCTAVE, this.roofN.at(colU[i], w)), 12);
+        if (k > 0) {
+          // (Against the snow's lit tone: no open snow lies on a roof to give it its own.)
+          let rl = (0.299 * r + 0.587 * g + 0.114 * b) * INV255 * this.invRef;
+          rl = rl < 0.5 ? 0.5 : rl > 1.05 ? 1.05 : rl;
+          const ro = (rowQ + colQ[i]) * 3;
+          const RF = (ex as ExactSnow).roof;
+          nr += (RF[ro] * rl - nr) * k;
+          ng += (RF[ro + 1] * rl - ng) * k;
+          nb += (RF[ro + 2] * rl - nb) * k;
+          if (k > own) own = k;
+        }
+      }
       // The look's grade on what the melt left as drawn (earth, trunks, rocks, outlines).
       if (gradeK > 0 && own < 1) {
         const gk = gradeK * T[li + 2] * INV255 * (1 - own);
@@ -5979,6 +6215,11 @@ class Melt {
         nb = this.spring ? nb + (255 - nb) * gk * 0.2 : nb * (1 - gk * 0.6);
         nr = tr;
         ng = tg;
+      }
+      if (kp > 0) {
+        nr += (r - nr) * kp;
+        ng += (g - ng) * kp;
+        nb += (b - nb) * kp;
       }
       px[p] = nr;
       px[p + 1] = ng;
@@ -6000,7 +6241,7 @@ class Melt {
     let cr: number;
     let cg: number;
     let cb: number;
-    if (t >= 0 && tp[t * TP + 35] !== K_EVER) {
+    if (t >= 0 && tp[t * TP + 35] !== K_EVER && tp[t * TP + 35] !== K_DEAD) {
       const q = t * TP;
       autumnColour(tp[q + 6] + pk * (1 - tp[q + 6]), tp, q);
       cr = CC[0];
@@ -6016,6 +6257,52 @@ class Melt {
     this.lr = cr * lk;
     this.lg = cg * lk;
     this.lb = cb * lk;
+  }
+
+  /**
+   * A leafy crown drawn green (Dungeondraft data, K_BROAD; tree t at tp offset q, the pixel at
+   * (du, dw) squares from its centre, li its colour's index, evr how much it's the crown's): in
+   * autumn its own leaves recoloured clump by clump in the tree's mix (Par's rule: tp[q + 6..9]),
+   * at their own brightness; in spring, on a tree in blossom, blossom clumps over them. Works on
+   * nr, ng, nb.
+   */
+  broad(t: number, q: number, du: number, dw: number, li: number, evr: number): void {
+    const T = this.T;
+    let nr = this.nr;
+    let ng = this.ng;
+    let nb = this.nb;
+    // How leafy it is: the vegetation channel of its colour, as drawn or as freed of frost.
+    const vr = nr < 0 ? 0 : nr > 255 ? 255 : nr | 0;
+    const vg = ng < 0 ? 0 : ng > 255 ? 255 : ng | 0;
+    const vb = nb < 0 ? 0 : nb > 255 ? 255 : nb | 0;
+    const v1 = T[lutIndex(vr, vg, vb)];
+    const kV = evr * (v1 > T[li] ? v1 : T[li]) * INV255;
+    if (kV <= 0) return;
+    const tp = this.tp;
+    // (Every clump on: no leaves fall from it in v1.)
+    const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, false, 1, 2, 0, true));
+    const found = clumpAt(this.cs, tp, q, du, dw, ix, this.lt);
+    const mx = nr > ng ? (nr > nb ? nr : nb) : ng > nb ? ng : nb;
+    if (this.autumn) {
+      if (found) clumpColour(this.cs, tp, q, this.lt, 2, 0);
+      else autumnColour(0.5 * tp[q + 6], tp, q);
+      // (Turned leaves are lighter than the summer green they were drawn in; their shading kept.)
+      let kk = 0.42 + 0.9 * mx * INV255;
+      if (kk > 1.05) kk = 1.05;
+      nr += (CC[0] * kk - nr) * kV;
+      ng += (CC[1] * kk - ng) * kV;
+      nb += (CC[2] * kk - nb) * kV;
+    } else if (found && frac1(this.cs.id[CQ[0]] * 5.3 + tp[q + 5]) < this.bloomK) {
+      clumpColour(this.cs, tp, q, this.lt, 0, this.bloomK);
+      const kk = 0.62 + 0.42 * mx * INV255;
+      const kb = kV * 0.9;
+      nr += (CC[0] * kk - nr) * kb;
+      ng += (CC[1] * kk - ng) * kb;
+      nb += (CC[2] * kk - nb) * kb;
+    }
+    this.nr = nr;
+    this.ng = ng;
+    this.nb = nb;
   }
 
   /** Objects at the pixel left in the fields (ice, props, grass patches, earth, water, trees). */
@@ -6067,12 +6354,26 @@ class Melt {
     }
     // 3. Snow on rocks and props melts off to grey stone, keeping its shading.
     if (prp > 0) {
-      const kP = prp * T[li + 3] * INV255;
+      let kP = prp * T[li + 3] * INV255;
+      let sr = STONE[0];
+      let sg = STONE[1];
+      let sb = STONE[2];
+      // (Dungeondraft data: to the prop's own colour, a rock's or a log's; at Budding half of it.)
+      const ex = this.ex;
+      if (ex !== null && kP > 0) {
+        const t = this.tl[rowQ + fr.colQ[i]] - 1;
+        if (t >= 0 && this.tp[t * TP + 35] === K_PROP) {
+          sr = ex.own[t * 3];
+          sg = ex.own[t * 3 + 1];
+          sb = ex.own[t * 3 + 2];
+        }
+        if (this.budding) kP *= ramp(0.5 - (0.7 * (this.gtD[this.ta + this.gtJ] * INV255) + 0.3 * (det + 0.5)), -0.05, 0.05);
+      }
       if (kP > 0) {
         const l = lum * invRef;
-        nr += (STONE[0] * l - nr) * kP;
-        ng += (STONE[1] * l - ng) * kP;
-        nb += (STONE[2] * l - nb) * kP;
+        nr += (sr * l - nr) * kP;
+        ng += (sg * l - ng) * kP;
+        nb += (sb * l - nb) * kP;
         if (kP > own) own = kP;
       }
     }
@@ -6157,9 +6458,11 @@ class Melt {
       const chroma = max - min;
       const du = u - tp[q + 33];
       const dw = w - tp[q + 34];
-      if (kind === K_EVER) {
+      if (kind === K_EVER || kind === K_BROAD) {
         // 6. Evergreens and bushes lose their frost: greys and pale greens go back to the
-        // bush's own green; out of the cold, a richer, deeper green.
+        // bush's own green; out of the cold, a richer, deeper green. (A leafy crown drawn green,
+        // from Dungeondraft data, the same; then in autumn its leaves turn, in spring it may
+        // blossom.)
         if (evr > 0 && max >= 40) {
           const sat = max > 0 ? chroma / max : 0;
           const greenish = sat < 0.12 || (g >= r && g >= b) ? 1 : 0;
@@ -6168,7 +6471,8 @@ class Melt {
           fz = fz <= 0 ? 0 : fz >= 1 ? evr * greenish : evr * greenish * fz * fz * (3 - 2 * fz);
           let melt = this.frostMelt;
           if (melt < 1) melt = ramp(melt - (0.7 * (this.gtD[this.ta + this.gtJ] * INV255) + 0.3 * (det + 0.5)), -0.05, 0.05);
-          const kF = fz * melt * (1 - keep);
+          // (Dungeondraft data: only what's pale is frost; the needles' own greens stay theirs.)
+          const kF = fz * melt * (1 - keep) * (this.ex !== null ? ramp(lum * invRef, 0.7, 0.88) : 1);
           if (kF > 0) {
             // (Its own green, lighter where the frost was lighter, with the grass tile's mottles
             // for leaves; snow-white at its soft edge melts as the ground does.)
@@ -6193,6 +6497,15 @@ class Melt {
             ng += ((l + (ng - l) * S) * V - ng) * lk;
             nb += ((l + (nb - l) * S) * V - nb) * lk;
           }
+          if (kind === K_BROAD && (autumn || (spring && tp[q + 13]))) {
+            this.nr = nr;
+            this.ng = ng;
+            this.nb = nb;
+            this.broad(t, q, du, dw, li, evr);
+            nr = this.nr;
+            ng = this.ng;
+            nb = this.nb;
+          }
           if (evr > own) own = evr;
         }
       } else if (kind === K_CAP) {
@@ -6210,7 +6523,7 @@ class Melt {
             const ls = tp[q + 14];
             const melting = spring && ls < 1;
             const lk = ls * this.thinK;
-            const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, false, 1, melting ? 0.2 * lk : 1.12 * lk, melting ? 1.6 * lk : -0.24 * lk));
+            const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, false, 1, melting ? 0.2 * lk : 1.12 * lk, melting ? 1.6 * lk : -0.24 * lk, this.ex !== null));
             let found = clumpAt(this.cs, tp, q, du, dw, ix, this.lt);
             if (found) {
               clumpColour(this.cs, tp, q, this.lt, this.look, this.bloomK);
@@ -6318,7 +6631,9 @@ class Melt {
           const dn = Math.sqrt(d2) * tp[q + 43];
           const thinT = this.thinT;
           const lk = ls * this.thinK;
-          const ix = this.sf.ix[t] ?? (this.sf.ix[t] = treeIndex(this.cs, tp, q, true, this.reachK, 1.12 * lk, -0.24 * lk));
+          const ix = this.sf.ix[t] ?? (this.sf.ix[t] = (this.ex !== null
+            ? treeIndex(this.cs, tp, q, true, this.reachX, 1.12 * lk, -0.24 * lk, true, true)
+            : treeIndex(this.cs, tp, q, true, this.reachK, 1.12 * lk, -0.24 * lk)));
           if (clumpAt(this.cs, tp, q, du, dw, ix, this.lt)) {
             clumpColour(this.cs, tp, q, this.lt, this.look, this.bloomK);
             const leaf = CC[4];
@@ -6402,6 +6717,8 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
   const rb = fr.rb;
   const C = QC;
   const Q_REM = Q_LOOK + M_REM;
+  // Dungeondraft data (null on pixel analyses).
+  const ex = sn.exact ?? null;
   for (let j = 0; j < rows; j++) {
     fr.row(j);
     const w = fr.w;
@@ -6415,10 +6732,20 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
       const c = fr.colI[i];
       const fx = fr.colF[i];
       const g0 = rb[c + SN_GROUND];
-      const gnd = g0 + (rb[c + C + SN_GROUND] - g0) * fx;
+      let gnd = g0 + (rb[c + C + SN_GROUND] - g0) * fx;
       const o0 = rb[c + SN_OBJ];
       const obj = o0 + (rb[c + C + SN_OBJ] - o0) * fx;
       if (gnd <= 0 && obj <= 0) continue;
+      // Dungeondraft data: what's left as drawn keeps its bytes (a soft rim: kp); the snow on a
+      // roof (under SN_OBJ) is freshened as the ground's is.
+      let kp = 0;
+      if (ex !== null && fr.xHere(i)) {
+        const kv = fr.xAt(i, ex.x, 3, 0) * INV255;
+        if (kv >= 0.5) continue;
+        kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
+        const rf = fr.xAt(i, ex.x, 3, 1) * INV255;
+        if (rf > gnd) gnd = rf;
+      }
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
       const snowy = T[li + 3] * INV255;
       let nr = r;
@@ -6473,7 +6800,7 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
           const q = t * TP;
           const kind = tp[q + 35];
           const max = r > g ? (r > b ? r : b) : g > b ? g : b;
-          if (kind === K_EVER && es > 0) {
+          if ((kind === K_EVER || kind === K_BROAD) && es > 0) {
             // Snow in clumps on the evergreens' lit needles.
             const evr = rb[c + SN_EVER] + (rb[c + C + SN_EVER] - rb[c + SN_EVER]) * fx;
             if (evr > 0 && max >= 50 && snowy < 0.5) {
@@ -6486,7 +6813,7 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
                 nb += (snow[2] * l * tk - nb) * k;
               }
             }
-          } else if (kind === K_BARE && bs > 0 && snowy < 0.5 && max < 200) {
+          } else if ((kind === K_BARE || kind === K_DEAD) && bs > 0 && snowy < 0.5 && max < 200) {
             // Branches: flecks of snow along them, thicker toward the trunk.
             const du = fr.colU[i] - tp[q + 33];
             const dw = w - tp[q + 34];
@@ -6503,7 +6830,16 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
         if (ice > 0 && has[SN_WATER]) {
           const wat = rb[c + SN_WATER] + (rb[c + C + SN_WATER] - rb[c + SN_WATER]) * fx;
           if (wat > 0 && snowy < 0.5) {
-            const fz = wat * (ice === 2 ? 1 : ramp(0.9 - wat + 0.3 * (fleck.at(fr.colU[i] * 0.2, w * 0.2) - 0.5), 0, 0.15));
+            let fz: number;
+            if (ex !== null) {
+              // (Dungeondraft data: by the exact distance to the shore, a rim, then up to 3 squares
+              // out, frayed by the noise; it's read only where it can matter.)
+              const xs = fr.xAt(i, ex.shore, 1, 0) * (1 / 16);
+              const lo = ice === 2 ? FREEZE_LO : 0.3;
+              const hi = ice === 2 ? FREEZE_HI : 0.55;
+              const amp = ice === 2 ? 0.8 : 0.3;
+              fz = xs + 0.5 * amp <= lo ? wat : xs - 0.5 * amp >= hi ? 0 : wat * (1 - ramp(xs + amp * (fleck.at(fr.colU[i] * 0.2, w * 0.2) - 0.5), lo, hi));
+            } else fz = wat * (ice === 2 ? 1 : ramp(0.9 - wat + 0.3 * (fleck.at(fr.colU[i] * 0.2, w * 0.2) - 0.5), 0, 0.15));
             if (fz > 0) {
               const iv = 0.86 + 0.25 * (lum / 255 - tone);
               let iR = 196 * iv + 30;
@@ -6524,6 +6860,11 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
             }
           }
         }
+      }
+      if (kp > 0) {
+        nr += (r - nr) * kp;
+        ng += (g - ng) * kp;
+        nb += (b - nb) * kp;
       }
       px[p] = nr;
       px[p + 1] = ng;

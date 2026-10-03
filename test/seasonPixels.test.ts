@@ -3,6 +3,9 @@ import { SEASON_LOOKS } from "../src/shared/types";
 import type { SeasonLook } from "../src/shared/types";
 import {
   ALGO_VERSION,
+  K_BROAD,
+  K_DEAD,
+  K_LAWN,
   PIXEL_SNOWY,
   TREE_DIRS,
   analyse,
@@ -10,6 +13,7 @@ import {
   bake,
   bareReach,
   outdoorFraction,
+  pixelSnowInfo,
   seedFrom,
   snowColours,
 } from "../src/client/room/seasonPixels";
@@ -1809,6 +1813,52 @@ describe("seasonPixels on a map painted under snow", () => {
 });
 
 describe("seasonPixels helpers for the Dungeondraft path", () => {
+  it("numbers the Dungeondraft-only tree kinds after the pixel path's", () => {
+    expect(new Set([K_EVER, K_CAP, K_BARE, K_PROP, K_LAWN, K_BROAD, K_DEAD]).size).toBe(7);
+    expect([K_BROAD, K_DEAD]).toEqual([6, 7]);
+  });
+
+  it("finds what stands in the snow without the snowy-map tests (pixelSnowInfo), as snowAnalysis does when they pass", () => {
+    const map = snowyMap();
+    const aw = map.w >> 1;
+    const ah = map.h >> 1;
+    const small = shrink(map, aw, ah, "box");
+    const a = analysePixelSnowy(small, aw, ah, SC / 2);
+    const p = pixelSnowInfo(small, aw, ah, SC / 2);
+    expect(p).not.toBeNull();
+    expect(snowHash({ ...a, snow: p })).toBe(snowHash(a));
+    expect(p!.exact).toBeUndefined();
+    // A picture the tests turn down (a little too dark) still shows its trees.
+    const dim = new Uint8ClampedArray(small);
+    for (let o = 0; o < dim.length; o += 4) for (let c = 0; c < 3; c++) dim[o + c] = Math.round(dim[o + c] * 0.94);
+    expect(analysePixelSnowy(dim, aw, ah, SC / 2).snow).toBeNull();
+    const q = pixelSnowInfo(dim, aw, ah, SC / 2);
+    expect(q).not.toBeNull();
+    expect(q!.nTrees).toBeGreaterThan(0);
+    // Too small to look at, or no snow-coloured pixel at all.
+    expect(pixelSnowInfo(small.subarray(0, 60 * 60 * 4), 60, 60, SC / 2)).toBeNull();
+    const grey = new Uint8ClampedArray(aw * ah * 4).map((_, i) => (i % 4 === 3 ? 255 : 90));
+    expect(pixelSnowInfo(grey, aw, ah, SC / 2)).toBeNull();
+  }, 30_000);
+
+  it("takes the snow's tone as given (pre.tone), and measures the rest the same", () => {
+    const w = 64;
+    const h = 48;
+    const px = new Uint8ClampedArray(w * h * 4);
+    const open = new Uint8Array(w * h);
+    for (let k = 0; k < w * h; k++) {
+      const v = 200 + (k % 37);
+      px.set([v - 6, v, Math.min(255, v + 8), 255], k * 4);
+      open[k] = k % 5 ? 1 : 0;
+    }
+    const masks = { open, grass: new Uint8Array(w * h), earth: new Uint8Array(w * h) };
+    const own = snowColours(px, w, h, 8, masks);
+    const tone = new Uint8Array(w * h).fill(123);
+    const given = snowColours(px, w, h, 8, masks, { tone });
+    expect(given.tone).toBe(tone);
+    expect({ ...given, tone: null }).toEqual({ ...own, tone: null });
+  });
+
   it("measures the snow's tone and colours over the masks it's given", () => {
     const w = 120;
     const h = 80;
