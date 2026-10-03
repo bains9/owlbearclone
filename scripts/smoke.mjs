@@ -314,6 +314,68 @@ async function main() {
   const refusedFog = await alice.waitFor((m) => m.t === "items" && m.refused?.includes(fog.id));
   check(refusedFog?.delete?.includes(fog.id), "player can't create fog");
 
+  // Compass roses: the GM's, part of the map. Players get one, and can't add, turn, move or delete one.
+  // They need code from protocol 4 on: tabs on older code (Alice and Bob here) aren't sent them.
+  const gmNew = connect(room.id, { cookie, uid: "gmnew" + rid(), name: "GM tab", v: 4, b: gmHello.build });
+  const cara = connect(room.id, { uid: "cara" + rid(), name: "Cara", v: 4, b: gmHello.build });
+  await gmNew.waitFor((m) => m.t === "hello");
+  await cara.waitFor((m) => m.t === "hello");
+  alice.clear();
+  bob.clear();
+  const compass = { ...base, id: "cmp" + rid(), x: 140, y: 140, size: 2, label: "N", color: "#d62f2f", hidden: false, layer: "prop", art: "compass" };
+  gmNew.items({ upsert: [compass] });
+  const aCompass = await cara.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === compass.id));
+  check(aCompass?.upsert.find((i) => i.id === compass.id)?.art === "compass", "players get the GM's compass");
+  await sleep(200);
+  check(
+    ![...alice.msgs, ...bob.msgs].some((m) => m.t === "items" && m.upsert?.some((i) => i.id === compass.id)),
+    "tabs on code from before compasses aren't sent one",
+  );
+  const compassRefused = async (ops, label) => {
+    cara.clear();
+    cara.items(ops);
+    const answer = await cara.waitFor((m) => m.t === "items" && m.seq === cara.seq);
+    // (Let the message that goes with a refusal arrive too, so it can't answer a later check.)
+    await cara.waitFor((m) => m.t === "error");
+    check(answer?.refused?.length > 0, label);
+    return answer;
+  };
+  const turnBack = await compassRefused({ patch: [{ id: compass.id, set: { rotation: 90 } }] }, "a player can't turn the compass");
+  check(turnBack?.upsert?.[0]?.rotation === 0, "and is put back as it was");
+  await compassRefused({ patch: [{ id: compass.id, set: { x: 500, y: 500 } }] }, "a player can't move the compass");
+  await compassRefused({ delete: [compass.id] }, "a player can't delete the compass");
+  const fakeCompass = { ...compass, id: "cmp" + rid() };
+  const notMade = await compassRefused({ upsert: [fakeCompass] }, "a player can't add a compass");
+  check(notMade?.delete?.includes(fakeCompass.id), "and it's taken away again");
+  const notConverted = await compassRefused({ upsert: [{ ...visible, x: 175, art: "compass" }] }, "a player can't make a token a compass");
+  check(notConverted?.upsert?.[0] && !("art" in notConverted.upsert[0]), "and the token stays a token");
+  cara.clear();
+  gmNew.items({ patch: [{ id: compass.id, set: { rotation: 135, size: 3, locked: true } }] });
+  const turned = await cara.waitFor((m) => m.t === "items" && m.patch?.some((p) => p.id === compass.id && p.set.rotation === 135));
+  check(Boolean(turned), "the GM turns, sizes and locks the compass, and players see it");
+  gmNew.clear();
+  gmNew.items({ patch: [{ id: compass.id, set: { layer: "character" } }] });
+  const stillProp = await gmNew.waitFor((m) => m.t === "items" && m.seq === gmNew.seq);
+  check(stillProp?.refused?.includes(compass.id) && stillProp.upsert?.[0]?.layer === "prop", "a compass stays under the characters");
+  gmNew.clear();
+  const sundial = { ...compass, id: "cmp" + rid(), art: "sundial" };
+  gmNew.items({ upsert: [sundial] });
+  const unknownArt = await gmNew.waitFor((m) => m.t === "items" && m.seq === gmNew.seq);
+  check(unknownArt?.refused?.includes(sundial.id), "art the server doesn't know is refused");
+  gm.clear();
+  const oldGmMade = { ...compass, id: "cmp" + rid() };
+  gm.items({ upsert: [oldGmMade] });
+  const oldGmAnswer = await gm.waitFor((m) => m.t === "items" && m.seq === gm.seq);
+  check(oldGmAnswer?.refused?.includes(oldGmMade.id) && oldGmAnswer.delete?.includes(oldGmMade.id), "a GM tab on older code can't add a compass");
+  cara.clear();
+  gmNew.items({ delete: [compass.id] });
+  check(Boolean(await cara.waitFor((m) => m.t === "items" && m.delete?.includes(compass.id))), "the GM deletes the compass");
+  gm.clear();
+  gmNew.ws.close();
+  cara.ws.close();
+  await gm.waitFor((m) => m.t === "players" && m.players.length === 3);
+  await sleep(150);
+
   alice.clear();
   gm.items({ patch: [{ id: hidden.id, set: { hidden: false } }] });
   const revealed = await alice.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === hidden.id));

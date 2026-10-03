@@ -17,9 +17,9 @@ import type {
 
 /**
  * The protocol version this build's browser code speaks (sent as v=). 3: objects turned to
- * any 5 degrees and sized in quarter squares.
+ * any 5 degrees and sized in quarter squares. 4: compass roses (tokens with art "compass").
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
 export type MeasureShape = "ruler" | TemplateShape;

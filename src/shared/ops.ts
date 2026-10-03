@@ -57,3 +57,18 @@ export function inverseOps(items: ItemMap, ops: ItemOps): ItemOps {
 export function isEmptyOps(ops: ItemOps): boolean {
   return !ops.upsert?.length && !ops.patch?.length && !ops.delete?.length;
 }
+
+/** Only patches: nothing added or deleted. */
+export function isPatchOnly(ops: ItemOps): boolean {
+  return !ops.upsert?.length && !ops.delete?.length && !!ops.patch?.length;
+}
+
+/**
+ * Two patches in a row as one: what `b` sets wins over what `a` set, field by field, with the
+ * items in the order they first appear. Folds a burst of turning into one undo step.
+ */
+export function mergePatches(a: ItemPatch[], b: ItemPatch[]): ItemPatch[] {
+  const out = new Map<string, Partial<MutableFields>>();
+  for (const p of [...a, ...b]) out.set(p.id, { ...out.get(p.id), ...p.set });
+  return [...out].map(([id, set]) => ({ id, set }));
+}

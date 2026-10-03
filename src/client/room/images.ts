@@ -57,3 +57,25 @@ export function getImage(url: string, onChange: () => void): HTMLImageElement | 
 export function imageFailed(url: string): boolean {
   return cache.get(url)?.state === "failed";
 }
+
+/**
+ * Where an image has got to: there, on its way for the first time, being tried again after
+ * failing (waiting for the next try, or loading again), or given up on after the last retry.
+ */
+export type ImageStatus = "ready" | "loading" | "retrying" | "failed";
+
+export function imageStatus(url: string): ImageStatus {
+  if (cache.get(url)?.state === "ready") return "ready";
+  const tries = failures.get(url) ?? 0;
+  if (tries > MAX_RETRIES) return "failed";
+  return tries > 0 ? "retrying" : "loading";
+}
+
+/**
+ * Starts an image afresh after it was given up on (the map's Try again button): its failures
+ * are forgotten, and the next getImage loads it again, with the full set of retries.
+ */
+export function retryImage(url: string): void {
+  if (cache.get(url)?.state === "failed") cache.delete(url);
+  failures.delete(url);
+}

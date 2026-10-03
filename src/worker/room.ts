@@ -46,6 +46,7 @@ import type {
   RoomInfo,
   Scene,
 } from "../shared/types";
+import { bringsCompass, isCompass } from "../shared/types";
 
 /** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
 interface Conn extends Player {
@@ -71,6 +72,17 @@ function publicPlayer(c: Conn): Player {
  * version that may see terrain: the same as PROTOCOL_VERSION for now, but not bound to it.)
  */
 const TERRAIN_VERSION = 3;
+/**
+ * Compass roses need code from 3 October 2026 (4). Older code took one for a plain token: an
+ * opaque disc that fog hid and that players' pages offered to drag. Such tabs don't get
+ * compasses, can't change them, and are asked to reload, as with terrain.
+ */
+const COMPASS_VERSION = 4;
+/** The oldest protocol version whose code can show this item. */
+function versionFor(item: Item): number {
+  if (item.kind === "terrain") return TERRAIN_VERSION;
+  return isCompass(item) ? COMPASS_VERSION : 1;
+}
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";
 const OUTDATED = "Tabletop has been updated. Reload this page to get the new version.";
 
@@ -843,9 +855,9 @@ export class Room extends DurableObject<Env> {
       return true;
     };
 
-    // Terrain from a tab too old to have it (a backup restored in a tab left open over a
-    // deploy, say) is refused: that tab would never be sent it, or corrected.
-    const oldCode = (conn.v ?? 1) < TERRAIN_VERSION;
+    // Terrain or a compass from a tab too old to have it (a backup restored in a tab left open
+    // over a deploy, say) is refused: that tab would never be sent it, or corrected.
+    const tooOld = (item: Item | null): boolean => !!item && (conn.v ?? 1) < versionFor(item);
     for (const raw of ops.upsert) {
       const id = idOf(raw);
       if (!isId(id)) continue;
@@ -871,7 +883,7 @@ export class Room extends DurableObject<Env> {
       const claimed = (raw as { owner?: unknown }).owner;
       const owner = isGm && isOwner(claimed) ? claimed : (existing?.owner ?? conn.userId);
       const item = sanitizeItem(raw, owner);
-      if (!item || !this.scenes.has(item.sceneId) || (oldCode && (item.kind === "terrain" || existing?.kind === "terrain"))) {
+      if (!item || !this.scenes.has(item.sceneId) || tooOld(item) || tooOld(existing)) {
         refused.add(id);
         continue;
       }
@@ -886,6 +898,12 @@ export class Room extends DurableObject<Env> {
           ? this.countInScene(item.sceneId, staged) >= LIMITS.itemsPerScene
           : this.countInScene(item.sceneId, staged, conn.userId) >= MAX_PLAYER_ITEMS_PER_SCENE)
       ) {
+        refused.add(id);
+        continue;
+      }
+      // A compass coming to a scene counts however it comes: added, a token made into one, or
+      // moved over from another scene.
+      if (bringsCompass(existing, item) && this.countInScene(item.sceneId, staged, undefined, isCompass) >= LIMITS.compassesPerScene) {
         refused.add(id);
         continue;
       }
@@ -905,7 +923,7 @@ export class Room extends DurableObject<Env> {
         continue;
       }
       const set = sanitizeSet(existing, p.set);
-      if (!set || !canPatch(existing, set, conn, settings) || (oldCode && existing.kind === "terrain")) {
+      if (!set || !canPatch(existing, set, conn, settings) || tooOld(existing)) {
         refused.add(p.id);
         continue;
       }
@@ -924,7 +942,7 @@ export class Room extends DurableObject<Env> {
         gone.push(id);
         continue;
       }
-      if (!canDelete(existing, conn) || (oldCode && existing.kind === "terrain")) {
+      if (!canDelete(existing, conn) || tooOld(existing)) {
         refused.add(id);
         continue;
       }
@@ -1224,13 +1242,13 @@ export class Room extends DurableObject<Env> {
 
   /** Whether this connection is sent this item: the GM gets everything its code can draw. */
   private sees(c: Conn, item: Item): boolean {
-    if (item.kind === "terrain" && (c.v ?? 1) < TERRAIN_VERSION) return false;
+    if ((c.v ?? 1) < versionFor(item)) return false;
     return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
   }
 
   /** An item this connection may see but isn't sent, because its code is too old to show it. */
   private withheld(c: Conn, item: Item | null): boolean {
-    if (!item || item.kind !== "terrain" || (c.v ?? 1) >= TERRAIN_VERSION) return false;
+    if (!item || (c.v ?? 1) >= versionFor(item)) return false;
     return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
   }
 
@@ -1304,9 +1322,13 @@ export class Room extends DurableObject<Env> {
     this.broadcast({ t: "chat", message: m }, (c) => this.canSeeMessage(m, c));
   }
 
-  /** Items on a scene (only those owned by `owner`, if given), counting what this message has staged. */
-  private countInScene(sceneId: string, staged: Map<string, Item | null>, owner?: string): number {
-    const counts = (item: Item) => item.sceneId === sceneId && (owner === undefined || item.owner === owner);
+  /**
+   * Items on a scene (only those owned by `owner`, and that `only` picks, if given), counting
+   * what this message has staged.
+   */
+  private countInScene(sceneId: string, staged: Map<string, Item | null>, owner?: string, only?: (item: Item) => boolean): number {
+    const counts = (item: Item) =>
+      item.sceneId === sceneId && (owner === undefined || item.owner === owner) && (!only || only(item));
     let n = 0;
     for (const [id, item] of this.items) if (counts(item) && !staged.has(id)) n++;
     for (const item of staged.values()) if (item && counts(item)) n++;
@@ -1338,23 +1360,24 @@ export class Room extends DurableObject<Env> {
     const items = [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId));
     const forGm = JSON.stringify({ t: "scene.active", id: this.activeSceneId } satisfies ServerMsg);
     const forPlayers = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items } satisfies ServerMsg);
-    const terrain = items.some((i) => i.kind === "terrain");
-    const forOldPlayers = terrain
-      ? JSON.stringify({
-          t: "scene.active",
-          id: this.activeSceneId,
-          scene,
-          items: items.filter((i) => i.kind !== "terrain"),
-        } satisfies ServerMsg)
-      : forPlayers;
+    // Tabs too old for some of it (built maps, compasses) get the rest, and are asked to reload.
+    const newest = items.reduce((v, i) => Math.max(v, versionFor(i)), 1);
+    const forOld = new Map<number, string>();
     for (const ws of this.ctx.getWebSockets()) {
       const c = ws.deserializeAttachment() as Conn | null;
       if (!c) continue;
+      const v = c.v ?? 1;
       if (c.role === "gm") {
         this.sendRaw(ws, forGm);
-      } else if ((c.v ?? 1) < TERRAIN_VERSION) {
-        this.sendRaw(ws, forOldPlayers);
-        if (terrain) this.warnOutdated(ws, c);
+      } else if (v < newest) {
+        let msg = forOld.get(v);
+        if (msg === undefined) {
+          const shown = items.filter((i) => v >= versionFor(i));
+          msg = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items: shown } satisfies ServerMsg);
+          forOld.set(v, msg);
+        }
+        this.sendRaw(ws, msg);
+        this.warnOutdated(ws, c);
       } else {
         this.sendRaw(ws, forPlayers);
       }

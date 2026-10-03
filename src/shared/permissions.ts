@@ -3,6 +3,7 @@
 // server will refuse.
 
 import type { Item, MutableFields, Role, RoomSettings } from "./types";
+import { isCompass } from "./types";
 
 export interface Actor {
   userId: string;
@@ -20,10 +21,11 @@ export function visibleToPlayer(item: Item, activeSceneId: string | null): boole
 }
 
 // Only the GM builds: every rule below refuses players anything but tokens and drawings.
+// Compass roses are the GM's part of the map: players see them and change nothing about them.
 
 export function canCreate(item: Item, actor: Actor, settings: RoomSettings): boolean {
   if (actor.role === "gm") return true;
-  if (item.kind === "token") return settings.playersCanAddTokens && !item.hidden && !item.locked;
+  if (item.kind === "token") return settings.playersCanAddTokens && !item.hidden && !item.locked && !item.art;
   if (item.kind === "drawing") return settings.playersCanDraw && !item.hidden;
   return false;
 }
@@ -31,7 +33,7 @@ export function canCreate(item: Item, actor: Actor, settings: RoomSettings): boo
 export function canMove(item: Item, actor: Actor, settings: RoomSettings): boolean {
   if (actor.role === "gm") return true;
   if (item.kind === "token") {
-    if (item.hidden || item.locked) return false;
+    if (item.hidden || item.locked || isCompass(item)) return false;
     return settings.playersMoveAll || item.owner === actor.userId;
   }
   if (item.kind === "drawing") return item.owner === actor.userId && !item.hidden;
@@ -50,6 +52,8 @@ export function canReplace(existing: Item, next: Item, actor: Actor, settings: R
   if (existing.kind !== next.kind) return false;
   if (existing.kind === "token" && next.kind === "token") {
     if (existing.hidden !== next.hidden || existing.locked !== next.locked) return false;
+    // Built-in art (a compass) can't be put on a token, or taken off one.
+    if ((existing.art ?? null) !== (next.art ?? null)) return false;
   }
   if (existing.kind === "drawing" && next.kind === "drawing" && !!existing.hidden !== !!next.hidden) return false;
   return canMove(existing, actor, settings);
@@ -57,7 +61,7 @@ export function canReplace(existing: Item, next: Item, actor: Actor, settings: R
 
 export function canDelete(item: Item, actor: Actor): boolean {
   if (actor.role === "gm") return true;
-  if (item.kind === "token") return item.owner === actor.userId && !item.locked && !item.hidden;
+  if (item.kind === "token") return item.owner === actor.userId && !item.locked && !item.hidden && !isCompass(item);
   if (item.kind === "drawing") return item.owner === actor.userId && !item.hidden;
   return false;
 }

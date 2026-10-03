@@ -15,7 +15,7 @@ import type {
   Scene,
   SceneSeason,
 } from "./types";
-import { SEASON_LOOKS } from "./types";
+import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
 import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 
 export const LIMITS = {
@@ -35,6 +35,8 @@ export const LIMITS = {
   sceneSizeMax: 40_000,
   initiativeEntries: 100,
   itemsPerScene: 5000,
+  /** Compass roses on one scene (one is usual). */
+  compassesPerScene: 20,
 } as const;
 
 // Ids can't start with "__" (so "__proto__" never becomes a key in a plain object).
@@ -187,6 +189,31 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
     if (x === undefined || y === undefined) return null;
     const assetId = r.assetId === undefined || r.assetId === null ? null : isId(r.assetId) ? r.assetId : undefined;
     if (assetId === undefined) return null;
+    // Built-in art this code doesn't know is refused rather than kept as a plain token.
+    const art = r.art === undefined || r.art === null ? null : TOKEN_ARTS.find((a) => a === r.art);
+    if (art === undefined) return null;
+    if (art === "compass") {
+      // Drawn by the browser, under characters: never an image, never a character.
+      return {
+        id: r.id,
+        sceneId: r.sceneId,
+        kind: "token",
+        z,
+        owner,
+        x,
+        y,
+        size: num(r.size, LIMITS.tokenSizeMin, LIMITS.tokenSizeMax) ?? 2,
+        rotation: rotation(r.rotation) ?? 0,
+        assetId: null,
+        color: cleanColor(r.color) ?? "#d62f2f",
+        label: cleanText(r.label, LIMITS.label) ?? "N",
+        hidden: bool(r.hidden) ?? false,
+        locked: bool(r.locked) ?? false,
+        rings: rings(r.rings) ?? [],
+        layer: "prop",
+        art,
+      };
+    }
     return {
       id: r.id,
       sceneId: r.sceneId,
@@ -273,6 +300,10 @@ export function sanitizeSet(item: Item, raw: unknown): Partial<MutableFields> | 
     if (!shapePointsOk(item.kind, item.shape, out.points as number[])) return null;
   }
   if (item.kind === "terrain" && !terrainFieldsOk(!!item.hidden, out as Partial<MutableFields>)) return null;
+  // A compass stays a compass: a prop, drawn without an image.
+  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null))) {
+    return null;
+  }
   if ("text" in out && !(item.kind === "drawing" && item.shape === "text")) return null;
   return out as Partial<MutableFields>;
 }

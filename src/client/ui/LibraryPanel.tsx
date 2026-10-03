@@ -1,9 +1,10 @@
 import { useRef, useState } from "preact/hooks";
-import { Pencil, Trash, Upload } from "lucide-preact";
+import { Compass, Pencil, Trash, Upload } from "lucide-preact";
 import type { Asset, AssetKind } from "../../shared/types";
 import { fileUrl } from "../api";
 import { PLAYER_COLORS } from "../identity";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
+import { MonstersSection } from "./MonstersSection";
 
 export function LibraryPanel() {
   const room = useRoom();
@@ -13,7 +14,8 @@ export function LibraryPanel() {
   const uploading = useRoomState((s) => s.uploading);
   const items = useRoomState((s) => s.items);
   const scenes = useRoomState((s) => s.scenes);
-  const [tab, setTab] = useState<AssetKind>("token");
+  // The GM's Monsters tab lists ready-made creatures rather than uploads.
+  const [tab, setTab] = useState<AssetKind | "monsters">("token");
   const [label, setLabel] = useState("");
   const [renaming, setRenaming] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<Asset | null>(null);
@@ -64,12 +66,30 @@ export function LibraryPanel() {
           />
         ))}
       </div>
+      {gm && (
+        <div class="row map-aids">
+          <button
+            class="btn btn-sm"
+            title="Add a compass rose to the middle of the view, then turn it so N points to the map's north"
+            onClick={() => {
+              // On a phone the panel covers the board, and the compass and its bar with it.
+              if (room.addCompass() && window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
+            }}
+          >
+            <Compass size={14} /> Compass
+          </button>
+          <span class="small muted">On the map for everyone. Turn it so N points north.</span>
+        </div>
+      )}
 
       <div class="library-head">
         {gm ? (
           <div class="seg">
             <button class={cx("seg-btn wide", tab === "token" && "active")} onClick={() => setTab("token")}>
               Tokens
+            </button>
+            <button class={cx("seg-btn wide", tab === "monsters" && "active")} onClick={() => setTab("monsters")}>
+              Monsters
             </button>
             <button class={cx("seg-btn wide", tab === "map" && "active")} onClick={() => setTab("map")}>
               Maps
@@ -78,9 +98,11 @@ export function LibraryPanel() {
         ) : (
           <h3>Your images</h3>
         )}
-        <button class="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
-          <Upload size={14} /> {uploading ? `Uploading ${uploading}…` : "Upload"}
-        </button>
+        {tab !== "monsters" && (
+          <button class="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
+            <Upload size={14} /> {uploading ? `Uploading ${uploading}…` : "Upload"}
+          </button>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -90,7 +112,7 @@ export function LibraryPanel() {
           onChange={(e) => {
             const files = [...(e.currentTarget.files ?? [])];
             e.currentTarget.value = "";
-            if (files.length) void room.upload(files, tab);
+            if (files.length && tab !== "monsters") void room.upload(files, tab);
           }}
         />
       </div>
@@ -99,7 +121,9 @@ export function LibraryPanel() {
       )}
       {tab === "map" && <p class="small muted">Use maps from the Scenes panel.</p>}
 
-      {list.length === 0 ? (
+      {tab === "monsters" ? (
+        <MonstersSection />
+      ) : list.length === 0 ? (
         <p class="muted small">Nothing uploaded yet.</p>
       ) : (
         <div class="asset-grid">

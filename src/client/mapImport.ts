@@ -30,7 +30,7 @@ export interface MapFile {
 
 /** What the file picker offers. */
 export const MAP_FILE_ACCEPT =
-  "image/png,image/jpeg,image/webp,image/gif,image/avif,.dd2vtt,.df2vtt,.uvtt,.json,.ob2,.owlbear";
+  "image/png,image/jpeg,image/webp,image/gif,image/avif,.dd2vtt,.df2vtt,.uvtt,.json,.ob2,.owlbear,.dungeondraft_map";
 
 const VTT_EXT = /\.(dd2vtt|df2vtt|uvtt|json)$/i;
 
@@ -38,12 +38,17 @@ export function isVttFile(f: File): boolean {
   return VTT_EXT.test(f.name);
 }
 
+/** Dungeondraft's own project file: the map's data, but no picture. Its export has both. */
+export function isDungeondraftProject(f: File): boolean {
+  return /\.dungeondraft_map$/i.test(f.name);
+}
+
 /**
  * Whether a dropped or pasted image is more likely a map than a token: tokens are
  * rarely more than about 1000 px across, battle maps rarely less than 1600.
  */
 export async function looksLikeMap(f: File): Promise<boolean> {
-  if (isVttFile(f) || /\.(ob2|owlbear)$/i.test(f.name)) return true;
+  if (isVttFile(f) || isDungeondraftProject(f) || /\.(ob2|owlbear)$/i.test(f.name)) return true;
   if (!f.type.startsWith("image/")) return false;
   try {
     const bmp = await createImageBitmap(f);
@@ -188,6 +193,10 @@ export async function readMapFiles(files: File[]): Promise<{ maps: MapFile[]; er
         // Owlbear Rodeo 1's own format. Owlbear's converter turns it into a 2.0 backup, which comes in here.
         errors.push(
           `${f.name} is from the old Owlbear Rodeo 1. Convert it at 1to2.owlbear.app, then bring in the .ob2 file it makes.`,
+        );
+      } else if (isDungeondraftProject(f)) {
+        errors.push(
+          `${f.name} is Dungeondraft's project file, which has no picture in it. In Dungeondraft, export the map as Universal VTT (.dd2vtt) and bring that in instead.`,
         );
       } else if (f.type.startsWith("image/")) {
         maps.push({ name: nameFromFile(f.name), image: f, ...gridFromName(f.name) });

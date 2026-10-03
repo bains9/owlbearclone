@@ -15,8 +15,59 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 29 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 3 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Monsters ready to use (3 October 2026, later)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then the **Monsters** tab.",
+          "Click a monster to put it in the middle of your view, or drag it onto the map."
+        ],
+        "notes": [
+          "55 ready-made monsters, from goblins and skeletons to an ancient dragon, each a light picture on a dark disc with a coloured ring for its kind of creature.",
+          "Each one comes in at its D&D size, so it fits the map's squares: a Large ogre covers 2 by 2, a Huge giant 3 by 3.",
+          "Tick **Add hidden** to set up an ambush: the monsters you add are hidden from players until you show them.",
+          "The size list in the token bar now says which D&D sizes go with each size, for every token: **½×½ (Tiny)**, **1×1 (Small/Medium)**, **2×2 (Large)**, **3×3 (Huge)**, **4×4 (Gargantuan)**.",
+          "Monsters work like any picture token, on every page and on the table display. Only the **Monsters** tab needs a reload (**Update: Reload**) on a page opened before this update.",
+          "See **Monsters**."
+        ]
+      },
+      {
+        "title": "A compass for any map (3 October 2026)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then **Compass**.",
+          "Turn it with the dial in the bar at the bottom until its red N points to the map's north."
+        ],
+        "notes": [
+          "A compass rose you put on the map, like a prop. Everyone sees it, the table display too, and fog never hides it. Only the GM can move, turn, size, lock or delete it.",
+          "North can point any way: the dial turns it in 5° steps, the arrow buttons 15°, and with a mouse the wheel turns the selected compass under the pointer (15° a notch, 5° with **Z** held).",
+          "Pages opened before this update don't show compasses: they're asked to reload (**Update: Reload**).",
+          "See **A compass on the map**."
+        ]
+      },
+      {
+        "title": "Maps say when they're loading (3 October 2026)",
+        "steps": [],
+        "notes": [
+          "While a scene's map is still on its way, the board says **Loading map…** in the middle. It only shows when the map takes more than a moment, so a map your browser already has just appears, and it goes as soon as the map is there.",
+          "Every loading map comes with a word about Baldr, a different one each time. It doesn't make the map any faster, but Baldr insists.",
+          "If the map can't load, the board says \"Couldn't load the map, trying again…\" while it tries again by itself (no Baldr then: that's a real problem). If it still can't, it says \"Couldn't load the map. Check the connection, then try again.\", with a **Try again** button.",
+          "While a season is being made for the map, a small note in a corner says **Making the season…** until the seasonal look appears. A device with seasons turned off never shows it.",
+          "Everyone sees these, the table display too (in bigger letters). None of them gets in the way: the board under them works as usual.",
+          "See \"The map doesn't appear\" in **Troubleshooting**."
+        ]
+      },
+      {
+        "title": "Dungeondraft project files explained (30 September 2026)",
+        "steps": [
+          "GM: in Dungeondraft, choose **Export** and set the export mode to **Universal VTT**.",
+          "Bring the .dd2vtt file it makes into Tabletop: **Import Dungeondraft map**, **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "Dungeondraft's own project file (its name ends in .dungeondraft_map) has the map's data but no picture, so Tabletop can't make a scene from it. Bringing one in now says so and asks for the export, instead of doing nothing.",
+          "See **Coming from Dungeondraft**."
+        ]
+      },
       {
         "title": "Pointing on the table display (29 September 2026, later)",
         "steps": [
@@ -421,6 +472,7 @@ export const GUIDE: GuideSection[] = [
           "The picture keeps its shape and is fitted inside the token's square. If it has a name, the name is shown underneath.",
           "Players only see the pictures they uploaded themselves, and can have up to 100. After that they see **You've uploaded as many images as a player can. Delete some of yours first.**",
           "GM: your **Tokens** tab also lists the pictures players have uploaded.",
+          "GM: the **Monsters** tab has 55 ready-made monsters, sized for the map. See **Monsters**.",
           "The GM's **Maps** tab holds map pictures. You use those from the **Scenes** panel."
         ]
       },
@@ -436,7 +488,7 @@ export const GUIDE: GuideSection[] = [
           "On a phone or tablet, the two buttons are always showing.",
           "Each uploaded picture starts out named after its file.",
           "To delete a picture, click **Delete** (the bin). You're asked **Delete image?** first, and then it's removed for good.",
-          "The warning says anything using the picture will show a blank. On the map, a token that used it turns into a plain coloured circle showing the first letters of its name. A scene that used it as its map shows just its background.",
+          "The warning says anything using the picture will show a blank. On the map, a token that used it turns into a plain coloured circle showing the first letters of its name. A scene that used it as its map shows just its background, with the message that it couldn't load the map.",
           "GM: you can rename or delete any picture, including the ones players uploaded. Players can only rename or delete their own."
         ]
       },
@@ -449,8 +501,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
-          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token.",
-          "If a player drops a map file (a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
+          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. A Dungeondraft project file (.dungeondraft_map) gets a message asking for its Universal VTT export instead.",
+          "If a player drops a map file (a Dungeondraft or other Universal VTT file, a Dungeondraft project file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
         ]
       },
       {
@@ -492,7 +544,7 @@ export const GUIDE: GuideSection[] = [
           "Click a token to select it. A bar with its settings appears at the bottom of the map.",
           "Type a name in the **Name** box.",
           "Press **Enter**, or click somewhere else, to save the name.",
-          "Choose a size from the **Size in squares** list: ½×½, 1×1, 2×2, 3×3, 4×4 or 6×6.",
+          "Choose a size from the **Size in squares** list: ½×½ (Tiny), 1×1 (Small/Medium), 2×2 (Large), 3×3 (Huge), 4×4 (Gargantuan) or 6×6.",
           "For a plain coloured token, click a colour dot to change its colour.",
           "Click one of the six hollow coloured rings to put that ring around the token. Click it again to take it off.",
           "Click **Rotate left** or **Rotate right** to turn the token 45 degrees.",
@@ -501,6 +553,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Press **Escape** in the **Name** box to cancel a name change.",
+          "The names in brackets are the D&D sizes of creature that take up that much of the map: a Tiny creature half a square, Small and Medium ones a square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
           "A ring brightens when it's on. Pointing at the rings shows **Status rings**. The six colours are red, orange, green, blue, purple and white, and a token can wear several at once.",
           "Props, such as doors, chests or furniture, always sit underneath characters. Click the armchair again to turn a prop back into a character.",
           "**Add to initiative** adds the token with its name and a score of 0, then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
@@ -571,6 +624,69 @@ export const GUIDE: GuideSection[] = [
           "Players can't move, change or delete a locked token, but you still can.",
           "With several tokens selected, the button is called **Lock or unlock (L)**.",
           "A player who's allowed to add tokens can still copy a locked token. The copy isn't locked and belongs to that player, so they can move and delete it."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "monsters",
+    "title": "Monsters",
+    "audience": "gm",
+    "intro": "Tabletop comes with 55 ready-made monsters, from goblins and skeletons to an ancient dragon. Each is a token that comes in at its D&D size, so it fits the map's squares, named after the creature. Only you can see the list.",
+    "parts": [
+      {
+        "title": "Place a monster",
+        "steps": [
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click the **Monsters** tab, between **Tokens** and **Maps**.",
+          "To find one, type part of its name in the **Search monsters** box, or pick a kind of creature from the **All types** list.",
+          "Click the monster to put it in the middle of your view, or drag it onto the map and let go where you want it."
+        ],
+        "notes": [
+          "A monster you click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
+          "Each monster is a light picture on a dark disc, with a coloured ring for its kind: gold for humanoids, teal for undead, green for beasts, orange for monstrosities, brown for giants, red for dragons, pink for fiends, blue for elementals, grey for constructs, yellow-green for plants and purple for fey.",
+          "The first time you use a monster in a room it takes a moment: its picture is made and uploaded, and a monster you clicked is dimmed in the list until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"Monster: \" and the creature's name. If you rename or delete it, the next one you place makes a new picture.",
+          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+        ]
+      },
+      {
+        "title": "Sizes",
+        "steps": [],
+        "notes": [
+          "The letter in the corner of each monster is its D&D size: **T** Tiny, **S** Small, **M** Medium, **L** Large, **H** Huge, **G** Gargantuan.",
+          "Each size covers as many squares as in D&D: Tiny half a square, Small and Medium one square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
+          "Pointing at a monster in the list shows its size and kind, for example \"Ogre: Large giant, 2×2 squares\".",
+          "To change a monster's size on the map, select it and pick another from the **Size in squares** list in the bar. The list says which D&D sizes go with each size, for every token."
+        ]
+      },
+      {
+        "title": "Add hidden, for ambushes",
+        "steps": [
+          "Tick **Add hidden**, above the monsters.",
+          "Place the monsters as usual.",
+          "When the players spring the trap, select the monsters and press **H** (or click the crossed-out eye in the bar) to show them."
+        ],
+        "notes": [
+          "Hidden monsters are see-through for you, with a dashed white ring, and players' browsers never receive them, so they can't be spotted early. Their initiative entries are hidden from players too.",
+          "**Add hidden** stays ticked on this device (the browser remembers it) until you untick it, so remember to untick it when you want monsters in plain sight."
+        ]
+      },
+      {
+        "title": "Several of the same monster",
+        "steps": [
+          "Click the same monster again for each one you want, or select one on the map and press **Ctrl+D**."
+        ],
+        "notes": [
+          "They get numbered names, as duplicates do: the first is \"Goblin\", the next \"Goblin 2\", then \"Goblin 3\", always one higher than the highest number already on the scene.",
+          "Monsters on other scenes don't count, so each scene starts again at \"Goblin\"."
+        ]
+      },
+      {
+        "title": "Where the pictures come from",
+        "steps": [],
+        "notes": [
+          "Monster icons by Lorc, Delapouite, Caro Asercion, Cathelineau and Skoll (recoloured and set on token discs), from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).",
+          "The same credit is at the bottom of the **Monsters** tab."
         ]
       }
     ]
@@ -1442,7 +1558,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
           "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not.",
-          "Universal VTT files saved with a .json ending work too."
+          "Universal VTT files saved with a .json ending work too.",
+          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture: bring in its Universal VTT export instead. If you bring in the project file, Tabletop says so."
         ]
       },
       {
@@ -1526,6 +1643,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
+          "Bring in the export, not the map you save in Dungeondraft (the .dungeondraft_map file): that one has no picture in it, and Tabletop tells you so if you try.",
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
           "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",
@@ -1908,7 +2026,8 @@ export const GUIDE: GuideSection[] = [
           "The shuffle button next to the strengths keeps the season but moves the snow drifts, fallen leaves or flowers to other places.",
           "Picking a season starts at the strength you last used for it on this device (the middle one the first time).",
           "The season button in the top bar shows the scene's season: a snowflake for Winter, a leaf for Autumn, a flower for Spring and a sun for Summer.",
-          "The first time a screen shows a season, it redraws the map: a rough version appears first, then the sharp one a moment later. Going back to a season used a moment ago is instant."
+          "The first time a screen shows a season, it redraws the map: a rough version appears first, then the sharp one a moment later. Going back to a season used a moment ago is instant.",
+          "If that takes more than a moment, a small note in a corner of the board says **Making the season…** (bottom right; at the top on a phone) until the season appears. Meanwhile the map shows as drawn, or in the season it had before."
         ]
       },
       {
@@ -1942,6 +2061,62 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "That device then shows every map as drawn. Everyone else still sees the season, and so does a table display, even one you open on this device. Tick it again to see seasons.",
           "Players can do this too, on their own devices."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "compass",
+    "title": "A compass on the map",
+    "audience": "gm",
+    "intro": "Put a compass rose on any map and turn it so its N points to that map's north, whichever way that is on the picture. It's part of the map: everyone sees it, players and the table display too, and only you can move or change it.",
+    "parts": [
+      {
+        "title": "Add a compass",
+        "steps": [
+          "Go to the scene you want it on: the live one, or one you're previewing.",
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click **Compass**, under the quick tokens."
+        ],
+        "notes": [
+          "A compass rose two squares across appears in the middle of your view, North pointing up. It's selected, and **Move & select** is switched on, so you can turn or drag it at once. On a phone the panel closes, so you can see it and its bar.",
+          "It belongs to that scene. Each scene can have its own, and a scene can have several (up to 20), though one is usual. At 20, **Compass** and **Duplicate** say so and add no more.",
+          "It sits on top of the map and drawings and under the characters' tokens. Fog never hides it, so players can find their bearings even on a map that's still covered.",
+          "Players and the table display see it, but players can't select, move, turn, size or delete it: a click on it goes to whatever is under it.",
+          "Adding it is one step for **Undo** (Ctrl+Z)."
+        ]
+      },
+      {
+        "title": "Turn it so N points north",
+        "steps": [
+          "With **Move & select** (**V**), click the middle of the compass (where the points meet) to select it.",
+          "In the bar at the bottom, drag the dial until the red N points to the map's north. The number beside it is how far North is turned, clockwise from straight up."
+        ],
+        "notes": [
+          "The arrow buttons either side of the dial turn it 15° at a time. On a phone or tablet, drag the dial with your finger.",
+          "With a mouse, point at the selected compass and scroll the wheel: it turns 15° a notch, as objects do in the Build tool. To turn it 5° at a time, hold **Z** while you scroll. **Alt** and the wheel make it bigger or smaller. Away from the compass, the wheel zooms as usual.",
+          "To zoom while the pointer is over the selected compass (when it fills the view, say), hold **Ctrl** as you scroll, or press **Escape** to let go of the compass first.",
+          "If your mouse wheel moves the map instead of turning it, or you use a trackpad, hold **Z** while you scroll, or use the dial.",
+          "**[** and **]** turn it 45° (15° with **Shift**), as they turn any token.",
+          "One drag of the dial, or one quick run of wheel turns, is one step for **Undo**."
+        ]
+      },
+      {
+        "title": "Move, size, lock or delete it",
+        "steps": [
+          "Drag the compass to move it. It snaps to the grid; hold **Alt** as you let go to put it anywhere.",
+          "To change its size, pick one in the bar (½ to 6 squares).",
+          "To lock it, click the padlock in the bar, or press **L**.",
+          "To remove it, press **Delete**, or click the bin in the bar."
+        ],
+        "notes": [
+          "A locked compass stays exactly as it is, even for you: it can't be dragged, turned or sized until you unlock it (click the padlock or press **L** again). You can still delete it.",
+          "A compass doesn't get in the way of what's under it. While it isn't selected, only its middle picks it: a click elsewhere on it goes to a prop, drawing or note underneath. Once it's selected, you can grab it anywhere.",
+          "The eraser leaves compasses alone and erases what's under them. To remove a compass, select it and press **Delete**.",
+          "The eye button (**H**) hides it from players, as with tokens. You see a hidden compass dimmed.",
+          "**Duplicate** (Ctrl+D) puts a copy one square to the right.",
+          "Each move, turn, size change and delete is one step for **Undo**.",
+          "A page opened before 3 October 2026 doesn't show compasses. It's asked to reload (**Update: Reload**); if the table display is one, you're told so you can reload it."
         ]
       }
     ]
@@ -2458,7 +2633,7 @@ export const GUIDE: GuideSection[] = [
           "**Drag empty map**: move your view, while **Move & select** is on",
           "**Right- or middle-button drag**: move your view, with any tool",
           "**Space+drag**: move your view, with any tool",
-          "**Mouse wheel**: zoom in and out around the pointer (GM: in the Build tool's **Objects**, and in **Select** with objects selected, it turns objects instead)",
+          "**Mouse wheel**: zoom in and out around the pointer (GM: in the Build tool's **Objects**, and in **Select** with objects selected, it turns objects instead, and over a selected compass it turns the compass)",
           "**Ctrl+mouse wheel**: zoom, always, even where the wheel turns objects or moves the map (small, smooth wheel steps are treated like a trackpad scroll)",
           "**Pinch** on a trackpad: zoom",
           "**Two-finger scroll** on a trackpad: move your view",
@@ -2480,6 +2655,7 @@ export const GUIDE: GuideSection[] = [
           "**Escape**: stop what you're in the middle of (a drag, a drawing, a measurement), or clear the selection",
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
+          "**Mouse wheel** over a selected compass: turn it 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller; **Ctrl**+wheel still zooms (GM)",
           "**Alt** while letting go of a token you're dragging: don't snap to the grid",
           "**H**: hide or show the selected tokens, drawings and notes (GM)",
           "**L**: lock or unlock the selected tokens (GM)",
@@ -2603,6 +2779,20 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Changes you made while disconnected are sent once the connection is back, as long as you haven't reloaded.",
           "On a phone, switching back to the browser makes it try again straight away."
+        ]
+      },
+      {
+        "title": "The map doesn't appear",
+        "steps": [
+          "If the board says **Loading map…**, wait: a big map on a slow connection can take a little while. Tokens, the grid and fog are there meanwhile.",
+          "If it says \"Couldn't load the map, trying again…\", it's already trying again by itself. Check your Wi-Fi or mobile data.",
+          "If it says \"Couldn't load the map. Check the connection, then try again.\", it has stopped trying. Check the connection, then click **Try again**.",
+          "If it still won't load, reload the page."
+        ],
+        "notes": [
+          "If the map never loads for anyone, its picture may have been deleted from **Tokens & images**. GM: pick a map for the scene again in the scene editor.",
+          "No message and no map: the scene doesn't have a map (a blank grid, or a map you build).",
+          "**Making the season…** in a corner isn't a problem: the map is there, and its seasonal look follows in a moment. If seasons are slow on a device, see \"If maps are slow to appear on a device\" in **Seasons: snow, autumn leaves, blossom and drought**."
         ]
       },
       {

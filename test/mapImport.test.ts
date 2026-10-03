@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { gridFromName, gridSizeFor, nameFromFile, parseUniversalVtt, readMapFiles } from "../src/client/mapImport";
+import {
+  gridFromName,
+  gridSizeFor,
+  isDungeondraftProject,
+  looksLikeMap,
+  MAP_FILE_ACCEPT,
+  nameFromFile,
+  parseUniversalVtt,
+  readMapFiles,
+} from "../src/client/mapImport";
 
 const PNG_1x1 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -30,6 +39,20 @@ describe("files that aren't maps yet", () => {
     const { maps, errors } = await readMapFiles([new File(["{}"], "abc123.owlbear")]);
     expect(maps).toEqual([]);
     expect(errors[0]).toMatch(/1to2\.owlbear\.app/);
+  });
+
+  it("asks for Dungeondraft's export when given its project file", async () => {
+    const { maps, errors } = await readMapFiles([new File(["{}"], "Kdir Topside.dungeondraft_map")]);
+    expect(maps).toEqual([]);
+    expect(errors).toEqual([
+      "Kdir Topside.dungeondraft_map is Dungeondraft's project file, which has no picture in it. In Dungeondraft, export the map as Universal VTT (.dd2vtt) and bring that in instead.",
+    ]);
+  });
+
+  it("sends a dropped or picked project file to the New scene window, where it gets that message", async () => {
+    expect(await looksLikeMap(new File(["{}"], "waterfall.DUNGEONDRAFT_MAP"))).toBe(true);
+    expect(isDungeondraftProject(new File(["{}"], "waterfall.dungeondraft_map.png"))).toBe(false);
+    expect(MAP_FILE_ACCEPT.split(",")).toContain(".dungeondraft_map");
   });
 });
 

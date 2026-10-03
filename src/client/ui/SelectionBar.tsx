@@ -1,5 +1,8 @@
+import { useRef } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import {
   Armchair,
+  Compass,
   Pencil,
   BringToFront,
   Copy,
@@ -16,6 +19,7 @@ import {
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
+import { isCompass } from "../../shared/types";
 import { PLAYER_COLORS } from "../identity";
 import {
   deleteSelection,
@@ -26,11 +30,121 @@ import {
   toggleHidden,
   toggleLocked,
 } from "../room/actions";
+import { COMPASS_DIAL_STEP, dialValue, turnBy } from "../room/compass";
+import { TOKEN_SIZES, sizeOptionLabel } from "../room/tokenSizes";
 import { CommitInput, Swatches, cx, useRoom, useRoomState } from "./common";
 import { DRAW_COLORS } from "./Toolbar";
 
-const SIZES = [0.5, 1, 2, 3, 4, 6];
 const RING_COLORS = ["#e4572e", "#f3a712", "#5bba6f", "#4f9dde", "#b45fd6", "#ffffff"];
+
+/**
+ * A token's size in squares, with the D&D sizes they stand for (a size not in the list, such as
+ * one set with the wheel, is added to it). A compass has no D&D size.
+ */
+function SizeSelect(props: { size: number; disabled: boolean; dnd?: boolean; onPick: (size: number) => void }) {
+  const { size } = props;
+  return (
+    <select
+      value={String(size)}
+      disabled={props.disabled}
+      title="Size in squares"
+      aria-label="Size in squares"
+      onChange={(e) => props.onPick(Number(e.currentTarget.value))}
+    >
+      {(TOKEN_SIZES.includes(size) ? TOKEN_SIZES : [...TOKEN_SIZES, size].sort((a, b) => a - b)).map((s) => (
+        <option key={s} value={String(s)}>
+          {sizeOptionLabel(s, props.dnd !== false)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Counts drags of a compass dial, so each has its own undo step (even after the bar is shown again). */
+let dialDrags = 0;
+
+/**
+ * A compass rose (GM): its size, which way North points (buttons of 15°, and a dial in 5°
+ * steps that works by touch too), hide, lock and duplicate. Locked, it can't be moved, turned
+ * or sized until it's unlocked. Each drag of the dial is one undo step, however long it pauses
+ * while held; a quick run of arrow keys on it is one too.
+ */
+function CompassBar(props: { t: TokenItem; gm: boolean; common: ComponentChildren }) {
+  const room = useRoom();
+  const { t, gm } = props;
+  const can = room.canMoveItem(t);
+  const drag = useRef(0);
+  const held = useRef(false);
+  const patch = (set: Partial<TokenItem>, coalesce?: string) =>
+    room.change({ patch: [{ id: t.id, set }] }, true, coalesce, coalesce !== undefined && held.current);
+  const grab = () => {
+    drag.current = ++dialDrags;
+    held.current = true;
+    // Let go anywhere (the pointer may leave the dial while it's held).
+    const release = () => {
+      held.current = false;
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
+    };
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+  };
+  const dial = dialValue(t.rotation);
+  return (
+    <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
+      <span class="selbar-what muted small">
+        <Compass size={16} /> Compass
+      </span>
+      <SizeSelect size={t.size} disabled={!can} dnd={false} onPick={(size) => patch({ size })} />
+      {can && (
+        <div class="compass-turn" role="group" aria-label="Which way North points">
+          <button class="icon-btn" title="Turn left 15° ([ turns 45°)" aria-label="Turn left 15°" onClick={() => patch({ rotation: turnBy(t.rotation, -15) })}>
+            <RotateCcw size={18} />
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={360 - COMPASS_DIAL_STEP}
+            step={COMPASS_DIAL_STEP}
+            value={dial}
+            title="Which way North points. The mouse wheel over the compass turns it too: 15°, or 5° with Z held."
+            aria-label="Which way North points, in degrees clockwise from up"
+            onPointerDown={grab}
+            onInput={(e) => patch({ rotation: Number(e.currentTarget.value) }, `dial|${t.id}|${drag.current}`)}
+          />
+          <span class="compass-deg">{dial}°</span>
+          <button class="icon-btn" title="Turn right 15° (] turns 45°)" aria-label="Turn right 15°" onClick={() => patch({ rotation: turnBy(t.rotation, 15) })}>
+            <RotateCw size={18} />
+          </button>
+        </div>
+      )}
+      {gm && (
+        <>
+          <button
+            class={cx("icon-btn", t.hidden && "active")}
+            title={t.hidden ? "Hidden from players (H)" : "Visible to players (H)"}
+            aria-label={t.hidden ? "Show to players" : "Hide from players"}
+            onClick={() => toggleHidden(room)}
+          >
+            {t.hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+          <button
+            class={cx("icon-btn", t.locked && "active")}
+            title={t.locked ? "Locked: it can't be moved, turned or sized until you unlock it (L)" : "Lock it in place (L)"}
+            aria-label={t.locked ? "Unlock" : "Lock"}
+            onClick={() => toggleLocked(room)}
+          >
+            {t.locked ? <Lock size={18} /> : <LockOpen size={18} />}
+          </button>
+          <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={() => duplicateSelection(room)}>
+            <Copy size={18} />
+          </button>
+        </>
+      )}
+      {props.common}
+    </div>
+  );
+}
 
 export function SelectionBar() {
   const room = useRoom();
@@ -66,6 +180,10 @@ export function SelectionBar() {
     </>
   );
 
+  if (tokens.length === 1 && selected.length === 1 && isCompass(tokens[0])) {
+    return <CompassBar t={tokens[0]} gm={gm} common={common} />;
+  }
+
   if (tokens.length === 1 && selected.length === 1) {
     const t = tokens[0];
     const can = room.canMoveItem(t);
@@ -81,19 +199,7 @@ export function SelectionBar() {
           disabled={!can}
           onCommit={(label) => patch({ label: label.trim() })}
         />
-        <select
-          value={String(t.size)}
-          disabled={!can}
-          title="Size in squares"
-          aria-label="Size in squares"
-          onChange={(e) => patch({ size: Number(e.currentTarget.value) })}
-        >
-          {(SIZES.includes(t.size) ? SIZES : [...SIZES, t.size].sort((a, b) => a - b)).map((s) => (
-            <option key={s} value={String(s)}>
-              {s === 0.5 ? "½" : s}×{s === 0.5 ? "½" : s}
-            </option>
-          ))}
-        </select>
+        <SizeSelect size={t.size} disabled={!can} onPick={(size) => patch({ size })} />
         {!t.assetId && can && <Swatches colors={PLAYER_COLORS.slice(0, 8)} value={t.color} onPick={(color) => patch({ color })} size="sm" />}
         {can && (
           <div class="rings" title="Status rings">

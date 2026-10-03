@@ -5,7 +5,7 @@
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
-import { applyOps, inverseOps, isEmptyOps } from "../../shared/ops";
+import { applyOps, inverseOps, isEmptyOps, isPatchOnly, mergePatches } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
 import { canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
@@ -27,6 +27,8 @@ import type {
   Scene,
   TokenItem,
 } from "../../shared/types";
+import { compassesOn, isCompass } from "../../shared/types";
+import { LIMITS } from "../../shared/sanitize";
 import type { FloorId, StampId } from "../../shared/terrain";
 import { BUILD_ID } from "../../shared/build";
 import { uploadImage } from "../api";
@@ -36,8 +38,11 @@ import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
 import { composeBuildUndo } from "./build";
-import { canFold, pressX } from "./buildInput";
+import { canFold, canFoldPlain, pressX } from "./buildInput";
+import { COMPASS_COLOR, COMPASS_LABEL, COMPASS_SIZE } from "./compass";
 import type { SelectReturn, WheelPref } from "./buildInput";
+import { NO_MAP_LOAD } from "./mapLoading";
+import type { MapLoad } from "./mapLoading";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
 
@@ -148,6 +153,8 @@ export interface RoomState {
   seasonsOff: boolean;
   /** How much of each map (by asset id) is open ground, once a season has analysed it. */
   mapOutdoor: Record<string, number>;
+  /** The current scene's map picture on this device: loading, failed or there, and its season being made. */
+  mapLoad: MapLoad;
   /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
   buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
   /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
@@ -189,6 +196,8 @@ export interface BoardApi {
   buildAction(a: BuildAction): void;
   /** Build › Select: selects nothing. */
   clearBuildSelection(): void;
+  /** Loads the scene's map picture again after it was given up on (the Try again button). */
+  retryMap(): void;
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -385,6 +394,7 @@ export class RoomClient {
       // GM's own browser mustn't take on the GM's "seasons off" for this device.
       seasonsOff: displayKey === null && loadSeasonsOff(),
       mapOutdoor: {},
+      mapLoad: NO_MAP_LOAD,
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
@@ -900,13 +910,41 @@ export class RoomClient {
 
   // ---------------------------------------------------------------- item changes
 
-  /** Applies a change locally, sends it, and (by default) records it for undo. */
-  change(ops: ItemOps, undoable = true): void {
+  /**
+   * Applies a change locally, sends it, and (by default) records it for undo. With a
+   * `coalesce` key, a change of fields only folds into the step on top when that one is from
+   * the same burst (turning a compass with the wheel, say), so one undo takes back the burst.
+   * `held`: the burst is a drag still held down (the compass bar's dial), so a pause in it
+   * doesn't start a new step.
+   */
+  change(ops: ItemOps, undoable = true, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
     if (undoable) {
-      this.undoStack.push({ sceneId: this.sceneOf(ops), redo: ops, undo: inverseOps(this.state.items, ops) });
-      if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
-      this.redoStack = [];
+      const sceneId = this.sceneOf(ops);
+      const now = Date.now();
+      const top = this.undoStack.at(-1);
+      if (
+        coalesce !== undefined &&
+        top &&
+        isPatchOnly(ops) &&
+        isPatchOnly(top.redo) &&
+        isPatchOnly(top.undo) &&
+        canFoldPlain(top, coalesce, sceneId, now, !this.redoStack.length, held)
+      ) {
+        // Undo goes back to how things were before the burst; redo to how it ended.
+        top.undo = { patch: mergePatches(inverseOps(this.state.items, ops).patch ?? [], top.undo.patch!) };
+        top.redo = { patch: mergePatches(top.redo.patch!, ops.patch!) };
+        top.coalesce = { key: coalesce, at: now };
+      } else {
+        this.undoStack.push({
+          sceneId,
+          redo: ops,
+          undo: inverseOps(this.state.items, ops),
+          ...(coalesce !== undefined ? { coalesce: { key: coalesce, at: now } } : {}),
+        });
+        if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+        this.redoStack = [];
+      }
     }
     this.applyLocal(ops);
     this.refreshUndoFlags();
@@ -1053,10 +1091,53 @@ export class RoomClient {
   canMoveItem(item: Item): boolean {
     const s = this.state;
     if (!s.me || !s.room) return false;
+    // A locked compass stays put even for the GM, until it's unlocked: that's what locking it is for.
+    if (isCompass(item) && item.locked) return false;
     return canMove(item, s.me, s.room.settings);
   }
 
-  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size">>, at?: Point): TokenItem | null {
+  /** GM: a compass rose in the middle of the view, two squares across, North up, selected. */
+  addCompass(): TokenItem | null {
+    const s = this.state;
+    const scene = this.viewScene;
+    if (!scene || !s.me || !this.isGm || !this.compassesFit(scene.id, 1)) return null;
+    const raw = this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
+    const pos = scene.grid.snap ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
+    const compass: TokenItem = {
+      id: randomId(12),
+      sceneId: scene.id,
+      kind: "token",
+      z: this.nextZ(scene.id, "token"),
+      owner: s.me.userId,
+      x: Math.round(pos.x * 100) / 100,
+      y: Math.round(pos.y * 100) / 100,
+      size: COMPASS_SIZE,
+      rotation: 0,
+      assetId: null,
+      color: COMPASS_COLOR,
+      label: COMPASS_LABEL,
+      hidden: false,
+      locked: false,
+      rings: [],
+      layer: "prop",
+      art: "compass",
+    };
+    this.change({ upsert: [compass] });
+    this.store.set({ selection: [compass.id], tool: "select" });
+    return compass;
+  }
+
+  /**
+   * How many of `n` more compasses a scene has room for. When it's fewer, says so: the server
+   * would refuse the rest, and they'd vanish again without a word.
+   */
+  compassesFit(sceneId: string, n: number): number {
+    const free = Math.max(0, LIMITS.compassesPerScene - compassesOn(Object.values(this.state.items), sceneId));
+    if (free < n) this.toast(`A scene can have up to ${LIMITS.compassesPerScene} compasses. Delete one to add another.`, "error");
+    return Math.min(n, free);
+  }
+
+  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point): TokenItem | null {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !s.room) return null;
@@ -1067,7 +1148,7 @@ export class RoomClient {
     const size = opts.size ?? 1;
     const raw = at ?? this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
     let pos = scene.grid.snap ? snapTokenCenter(raw, size, scene.grid) : raw;
-    if (!at) pos = this.freeSpotNear(scene, pos);
+    if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
       id: randomId(12),
       sceneId: scene.id,
@@ -1081,7 +1162,8 @@ export class RoomClient {
       assetId: opts.assetId ?? null,
       color: opts.color ?? s.me.color,
       label: opts.label ?? "",
-      hidden: false,
+      // Only the GM hides things from players.
+      hidden: this.isGm && Boolean(opts.hidden),
       locked: false,
       rings: [],
     };
@@ -1090,14 +1172,26 @@ export class RoomClient {
     return token;
   }
 
-  /** The nearest grid position to `p` (spiralling outwards) that no token already sits on. */
-  private freeSpotNear(scene: Scene, p: Point): Point {
+  /**
+   * The nearest grid position to `p` (spiralling outwards) where a token `size` squares across
+   * covers no other token: on a square grid their squares don't overlap, on a hex grid their
+   * circles don't (side by side is fine). Where there's no such spot nearby, `p` itself.
+   */
+  private freeSpotNear(scene: Scene, p: Point, size: number): Point {
     const g = scene.grid.size;
     const step = cellSpacing(scene.grid);
+    const hex = isHex(scene.grid);
     const taken = Object.values(this.state.items).filter(
       (i): i is TokenItem => i.kind === "token" && i.sceneId === scene.id,
     );
-    const free = (q: Point) => taken.every((t) => Math.hypot(t.x - q.x, t.y - q.y) >= g * 0.5);
+    // A little short of touching, so rounding doesn't count neighbours as overlapping.
+    const apart = (t: TokenItem) => ((size + t.size) / 2) * g * 0.95;
+    const free = (q: Point) =>
+      taken.every((t) =>
+        hex
+          ? Math.hypot(t.x - q.x, t.y - q.y) >= apart(t)
+          : Math.max(Math.abs(t.x - q.x), Math.abs(t.y - q.y)) >= apart(t),
+      );
     for (let ring = 0; ring <= 8; ring++) {
       const candidates: [number, number][] = [];
       for (let dy = -ring; dy <= ring; dy++) {
@@ -1110,7 +1204,7 @@ export class RoomClient {
       candidates.sort((a, b) => Math.hypot(...a) - Math.hypot(...b) || angle(a) - angle(b));
       for (const [dx, dy] of candidates) {
         const raw = { x: p.x + dx * step.x, y: p.y + dy * step.y };
-        const q = isHex(scene.grid) ? snapTokenCenter(raw, 1, scene.grid) : raw;
+        const q = hex ? snapTokenCenter(raw, 1, scene.grid) : raw;
         if (q.x < 0 || q.y < 0 || q.x > scene.width || q.y > scene.height) continue;
         if (free(q)) return q;
       }

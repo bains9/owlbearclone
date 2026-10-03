@@ -201,6 +201,24 @@ export function canFold(
   return top.coalesce.key === key && top.sceneId === sceneId && now - top.coalesce.at <= BURST_MS;
 }
 
+/**
+ * The same for a plain change (a compass turned with the wheel or the bar's dial): it may fold
+ * into the step on top when that's a plain change from the same burst, not a build step or a
+ * change to the scene. `held`: the burst is a drag still held down (the dial), which is one
+ * step however long it pauses; its key is new for each drag.
+ */
+export function canFoldPlain(
+  top: { sceneId: string | null; steps?: unknown; scene?: unknown; coalesce?: { key: string; at: number } } | undefined,
+  key: string,
+  sceneId: string | null,
+  now: number,
+  redoEmpty: boolean,
+  held = false,
+): boolean {
+  if (!top || top.steps || top.scene || !top.coalesce || !redoEmpty) return false;
+  return top.coalesce.key === key && top.sceneId === sceneId && (held || now - top.coalesce.at <= BURST_MS);
+}
+
 // ---------------------------------------------------------------- the bars
 
 /** Where Duplicate tries to put the copies, in order: one square right, down, left, up. */

@@ -736,6 +736,24 @@ button:disabled {
 .selbar select {
   padding: 6px 8px;
 }
+.selbar-what {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.compass-turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.compass-turn input[type="range"] {
+  width: 120px;
+}
+.compass-deg {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .rings {
   display: flex;
   gap: 4px;
@@ -819,6 +837,142 @@ button:disabled {
   from {
     transform: translateY(8px);
     opacity: 0;
+  }
+}
+
+/* The map's loading message over the middle of the board, and the note in a corner while a
+   season is made. Neither takes a click (but Try again), and both sit under the floating
+   controls. */
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0.3s;
+}
+.map-loading.shown,
+.board-season-note.shown {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.25s ease,
+    visibility 0s;
+}
+.map-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, calc(100% - 128px));
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.map-loading-card strong {
+  font-size: 15px;
+}
+.map-loading-line {
+  color: var(--muted);
+}
+.map-loading-icon {
+  color: var(--accent);
+}
+.map-loading-card.failed {
+  border-color: var(--danger);
+}
+.map-loading-card.failed .map-loading-icon {
+  color: var(--danger);
+}
+.map-loading.shown .btn {
+  pointer-events: auto;
+}
+.board-season-note {
+  position: absolute;
+  right: 10px;
+  bottom: 64px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(26, 29, 36, 0.88);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0.3s;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* On a phone the zoom buttons are down the right-hand side: the note goes left of them.
+   While a tool's options bar is open, MapLoading puts it just below the bar instead. */
+@media (max-width: 760px) {
+  .board-season-note {
+    top: 10px;
+    bottom: auto;
+    right: 58px;
+  }
+}
+/* On a table display, big enough to read from across the table. */
+.display-room .map-loading-card {
+  gap: 12px;
+  max-width: min(720px, calc(100% - 80px));
+  padding: 24px 32px;
+}
+.display-room .map-loading-card strong {
+  font-size: 26px;
+}
+.display-room .map-loading-line {
+  font-size: 20px;
+}
+.display-room .map-loading-icon {
+  width: 48px;
+  height: 48px;
+}
+.display-room .board-season-note {
+  top: auto;
+  right: 20px;
+  bottom: 20px;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+.display-room .board-season-note svg {
+  width: 20px;
+  height: 20px;
+}
+/* No spinning or fading for those who'd rather not have motion: shown and hidden at once. */
+@media (prefers-reduced-motion: reduce) {
+  .map-loading,
+  .map-loading.shown,
+  .board-season-note,
+  .board-season-note.shown {
+    transition: none;
+  }
+  .spin {
+    animation: none;
   }
 }
 
@@ -1362,15 +1516,69 @@ button:disabled {
 .quick-token:hover {
   transform: scale(1.08);
 }
+.map-aids {
+  margin: 10px 0 4px;
+  flex-wrap: wrap;
+}
 .library-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
 }
 .library-head h3 {
   margin: 0;
+}
+.monsters {
+  margin-top: 8px;
+}
+.monster-filters {
+  gap: 6px;
+}
+.monster-filters input {
+  flex: 1;
+  min-width: 0;
+}
+.monster-filters select {
+  flex: none;
+  width: 120px;
+}
+.monster-grid {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+}
+.asset.monster {
+  position: relative;
+  padding: 6px 4px;
+}
+.asset.monster.busy {
+  opacity: 0.55;
+  cursor: progress;
+}
+.monster-art {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+}
+.monster-size {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: rgba(13, 15, 19, 0.9);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.monster-credit {
+  margin-top: 12px;
 }
 .asset-grid {
   display: grid;
