@@ -2,10 +2,63 @@
 // (snow, autumn trees, blossom, drought). The work runs in a worker (seasonWorker.ts), once
 // per season change, never per frame: first a quick small version, then a sharper one sized
 // for this device. The board shows whichever is ready.
+// A scene with Dungeondraft data is analysed from that data instead of guessed from the picture
+// (seasonExact.ts); whenever the data can't be used, it's guessed as before, never left plain.
 
 import { analyse, bake, outdoorFraction } from "./seasonPixels";
 import type { BakeOptions, SeasonAnalysis } from "./seasonPixels";
+import { EXACT_VERSION, analyseExact, isSnowy } from "./seasonExact";
+import { decodeSidecar } from "../dd/sidecar";
+import type { SeasonDdData } from "../dd/messages";
+import type { SceneDataState, SidecarCache, SidecarResult } from "./mapData";
 import type { SeasonLook } from "../../shared/types";
+
+/** A scene's Dungeondraft data, as far as a bake depends on it (SceneMapData without the picture's id). */
+export interface SeasonJobData {
+  /** The sidecar asset. */
+  assetId: string;
+  bare?: "leaf" | "dead";
+  drawn?: "winter" | "green";
+  packs?: "guess";
+}
+
+/** What a job's key and its analysis key gain with data: a new sidecar or option means a new bake. */
+export function ddKey(d: SeasonJobData): string {
+  return `|dd:${d.assetId}:${d.bare ?? "auto"}:${d.drawn ?? "auto"}:${d.packs ?? "drawn"}:${EXACT_VERSION}`;
+}
+
+/**
+ * The key of a map's outdoor share (the "indoor map" hint): per picture, and per data, so two scenes
+ * sharing a picture, one with data and one without, don't overwrite each other's (5.1).
+ */
+export function outdoorKey(assetId: string, data?: Pick<SeasonJobData, "assetId">): string {
+  return data ? `${assetId}|dd:${data.assetId}` : assetId;
+}
+
+/** One grid square in scene pixels for seasons: the grid, kept within sane bounds when it's badly set. */
+export function seasonSquare(sceneW: number, sceneH: number, grid: number): number {
+  const long = Math.max(sceneW, sceneH);
+  return Math.min(long / 8, Math.max(long / 160, grid));
+}
+
+/** The analysis size for a scene (about 20 px a square, 512-1024 px across), and a square there. */
+export function analysisGeometry(sceneW: number, sceneH: number, square: number): { aw: number; ah: number; kA: number; cellA: number } {
+  const long = Math.max(sceneW, sceneH);
+  const kA = Math.min(1, Math.min(1024 / long, Math.max(512 / long, 20 / square)));
+  return { aw: Math.max(1, Math.round(sceneW * kA)), ah: Math.max(1, Math.round(sceneH * kA)), kA, cellA: square * kA };
+}
+
+/** Where a baker gets scenes' Dungeondraft data, and whom it tells when that data can't be used. */
+export interface SeasonDataSource {
+  sidecars: Pick<SidecarCache, "get">;
+  roomId: string;
+  /**
+   * A job's data couldn't be used (its sidecar's load state, "green", or "unreadable" when the
+   * analysis refused it, or both tries at baking from it failed with nothing made). Nothing from the
+   * data is shown: the board plans the bake again without it.
+   */
+  onDataState(data: SeasonJobData, state: SceneDataState): void;
+}
 
 export interface SeasonJob {
   /** Everything the result depends on: a new key means a new bake. */
@@ -19,6 +72,8 @@ export interface SeasonJob {
   look: SeasonLook;
   level: 1 | 2 | 3;
   seed: number;
+  /** The scene's Dungeondraft data, when the board means to use it (the key then ends in ddKey). */
+  data?: SeasonJobData;
 }
 
 interface Result {
@@ -31,6 +86,12 @@ interface Result {
 interface Out {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
+}
+
+/** A job's validated sidecar (the cache's own bytes: only copies are sent), with the job's options. */
+interface Dd {
+  bytes: Uint8Array;
+  data: SeasonJobData;
 }
 
 /** No canvas may be bigger than this: iPhones and iPads refuse anything over 16.7 million pixels. */
@@ -149,6 +210,7 @@ export class SeasonBaker {
   constructor(
     private readonly onResult: () => void,
     private readonly display: boolean,
+    private readonly data: SeasonDataSource | null = null,
   ) {}
 
   /**
@@ -166,9 +228,12 @@ export class SeasonBaker {
     return stale;
   }
 
-  /** How much of the map is open ground with plants (for the "indoor map" hint), from the analysis in use, if known. */
-  outdoor(assetId: string): number | undefined {
-    return this.current.get(assetId);
+  /**
+   * How much of the map is open ground with plants (for the "indoor map" hint), from the analysis in
+   * use, if known. data: the job's data, when its bake uses it (its share is kept apart).
+   */
+  outdoor(assetId: string, data?: Pick<SeasonJobData, "assetId">): number | undefined {
+    return this.current.get(outdoorKey(assetId, data));
   }
 
   /** Makes the picture for a job, unless it's already made, on its way, or has failed. */
@@ -185,7 +250,16 @@ export class SeasonBaker {
         .catch(() => (gen === this.gen ? this.run(job, gen) : undefined))
         .catch((err: unknown) => {
           console.warn("season bake failed", err);
-          if (gen === this.gen) this.gaveUp(job);
+          if (gen !== this.gen) return;
+          if (job.data && this.data && !this.results.has(job.key)) {
+            // A bake from the data that made nothing: the board is told, and asks again without the
+            // data, so it's guessed from the picture, never left plain (5.1). (Once its quick version
+            // is made the data bakes fine, so that version shows and it's tried again later, as below.)
+            this.baking = null;
+            this.data.onDataState(job.data, "unreadable");
+          } else {
+            this.gaveUp(job);
+          }
         });
     }, 150);
   }
@@ -242,10 +316,23 @@ export class SeasonBaker {
     const { sceneW, sceneH, square } = job;
     const long = Math.max(sceneW, sceneH);
     // The analysis (what's grass, water, trees) at about 20 pixels a square, 512-1024 px across.
-    const kA = Math.min(1, Math.min(1024 / long, Math.max(512 / long, 20 / square)));
-    const aw = Math.max(1, Math.round(sceneW * kA));
-    const ah = Math.max(1, Math.round(sceneH * kA));
-    const aKey = `${job.assetId}|${square}|${sceneW}x${sceneH}`;
+    const { aw, ah, cellA } = analysisGeometry(sceneW, sceneH, square);
+    // The scene's Dungeondraft data first. When it can't be used, nothing is baked: the board is
+    // told, and asks again without it (so nothing guessed is ever kept under the data's key).
+    let dd: Dd | null = null;
+    if (job.data) {
+      const got: SidecarResult = this.data ? await this.data.sidecars.get(this.data.roomId, job.data.assetId) : { ok: false, state: "missing" };
+      if (gen !== this.gen) return;
+      // v1: exact seasons for snowy maps only.
+      if (!got.ok || !isSnowy(got.meta, job.data.drawn)) {
+        this.baking = null;
+        this.data?.onDataState(job.data, got.ok ? "green" : got.state);
+        return;
+      }
+      dd = { bytes: got.bytes, data: job.data };
+    }
+    const pixelKey = `${job.assetId}|${square}|${sceneW}x${sceneH}`;
+    const aKey = pixelKey + (job.data ? ddKey(job.data) : "");
     const worker = await this.ensureWorker();
     if (gen !== this.gen) return;
     // Analysed where this bake runs? A worker that stopped took its analyses with it.
@@ -257,12 +344,18 @@ export class SeasonBaker {
       } finally {
         free(reader.canvas);
       }
-      await this.analyse(worker, aKey, src, aw, ah, square * kA);
+      const exact = await this.analyse(worker, aKey, src, aw, ah, cellA, dd, pixelKey);
+      if (dd && !exact) {
+        // The data was refused (the guess made instead is kept under the picture's own key).
+        if (gen === this.gen) this.baking = null;
+        this.data?.onDataState(dd.data, "unreadable");
+        return;
+      }
       if (gen !== this.gen) return;
     }
     // The "indoor map" hint goes by the analysis in use, so a corrected grid updates it.
     const frac = this.fractions.get(aKey);
-    if (frac !== undefined) this.current.set(job.assetId, frac);
+    if (frac !== undefined) this.current.set(outdoorKey(job.assetId, job.data), frac);
 
     // A quick first version at the analysis size (made already, when this is a second try).
     if (!this.results.has(job.key)) {
@@ -440,17 +533,58 @@ export class SeasonBaker {
     }
   }
 
-  private async analyse(worker: Worker | null, aKey: string, rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number): Promise<void> {
+  /**
+   * Analyses the picture, from the scene's data when there is some. False when that data was
+   * refused: the analysis guessed from the picture instead is kept under pixelKey, never aKey.
+   */
+  private async analyse(
+    worker: Worker | null,
+    aKey: string,
+    rgba: Uint8ClampedArray,
+    aw: number,
+    ah: number,
+    cellA: number,
+    dd: Dd | null,
+    pixelKey: string,
+  ): Promise<boolean> {
     if (worker) {
-      const r = (await this.call(worker, { t: "analyse", key: aKey, rgba, aw, ah, cellA }, [rgba.buffer])) as { frac: number };
-      this.analysed = [...this.analysed.filter((k) => k !== aKey), aKey].slice(-2);
-      this.fractions.set(aKey, r.frac);
-      return;
+      const msg: Record<string, unknown> = { t: "analyse", key: aKey, rgba, aw, ah, cellA };
+      const transfer: Transferable[] = [rgba.buffer];
+      if (dd) {
+        // A copy goes, as what's posted is handed over: the cache keeps its bytes for the next time.
+        const sidecar = dd.bytes.slice();
+        const m: SeasonDdData = { sidecar, bare: dd.data.bare, drawn: dd.data.drawn, packs: dd.data.packs };
+        msg.dd = m;
+        msg.fallbackKey = pixelKey;
+        transfer.push(sidecar.buffer);
+      }
+      const r = (await this.call(worker, msg, transfer)) as { frac: number; exact?: boolean; reason?: string };
+      const exact = !dd || r.exact === true;
+      if (!exact) console.warn("exact seasons: guessed from the picture instead", r.reason);
+      const key = exact ? aKey : pixelKey;
+      this.analysed = [...this.analysed.filter((k) => k !== key), key].slice(-2);
+      this.fractions.set(key, r.frac);
+      return exact;
     }
-    const a = analyse(rgba, aw, ah, cellA);
-    this.local.set(aKey, a);
+    let a: SeasonAnalysis;
+    let exact = true;
+    if (dd) {
+      try {
+        a = analyseExact(rgba, aw, ah, cellA, decodeSidecar(dd.bytes), dd.data);
+      } catch (err) {
+        // Never the plain map: guessed from the picture, as without data.
+        console.warn("exact seasons: guessed from the picture instead", err);
+        a = analyse(rgba, aw, ah, cellA);
+        exact = false;
+      }
+    } else {
+      a = analyse(rgba, aw, ah, cellA);
+    }
+    const key = exact ? aKey : pixelKey;
+    this.local.set(key, a);
     while (this.local.size > 2) this.local.delete(this.local.keys().next().value!);
-    this.fractions.set(aKey, outdoorFraction(a));
+    this.fractions.set(key, outdoorFraction(a));
+    return exact;
   }
 
   private async bakeStrip(

@@ -38,6 +38,7 @@ import { Store } from "../store";
 import { composeBuildUndo } from "./build";
 import { canFold, pressX } from "./buildInput";
 import type { SelectReturn, WheelPref } from "./buildInput";
+import type { SceneDataState } from "./mapData";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
 
@@ -148,6 +149,8 @@ export interface RoomState {
   seasonsOff: boolean;
   /** How much of each map (by asset id) is open ground, once a season has analysed it. */
   mapOutdoor: Record<string, number>;
+  /** Each scene's Dungeondraft data state on this device (by scene id), for the Season notes (6.1). */
+  mapDataState: Record<string, SceneDataState>;
   /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
   buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
   /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
@@ -400,6 +403,7 @@ export class RoomClient {
       // GM's own browser mustn't take on the GM's "seasons off" for this device.
       seasonsOff: displayKey === null && loadSeasonsOff(),
       mapOutdoor: {},
+      mapDataState: {},
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",

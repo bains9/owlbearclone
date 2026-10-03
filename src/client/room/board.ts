@@ -83,9 +83,11 @@ import {
 } from "./stampGeom";
 import type { Placed } from "./stampGeom";
 import { getImage, imageFailed } from "./images";
-import { SeasonBaker } from "./seasons";
-import type { SeasonJob } from "./seasons";
-import { ALGO_VERSION, seedFrom } from "./seasonPixels";
+import { SeasonBaker, outdoorKey } from "./seasons";
+import type { SeasonJob, SeasonJobData } from "./seasons";
+import { SeasonPlanner, SidecarCache } from "./mapData";
+import type { SceneDataState } from "./mapData";
+import { seedFrom } from "./seasonPixels";
 import { isDungeondraftProject, isVttFile, looksLikeMap } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -362,6 +364,13 @@ export class Board implements BoardApi {
   /** The map picture redrawn for the scene's season (snow, autumn, blossom, drought). */
   private seasons: SeasonBaker;
   private renderedSeasonsOff = false;
+  /** Scenes' Dungeondraft data for seasons (sidecars, loaded once a seasonal scene needs one). */
+  private sidecars: SidecarCache;
+  /** Plans the season bake from the scene's data state (and remembers data the bake refused). */
+  private seasonPlan: SeasonPlanner;
+  private seasonReplan = false;
+  /** The data the shown scene's bake uses, if any (its "indoor map" hint is kept apart). */
+  private shownData: SeasonJobData | undefined;
   /** Alt is held: the Build tool takes away instead of adding. */
   private altDown = false;
   /** Walls being placed corner by corner with a mouse: the corners so far, and the grid lines between them. */
@@ -473,20 +482,30 @@ export class Board implements BoardApi {
       listening: false,
       sceneFunc: (ctx) => this.drawBuild(native(ctx)),
     });
-    this.seasons = new SeasonBaker(() => {
-      // A seasonal picture is ready: show it.
-      const scene = this.renderedScene;
-      if (scene) {
-        this.updateMap(scene);
-        this.bgLayer.batchDraw();
-      }
-      // And how much of the map is outdoors, for the season picker's "indoor map" note.
-      const assetId = scene?.mapAssetId;
-      const frac = assetId ? this.seasons.outdoor(assetId) : undefined;
-      if (assetId && frac !== undefined && room.state.mapOutdoor[assetId] !== frac) {
-        room.store.set((s) => ({ mapOutdoor: { ...s.mapOutdoor, [assetId]: frac } }));
-      }
-    }, room.display);
+    // A sidecar loaded, failed or may be tried again: the scene's bake is planned again.
+    this.sidecars = new SidecarCache(() => this.replanSeason());
+    // And when the data couldn't be used: planned again without it.
+    this.seasonPlan = new SeasonPlanner(this.sidecars, room.roomId, () => this.replanSeason());
+    this.seasons = new SeasonBaker(
+      () => {
+        // A seasonal picture is ready: show it.
+        const scene = this.renderedScene;
+        if (scene) {
+          this.updateMap(scene);
+          this.bgLayer.batchDraw();
+        }
+        // And how much of the map is outdoors, for the season picker's "indoor map" note (kept
+        // apart for a bake that uses Dungeondraft data: see outdoorKey).
+        const assetId = scene?.mapAssetId;
+        const frac = assetId ? this.seasons.outdoor(assetId, this.shownData) : undefined;
+        const hint = assetId ? outdoorKey(assetId, this.shownData) : "";
+        if (assetId && frac !== undefined && room.state.mapOutdoor[hint] !== frac) {
+          room.store.set((s) => ({ mapOutdoor: { ...s.mapOutdoor, [hint]: frac } }));
+        }
+      },
+      room.display,
+      this.seasonPlan.source,
+    );
     this.buildHover = new Konva.Shape({
       listening: false,
       visible: false,
@@ -534,6 +553,8 @@ export class Board implements BoardApi {
     });
     const onHidden = () => {
       if (document.visibilityState !== "visible") this.zDown = false;
+      // Back in view: Dungeondraft data that couldn't be loaded may be tried again.
+      else this.sidecars.wake();
     };
     document.addEventListener("visibilitychange", onHidden);
     this.cleanup.push(() => document.removeEventListener("visibilitychange", onHidden));
@@ -566,6 +587,7 @@ export class Board implements BoardApi {
   destroy(): void {
     if (this.viewTimer) clearTimeout(this.viewTimer);
     this.seasons.dispose();
+    this.sidecars.dispose();
     for (const fn of this.cleanup) fn();
     this.anim.stop();
     this.stage.destroy();
@@ -738,6 +760,8 @@ export class Board implements BoardApi {
       // The last scene's seasonal bake is no longer wanted, even when this scene's map is
       // still loading or there's no scene at all (the next one starts once it's needed).
       this.seasons.cancel();
+      // And Dungeondraft data that couldn't be loaded may be tried again.
+      this.sidecars.wake();
       this.renderedSceneId = sceneId;
       this.renderedScene = null;
       this.needsFit = true;
@@ -837,6 +861,7 @@ export class Board implements BoardApi {
   private updateMap(scene: Scene): void {
     // Seasons off on this device: no seasonal picture is wanted at all, so they all go.
     if (this.room.state.seasonsOff) this.seasons.clear();
+    const dataState = this.publishDataState(scene);
     const img = scene.mapAssetId
       ? getImage(fileUrl(this.room.roomId, scene.mapAssetId), () => {
           this.renderedScene = null;
@@ -845,7 +870,8 @@ export class Board implements BoardApi {
       : null;
     if (img) {
       // In season: the seasonal picture once it's made (the plain map, or the last season's, until then).
-      const job = this.seasonJob(scene, img);
+      const job = this.seasonJob(scene, img, dataState);
+      this.shownData = job?.data;
       let shown: HTMLImageElement | HTMLCanvasElement = img;
       if (job) {
         shown = this.seasons.image(job.key, job.assetId) ?? img;
@@ -865,17 +891,42 @@ export class Board implements BoardApi {
     this.seasons.release(this.mapNode.image());
   }
 
-  /** The seasonal bake for a scene's map, or null when it has no season (or this device has seasons off). */
-  private seasonJob(scene: Scene, img: HTMLImageElement): SeasonJob | null {
-    const season = scene.season;
-    if (!season || !scene.mapAssetId || this.room.state.seasonsOff) return null;
-    const seed = season.seed ?? (seedFrom(scene.id) & 0xffff);
-    const long = Math.max(scene.width, scene.height);
-    // Everything (snow drifts, what counts as outdoors) is sized by the grid: keep it sane
-    // when the grid is badly off.
-    const square = Math.min(long / 8, Math.max(long / 160, scene.grid.size));
-    const key = [scene.mapAssetId, season.look, season.level, seed, square, scene.width, scene.height, ALGO_VERSION].join("|");
-    return { key, assetId: scene.mapAssetId, img, sceneW: scene.width, sceneH: scene.height, square, look: season.look, level: season.level, seed };
+  /**
+   * The seasonal bake for a scene's map, or null when it has no season (or this device has seasons
+   * off): with the scene's Dungeondraft data while it's usable, else guessed from the picture (5.1).
+   */
+  private seasonJob(scene: Scene, img: HTMLImageElement, dataState: SceneDataState): SeasonJob | null {
+    return this.seasonPlan.job(scene, img, dataState, this.room.state.seasonsOff);
+  }
+
+  /**
+   * The scene's Dungeondraft data state on this device, kept in the store for the Season notes (6.1).
+   * The GM's device loads the sidecar at once, so the notes know whether it's usable before a season
+   * is picked; players' devices only once the scene has a season (3.5).
+   */
+  private publishDataState(scene: Scene): SceneDataState {
+    const st = this.seasonPlan.state(scene, this.isGm);
+    if (this.room.state.mapDataState[scene.id] !== st) {
+      this.room.store.set((s) => ({ mapDataState: { ...s.mapDataState, [scene.id]: st } }));
+    }
+    return st;
+  }
+
+  /**
+   * Plans the shown scene's bake again (its data loaded, failed, or may be tried again). Put off to
+   * a microtask, so it never runs inside a sync or a bake's own step, and several come as one.
+   */
+  private replanSeason(): void {
+    if (this.seasonReplan) return;
+    this.seasonReplan = true;
+    queueMicrotask(() => {
+      this.seasonReplan = false;
+      const scene = this.renderedScene;
+      // (Not once the board has gone.)
+      if (!scene || this.room.board !== this) return;
+      this.updateMap(scene);
+      this.bgLayer.batchDraw();
+    });
   }
 
   /** The season a scene's build is drawn in (none when this device has seasons off). */

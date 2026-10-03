@@ -13,37 +13,68 @@ const px = vi.hoisted(() => ({
   fields: "",
   /** How many bakes to fail from now on. */
   failBakes: 0,
-  strips: [] as { width: number; rows: number }[],
+  strips: [] as { width: number; rows: number; exact: boolean }[],
   analyses: 0,
   /** Called as each strip is baked. */
   onBake: null as null | ((width: number, rows: number) => void),
+  /** Analyses from Dungeondraft data tried, and whether they throw (refusing the data). */
+  exactTries: 0,
+  exactThrows: false,
+  /** The analysis keys the worker was sent, in order. */
+  analyseKeys: [] as string[],
+  /** Strips (by width, and whether from the data) whose bake fails. */
+  failIf: null as null | ((width: number, exact: boolean) => boolean),
 }));
 
 vi.mock("../src/client/room/seasonPixels", () => ({
+  ALGO_VERSION: 4,
+  seedFrom: () => 7,
   analyse: (_rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number) => {
     px.analyses++;
     return { aw, ah, cellA };
   },
-  // Depends on the grid, as the real one does.
-  outdoorFraction: (a: { cellA: number }) => Math.round(a.cellA * 10) / 1000,
-  bake: (_rgba: Uint8ClampedArray, width: number, rows: number, opts: { look: string }) => {
+  // Depends on the grid, as the real one does (and on the data, here).
+  outdoorFraction: (a: { cellA: number; exact?: boolean }) => Math.round(a.cellA * 10) / 1000 + (a.exact ? 0.5 : 0),
+  bake: (_rgba: Uint8ClampedArray, width: number, rows: number, opts: { look: string; a: { exact?: boolean } }) => {
     if (px.failBakes > 0) {
       px.failBakes--;
       throw new Error("bake failed");
     }
+    if (px.failIf?.(width, Boolean(opts.a.exact))) throw new Error("bake failed");
     if (px.fields !== opts.look) {
       px.fields = opts.look;
       px.clock += px.oneOff;
     }
     px.clock += (width * rows * px.nsPerPx) / 1e6;
-    px.strips.push({ width, rows });
+    px.strips.push({ width, rows, exact: Boolean(opts.a.exact) });
     px.onBake?.(width, rows);
   },
 }));
 
-import { SeasonBaker, deviceCaps } from "../src/client/room/seasons";
-import type { SeasonJob } from "../src/client/room/seasons";
-import { analyse, bake, outdoorFraction } from "../src/client/room/seasonPixels";
+vi.mock("../src/client/room/seasonExact", () => ({
+  EXACT_VERSION: 1,
+  isSnowy: (meta: { snowShare: number }, drawn?: string) => (drawn ? drawn === "winter" : meta.snowShare >= 0.5),
+  analyseExact: (_rgba: Uint8ClampedArray, aw: number, ah: number, cellA: number) => {
+    px.exactTries++;
+    if (px.exactThrows) throw new Error("exact seasons: refused");
+    return { aw, ah, cellA, exact: true };
+  },
+}));
+
+import { SeasonBaker, ddKey, deviceCaps } from "../src/client/room/seasons";
+import type { SeasonDataSource, SeasonJob } from "../src/client/room/seasons";
+import { ALGO_VERSION, analyse, bake, outdoorFraction } from "../src/client/room/seasonPixels";
+import { analyseExact } from "../src/client/room/seasonExact";
+import { SeasonPlanner, SidecarCache, seasonData } from "../src/client/room/mapData";
+import type { DataState, SceneDataState, SidecarResult } from "../src/client/room/mapData";
+import { packPng } from "../src/client/dd/pngBox";
+import { NO_NAME, decodeSidecar, encodeSidecar } from "../src/client/dd/sidecar";
+import type { SeasonSidecar } from "../src/client/dd/sidecar";
+import type { GridSettings, SceneMapData } from "../src/shared/types";
+
+/** setImmediate and setTimeout before the clock is faked: let real work (unpacking a PNG) finish. */
+const realImmediate = (globalThis as unknown as { setImmediate(f: () => void): void }).setImmediate;
+const realTimeout = globalThis.setTimeout;
 
 interface FakeCanvas {
   width: number;
@@ -112,14 +143,32 @@ class FakeWorker {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  postMessage(m: any): void {
+  postMessage(sent: any, transfer: Transferable[] = []): void {
+    // Handed over as a real worker's message is: what's transferred is gone from the page.
+    const m = structuredClone(sent, { transfer });
     setTimeout(() => {
       if (this.terminated) return;
       const reply = (data: unknown) => this.onmessage?.({ data });
       if (m.t === "analyse") {
-        const a = analyse(m.rgba, m.aw, m.ah, m.cellA);
-        this.analyses.set(m.key, a);
-        reply({ t: "analysed", id: m.id, frac: outdoorFraction(a) });
+        px.analyseKeys.push(m.key);
+        // As seasonWorker.ts: from the data when there is some, else (or when refused) guessed,
+        // kept under the fallback key.
+        let a: unknown;
+        let key = m.key;
+        let exact = false;
+        if (m.dd) {
+          try {
+            a = analyseExact(m.rgba, m.aw, m.ah, m.cellA, decodeSidecar(m.dd.sidecar), m.dd);
+            exact = true;
+          } catch {
+            a = analyse(m.rgba, m.aw, m.ah, m.cellA);
+            key = m.fallbackKey;
+          }
+        } else {
+          a = analyse(m.rgba, m.aw, m.ah, m.cellA);
+        }
+        this.analyses.set(key, a);
+        reply({ t: "analysed", id: m.id, frac: outdoorFraction(a as Parameters<typeof outdoorFraction>[0]), exact });
         return;
       }
       if (this.crash) {
@@ -151,7 +200,7 @@ function job(look: SeasonLook = "winter", square = 60): SeasonJob {
 }
 
 /** The board, as far as seasons go: shows what the baker has for the current job, and asks for it. */
-function board(display = false) {
+function board(display = false, data: SeasonDataSource | null = null) {
   const b = {
     job: null as SeasonJob | null,
     shown: null as unknown,
@@ -169,10 +218,14 @@ function board(display = false) {
       b.baker.release(b.shown);
     },
   };
-  b.baker = new SeasonBaker(() => {
-    b.results++;
-    b.update();
-  }, display);
+  b.baker = new SeasonBaker(
+    () => {
+      b.results++;
+      b.update();
+    },
+    display,
+    data,
+  );
   return b;
 }
 
@@ -185,8 +238,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   canvases = [];
   refuseAbove = Infinity;
-  Object.assign(px, { clock: 0, nsPerPx: 50, oneOff: 0, fields: "", failBakes: 0, analyses: 0, onBake: null });
+  Object.assign(px, { clock: 0, nsPerPx: 50, oneOff: 0, fields: "", failBakes: 0, analyses: 0, onBake: null, exactTries: 0, exactThrows: false, failIf: null });
   px.strips.length = 0;
+  px.analyseKeys.length = 0;
   FakeWorker.all = [];
   FakeWorker.start = "ready";
   FakeWorker.crashNext = false;
@@ -523,5 +577,267 @@ describe("season baker", () => {
     expect(deviceCaps(true)).toEqual({ long: 2560, px: 6_600_000 });
     vi.stubGlobal("navigator", { hardwareConcurrency: 8, deviceMemory: 8 });
     expect(deviceCaps(true)).toEqual({ long: 4096, px: 16_000_000 });
+  });
+});
+
+// ---------------------------------------------------------------- Dungeondraft data (design 5.1, 6.3 Pipeline)
+
+const MD: SceneMapData = { assetId: "S1", forAssetId: "M" };
+/** The analysis key of job() without data. */
+const PIXEL_AKEY = "M|60|1200x900";
+
+/** A small sidecar (nothing on it), snowy unless said otherwise. */
+function sidecarBytes(snowShare = 1): Uint8Array {
+  const sc: SeasonSidecar = {
+    meta: { rect: [0, 0, 256, 256], squares: [1, 1], extractor: 1, snowShare, packShare: 0, packItems: 0, dropped: 0, names: [] },
+    terrain: null,
+    bitmaps: [],
+    shapes: [],
+    objects: {
+      n: 0, role: new Uint8Array(0), layer: new Int16Array(0), x: new Int32Array(0), y: new Int32Array(0), rot: new Uint8Array(0),
+      flags: new Uint8Array(0), name: new Uint16Array(0).fill(NO_NAME), reach: new Uint16Array(0),
+    },
+  };
+  return encodeSidecar(sc);
+}
+
+/** A cache that answers at once: the same bytes object every time, as the real one keeps them. */
+function fakeCache(results: Record<string, SidecarResult>) {
+  const asked = new Set<string>();
+  return {
+    gets: 0,
+    get(_roomId: string, id: string): Promise<SidecarResult> {
+      this.gets++;
+      asked.add(id);
+      return Promise.resolve(results[id] ?? { ok: false, state: "missing" });
+    },
+    state(id: string): DataState | undefined {
+      const r = results[id];
+      return !asked.has(id) ? undefined : !r ? "missing" : r.ok ? "ok" : r.state;
+    },
+    meta(id: string) {
+      const r = results[id];
+      return asked.has(id) && r?.ok ? r.meta : undefined;
+    },
+  };
+}
+
+const okResult = (bytes: Uint8Array): SidecarResult => ({ ok: true, bytes, meta: decodeSidecar(bytes).meta });
+
+/**
+ * The board, as board.ts runs it for seasons: SeasonPlanner decides from the scene's data state
+ * whether the bake uses the data, and the baker's or the cache's news plans it again (a microtask
+ * later, as the board's replanSeason).
+ */
+function ddBoard(sidecars: Pick<SidecarCache, "get" | "state" | "meta">) {
+  const d = {
+    md: MD as SceneMapData | undefined,
+    look: "winter" as SeasonLook,
+    square: 60,
+    /** What the baker said about the data, in order. */
+    told: [] as SceneDataState[],
+    scene: () => ({
+      id: "scene1",
+      season: { look: d.look, level: 2 as const },
+      mapAssetId: "M",
+      mapData: d.md,
+      width: 1200,
+      height: 900,
+      grid: { size: d.square } as GridSettings,
+    }),
+    state: (): SceneDataState => planner.state(d.scene()),
+    plan: (): SeasonJob => planner.job(d.scene(), IMG, d.state(), false)!,
+    show: () => b.show(d.plan()),
+    replan: () => queueMicrotask(() => d.show()),
+  };
+  const planner = new SeasonPlanner(sidecars, "room1", () => d.replan());
+  const b = board(false, {
+    ...planner.source,
+    onDataState(data, st) {
+      d.told.push(st);
+      planner.source.onDataState(data, st);
+    },
+  });
+  return Object.assign(d, { b, planner });
+}
+
+/** The key of ddBoard's job without data (as board.ts makes it). */
+const pixKey = (look: SeasonLook = "winter", square = 60) => ["M", look, 2, 7, square, 1200, 900, ALGO_VERSION].join("|");
+const ddAKey = (md: SceneMapData = MD) => PIXEL_AKEY + ddKey(seasonData(md));
+/** Whether the strips of the sharp version (2400 wide) were all baked from the data, or all guessed. */
+const sharpFrom = () => {
+  const sharp = px.strips.filter((s) => s.width === 2400);
+  return sharp.every((s) => s.exact) ? "data" : sharp.every((s) => !s.exact) ? "picture" : "mixed";
+};
+
+describe("season baker with Dungeondraft data", () => {
+  it("keys bakes and analyses by the data, and gives paused, held and missing data the picture's own keys", async () => {
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    const keys: string[] = [];
+    const variants: Array<SceneMapData | undefined> = [MD, { ...MD, bare: "dead" }, { ...MD, packs: "guess" }, { ...MD, forAssetId: "X" }, { ...MD, hold: true }, undefined];
+    for (const md of variants) {
+      d.md = md;
+      d.show();
+      await wait(2000);
+      keys.push(d.b.job!.key);
+      expect(shownSize(d.b)).toEqual([2400, 1800]);
+    }
+    expect(new Set(keys.slice(0, 3)).size).toBe(3);
+    expect(keys.slice(3)).toEqual([pixKey(), pixKey(), pixKey()]);
+    expect(px.analyseKeys).toEqual([ddAKey(), ddAKey({ ...MD, bare: "dead" }), ddAKey({ ...MD, packs: "guess" }), PIXEL_AKEY]);
+    expect(d.told).toEqual([]);
+  });
+
+  it("guesses a green map from the picture in v1, unless the GM says it's drawn in winter", async () => {
+    const cache = fakeCache({ G: okResult(sidecarBytes(0.2)) });
+    const d = ddBoard(cache);
+    d.md = { assetId: "G", forAssetId: "M" };
+    d.show();
+    await wait(2000);
+    expect(d.told).toEqual(["green"]);
+    expect(d.state()).toBe("green");
+    expect(d.b.job!.key).toBe(pixKey());
+    expect(px.analyseKeys).toEqual([PIXEL_AKEY]);
+    expect(px.exactTries).toBe(0);
+    expect(sharpFrom()).toBe("picture");
+    d.md = { assetId: "G", forAssetId: "M", drawn: "winter" };
+    px.strips.length = 0;
+    d.show();
+    await wait(2000);
+    expect(d.b.job!.key).toBe(pixKey() + ddKey({ assetId: "G", drawn: "winter" }));
+    expect(sharpFrom()).toBe("data");
+  });
+
+  it("sends a copy of the cached sidecar, so the next analysis has it too, even after the worker restarts", async () => {
+    const bytes = sidecarBytes();
+    const cache = fakeCache({ S1: okResult(bytes) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(2000);
+    // A corrected grid: analysed again, from the same cached bytes.
+    d.square = 30;
+    d.show();
+    await wait(2000);
+    expect(px.exactTries).toBe(2);
+    FakeWorker.all[0].onerror?.();
+    d.look = "autumn";
+    d.show();
+    await wait(2000);
+    expect(FakeWorker.all.length).toBe(2);
+    expect(px.exactTries).toBe(3);
+    expect(px.analyses).toBe(0);
+    expect(d.told).toEqual([]);
+    expect(bytes.byteLength).toBeGreaterThan(16);
+    expect(decodeSidecar(bytes).meta.snowShare).toBe(1);
+    expect(sharpFrom()).toBe("data");
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+  });
+
+  it("goes back to the picture when the worker refuses the data, keeping nothing guessed under the data's key", async () => {
+    px.exactThrows = true;
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(2000);
+    expect(d.told).toEqual(["unreadable"]);
+    expect(d.state()).toBe("unreadable");
+    expect(d.b.job!.key).toBe(pixKey());
+    // The guess made in the worker is the one baked: the picture isn't analysed twice.
+    expect(px.analyseKeys).toEqual([ddAKey()]);
+    expect(px.analyses).toBe(1);
+    expect(sharpFrom()).toBe("picture");
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+    const results = (d.b.baker as unknown as { results: Map<string, unknown> }).results;
+    expect([...results.keys()]).toEqual([pixKey()]);
+    // Refused for the rest of the visit, even once it would work.
+    px.exactThrows = false;
+    d.look = "spring";
+    d.show();
+    await wait(2000);
+    expect(d.b.job!.key).toBe(pixKey("spring"));
+    expect(px.exactTries).toBe(1);
+  });
+
+  it("does the same without a worker", async () => {
+    vi.stubGlobal("Worker", undefined);
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(5000);
+    expect(px.exactTries).toBe(1);
+    expect(px.strips.every((s) => s.exact)).toBe(true);
+    expect(shownSize(d.b)).toEqual([2048, 1536]);
+    px.exactThrows = true;
+    px.strips.length = 0;
+    d.md = { ...MD, bare: "dead" };
+    d.show();
+    await wait(5000);
+    expect(d.told).toEqual(["unreadable"]);
+    expect(d.b.job!.key).toBe(pixKey());
+    expect(px.analyses).toBe(1);
+    expect(px.strips.length).toBeGreaterThan(0);
+    expect(px.strips.every((s) => !s.exact)).toBe(true);
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it("keeps the outdoor hint apart for a bake that uses data", async () => {
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(2000);
+    d.md = undefined;
+    d.show();
+    await wait(2000);
+    expect(d.b.baker.outdoor("M")).toBeCloseTo(0.256);
+    expect(d.b.baker.outdoor("M", { assetId: "S1" })).toBeCloseTo(0.756);
+  });
+
+  it("bakes from the picture while the sidecar can't be fetched, tries at 5 s and 30 s, and after wake() bakes from the data", async () => {
+    const png = new Uint8Array(await (await packPng(sidecarBytes())).blob.arrayBuffer());
+    const replies: Array<"net" | Uint8Array> = ["net", "net", "net", png];
+    const fetched: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        fetched.push(url);
+        const r = replies.shift()!;
+        if (r === "net") throw new TypeError("Failed to fetch");
+        return new Response(r.slice(), { status: 200 });
+      }),
+    );
+    // Real work (fetching, unpacking) finishes in real time, between the fake clock's steps.
+    const io = async (ms: number) => {
+      for (let t = 0; t < ms; t += 100) {
+        await wait(100);
+        await new Promise<void>((r) => realImmediate(r));
+      }
+    };
+    let d: ReturnType<typeof ddBoard>;
+    const cache = new SidecarCache(() => d.replan());
+    d = ddBoard(cache);
+    d.show();
+    await io(2000);
+    expect(fetched.length).toBe(1);
+    expect(d.state()).toBe("retrying");
+    expect(d.b.job!.key).toBe(pixKey());
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+    expect(sharpFrom()).toBe("picture");
+    await io(5000);
+    expect(fetched.length).toBe(2);
+    await io(30_000);
+    expect(fetched.length).toBe(3);
+    expect(d.state()).toBe("missing");
+    await io(60_000);
+    expect(fetched.length).toBe(3);
+    // A scene change or the page in view again: tried once more, and it comes.
+    px.strips.length = 0;
+    cache.wake();
+    await io(2000);
+    expect(fetched.length).toBe(4);
+    expect(d.state()).toBe("ok");
+    expect(d.b.job!.key).toBe(pixKey() + ddKey(MD));
+    expect(sharpFrom()).toBe("data");
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
   });
 });
