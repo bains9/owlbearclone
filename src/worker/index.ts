@@ -9,14 +9,11 @@ import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
+import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { Directory } from "./directory";
 export { Room } from "./room";
 
-const MAX_UPLOAD_BYTES: Record<"map" | "token", number> = {
-  map: 30 * 1024 * 1024,
-  token: 5 * 1024 * 1024,
-};
 const MAX_JSON_BYTES = 16 * 1024;
 /** Room ids are always 12 random characters (see POST /api/rooms). */
 const ROOM_ID = "[A-Za-z0-9]{12}";
@@ -94,18 +91,6 @@ function loginKey(request: Request): string {
     .slice(0, 4)
     .map((g) => (g || "0").toLowerCase())
     .join(":")}::/64`;
-}
-
-/** Identifies the image type from its first bytes, so a file is served as what it really is. */
-function sniffImage(b: Uint8Array): string | null {
-  const at = (offset: number, text: string) =>
-    b.length >= offset + text.length && [...text].every((ch, i) => b[offset + i] === ch.charCodeAt(0));
-  if (b[0] === 0x89 && at(1, "PNG")) return "image/png";
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (at(0, "GIF87a") || at(0, "GIF89a")) return "image/gif";
-  if (at(0, "RIFF") && at(8, "WEBP")) return "image/webp";
-  if (at(4, "ftyp") && (at(8, "avif") || at(8, "avis"))) return "image/avif";
-  return null;
 }
 
 export default {
@@ -230,8 +215,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     }
 
     if (sub === "/assets" && method === "POST") {
-      const kind = url.searchParams.get("kind");
-      if (kind !== "map" && kind !== "token") return fail(400, "Unknown image kind.");
+      const kind = uploadKind(url.searchParams.get("kind"));
+      if (!kind) return fail(400, "Unknown image kind.");
       const role: Role = (await isGm(request, env)) ? "gm" : "player";
       const uid = request.headers.get("X-Tabletop-User");
       // The GM's images belong to the GM role, never to a browser id a player could copy.
@@ -245,8 +230,10 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       const body = await request.arrayBuffer();
       if (body.byteLength === 0) return fail(400, "The upload was empty.");
       if (body.byteLength > limit) return fail(413, `Images must be under ${limit / 1024 / 1024} MB.`);
-      const mime = sniffImage(new Uint8Array(body, 0, Math.min(32, body.byteLength)));
-      if (!mime) return fail(415, "Only PNG, JPEG, WebP, GIF or AVIF images can be uploaded.");
+      // Dungeondraft data (a sidecar in its PNG box) only as a PNG.
+      const type = uploadType(kind, new Uint8Array(body, 0, Math.min(32, body.byteLength)));
+      if ("refusal" in type) return fail(415, type.refusal);
+      const { mime } = type;
       const width = Number(url.searchParams.get("w"));
       const height = Number(url.searchParams.get("h"));
       if (!(width >= 1 && width <= 30000 && height >= 1 && height <= 30000)) {

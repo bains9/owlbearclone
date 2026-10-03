@@ -46,6 +46,7 @@ import type {
   RoomInfo,
   Scene,
 } from "../shared/types";
+import { kindAllowed } from "./uploads";
 
 /** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
 interface Conn extends Player {
@@ -288,7 +289,8 @@ export class Room extends DurableObject<Env> {
   /** Whether this upload may go ahead: null if so, otherwise the reason it can't. */
   uploadRefusal(role: Role, kind: AssetKind, owner: string, bytes: number): string | null {
     if (!this.info) return "This room doesn't exist.";
-    if (role !== "gm" && !(kind === "token" && this.info.settings.playersCanAddTokens)) {
+    // Players: only tokens (never maps or Dungeondraft data), and only when the GM allows it.
+    if (!kindAllowed(role, kind, this.info.settings.playersCanAddTokens)) {
       return "You can't upload that kind of image to this room.";
     }
     const all = [...this.assets.values()];

@@ -13,6 +13,7 @@ import type {
   MutableFields,
   RoomSettings,
   Scene,
+  SceneMapData,
   SceneSeason,
 } from "./types";
 import { SEASON_LOOKS } from "./types";
@@ -35,6 +36,8 @@ export const LIMITS = {
   sceneSizeMax: 40_000,
   initiativeEntries: 100,
   itemsPerScene: 5000,
+  /** A Dungeondraft picture's rectangle in its map, in squares, either way from the origin. */
+  mapRectMax: 10_000,
 } as const;
 
 // Ids can't start with "__" (so "__proto__" never becomes a key in a plain object).
@@ -327,6 +330,43 @@ export function sanitizeSeason(v: unknown): SceneSeason | null | undefined {
   return { look, level, ...(seed !== undefined ? { seed } : {}) };
 }
 
+/**
+ * A scene's Dungeondraft data for seasons. null removes it; anything malformed is undefined
+ * (the caller keeps what the scene had). Unknown keys are dropped.
+ */
+export function sanitizeMapData(v: unknown): SceneMapData | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const r = v as Record<string, unknown>;
+  if (!isId(r.assetId) || !isId(r.forAssetId)) return undefined;
+  const bare = r.bare === "leaf" || r.bare === "dead" ? r.bare : undefined;
+  const drawn = r.drawn === "winter" || r.drawn === "green" ? r.drawn : undefined;
+  const packs = r.packs === "guess" ? r.packs : undefined;
+  if ((r.bare !== undefined && !bare) || (r.drawn !== undefined && !drawn)) return undefined;
+  if ((r.hold !== undefined && r.hold !== true) || (r.packs !== undefined && !packs)) return undefined;
+  return {
+    assetId: r.assetId,
+    forAssetId: r.forAssetId,
+    ...(bare ? { bare } : {}),
+    ...(drawn ? { drawn } : {}),
+    ...(r.hold === true ? { hold: true as const } : {}),
+    ...(packs ? { packs } : {}),
+  };
+}
+
+/**
+ * The picture's rectangle in its Dungeondraft map, in squares [x, y, w, h]. null removes it;
+ * anything malformed (not four finite numbers within 10,000 squares, or no width or height)
+ * is undefined, which keeps what the scene had.
+ */
+export function sanitizeMapRect(v: unknown): [number, number, number, number] | null | undefined {
+  if (v === null) return null;
+  if (!Array.isArray(v) || v.length !== 4) return undefined;
+  if (!v.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.mapRectMax)) return undefined;
+  const [x, y, w, h] = v as number[];
+  return w > 0 && h > 0 ? [x, y, w, h] : undefined;
+}
+
 export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -340,6 +380,14 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
   // A season left out keeps the scene's; null turns it off.
   const sv = sanitizeSeason(r.season);
   const season = sv === null ? undefined : (sv ?? existing?.season);
+  // The same for the Dungeondraft data and the picture's rectangle in its map.
+  const mv = sanitizeMapData(r.mapData);
+  const mapData = mv === null ? undefined : (mv ?? existing?.mapData);
+  // The rectangle belongs to the picture (2.8): a new picture, or none, drops it unless the
+  // change brings its own. New tabs clear it themselves; this covers old ones (3.7) and Remove.
+  const rv = sanitizeMapRect(r.mapRect);
+  const newPicture = !!existing && mapAssetId !== existing.mapAssetId;
+  const mapRect = rv === null ? undefined : (rv ?? (newPicture ? undefined : existing?.mapRect));
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -352,6 +400,8 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
     fogCover: bool(r.fogCover) ?? existing?.fogCover ?? false,
     createdAt: existing?.createdAt ?? num(r.createdAt, 0, 1e15) ?? Date.now(),
     ...(season ? { season } : {}),
+    ...(mapData ? { mapData } : {}),
+    ...(mapRect ? { mapRect } : {}),
   };
 }
 

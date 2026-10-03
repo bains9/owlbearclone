@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RoomClient } from "../src/client/room/client";
 import { DEFAULT_GRID } from "../src/shared/sanitize";
-import type { FogItem, Scene } from "../src/shared/types";
+import type { FogItem, Scene, SceneMapData } from "../src/shared/types";
 
 function client() {
   const room = new RoomClient("AbCdEf123456", { uid: "gmuid", name: "GM", color: "#ff0000" });
@@ -73,5 +73,67 @@ describe("undoing fog steps", () => {
     room.undo();
     expect(room.state.scenes.scene1.grid.size).toBe(123);
     expect(room.state.scenes.scene1.fogCover).toBe(false);
+  });
+});
+
+describe("undoing Dungeondraft data steps", () => {
+  const md: SceneMapData = { assetId: "side1", forAssetId: "map1" };
+
+  it("attaching is one step, undone and redone whole", () => {
+    const room = client();
+    room.setMapData("scene1", md, { mapRect: [0, 0, 50, 35] });
+    expect(room.state.scenes.scene1).toMatchObject({ mapData: md, mapRect: [0, 0, 50, 35] });
+    expect(room.state.canUndo).toBe(true);
+    room.undo();
+    expect("mapData" in room.state.scenes.scene1).toBe(false);
+    expect("mapRect" in room.state.scenes.scene1).toBe(false);
+    expect(room.state.canUndo).toBe(false);
+    room.redo();
+    expect(room.state.scenes.scene1).toMatchObject({ mapData: md, mapRect: [0, 0, 50, 35] });
+  });
+
+  it("undoing Cover all leaves the data alone, even attached after it", () => {
+    const room = client();
+    room.resetFog("scene1", true);
+    // Attached in another tab: arrives from the server.
+    const s = room.state.scenes.scene1;
+    room.store.set({ scenes: { scene1: { ...s, mapData: md, mapRect: [0, 0, 50, 35] } } });
+    room.undo();
+    expect(room.state.scenes.scene1).toMatchObject({ fogCover: false, mapData: md, mapRect: [0, 0, 50, 35] });
+
+    // And attached here after Cover all: undoing the attachment doesn't uncover.
+    const room2 = client();
+    room2.resetFog("scene1", true);
+    room2.setMapData("scene1", md);
+    room2.undo();
+    expect(room2.state.scenes.scene1.fogCover).toBe(true);
+    expect("mapData" in room2.state.scenes.scene1).toBe(false);
+  });
+
+  it("changing the picture clears the rectangle and pauses the data; using it with the new picture is its own step", () => {
+    const room = client();
+    room.setMapData("scene1", md, { mapRect: [0, 0, 50, 35] });
+    // What SceneEditor's setMap does.
+    room.changeScene("scene1", { mapAssetId: "map2", mapRect: null }, {});
+    expect(room.state.scenes.scene1.mapAssetId).toBe("map2");
+    expect("mapRect" in room.state.scenes.scene1).toBe(false);
+    expect(room.state.scenes.scene1.mapData).toEqual(md);
+
+    // Use it with this picture.
+    room.setMapData("scene1", { ...md, forAssetId: "map2" });
+    expect(room.state.scenes.scene1.mapData).toEqual({ ...md, forAssetId: "map2" });
+    room.undo();
+    expect(room.state.scenes.scene1).toMatchObject({ mapAssetId: "map2", mapData: md });
+    room.undo();
+    expect(room.state.scenes.scene1).toMatchObject({ mapAssetId: "map1", mapData: md, mapRect: [0, 0, 50, 35] });
+  });
+
+  it("removing is undoable", () => {
+    const room = client();
+    room.setMapData("scene1", { ...md, bare: "dead", hold: true });
+    room.setMapData("scene1", null);
+    expect("mapData" in room.state.scenes.scene1).toBe(false);
+    room.undo();
+    expect(room.state.scenes.scene1.mapData).toEqual({ ...md, bare: "dead", hold: true });
   });
 });

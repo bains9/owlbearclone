@@ -428,6 +428,30 @@ async function main() {
   });
   check(r.status === 415, "an HTML file posing as an image is refused");
 
+  // Dungeondraft data (a sidecar in a PNG box): the GM's only, and only as a PNG.
+  r = await fetch(`${BASE}/api/rooms/${room.id}/assets?kind=mapdata&name=dd&w=512&h=1`, {
+    method: "POST",
+    headers: { "Content-Type": "image/png", "X-Tabletop-User": "alice123" },
+    body: TINY_PNG,
+  });
+  check(r.status === 403, "players can't upload Dungeondraft data, even where they may add tokens");
+  r = await fetch(`${BASE}/api/rooms/${room.id}/assets?kind=mapdata&name=dd&w=512&h=1`, {
+    method: "POST",
+    headers: { "Content-Type": "image/gif", Cookie: cookie },
+    body: Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00;", "latin1"),
+  });
+  check(r.status === 415, "Dungeondraft data that isn't a PNG is refused");
+  alice.clear();
+  r = await fetch(`${BASE}/api/rooms/${room.id}/assets?kind=mapdata&name=waterfall%20%C2%B7%20Ground&w=512&h=1`, {
+    method: "POST",
+    headers: { "Content-Type": "image/png", Cookie: cookie },
+    body: TINY_PNG,
+  });
+  const ddAsset = await r.json();
+  check(r.status === 201 && ddAsset.kind === "mapdata" && ddAsset.mime === "image/png" && ddAsset.owner === "@gm", "the GM uploads Dungeondraft data");
+  await sleep(200);
+  check(!alice.msgs.some((m) => m.t === "asset.upsert" && m.asset.id === ddAsset.id), "players aren't told about Dungeondraft data (its name stays the GM's)");
+
   r = await fetch(`${BASE}/api/rooms/nosuchroom12/assets?kind=token&name=x&w=1&h=1`, {
     method: "POST",
     headers: { "Content-Type": "image/png" },
@@ -580,6 +604,24 @@ async function main() {
   // A scene change sent with items reaches players as items (the malformed one above came as scene.upsert).
   const thawed = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
   check(Boolean(thawed) && !("season" in thawed.scene), "a season of null turns it off, for players too");
+
+  // Dungeondraft data on a scene: kept by changes that leave it out (as old tabs send), a
+  // malformed one changes nothing, extra keys are dropped, and null removes it.
+  alice.clear();
+  const md = { assetId: ddAsset.id, forAssetId: gmAsset.id, hold: true };
+  tab2.send({ t: "scene.upsert", seq: 12, scene: { id: scene2.id, mapData: { ...md, file: "secret.dungeondraft_map" }, mapRect: [0, 0, 35, 25] } });
+  const attached = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 12);
+  check(
+    JSON.stringify(attached?.scene.mapData) === JSON.stringify(md) && attached.scene.mapRect?.join() === "0,0,35,25",
+    "players on the scene get its Dungeondraft data's ids, and nothing more",
+  );
+  tab2.send({ t: "scene.upsert", seq: 13, scene: { id: scene2.id, name: "Dungeon, level 2", mapData: { assetId: "../x", forAssetId: gmAsset.id }, mapRect: [0, 0, 0, 25] } });
+  const keptData = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 13);
+  check(keptData?.scene.mapData?.assetId === ddAsset.id && keptData.scene.mapRect?.join() === "0,0,35,25", "a change without valid Dungeondraft data keeps the scene's");
+  alice.clear();
+  tab2.send({ t: "items", seq: 14, scene: { id: scene2.id, mapData: null, mapRect: null } });
+  const detached = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
+  check(Boolean(detached) && !("mapData" in detached.scene) && !("mapRect" in detached.scene), "null removes the Dungeondraft data, for players too");
   tab2.ws.close();
 
   // Table displays: only the GM can get the link; a display sees what players see and changes nothing.

@@ -24,6 +24,7 @@ import type {
   RoomInfo,
   RoomSettings,
   Scene,
+  SceneMapData,
   TokenItem,
 } from "../../shared/types";
 import type { FloorId, StampId } from "../../shared/terrain";
@@ -252,9 +253,24 @@ const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height"];
 function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: boolean): Record<string, Scene> {
   const cur = scenes[patch.id];
   if (!cur && !create) return scenes;
-  const next = { ...cur, ...patch } as Scene & { season?: Scene["season"] | null };
-  // A season of null means "turned off": the scene simply has none.
+  // A setting given as undefined never reaches the server (JSON leaves it out), so it
+  // changes nothing here either.
+  const set = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as ScenePatch;
+  const next = { ...cur, ...set } as Scene & {
+    season?: Scene["season"] | null;
+    mapData?: Scene["mapData"] | null;
+    mapRect?: Scene["mapRect"] | null;
+  };
+  // A season of null means "turned off": the scene simply has none. The same for the
+  // Dungeondraft data and the picture's rectangle: null removes them.
   if (next.season === null) delete next.season;
+  if (next.mapData === null) delete next.mapData;
+  if (next.mapRect === null) delete next.mapRect;
+  // As on the server: a new picture (or none) drops the old one's rectangle unless the
+  // change brings its own.
+  if (cur && set.mapAssetId !== undefined && set.mapAssetId !== cur.mapAssetId && set.mapRect === undefined) {
+    delete next.mapRect;
+  }
   return { ...scenes, [patch.id]: next as Scene };
 }
 
@@ -997,9 +1013,16 @@ export class RoomClient {
   }
 
   /** Changes some of a scene's settings and its items as one undoable step. */
-  changeScene(id: string, set: Omit<ScenePatch, "id">, ops: ItemOps): void {
+  changeScene(id: string, change: Omit<ScenePatch, "id">, ops: ItemOps): void {
     const current = this.state.scenes[id];
     if (!current) return;
+    // A setting given as undefined is left alone (as the server would), never cleared.
+    const set = Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined)) as Omit<ScenePatch, "id">;
+    // A new picture (or none) makes the rectangle stale (2.8): it goes in the same step, so
+    // undoing the change puts it back.
+    if (set.mapAssetId !== undefined && set.mapAssetId !== current.mapAssetId && current.mapRect && !("mapRect" in set)) {
+      set.mapRect = null;
+    }
     // Only the settings this changes: undo puts those back and leaves the rest alone.
     // Covering or uncovering also records the map it was done on, so undoing it after
     // the map was swapped puts that map back rather than uncovering the new one.
@@ -1031,6 +1054,14 @@ export class RoomClient {
       .filter((i) => i.kind === "fog" && i.sceneId === sceneId)
       .map((i) => i.id);
     this.changeScene(sceneId, { fogCover: cover }, ids.length ? { delete: ids } : {});
+  }
+
+  /**
+   * Attaches, changes or (with null) removes a scene's Dungeondraft data for seasons, in one
+   * undoable step. also: the picture's rectangle in its map, set in the same step.
+   */
+  setMapData(sceneId: string, md: SceneMapData | null, also: Pick<ScenePatch, "mapRect"> = {}): void {
+    this.changeScene(sceneId, { ...also, mapData: md }, {});
   }
 
   nextZ(sceneId: string, kind: ItemKind): number {

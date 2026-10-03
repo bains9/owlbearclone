@@ -4,8 +4,9 @@
 
 import { randomId } from "../shared/ids";
 import { terrainId } from "../shared/terrain";
-import type { Asset, Item, RoomSettings, Scene } from "../shared/types";
+import type { Asset, Item, RoomSettings, Scene, SceneMapData } from "../shared/types";
 import { fileUrl, uploadBlob } from "./api";
+import { crc32 } from "./crc32";
 import type { RoomClient } from "./room/client";
 
 interface BackupFile {
@@ -19,22 +20,6 @@ interface BackupFile {
 }
 
 // ---------------------------------------------------------------- a minimal zip (store only)
-
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-
-function crc32(data: Uint8Array): number {
-  let c = 0xffffffff;
-  for (let i = 0; i < data.length; i++) c = CRC_TABLE[(c ^ data[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
 
 export function makeZip(entries: { name: string; data: Uint8Array }[]): Blob {
   const enc = new TextEncoder();
@@ -157,6 +142,20 @@ export async function exportRoom(room: RoomClient, onProgress: (text: string) =>
 }
 
 /**
+ * A scene's Dungeondraft data under the restored ids of its sidecar and of the picture it was
+ * lined up with. Dropped when either wasn't restored: seasons then guess from the picture.
+ */
+export function remapMapData(
+  md: SceneMapData | undefined,
+  assetIds: ReadonlyMap<string, string>,
+): SceneMapData | undefined {
+  if (!md) return undefined;
+  const assetId = assetIds.get(md.assetId);
+  const forAssetId = assetIds.get(md.forAssetId);
+  return assetId && forAssetId ? { ...md, assetId, forAssetId } : undefined;
+}
+
+/**
  * Adds a backup's scenes (with their maps, tokens, drawings, notes and fog) to this
  * room as new scenes. Nothing already in the room is changed.
  */
@@ -187,12 +186,16 @@ export async function importBackup(room: RoomClient, file: File, onProgress: (te
   scenes.forEach((sc, n) => {
     const id = randomId(12);
     sceneIds.set(sc.id, id);
+    // The picture's rectangle in its Dungeondraft map is copied as it is.
+    const { mapData, ...rest } = sc;
+    const md = remapMapData(mapData, assetIds);
     room.createScene({
-      ...sc,
+      ...rest,
       id,
       order: firstOrder + n,
       mapAssetId: sc.mapAssetId ? (assetIds.get(sc.mapAssetId) ?? null) : null,
       createdAt: Date.now(),
+      ...(md ? { mapData: md } : {}),
     });
   });
 
