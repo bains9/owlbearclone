@@ -728,7 +728,7 @@ describe("the object-centre fit (2.4, the prototype's rule) on the fake exports"
     // A finer export box-averaged to 24 px a square, as the attach worker samples it.
     const map = parseDungeondraftMap(scatterMap(3).text);
     expect(protoFit(map, "0", downsample(fakeExportFromMap(map, "0", 40), 20 * 24, 12 * 24) as FakePicture).verdict).toBe("yes");
-  });
+  }, 30_000); // about 4 s alone: over vitest's 5 s default when test files run side by side
 
   it("every object kind's luminance spread peaks at its centre, as real sprites' does", () => {
     const pps = 24, r = Math.round(0.3 * pps);
