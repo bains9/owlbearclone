@@ -1,9 +1,157 @@
 // Reach profiles of Dungeondraft's default sprites by short name (design 2.5 item 1): the priors
-// that measureObjects starts from. Seeded by WP8 from a hand check of about 20 instances (never
-// from the measurement's own output), then extended by scripts/dd/measure-sprites.ts over the
-// sample pairs. A name missing here uses its role's ROLE_RADIUS as a circle.
+// that measureObjects starts from. A name missing here uses its role's ROLE_RADIUS as a circle.
+//
+// Two parts:
+// - HAND, from a hand check of 33 instances on the sample pairs and waterfall's 1.2 export
+//   (scripts/dd/hand-check.ts draws each one at 64 px a square with rings every quarter square
+//   round its Dungeondraft centre; the extent was read off by eye). Never from the measurement's
+//   own output, so a bias in measureObjects can't feed back into its priors.
+// - MEASURED, written by scripts/dd/measure-sprites.ts over the sample pairs: the per-name median
+//   of measured instances, normalised to scale 1 and the sprite's own frame. It only adds names the
+//   hand check doesn't cover; HAND wins where both have one.
+//
+// Values are world units at scale 1 (256 a square), in the sprite's frame before mirror and
+// rotation, REACH_DIRS order (raster.ts): reach[k] lies along REACH_DIRS[k]. `r` is the largest
+// reach, the circle that holds the sprite.
 
 import type { SpriteSizes } from "./measure";
+import { REACH_DIRS } from "./raster";
+
+type Size = { r: number; reach: number[] };
+
+/** A round sprite of radius r. */
+function round(r: number): Size {
+  return { r, reach: new Array<number>(16).fill(r) };
+}
+
+/**
+ * An elongated sprite: an ellipse with half-axes a (along the direction `deg` degrees from the
+ * sprite's +x, clockwise with y down) and b across it.
+ */
+function ellipse(a: number, b: number, deg = 0): Size {
+  const t = (deg * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  const reach: number[] = [];
+  for (let k = 0; k < 16; k++) {
+    const dx = REACH_DIRS[k * 2], dy = REACH_DIRS[k * 2 + 1];
+    const u = c * dx + s * dy, v = -s * dx + c * dy;
+    reach.push(Math.round(1 / Math.sqrt((u / a) * (u / a) + (v / b) * (v / b))));
+  }
+  return { r: Math.max(...reach), reach };
+}
+
+/**
+ * The hand check: the instances read (pair#index, as scripts/dd/lib.ts names the pairs) and the
+ * radius read off, in squares at the instance's scale.
+ */
+const HAND: Record<string, Size> = {
+  "vegetation/trees/pine_tree_01": round(256), // tulgi#26, forest#52: 1.0 sq
+  "vegetation/trees/pine_tree_02": round(372), // forest#19 1.48 sq; waterfall#19 0.85 sq at 0.6
+  "vegetation/trees/pine_tree_03": round(505), // forest#54 1.97 sq (forest#42, half hidden, agrees)
+  "vegetation/trees/pine_tree_04": round(863), // waterfall#13 1.68 sq at 0.5; waterfall#24 2.03 sq at 0.6
+  "vegetation/trees/tree_green_simple_01": round(262), // mill#343, forest#26: 1.02 sq
+  "vegetation/trees/tree_green_simple_02": round(256), // forest#43: 1.0 sq
+  "vegetation/trees/tree_green_simple_03": round(245), // forest#65, forest#85: 0.95 sq
+  "vegetation/trees/tree_green_simple_04": round(260), // forest#83: 1.02 sq
+  "vegetation/trees/tree_big_green_01": round(510), // forest#95, forest#1: 2.0 sq
+  "vegetation/trees/tree_big_green_02": round(465), // forest#53, forest#60: 1.82 sq
+  "vegetation/trees/tree_big_green_03": round(450), // forest#80, forest#30: 1.76 sq
+  "vegetation/trees/tree_massive_green_01": round(820), // forest#10: 3.2 sq
+  "vegetation/trees/tree_branch_01": round(270), // mill#355: 1.05 sq
+  "vegetation/trees/dead_tree_01": round(155), // forest#93 0.62 sq; waterfall#40 1.12 sq at 1.9
+  "vegetation/trees/dead_tree_02": round(256), // forest#78: 1.0 sq
+  "vegetation/trees/dead_tree_03": round(475), // forest#44: 1.85 sq
+  "vegetation/trees/stump_03": round(95), // cavern#159: 0.37 sq
+  "vegetation/shrubs/bush_green_simple_01": round(205), // hobble#5: 0.8 sq
+  "vegetation/shrubs/bush_flower_01": round(50), // river#59: 0.36 sq at 1.83
+  "vegetation/grass/grass_13": ellipse(64, 38), // waterfall#57: 0.47 x 0.28 sq at 1.9
+  "vegetation/grass/grass_14": round(36), // cavern#182: 0.14 sq
+  "vegetation/aquatic/reeds_2": round(140), // waterfall#33: 0.6 sq at 1.1
+  "vegetation/fallen/log_02": ellipse(307, 51, -50), // waterfall#26: 0.48 x 0.08 sq at 0.4, drawn at -50 deg in its frame
+  "clutter/boulders/boulder_04": round(102), // mill#250: 0.4 sq
+  "clutter/boulders/boulder_08": ellipse(170, 110), // mill#251: 0.66 x 0.43 sq
+  "activities/logging/log_pile_01": ellipse(120, 113), // pelcs#214: 0.47 x 0.44 sq
+  "more_trees/eucalyptus_04": round(304), // waterfall#7: 0.95 sq at 0.8
+  "more_trees/oak_04": round(435), // waterfall#5: crown 1.25, branch tips 1.45 sq at 0.8
+  "more_trees/mossy_trunks_06": ellipse(266, 90, -52), // waterfall#0: 1.04 x 0.35 sq, drawn at -52 deg
+  "swamp/mangrove_tree_04": round(180), // waterfall#3: 0.7 sq
+  "swamp/swamp_rocks_03": ellipse(72, 95), // waterfall#67: 0.28 x 0.37 sq at 1.9
+};
+
+// Generated by scripts/dd/measure-sprites.ts (the median per name over the sample pairs); don't
+// edit by hand between the markers.
+// BEGIN MEASURED
+const MEASURED: Record<string, Size> = {
+  "activities/administration/atlas_globe_02": { r: 96, reach: [81, 89, 75, 85, 85, 83, 57, 84, 86, 96, 94, 85, 89, 94, 93, 78] }, // 1 instance
+  "activities/administration/book_02": { r: 132, reach: [91, 85, 93, 97, 111, 132, 132, 130, 114, 81, 79, 101, 109, 106, 101, 98] }, // 2 instances
+  "activities/administration/book_03": { r: 120, reach: [113, 96, 81, 102, 92, 78, 62, 68, 74, 80, 74, 72, 82, 70, 63, 120] }, // 2 instances
+  "activities/administration/paper_03": { r: 126, reach: [74, 79, 98, 110, 110, 115, 126, 103, 84, 81, 90, 87, 84, 90, 95, 80] }, // 1 instance
+  "activities/administration/paper_05": { r: 90, reach: [48, 46, 68, 90, 85, 72, 63, 61, 68, 77, 70, 64, 64, 80, 65, 51] }, // 2 instances
+  "activities/cooking/pan": { r: 95, reach: [95, 92, 75, 59, 62, 77, 74, 78, 82, 87, 66, 68, 56, 72, 94, 93] }, // 2 instances
+  "activities/logging/log_cutter": { r: 126, reach: [107, 126, 118, 98, 83, 104, 113, 100, 84, 112, 112, 85, 92, 108, 120, 111] }, // 3 instances
+  "activities/logging/log_pile_04": { r: 255, reach: [173, 177, 119, 134, 138, 128, 115, 103, 130, 160, 230, 255, 216, 94, 163, 157] }, // 2 instances
+  "activities/smithing/forge_small_02": { r: 93, reach: [88, 89, 91, 90, 83, 56, 48, 50, 59, 82, 91, 88, 89, 90, 93, 89] }, // 1 instance
+  "camp/campfire_06": { r: 111, reach: [102, 86, 92, 92, 96, 108, 105, 93, 93, 105, 92, 97, 98, 93, 111, 102] }, // 2 instances
+  "clutter/cobwebs/spiderweb_09": { r: 124, reach: [45, 52, 85, 85, 124, 118, 103, 97, 72, 80, 123, 102, 113, 113, 55, 45] }, // 2 instances
+  "clutter/floor/broken_pottery_02": { r: 123, reach: [123, 103, 90, 100, 91, 80, 57, 60, 69, 85, 105, 97, 82, 91, 107, 118] }, // 2 instances
+  "clutter/floor/broken_pottery_11": { r: 126, reach: [95, 106, 99, 114, 113, 113, 97, 114, 110, 90, 121, 126, 103, 76, 78, 82] }, // 1 instance
+  "clutter/rubble/rubble_02": { r: 155, reach: [127, 118, 102, 130, 135, 130, 105, 98, 101, 101, 108, 94, 99, 115, 155, 141] }, // 2 instances
+  "clutter/rubble/rubble_03": { r: 147, reach: [116, 115, 118, 122, 123, 121, 124, 144, 147, 138, 110, 120, 117, 100, 131, 136] }, // 2 instances
+  "clutter/rubble/rubble_04": { r: 129, reach: [85, 82, 95, 105, 109, 129, 118, 96, 88, 112, 102, 89, 99, 124, 127, 105] }, // 2 instances
+  "clutter/rubble/rubble_08": { r: 226, reach: [201, 164, 167, 173, 206, 198, 200, 225, 197, 118, 196, 203, 166, 226, 214, 199] }, // 1 instance
+  "decor/statues/statue_02": { r: 108, reach: [98, 91, 86, 87, 93, 107, 94, 79, 91, 108, 103, 91, 89, 94, 102, 106] }, // 1 instance
+  "furniture/chairs/arm_chair_01": { r: 123, reach: [84, 96, 104, 91, 57, 92, 95, 87, 106, 108, 116, 123, 103, 98, 114, 91] }, // 3 instances
+  "furniture/chairs/bench_02": { r: 83, reach: [65, 74, 66, 50, 50, 61, 78, 67, 65, 83, 78, 57, 57, 72, 83, 67] }, // 3 instances
+  "furniture/desks/desk_01": { r: 141, reach: [65, 93, 95, 73, 113, 135, 100, 67, 57, 72, 121, 141, 114, 138, 78, 93] }, // 1 instance
+  "furniture/storage/merchant_shelf_03": { r: 195, reach: [149, 137, 87, 72, 160, 180, 195, 149, 151, 171, 185, 176, 148, 109, 132, 142] }, // 2 instances
+  "furniture/storage/merchant_shelf_04": { r: 134, reach: [107, 100, 79, 78, 89, 118, 134, 94, 122, 107, 98, 77, 79, 109, 128, 116] }, // 2 instances
+  "furniture/storage/small_chest_01": { r: 104, reach: [87, 104, 95, 50, 44, 53, 72, 70, 66, 73, 68, 51, 56, 85, 88, 62] }, // 2 instances
+  "furniture/tables/round_table_03": { r: 128, reach: [94, 96, 98, 116, 112, 95, 119, 128, 127, 110, 125, 105, 98, 97, 98, 94] }, // 1 instance
+  "supplies/barrels/barrel_01": { r: 133, reach: [103, 102, 99, 98, 99, 100, 114, 120, 126, 133, 112, 98, 97, 102, 104, 104] }, // 4 instances
+  "supplies/barrels/barrel_02": { r: 127, reach: [113, 127, 122, 100, 97, 104, 99, 91, 93, 103, 100, 91, 91, 106, 107, 103] }, // 5 instances
+  "supplies/barrels/barrel_03": { r: 134, reach: [87, 110, 134, 132, 131, 126, 110, 97, 108, 108, 125, 132, 133, 130, 115, 98] }, // 2 instances
+  "supplies/barrels/barrel_05": { r: 100, reach: [85, 60, 76, 73, 73, 75, 96, 52, 52, 69, 63, 75, 75, 100, 83, 86] }, // 1 instance
+  "supplies/barrels/giant_barrel_03": { r: 121, reach: [71, 85, 97, 73, 75, 94, 81, 66, 68, 60, 110, 104, 105, 121, 119, 91] }, // 1 instance
+  "supplies/crates/fruit_box_01": { r: 136, reach: [120, 132, 136, 118, 118, 126, 123, 101, 102, 109, 98, 88, 102, 115, 123, 120] }, // 4 instances
+  "supplies/crates/fruit_box_02": { r: 127, reach: [98, 112, 102, 103, 102, 114, 127, 119, 124, 117, 113, 97, 98, 122, 118, 97] }, // 1 instance
+  "supplies/crates/fruit_box_03": { r: 133, reach: [109, 132, 130, 106, 99, 123, 133, 106, 99, 113, 130, 90, 90, 130, 117, 95] }, // 3 instances
+  "supplies/crates/fruit_box_04": { r: 132, reach: [110, 115, 101, 87, 78, 94, 105, 93, 92, 98, 85, 77, 80, 86, 132, 122] }, // 2 instances
+  "supplies/crates/fruit_box_06": { r: 132, reach: [122, 82, 92, 95, 86, 79, 90, 83, 85, 94, 85, 73, 67, 82, 132, 128] }, // 1 instance
+  "supplies/sacks/sack_05": { r: 127, reach: [103, 119, 127, 108, 100, 102, 64, 49, 56, 72, 90, 77, 78, 118, 109, 110] }, // 1 instance
+  "swamp/mangrove_tree_07": { r: 381, reach: [155, 220, 129, 120, 204, 181, 217, 207, 185, 266, 227, 364, 381, 249, 197, 190] }, // 1 instance
+  "vegetation/fallen/dead_leaves_02": { r: 82, reach: [79, 82, 56, 63, 62, 67, 74, 75, 61, 61, 66, 78, 78, 73, 60, 78] }, // 5 instances
+  "vegetation/fallen/dead_leaves_03": { r: 87, reach: [41, 43, 81, 77, 75, 74, 79, 78, 71, 59, 87, 80, 69, 47, 52, 50] }, // 5 instances
+  "vegetation/fallen/dead_leaves_04": { r: 84, reach: [83, 82, 76, 57, 37, 47, 41, 41, 53, 60, 69, 79, 84, 82, 81, 74] }, // 3 instances
+  "vegetation/fallen/dead_leaves_05": { r: 100, reach: [78, 83, 82, 91, 92, 100, 94, 71, 76, 85, 78, 73, 74, 77, 73, 72] }, // 6 instances
+  "vegetation/fallen/leaves_01": { r: 83, reach: [38, 50, 73, 83, 83, 78, 76, 71, 66, 66, 78, 80, 73, 56, 60, 49] }, // 7 instances
+  "vegetation/fallen/leaves_02": { r: 95, reach: [76, 77, 81, 84, 84, 95, 71, 77, 69, 75, 61, 79, 83, 82, 71, 69] }, // 9 instances
+  "vegetation/fallen/leaves_03": { r: 80, reach: [76, 63, 62, 54, 62, 61, 78, 74, 51, 75, 78, 80, 77, 75, 78, 75] }, // 13 instances
+  "vegetation/fallen/leaves_04": { r: 88, reach: [82, 84, 81, 66, 79, 88, 84, 72, 67, 72, 65, 75, 79, 66, 56, 75] }, // 11 instances
+  "vegetation/grass/grass_06": { r: 94, reach: [64, 71, 94, 92, 90, 71, 73, 79, 85, 79, 63, 62, 60, 49, 48, 52] }, // 2 instances
+  "vegetation/grass/grass_17": { r: 101, reach: [65, 93, 99, 101, 100, 90, 83, 82, 71, 40, 56, 62, 49, 61, 86, 64] }, // 2 instances
+  "vegetation/grass/grass_18": { r: 86, reach: [61, 74, 86, 69, 60, 71, 77, 75, 76, 60, 37, 60, 62, 79, 83, 64] }, // 2 instances
+  "vegetation/grass/grass_20": { r: 86, reach: [86, 62, 51, 50, 52, 52, 52, 59, 62, 58, 69, 68, 49, 40, 48, 71] }, // 2 instances
+  "vegetation/grass/grass_21": { r: 96, reach: [89, 84, 85, 88, 88, 83, 79, 96, 85, 65, 71, 58, 61, 81, 78, 94] }, // 3 instances
+  "vegetation/grass/grass_22": { r: 111, reach: [105, 111, 94, 64, 57, 60, 56, 61, 73, 58, 68, 78, 88, 95, 83, 93] }, // 7 instances
+  "vegetation/roots/exposed_roots_03": { r: 231, reach: [184, 132, 153, 185, 176, 167, 205, 231, 219, 169, 144, 129, 129, 151, 182, 191] }, // 1 instance
+  "vegetation/roots/exposed_roots_05": { r: 216, reach: [216, 212, 173, 163, 174, 167, 176, 200, 203, 190, 157, 127, 115, 113, 152, 192] }, // 2 instances
+  "vegetation/roots/exposed_roots_07": { r: 246, reach: [246, 190, 166, 178, 205, 177, 170, 149, 148, 141, 161, 181, 194, 198, 172, 220] }, // 2 instances
+  "vegetation/shrubs/bush_green_simple_04": { r: 144, reach: [130, 124, 123, 105, 88, 71, 83, 125, 144, 136, 134, 112, 95, 81, 111, 124] }, // 1 instance
+  "vegetation/shrubs/bush_green_simple_06": { r: 163, reach: [141, 163, 149, 121, 113, 108, 103, 99, 100, 118, 114, 121, 132, 144, 143, 143] }, // 1 instance
+  "vegetation/shrubs/bush_green_simple_08": { r: 166, reach: [125, 166, 146, 130, 128, 139, 118, 86, 84, 104, 115, 108, 106, 95, 86, 95] }, // 2 instances
+  "vegetation/shrubs/bush_green_simple_09": { r: 159, reach: [124, 132, 132, 111, 108, 114, 138, 153, 155, 159, 153, 111, 87, 68, 91, 122] }, // 1 instance
+  "vegetation/shrubs/bush_green_simple_10": { r: 162, reach: [125, 140, 131, 140, 137, 134, 126, 125, 151, 162, 151, 156, 162, 144, 144, 114] }, // 1 instance
+  "vegetation/shrubs/bush_green_simple_11": { r: 149, reach: [100, 111, 109, 131, 145, 114, 100, 85, 80, 101, 112, 120, 135, 149, 132, 105] }, // 3 instances
+  "vegetation/shrubs/bush_green_simple_12": { r: 156, reach: [132, 116, 119, 134, 133, 121, 114, 114, 124, 147, 156, 133, 130, 130, 136, 139] }, // 1 instance
+  "vegetation/shrubs/bush_green_simple_13": { r: 174, reach: [174, 105, 76, 81, 93, 119, 141, 128, 133, 125, 104, 130, 139, 146, 161, 167] }, // 3 instances
+  "vegetation/trees/stump_01": { r: 130, reach: [130, 127, 106, 88, 94, 92, 110, 107, 92, 87, 80, 80, 105, 122, 126, 130] }, // 4 instances
+  "vegetation/trees/stump_02": { r: 109, reach: [91, 97, 101, 104, 86, 100, 105, 94, 109, 96, 98, 89, 84, 73, 99, 107] }, // 3 instances
+};
+// END MEASURED
 
 /** No prototype, so a name from a file such as "constructor" finds nothing. */
-export const SPRITE_SIZES: SpriteSizes = Object.freeze(Object.create(null) as SpriteSizes);
+export const SPRITE_SIZES: SpriteSizes = Object.freeze(
+  Object.assign(Object.create(null) as Record<string, Size>, MEASURED, HAND),
+);
+
+/** The names the hand check covers (measure-sprites.ts leaves them alone). */
+export const HAND_NAMES: ReadonlySet<string> = new Set(Object.keys(HAND));
