@@ -123,13 +123,10 @@ describe("sidecar (3.3, 7.1)", () => {
     expect(readFormat(h)).toBeNull();
   });
 
-  it("stubs the codec with SidecarError until WP2 lands", () => {
-    const sc = {} as SeasonSidecar;
-    expect(() => encodeSidecar(sc)).toThrow(SidecarError);
+  it("refuses bytes that aren't a sidecar with SidecarError, an Error by name", () => {
     expect(() => decodeSidecar(new Uint8Array(16))).toThrow(SidecarError);
     expect(new SidecarError("x")).toBeInstanceOf(Error);
     expect(new SidecarError("x").name).toBe("SidecarError");
-    expect(() => rasterSidecar(sc, { w: 1, h: 1 })).toThrow(/not implemented/);
   });
 
   it("can unpack where DecompressionStream exists", () => {
