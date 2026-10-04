@@ -5,6 +5,7 @@
 import { randomId } from "../shared/ids";
 import { terrainId } from "../shared/terrain";
 import type { Asset, Item, RoomSettings, Scene } from "../shared/types";
+import { isMetric, switchUnits } from "../shared/units";
 import { fileUrl, uploadBlob } from "./api";
 import type { RoomClient } from "./room/client";
 
@@ -158,7 +159,8 @@ export async function exportRoom(room: RoomClient, onProgress: (text: string) =>
 
 /**
  * Adds a backup's scenes (with their maps, tokens, drawings, notes and fog) to this
- * room as new scenes. Nothing already in the room is changed.
+ * room as new scenes. Nothing already in the room is changed. In a room that measures
+ * in metres, scenes measured in feet come in switched to metres (5 ft = 1.5 m).
  */
 export async function importBackup(room: RoomClient, file: File, onProgress: (text: string) => void): Promise<string> {
   const files = readZip(await file.arrayBuffer());
@@ -184,11 +186,16 @@ export async function importBackup(room: RoomClient, file: File, onProgress: (te
   const sceneIds = new Map<string, string>();
   const firstOrder = Math.max(0, ...Object.values(room.state.scenes).map((sc) => sc.order + 1));
   const scenes = [...backup.scenes].sort((a, b) => a.order - b.order);
+  const metric = isMetric(room.state.room?.settings);
+  let switched = 0;
   scenes.forEach((sc, n) => {
     const id = randomId(12);
     sceneIds.set(sc.id, id);
+    const units = metric && sc.grid ? switchUnits(sc.grid, true) : null;
+    if (units) switched++;
     room.createScene({
       ...sc,
+      ...(units ? { grid: { ...sc.grid, ...units } } : {}),
       id,
       order: firstOrder + n,
       mapAssetId: sc.mapAssetId ? (assetIds.get(sc.mapAssetId) ?? null) : null,
@@ -208,5 +215,8 @@ export async function importBackup(room: RoomClient, file: File, onProgress: (te
     items.push(copy);
   }
   if (items.length) room.change({ upsert: items }, false);
-  return `Restored ${scenes.length} scene${scenes.length === 1 ? "" : "s"} and ${assetIds.size} image${assetIds.size === 1 ? "" : "s"} from “${backup.room.name}”.`;
+  const restored = `Restored ${scenes.length} scene${scenes.length === 1 ? "" : "s"} and ${assetIds.size} image${assetIds.size === 1 ? "" : "s"} from “${backup.room.name}”.`;
+  return switched
+    ? `${restored} ${switched === 1 ? "One was" : `${switched} were`} measured in feet and now ${switched === 1 ? "measures" : "measure"} in metres, like this room.`
+    : restored;
 }

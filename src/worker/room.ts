@@ -11,6 +11,7 @@ import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { randomId } from "../shared/ids";
 import { looksLikeTerrainId } from "../shared/terrain";
+import { defaultGrid } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
 import { applyInitOp } from "../shared/initiative";
 import type { InitOp } from "../shared/initiative";
@@ -18,7 +19,6 @@ import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } 
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
 import {
-  DEFAULT_GRID,
   DEFAULT_SETTINGS,
   GM_OWNER,
   LIMITS,
@@ -277,7 +277,8 @@ export class Room extends DurableObject<Env> {
       width: 30 * 70,
       height: 20 * 70,
       background: "#3a3f47",
-      grid: { ...DEFAULT_GRID, color: "#ffffff", opacity: 0.2 },
+      // In the room's units: new rooms measure in metres.
+      grid: { ...defaultGrid(info.settings), color: "#ffffff", opacity: 0.2 },
       fogCover: false,
       createdAt: now,
     };
@@ -581,7 +582,8 @@ export class Room extends DurableObject<Env> {
         // An edit to a scene someone has deleted since: it stays deleted.
         if (!existing && !msg.create) return refuse();
         if (!existing && this.scenes.size >= MAX_SCENES) return refuse(`A room can hold at most ${MAX_SCENES} scenes.`);
-        const scene = sanitizeScene(msg.scene, existing);
+        // A new scene missing grid settings gets the room's own (in metres, if it measures in them).
+        const scene = sanitizeScene(msg.scene, existing, defaultGrid(this.info!.settings));
         if (!scene) return refuse("That scene couldn't be saved.");
         this.saveScene(scene);
         this.scenes.set(scene.id, scene);

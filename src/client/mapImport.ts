@@ -6,6 +6,7 @@
 // which may shrink it, so grid sizes are worked out afterwards from the final size.
 
 import type { GridType } from "../shared/types";
+import type { GridUnits } from "../shared/units";
 
 /** A map ready to become a scene. */
 export interface MapFile {
@@ -26,6 +27,8 @@ export interface MapFile {
   offsetY?: number;
   /** Square unless the file says otherwise. */
   gridType?: GridType;
+  /** What one cell is, when the file says (an Owlbear Rodeo scale such as 5 ft). */
+  scale?: GridUnits;
 }
 
 /** What the file picker offers. */

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { makeZip } from "../src/client/backup";
+import { importFiles } from "../src/client/importScenes";
 import { gridSizeFor } from "../src/client/mapImport";
-import { filledRegions, pathContours, readOb2 } from "../src/client/ob2";
+import type { MapFile } from "../src/client/mapImport";
+import { filledRegions, parseScale, pathContours, readOb2 } from "../src/client/ob2";
+import type { RoomClient } from "../src/client/room/client";
+import type { Asset, RoomSettings, Scene } from "../src/shared/types";
+import { importedUnits } from "../src/shared/units";
 import { openZip, readText } from "../src/client/zip";
 
 const PNG = Uint8Array.from(
@@ -344,5 +349,90 @@ describe("Owlbear Rodeo backups", () => {
   it("refuses files that aren't Owlbear backups", async () => {
     await expect(readOb2(file(makeZip([{ name: "room.json", data: enc.encode("{}") }])))).rejects.toThrow(/Owlbear/);
     await expect(readOb2(new File(["hello"], "x.ob2"))).rejects.toThrow(/zip/);
+  });
+});
+
+describe("Owlbear grid scales", () => {
+  it("reads the scale as a distance and a unit", () => {
+    expect(parseScale("5ft")).toEqual({ unit: 5, unitName: "ft" });
+    expect(parseScale("10 ft")).toEqual({ unit: 10, unitName: "ft" });
+    expect(parseScale("1.5m")).toEqual({ unit: 1.5, unitName: "m" });
+    expect(parseScale("2,5 m")).toEqual({ unit: 2.5, unitName: "m" });
+    expect(parseScale("1")).toEqual({ unit: 1, unitName: "" });
+    for (const bad of ["", "ft", "0ft", "-5ft", undefined, 5, null]) expect(parseScale(bad)).toBeUndefined();
+  });
+
+  it("keeps each scene's scale for the room to convert", async () => {
+    const imp = await readOb2(file(makeZip(ob2Entries(sceneDoc({ grid: { scale: "10ft" } })))));
+    expect(imp.scenes[0].map.scale).toEqual({ unit: 10, unitName: "ft" });
+    const metric = await readOb2(file(makeZip(ob2Entries(sceneDoc({ grid: { scale: "1.5m" } })))));
+    expect(metric.scenes[0].map.scale).toEqual({ unit: 1.5, unitName: "m" });
+  });
+
+  it("comes into a metric room in metres, and into a room in feet at 5 ft as before", async () => {
+    const units = async (scale: string, metric: boolean | undefined) => {
+      const imp = await readOb2(file(makeZip(ob2Entries(sceneDoc({ grid: { scale } })))));
+      return importedUnits(imp.scenes[0].map.scale, metric === undefined ? {} : { metric });
+    };
+    expect(await units("5ft", true)).toEqual({ unit: 1.5, unitName: "m" });
+    expect(await units("10ft", true)).toEqual({ unit: 3, unitName: "m" });
+    expect(await units("1.5m", true)).toEqual({ unit: 1.5, unitName: "m" });
+    expect(await units("1km", true)).toEqual({ unit: 1, unitName: "km" });
+    expect(await units("10ft", false)).toEqual({ unit: 5, unitName: "ft" });
+    expect(await units("1.5m", undefined)).toEqual({ unit: 5, unitName: "ft" });
+  });
+});
+
+describe("bringing in maps (Upload map, Owlbear backups)", () => {
+  /** Enough of a room for importFiles: uploads come back at the map's size, and scenes are kept. */
+  function fakeRoom(settings: RoomSettings | undefined) {
+    const created: Scene[] = [];
+    let n = 0;
+    const asset = (w: number, h: number): Asset => ({
+      id: `map${n++}`,
+      name: "Map",
+      kind: "map",
+      width: w,
+      height: h,
+      mime: "image/png",
+      bytes: 1,
+      owner: "@gm",
+      createdAt: 0,
+    });
+    const room = {
+      state: { room: settings ? { id: "AbCdEf123456", name: "Room", createdAt: 0, settings } : null, me: { userId: "@gm" } },
+      uploadMaps: async (maps: MapFile[]) =>
+        maps.map((map) => {
+          const source = { width: map.width ?? 2800, height: map.height ?? 1400 };
+          return { map, asset: asset(source.width, source.height), source };
+        }),
+      upload: async () => [],
+      createScene: (s: Scene) => void created.push(s),
+      change: () => {},
+    };
+    return { room: room as unknown as RoomClient, created };
+  }
+
+  const units = async (settings: RoomSettings | undefined) => {
+    const { room, created } = fakeRoom(settings);
+    const files = [
+      new File([PNG as BlobPart], "Crypt.png", { type: "image/png" }),
+      file(makeZip(ob2Entries(sceneDoc({ grid: { scale: "10ft" } })))),
+    ];
+    const result = await importFiles(room, files, { name: "", order: 0, covered: true });
+    expect(result.scenes).toEqual(created);
+    return created.map((s) => `${s.grid.unit} ${s.grid.unitName}`);
+  };
+
+  const old: RoomSettings = { playersCanDraw: true, playersCanAddTokens: true, playersMoveAll: true };
+
+  it("gives an upload the room's metres, and switches an Owlbear scale in feet to them", async () => {
+    expect(await units({ ...old, metric: true })).toEqual(["1.5 m", "3 m"]);
+  });
+
+  it("starts both at 5 ft in a room in feet, and in a room from before the setting", async () => {
+    expect(await units({ ...old, metric: false })).toEqual(["5 ft", "5 ft"]);
+    expect(await units(old)).toEqual(["5 ft", "5 ft"]);
+    expect(await units(undefined)).toEqual(["5 ft", "5 ft"]);
   });
 });

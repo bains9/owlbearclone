@@ -259,6 +259,10 @@ async function main() {
   check(gmHello?.you.role === "gm", "GM socket is the GM");
   check(aHello?.you.role === "player", "player socket is a player");
   check(gmHello?.scenes.length === 1 && gmHello.activeSceneId === gmHello.scenes[0].id, "new room has one active scene");
+  check(
+    gmHello?.room.settings.metric === true && gmHello.scenes[0].grid.unit === 1.5 && gmHello.scenes[0].grid.unitName === "m",
+    "a new room measures in metres, its first scene too",
+  );
   const sceneId = gmHello.activeSceneId;
   // Tabs left open across an update are told to reload, whatever's on the map.
   check(
@@ -417,6 +421,28 @@ async function main() {
   alice.clear();
   alice.send({ t: "scene.upsert", scene: { ...gmHello.scenes[0], name: "Hacked" } });
   check(Boolean(await alice.waitFor((m) => m.t === "error")), "players can't edit scenes");
+
+  // Measuring in metres: only the GM changes it, and new scenes take it.
+  alice.clear();
+  gm.clear();
+  alice.send({ t: "room.update", settings: { metric: false } });
+  check(
+    Boolean(await alice.waitFor((m) => m.t === "error")) && !gm.msgs.some((m) => m.t === "room"),
+    "players can't change whether the room measures in metres",
+  );
+  gm.send({ t: "room.update", settings: { metric: false } });
+  check(Boolean(await alice.waitFor((m) => m.t === "room" && m.room.settings.metric === false)), "the GM switches the room to feet");
+  gm.send({ t: "room.update", settings: { metric: true } });
+  const metricAgain = await gm.waitFor((m) => m.t === "room" && m.room.settings.metric === true);
+  const bare = { id: "sc" + rid(), name: "Bare", width: 700, height: 700, grid: { size: 70 } };
+  gm.send({ t: "scene.upsert", scene: bare, create: true });
+  const bareScene = await gm.waitFor((m) => m.t === "scene.upsert" && m.scene.id === bare.id);
+  check(
+    Boolean(metricAgain) && bareScene?.scene.grid.unit === 1.5 && bareScene.scene.grid.unitName === "m",
+    "and back to metres: a new scene gets 1.5 m a square",
+  );
+  gm.send({ t: "scene.delete", id: bare.id });
+  await gm.waitFor((m) => m.t === "scene.delete" && m.id === bare.id);
 
   // Validation: prototype keys and "__" ids are not fields or ids.
   alice.clear();

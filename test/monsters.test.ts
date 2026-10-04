@@ -579,9 +579,9 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("leads What's new with the monsters, keeping the compass and loading entries", () => {
+  it("keeps the monsters in What's new, after metres, with the compass and loading entries", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[0]).toBe("Monsters ready to use (3 October 2026, later)");
+    expect(news[1]).toBe("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("A compass for any map (3 October 2026)");
     expect(news).toContain("Maps say when they're loading (3 October 2026)");
   });
