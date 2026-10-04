@@ -15,8 +15,24 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 30 September 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 4 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Exact seasons from Dungeondraft files (4 October 2026)",
+        "steps": [
+          "GM: in Dungeondraft, save the map (the .dungeondraft_map file) and export it (**Universal VTT** or PNG).",
+          "Bring both files into Tabletop together: drop them on the map, or click **Import Dungeondraft map** in the Build tool's bar and pick both. If they're in different folders, bring one and then the other: the **New scene** window waits for the second.",
+          "For a scene you already have: open **Edit scene**, and under **Map** click **Attach…** next to **Dungeondraft data**; or click **Attach its project file** in the season box.",
+          "Pick the level if asked, check that the preview lines up (try **Compare**), and click **Attach**."
+        ],
+        "notes": [
+          "A map made in Dungeondraft can now bring its project file along with its picture. With it, seasons know exactly where the snow, grass, water, buildings and trees are, instead of guessing from the picture: on a winter map, Spring, Summer and Autumn melt the snow only where it's painted, leaves come only on the trees you placed and by their kind (pines stay green in autumn), and water, buildings and caves stay exact.",
+          "This works on winter maps now; green maps follow in a later update, and their data is kept for then. Without a project file, seasons work as before, guessed from the picture.",
+          "Things from asset packs stay as drawn, unless you pick **Guess from the picture** under **Asset-pack items** in the season box. Bare trees come into leaf on a winter map: **Bare trees** in the season box changes that, and **This map is drawn in** corrects which season the picture shows.",
+          "The project file itself is never uploaded: only what seasons need from the one level you pick. Players can't see other levels, secret doors, notes or the file's name.",
+          "A project file brought in by itself still tells you it has no picture in it and what to do. See **Exact seasons for Dungeondraft maps** under **Seasons**."
+        ]
+      },
       {
         "title": "Dungeondraft project files explained (30 September 2026)",
         "steps": [
@@ -24,7 +40,7 @@ export const GUIDE: GuideSection[] = [
           "Bring the .dd2vtt file it makes into Tabletop: **Import Dungeondraft map**, **New scene**, or drop it on the map."
         ],
         "notes": [
-          "Dungeondraft's own project file (its name ends in .dungeondraft_map) has the map's data but no picture, so Tabletop can't make a scene from it. Bringing one in now says so and asks for the export, instead of doing nothing.",
+          "Dungeondraft's own project file (its name ends in .dungeondraft_map) has the map's data but no picture, so Tabletop can't make a scene from it alone. Bringing one in by itself now says so, instead of doing nothing. Since 4 October it's useful too: brought in with its export, or attached to a scene, it gives that scene exact seasons (see **Exact seasons from Dungeondraft files** above).",
           "See **Coming from Dungeondraft**."
         ]
       },
@@ -460,7 +476,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
-          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. A Dungeondraft project file (.dungeondraft_map) gets a message asking for its Universal VTT export instead.",
+          "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. Pictures dropped together with a Dungeondraft project file (.dungeondraft_map) all go to the **New scene** window, whatever their size, and the project file's data is attached to the new scene for exact seasons. A project file dropped on its own onto a scene whose picture could be its export opens the **Dungeondraft data** window for that scene; otherwise it waits in the **New scene** window for its export.",
           "If a player drops a map file (a Dungeondraft or other Universal VTT file, a Dungeondraft project file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
         ]
       },
@@ -1452,9 +1468,9 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
-          "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not.",
+          "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not (with a Dungeondraft project file, they only help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
-          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture: bring in its Universal VTT export instead. If you bring in the project file, Tabletop says so."
+          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**."
         ]
       },
       {
@@ -1534,11 +1550,11 @@ export const GUIDE: GuideSection[] = [
         "title": "Coming from Dungeondraft",
         "steps": [
           "Keep making maps in Dungeondraft if you like. In Dungeondraft, choose **Export**, set the export mode to **Universal VTT**, and export each level as its own file.",
-          "In Tabletop, click **Import Dungeondraft map** in the Build tool's bar, or drop the file on the map. The **New scene** window opens with it."
+          "In Tabletop, click **Import Dungeondraft map** in the Build tool's bar, or drop the file on the map. The **New scene** window opens with it. For exact seasons, pick or drop the map's .dungeondraft_map file along with it."
         ],
         "notes": [
           "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
-          "Bring in the export, not the map you save in Dungeondraft (the .dungeondraft_map file): that one has no picture in it, and Tabletop tells you so if you try.",
+          "Keep the .dungeondraft_map file Dungeondraft saves: attached to its scene, it makes seasons exact (see **Exact seasons for Dungeondraft maps** under **Seasons**). On its own it has no picture in it, so it can't make a scene, and Tabletop tells you so if you try.",
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
           "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",
@@ -1791,7 +1807,7 @@ export const GUIDE: GuideSection[] = [
           "Opening the editor also shows you that scene. If players are on a different scene, they can't see it.",
           "The editor also opens by itself after you make a new scene with **New scene** in the **Scenes** panel. When you drop or paste a map onto the map, the **Scenes** list opens instead.",
           "Changes in the number boxes take effect when you press Enter or click somewhere else.",
-          "Undo doesn't cover the grid settings, the **Name** or the **Remove** button. Only a map change (**Choose uploaded** or **Upload new**) and **Cover all** / **Clear all** can be undone. If you change a grid setting by mistake, set it back by hand."
+          "Undo doesn't cover the grid settings, the **Name** or the map's **Remove** button. Only a map change (**Choose uploaded** or **Upload new**), attaching or removing **Dungeondraft data**, and **Cover all** / **Clear all** can be undone. If you change a grid setting by mistake, set it back by hand."
         ]
       },
       {
@@ -1883,6 +1899,7 @@ export const GUIDE: GuideSection[] = [
           "If it's a different size, the grid is guessed again, all fog shapes are removed and the whole map starts covered. A message says \"The map starts covered in fog. Reveal areas with the fog tool.\"",
           "The same happens when you give a map to a scene that had none, such as a blank grid: the whole scene starts covered in fog and the grid size is guessed.",
           "Undo (Ctrl+Z) puts the old map and its fog back.",
+          "**Dungeondraft data** under **Map** shows whether the scene has its Dungeondraft project file's data for exact seasons: **Attach…**, or the data's name and how many things it holds, with **Change…** and **Remove**. Changing the picture keeps the data but pauses it until you click **Use it with this picture** in the season box. See **Exact seasons for Dungeondraft maps** under **Seasons**.",
           "**Remove** takes the map off and leaves the plain background. **Width (px)** and **Height (px)** boxes then appear so you can set the scene's size.",
           "**Background** sets the colour behind the map."
         ]
@@ -1940,9 +1957,27 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "On an uploaded map, mainly plants, water and the open ground between them change, and only out in the open, where there are plenty of plants around. Dungeons, caves and sewers keep their water and floors, so an indoor map barely changes. The season box says so when the map looks like an indoor one.",
           "Ink lines, walls, lava, fires, red roofs, rugs and labels never change. Small roofs and props on grass get snow on top; wide roofs, streets and paved squares keep their colour.",
-          "Snow drifts and leaves are sized by the grid, so line the grid up with the map first (see **The scene editor: grid and map**).",
+          "Snow drifts and leaves are sized by the grid, so line the grid up with the map first (see **The scene editor: grid and map**). With Dungeondraft data, sizes come from the map itself.",
           "On a map you built: grass, trees, bushes, and ponds, lakes and rivers that touch grass change, and paths near grass get snow or leaves. In winter, rocks, rubble and wells near grass get frost or snow on top (a well freezes over in **Deep snow**), and the snow melts round a campfire. Rooms with walls stay as they are inside, and walls, doors and lava never change.",
           "The table display always shows the season, like any player's screen, even when it's opened on a computer where seasons are turned off."
+        ]
+      },
+      {
+        "title": "Exact seasons for Dungeondraft maps",
+        "steps": [
+          "In Dungeondraft, save the map (the .dungeondraft_map file) and export it (**Universal VTT** or PNG).",
+          "Bring both into Tabletop: drop them together, or use **Import Dungeondraft map**. If they're in different folders, bring one and then the other: the **New scene** window waits for the second. For a scene you already have: **Edit scene**, then under **Map**, **Dungeondraft data**, **Attach…**; or the **Attach its project file** link in the season box.",
+          "Pick the level if asked, check that the preview lines up (try **Compare**), and click **Attach**."
+        ],
+        "notes": [
+          "With the project file, seasons know exactly what's in the map: snow melts only where it's painted, leaves grow only on the trees you placed and by their kind (pines stay green in autumn), and water, buildings and caves are exact. Without it, seasons are guessed from the picture, as on any other map.",
+          "The project file must be the one the picture was exported from. If you change the map in Dungeondraft, export it again and attach it again. The window checks that the file lines up with the picture, and says so when it can't be sure or when the map seems to have grown since the export.",
+          "Things from asset packs stay as drawn in every season, because Tabletop can't tell what they are. If you'd rather seasons treated them as they treat a plain picture, pick **Guess from the picture** under **Asset-pack items** in the season box (it's shown when the map has any). **Leave as drawn** is the default.",
+          "A bare tree comes into leaf on a snowy map and stays dead on a green one: change it under **Bare trees**. If Tabletop mistakes which season your map shows, change **This map is drawn in**.",
+          "Exact seasons work on winter maps now; green maps follow in a later update. A green map's data is kept, and its seasons are guessed from the picture until then.",
+          "The project file itself is never uploaded, only what seasons need from the one level: players can't see other levels, secret doors, notes or the file's name.",
+          "Changing the scene's picture keeps the data but pauses it, since it was lined up with the old picture: the season box offers **Use it with this picture** (for a day and night version of the same map, say) or **Remove**. **Remove** (there, or under **Map** in the scene editor) takes the data off and seasons go back to guessing; Undo puts it back.",
+          "A project file brought in on its own, with no picture, can't make a scene: Tabletop says so, and tells you to bring the export in with it, or to attach it to a scene."
         ]
       },
       {

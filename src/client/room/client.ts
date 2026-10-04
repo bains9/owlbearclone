@@ -117,6 +117,15 @@ export interface Toast {
   message?: ChatMessage;
 }
 
+/** What opens the Dungeondraft data dialog for a scene (RoomState.attachDD; the dialog is ui/AttachDungeondraft.tsx). */
+export interface AttachDDRequest {
+  sceneId: string;
+  /** The project file (and maybe its .dd2vtt) already chosen, e.g. dropped on the board. */
+  files?: File[];
+  /** "attach" (the default): new data; "check": look at the data the scene has (Check…). */
+  mode?: "attach" | "check";
+}
+
 export interface RoomState {
   status: Status;
   me: Player | null;
@@ -141,6 +150,12 @@ export interface RoomState {
   gridAlign: { cells: number } | null;
   /** Map files dropped or pasted onto the board, waiting in the new-scene dialog. */
   mapImport: File[] | null;
+  /**
+   * The Dungeondraft data dialog for a scene (AttachDungeondraft), opened from a drop, the picker,
+   * the scene editor, the Season notes or the import report: `files` a project file (and maybe its
+   * .dd2vtt) already chosen, `mode` "check" to look at data the scene already has.
+   */
+  attachDD: AttachDDRequest | null;
   /** GM: table displays follow this tab's view of the live scene (otherwise they show all of it). */
   displayFollow: boolean;
   /** The server is running a newer Tabletop than this tab: it should reload. */
@@ -397,6 +412,7 @@ export class RoomClient {
       measureOpts: { shape: "ruler", keep: false },
       textPrompt: null,
       mapImport: null,
+      attachDD: null,
       displayFollow: false,
       outdated: false,
       // A table display always shows the season, like any player's screen: one opened in the

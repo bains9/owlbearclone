@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { CloudSun, Flower2, ImageIcon, Leaf, Shuffle, Snowflake, Sun } from "lucide-preact";
-import type { Scene, SceneSeason, SeasonLook } from "../../shared/types";
+import type { Scene, SceneMapData, SceneSeason, SeasonLook } from "../../shared/types";
 import { SEASON_LOOKS } from "../../shared/types";
+import { touchedSidecars } from "../importScenes";
+import { usesData } from "../room/mapData";
+import type { SceneDataState } from "../room/mapData";
+import { outdoorKey } from "../room/seasons";
+import { useSidecar } from "./AttachDungeondraft";
 import { cx, useRoom, useRoomState } from "./common";
+import { DD_UI, bareDefault, dataNote, drawnDefault, hasBareTrees, hasPackItems, localDataState, olderExtractor } from "./ddText";
+import type { NoteAction } from "./ddText";
 
 const LOOK_NAMES: Record<SeasonLook, string> = {
   spring: "Spring",
@@ -63,7 +70,15 @@ export function SeasonPicker(props: { scene: Scene }) {
   const season = s.season;
   const live = useRoomState((st) => st.activeSceneId === s.id);
   const off = useRoomState((st) => st.seasonsOff);
-  const outdoor = useRoomState((st) => (s.mapAssetId ? st.mapOutdoor[s.mapAssetId] : undefined));
+  const gm = useRoomState((st) => st.me?.role === "gm");
+  // The scene's Dungeondraft data on this device (the board publishes it once the scene is looked at).
+  const md = s.mapData;
+  const dataState = useRoomState((st) => st.mapDataState[s.id]) ?? localDataState(s);
+  const exact = md !== undefined && usesData(dataState);
+  // The indoor hint is kept apart per data: with it, what counts as outdoors comes from the map.
+  const outdoor = useRoomState((st) =>
+    s.mapAssetId ? st.mapOutdoor[outdoorKey(s.mapAssetId, exact ? { assetId: md.assetId } : undefined)] : undefined,
+  );
   const hasBuild = useRoomState((st) => {
     for (const i of Object.values(st.items)) if (i.kind === "terrain" && i.sceneId === s.id) return true;
     return false;
@@ -149,9 +164,10 @@ export function SeasonPicker(props: { scene: Scene }) {
           This looks like an indoor map: only open ground (grass, trees, water) changes, so there's little to see.
         </p>
       )}
-      {season && s.mapAssetId && (
+      {season && s.mapAssetId && !exact && (
         <p class="small muted season-note">Snow drifts and leaves are sized by the grid: set the grid first if it's off.</p>
       )}
+      {gm && <DataNotes scene={s} state={dataState} />}
       {off && (
         <p class="small season-note">
           Seasons are off on this device, so you see the map as drawn (players and the table display still see the season).{" "}
@@ -161,6 +177,104 @@ export function SeasonPicker(props: { scene: Scene }) {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The GM's note on the scene's Dungeondraft data (design 6.1), with its links, and the per-scene
+ * controls while the data is in use: which season the map is drawn in, what its bare trees do,
+ * and Par's asset-pack option. Each control is one undoable step.
+ */
+function DataNotes(props: { scene: Scene; state: SceneDataState }) {
+  const room = useRoom();
+  const s = props.scene;
+  const md = s.mapData;
+  const sidecar = useSidecar(room.roomId, md?.assetId);
+  const meta = sidecar?.meta;
+  const note = dataNote(props.state, { hasMap: !!s.mapAssetId, olderExtractor: meta ? olderExtractor(meta) : false });
+  const open = (mode: "attach" | "check") => room.store.set({ attachDD: { sceneId: s.id, mode } });
+  const act = (a: NoteAction) => {
+    switch (a) {
+      case "attach":
+      case "reattach":
+        return open("attach");
+      case "check":
+      case "use":
+        return open("check");
+      case "remove":
+        if (!md) return;
+        touchedSidecars.add(md.assetId);
+        room.setMapData(s.id, null);
+        room.toast(DD_UI.removed);
+    }
+  };
+  const setData = (next: SceneMapData) => room.setMapData(s.id, next);
+  // The controls apply while the data is in use, and to a green map's data (its "drawn in" may be wrong).
+  const controls = usesData(props.state) || props.state === "green";
+  const drawn = md?.drawn ?? (meta ? drawnDefault(meta) : "winter");
+  const bare = md?.bare ?? bareDefault(drawn);
+  const packs = md?.packs ?? "drawn";
+  return (
+    <>
+      {note && (
+        <p class="small muted season-note">
+          {note.map((p, i) =>
+            typeof p === "string" ? (
+              p
+            ) : (
+              <button key={i} class="link-btn" onClick={() => act(p.action)}>
+                {p.label}
+              </button>
+            ),
+          )}
+        </p>
+      )}
+      {md && meta && controls && (
+        <div class="season-ctl" title={DD_UI.drawnTitle}>
+          <span class="small">This map is drawn in</span>
+          <div class="seg" role="group" aria-label="This map is drawn in">
+            {(["winter", "green"] as const).map((d) => (
+              <button key={d} class={cx("seg-btn", drawn === d && "active")} aria-pressed={drawn === d} onClick={() => drawn !== d && setData({ ...md, drawn: d })}>
+                {d === "winter" ? "Winter" : "Green"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {md && meta && controls && hasBareTrees(meta) && (
+        <div class="season-ctl" title={DD_UI.bareTitle}>
+          <span class="small">Bare trees</span>
+          <div class="seg" role="group" aria-label="Bare trees">
+            {(["leaf", "dead"] as const).map((b) => (
+              <button key={b} class={cx("seg-btn", bare === b && "active")} aria-pressed={bare === b} onClick={() => bare !== b && setData({ ...md, bare: b })}>
+                {b === "leaf" ? "Come into leaf" : "Stay dead"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {md && meta && controls && hasPackItems(meta) && (
+        <div class="season-ctl" title={DD_UI.packsTitle}>
+          <span class="small">Asset-pack items</span>
+          <div class="seg" role="group" aria-label="Asset-pack items">
+            <button
+              class={cx("seg-btn", packs === "drawn" && "active")}
+              aria-pressed={packs === "drawn"}
+              onClick={() => {
+                if (packs === "drawn") return;
+                const { packs: _drop, ...rest } = md;
+                setData(rest);
+              }}
+            >
+              Leave as drawn
+            </button>
+            <button class={cx("seg-btn", packs === "guess" && "active")} aria-pressed={packs === "guess"} onClick={() => packs !== "guess" && setData({ ...md, packs: "guess" })}>
+              Guess from the picture
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

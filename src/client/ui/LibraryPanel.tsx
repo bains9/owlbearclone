@@ -1,14 +1,20 @@
-import { useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { Pencil, Trash, Upload } from "lucide-preact";
 import type { Asset } from "../../shared/types";
 import { fileUrl } from "../api";
+import { cleanUpSidecars } from "../dd/attach";
 import { PLAYER_COLORS } from "../identity";
+import { touchedSidecars } from "../importScenes";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
 
 export function LibraryPanel() {
   const room = useRoom();
   const assets = useRoomState((s) => s.assets);
   const gm = useRoomState((s) => s.me?.role === "gm");
+  // Opening the Library is when Dungeondraft data no scene uses any more goes (design 2.8), apart from this tab's own.
+  useEffect(() => {
+    if (gm) void cleanUpSidecars(room, touchedSidecars).catch(() => undefined);
+  }, [gm, room]);
   const canAdd = useRoomState((s) => s.me?.role === "gm" || Boolean(s.room?.settings.playersCanAddTokens));
   const uploading = useRoomState((s) => s.uploading);
   const items = useRoomState((s) => s.items);

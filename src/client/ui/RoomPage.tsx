@@ -20,6 +20,7 @@ import { Board } from "../room/board";
 import { RoomClient } from "../room/client";
 import type { PanelId, RoomState } from "../room/client";
 import type { WheelPref } from "../room/buildInput";
+import { AttachDungeondraft } from "./AttachDungeondraft";
 import { ChatPanel, RollView } from "./ChatPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
@@ -166,6 +167,7 @@ function RoomShell() {
           <Toasts />
           <NoteDialog />
           <MapImportDialog />
+          <AttachDDDialog />
           {status === "reconnecting" && (
             <div class="reconnecting">
               <WifiOff size={16} /> Connection lost. Reconnecting…
@@ -416,6 +418,22 @@ function MapImportDialog() {
   );
 }
 
+/** The Dungeondraft data dialog for a scene (store.attachDD): from a drop, the scene editor, the Season notes or the import report. */
+function AttachDDDialog() {
+  const room = useRoom();
+  const req = useRoomState((s) => s.attachDD);
+  const scene = useRoomState((s) => (s.attachDD ? s.scenes[s.attachDD.sceneId] : undefined));
+  const close = () => room.store.set({ attachDD: null });
+  // The scene went, or lost its picture, while the request was open: nothing to attach to.
+  const gone = !!req && (!scene || !scene.mapAssetId);
+  useEffect(() => {
+    if (gone) close();
+  }, [gone]);
+  if (!req || !scene || !scene.mapAssetId) return null;
+  // Keyed so each request starts afresh.
+  return <AttachDungeondraft key={req.sceneId} scene={scene} files={req.files} mode={req.mode} onClose={close} />;
+}
+
 function NoteDialog() {
   const at = useRoomState((s) => s.textPrompt);
   if (!at) return null;
@@ -578,7 +596,7 @@ function HelpDialog(props: { onClose: () => void }) {
       </table>
       <p class="muted small">
         Drag token images from the Tokens panel onto the map, or drop image files from your computer straight onto it.
-        As the GM, dropping a map (a big image, or a Dungeondraft or other Universal VTT file) starts a new scene with it.
+        As the GM, dropping a map (a big image, or a Dungeondraft or other Universal VTT file) starts a new scene with it. Drop the map's .dungeondraft_map file with it for exact seasons.
         The monitor button (GM) opens a table display: the map alone, as players see it, for a second screen or a TV.
       </p>
       <p class="small">

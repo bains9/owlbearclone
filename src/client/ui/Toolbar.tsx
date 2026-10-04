@@ -56,7 +56,7 @@ import {
   snapSize,
 } from "../../shared/terrain";
 import type { FloorId, StampId } from "../../shared/terrain";
-import { MAP_FILE_ACCEPT } from "../mapImport";
+import { DD_UI } from "./ddText";
 import type { DrawShape } from "../../shared/types";
 import { buildUndo, wallsFor } from "../room/build";
 import { drawStamp, floorPattern } from "../room/buildArt";
@@ -359,24 +359,21 @@ function FloorIcon(props: { id: FloorId }) {
   return <canvas ref={ref} class="floor-icon" aria-hidden="true" />;
 }
 
-/** Brings a Dungeondraft export in as a new scene (through the new-scene window). */
+/**
+ * Brings a Dungeondraft export, and for exact seasons its project file, in as a new scene (through
+ * the new-scene window). No accept filter: iOS and iPadOS grey out .dungeondraft_map files otherwise.
+ */
 function ImportDungeondraft() {
   const room = useRoom();
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button
-        class="btn btn-sm"
-        title="Bring in a map made in Dungeondraft (Universal VTT export, .dd2vtt) as a new scene. Its picture and grid come across; the walls, doors and lights in the file aren't used."
-        aria-label="Import Dungeondraft map"
-        onClick={() => fileRef.current?.click()}
-      >
+      <button class="btn btn-sm" title={DD_UI.importTitle} aria-label="Import Dungeondraft map" onClick={() => fileRef.current?.click()}>
         <FileUp size={14} /> <span class="seg-label">Import Dungeondraft map</span>
       </button>
       <input
         ref={fileRef}
         type="file"
-        accept={MAP_FILE_ACCEPT}
         multiple
         hidden
         onChange={(e) => {

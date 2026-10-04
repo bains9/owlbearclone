@@ -88,7 +88,7 @@ import type { SeasonJob, SeasonJobData } from "./seasons";
 import { SeasonPlanner, SidecarCache } from "./mapData";
 import type { SceneDataState } from "./mapData";
 import { seedFrom } from "./seasonPixels";
-import { isDungeondraftProject, isVttFile, looksLikeMap } from "../mapImport";
+import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -4052,17 +4052,24 @@ export class Board implements BoardApi {
   /**
    * Files dropped or pasted on the board. For the GM, map files and big images start
    * new scenes (in the new-scene dialog); other images become tokens where they landed.
+   * With a Dungeondraft project file among them, every image goes with it (sortDroppedFiles);
+   * a project file dropped on its own attaches to the scene being viewed when its picture
+   * could be that map's export, else waits in the new-scene dialog for its export (design 2.1 A).
    */
   private async takeFiles(files: File[], at: Point | null): Promise<void> {
-    const maps: File[] = [];
-    const tokens: File[] = [];
-    for (const f of files) {
-      if (this.isGm && (await looksLikeMap(f))) maps.push(f);
-      else if (f.type.startsWith("image/")) tokens.push(f);
-      else if (isVttFile(f) || isDungeondraftProject(f) || /\.(ob2|owlbear)$/i.test(f.name)) this.room.toast("Only the GM can add maps.", "error");
+    const sorted = await sortDroppedFiles(files, this.isGm);
+    if (sorted.refused) this.room.toast("Only the GM can add maps.", "error");
+    if (sorted.lone) {
+      const scene = this.room.viewScene;
+      const squares = scene?.mapAssetId ? await dungeondraftSquares(sorted.lone) : null;
+      if (scene && squares && pictureFitsMap(scene, squares, scene.mapRect)) {
+        this.room.store.set({ attachDD: { sceneId: scene.id, files: [sorted.lone], mode: "attach" } });
+      } else {
+        this.room.store.set({ mapImport: [sorted.lone] });
+      }
     }
-    if (maps.length) this.room.store.set({ mapImport: maps });
-    if (tokens.length && at) void this.room.uploadTokens(tokens, at);
+    if (sorted.maps.length) this.room.store.set({ mapImport: sorted.maps });
+    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at);
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {

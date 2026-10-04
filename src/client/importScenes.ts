@@ -1,16 +1,27 @@
 // Turning map files into scenes: uploads the images, creates a scene for each with
-// its grid, and for Owlbear Rodeo backups also its fog and tokens.
+// its grid, and for Owlbear Rodeo backups also its fog and tokens. A picture that came
+// with its Dungeondraft project file gets the file's data attached as the scene is made
+// (design 2.1 A): the data is compiled and uploaded as a sidecar, and the scene starts
+// with mapData set, on hold when it didn't line up or the level was unclear.
 
 import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
-import type { Asset, FogItem, Item, Scene, TokenItem } from "../shared/types";
+import type { Asset, FogItem, Item, Scene, SceneMapData, TokenItem } from "../shared/types";
+import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
+import type { AttachReport } from "./dd/extract";
 import { gridSizeFor, readMapFiles } from "./mapImport";
 import type { MapFile } from "./mapImport";
 import { isOb2File, readOb2 } from "./ob2";
 import type { RoomClient } from "./room/client";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Sidecar assets created, attached or detached in this tab (by asset id): cleanUpSidecars
+ * leaves them alone so this tab's undo still works. The attach dialog adds to it too.
+ */
+export const touchedSidecars = new Set<string>();
 
 /**
  * A scene for an uploaded map. The grid comes from the map file or its name when
@@ -53,14 +64,121 @@ export function sceneFromMap(
   };
 }
 
+/**
+ * How attaching a scene's Dungeondraft data went: attached and lined up; attached but the fit
+ * couldn't be fully checked; lined up by a whole-square shift; or on hold (it didn't line up, or
+ * which level the picture shows is unclear). Data that couldn't be attached at all is a note.
+ */
+export type AttachStatus = "ok" | "unsure" | "shifted" | "hold" | "level";
+
+/** The import report's line for one scene's Dungeondraft data (design 6.1). */
+export interface AttachEntry {
+  sceneId: string;
+  status: AttachStatus;
+  /** The line itself; the report adds Check… to every status but "ok". */
+  note: string;
+  /** The extractor's remarks, for the GM (e.g. terrain that couldn't be read). */
+  warnings: string[];
+}
+
 export interface ImportResult {
   scenes: Scene[];
   /** How many of them had their grid in the file (or its name). */
   gridFromFile: number;
-  /** Anything that couldn't be brought in, in plain words. */
+  /** Anything that couldn't be brought in, in plain words: a project file's data that couldn't be attached included. */
   notes: string[];
   /** Whether any of it came from an Owlbear Rodeo backup. */
   owlbear: boolean;
+  /** One line per scene that got data from its Dungeondraft project file. */
+  attach: AttachEntry[];
+}
+
+/** What a scene gets from its Dungeondraft project file, once the sidecar is uploaded. */
+interface Attached {
+  mapData: SceneMapData;
+  mapRect?: [number, number, number, number];
+  status: AttachStatus;
+  report: AttachReport;
+}
+
+/**
+ * "grown 2 squares on the left and lost 1 square at the top": what a whole-square shift says
+ * about the map. x < 0 means it has grown -x squares on the left since the export (extract.ts).
+ */
+export function describeShift([x, y]: readonly [number, number]): string {
+  const squares = (n: number) => `${n} square${n === 1 ? "" : "s"}`;
+  const parts: string[] = [];
+  if (x < 0) parts.push(`grown ${squares(-x)} on the left`);
+  if (x > 0) parts.push(`lost ${squares(x)} on the left`);
+  if (y < 0) parts.push(`grown ${squares(-y)} at the top`);
+  if (y > 0) parts.push(`lost ${squares(y)} at the top`);
+  return parts.join(" and ");
+}
+
+/** The import report's line for an attachment (design 6.1), by its status. */
+export function attachNote(sceneName: string, a: Pick<Attached, "status" | "report">): string {
+  const { report, status } = a;
+  switch (status) {
+    case "ok": {
+      const label = report.levels.find((l) => l.key === report.level)?.label;
+      const level = report.levels.length > 1 && label ? ` (level ${label})` : "";
+      return `${sceneName}: Dungeondraft data attached${level}. It lines up with the picture.`;
+    }
+    case "unsure":
+      return `${sceneName}: Dungeondraft data attached, but it couldn't be fully checked against the picture.`;
+    case "shifted":
+      return `${sceneName}: the map seems to have ${describeShift(report.shifted ?? [0, 0])} since this export, so it was lined up that way.`;
+    case "hold":
+      return `${sceneName}: the Dungeondraft data doesn't seem to line up with the picture, so it isn't used yet.`;
+    case "level":
+      return `${sceneName}: check which level this picture shows.`;
+  }
+}
+
+/** The status a prepared attachment gets (design 2.2, 2.4). */
+function attachStatus(report: AttachReport): Attached["status"] {
+  if (report.hold === "level") return "level";
+  if (report.hold) return "hold";
+  if (report.shifted) return "shifted";
+  return report.fit.verdict === "yes" ? "ok" : "unsure";
+}
+
+/**
+ * Attaches an uploaded picture's Dungeondraft project file: compiles the data against the
+ * local picture, uploads the sidecar and says what the scene gets. The grid comes from the
+ * data for a plain picture (a .dd2vtt already has it). Throws an AttachError (its message is
+ * for the GM) or the upload's error.
+ */
+async function attachProjectFile(
+  room: RoomClient,
+  d: { asset: Asset; map: MapFile; source: { width: number; height: number } },
+  dd: File,
+  onProgress?: (text: string) => void,
+): Promise<Attached> {
+  const { report, sidecar } = await prepareAttach(dd, d.map.image, d.source, { vtt: d.map.vtt, onProgress });
+  if (!d.map.vtt) {
+    // The exact grid: the picture's pixels a square at its full size (gridSizeFor scales it to the upload).
+    d.map.pxPerCell = report.gridPxPerSquare;
+    d.map.width = d.source.width;
+    d.map.height = d.source.height;
+    delete d.map.cols;
+    delete d.map.rows;
+  }
+  onProgress?.("Saving the Dungeondraft data…");
+  const label = report.levels.find((l) => l.key === report.level)?.label;
+  const side = await uploadSidecar(room, sidecar, report.levels.length > 1 && label ? `${d.map.name} · ${label}` : d.map.name);
+  touchedSidecars.add(side.id);
+  const out: Attached = {
+    mapData: { assetId: side.id, forAssetId: d.asset.id, ...(report.hold ? { hold: true } : {}) },
+    status: attachStatus(report),
+    report,
+  };
+  if (d.map.vtt) {
+    const r = d.map.vtt.resolution;
+    // So a later re-attach needs no second file (2.1 step 5).
+    out.mapRect = [r.map_origin.x, r.map_origin.y, r.map_size.x, r.map_size.y];
+  }
+  return out;
 }
 
 /**
@@ -72,7 +190,7 @@ export async function importFiles(
   files: File[],
   opts: { name: string; order: number; covered: boolean; onProgress?: (text: string) => void },
 ): Promise<ImportResult> {
-  const result: ImportResult = { scenes: [], gridFromFile: 0, notes: [], owlbear: false };
+  const result: ImportResult = { scenes: [], gridFromFile: 0, notes: [], owlbear: false, attach: [] };
   let order = opts.order;
 
   const plain = files.filter((f) => !isOb2File(f));
@@ -81,15 +199,37 @@ export async function importFiles(
     result.notes.push(...errors);
     opts.onProgress?.("Uploading maps…");
     const done = await room.uploadMaps(maps);
+    // A typed name only makes sense for a single map (with its project file, two files); several use their own names.
+    const single = done.length === 1 && files.length === (done[0].map.dd ? 2 : 1);
+    let attached = 0;
     for (const d of done) {
+      const name = single ? opts.name || d.map.name : d.map.name;
+      // The project file's data, before the scene is made: part of making it, not an undo step.
+      // When it can't be attached the scene is still made, plain, and the report says why (6.1):
+      // a line about the file as it is, else the refusal after the scene's name.
+      let attach: Attached | null = null;
+      if (d.map.dd) {
+        try {
+          attach = await attachProjectFile(room, d, d.map.dd, opts.onProgress);
+          attached++;
+        } catch (err) {
+          const message = err instanceof AttachError ? err.message : `The Dungeondraft data couldn't be saved (${(err as Error).message}). Attach it again with Edit scene › Map.`;
+          result.notes.push(message.startsWith(d.map.dd.name) ? message : `${name}: ${message[0].toLowerCase()}${message.slice(1)}`);
+        }
+      }
       const fromFile = gridSizeFor(d.map, d.asset.width, d.asset.height, d.source) !== null;
-      // A typed name only makes sense for a single map; several use their own names.
-      const name = done.length === 1 && files.length === 1 ? opts.name || d.map.name : d.map.name;
       const scene = sceneFromMap(d.asset, name, order++, opts.covered, d);
+      if (attach) {
+        scene.mapData = attach.mapData;
+        if (attach.mapRect) scene.mapRect = attach.mapRect;
+      }
       room.createScene(scene);
       result.scenes.push(scene);
       if (fromFile) result.gridFromFile++;
+      if (attach) result.attach.push({ sceneId: scene.id, status: attach.status, note: attachNote(name, attach), warnings: attach.report.warnings });
     }
+    // Sidecars no scene uses any more (an undone attach in another tab, say) go, once they're old enough.
+    if (attached) void cleanUpSidecars(room, touchedSidecars).catch(() => undefined);
   }
 
   for (const file of files.filter(isOb2File)) {

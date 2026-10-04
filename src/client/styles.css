@@ -1137,6 +1137,144 @@ button:disabled {
 .import-notes li {
   margin: 4px 0;
 }
+.import-notes ul {
+  margin: 2px 0 0;
+  padding-left: 16px;
+}
+
+/* Dungeondraft data: the New scene window's pending pair, the attach dialog, the Season box's controls. */
+.dd-pending {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+.dd-pending li {
+  margin: 4px 0;
+}
+.dd-file {
+  align-items: center;
+  margin-top: 8px;
+}
+.dd-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dd-levels {
+  margin: 10px 0 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dd-levels legend {
+  padding: 0 4px;
+  color: var(--muted);
+}
+.dd-levels .check {
+  display: flex;
+  margin: 4px 0;
+}
+.dd-levels .check .small {
+  margin-left: 2px;
+}
+.dd-checks {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.dd-check {
+  display: flex;
+  gap: 8px;
+  margin: 5px 0;
+}
+.dd-check .check {
+  margin: 0;
+}
+.dd-mark {
+  flex: 0 0 16px;
+  text-align: center;
+  font-weight: 600;
+}
+.dd-ok .dd-mark {
+  color: var(--ok);
+}
+.dd-warn .dd-mark {
+  color: var(--warn);
+}
+.dd-ask .dd-mark {
+  color: var(--accent);
+}
+.dd-info .dd-mark {
+  color: var(--muted);
+}
+.dd-error {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+.dd-progress {
+  margin: 10px 0 0;
+}
+.dd-views {
+  margin: 12px 0 8px;
+}
+.dd-preview {
+  display: flex;
+  justify-content: center;
+  min-height: 48px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dd-preview canvas,
+.dd-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.dd-preview > p {
+  align-self: center;
+  margin: 12px;
+}
+.dd-compare {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+}
+.dd-compare canvas {
+  flex: 1;
+  min-width: 0;
+}
+.dd-legend {
+  margin: 6px 0 0;
+}
+.dd-actions {
+  flex-wrap: wrap;
+}
+.dd-actions .btn-sm {
+  margin-right: auto;
+}
+.dd-row {
+  margin: 4px 0 8px;
+}
+.season-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.season-ctl .seg-btn {
+  white-space: nowrap;
+}
 /* The user guide. */
 .guide-page {
   max-width: 780px;

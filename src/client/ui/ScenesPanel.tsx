@@ -11,10 +11,13 @@ const GRID_TYPES: { id: GridType; label: string }[] = [
   { id: "hex-flat", label: "Hex (columns)" },
 ];
 import { fileUrl } from "../api";
-import { importFiles, sceneFromMap } from "../importScenes";
+import { importFiles, sceneFromMap, touchedSidecars } from "../importScenes";
 import type { ImportResult } from "../importScenes";
-import { MAP_FILE_ACCEPT } from "../mapImport";
+import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
+import { useSidecar } from "./AttachDungeondraft";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
+import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
+import type { Pending } from "./ddText";
 import { SeasonPicker } from "./SeasonPicker";
 
 export function ScenesPanel() {
@@ -163,39 +166,68 @@ export function NewSceneDialog(props: {
   const [dragOver, setDragOver] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [report, setReport] = useState<ImportResult | null>(null);
+  // A Dungeondraft project file or picture waiting for its other half (design 2.1 A): the
+  // project file lives in Dungeondraft's maps folder and the export wherever the GM put it, so
+  // one drag often can't hold both. The next drop or pick here completes the pair.
+  const [pending, setPending] = useState<Pending>(NO_PENDING);
   const busy = useRef(false);
   // Files dropped or pasted elsewhere open this dialog with them.
   const started = useRef(false);
 
-  const onFiles = async (files: File[]) => {
+  /** Brings files in. skip: a pending picture brought in as it is, past its project file. */
+  const onFiles = async (files: File[], opts: { skip?: boolean } = {}) => {
     if (!files.length || busy.current) return;
     busy.current = true;
     setWorking("Reading…");
     try {
-      const r = await importFiles(room, files, { name: name.trim(), order, covered, onProgress: setWorking });
+      // Both plans say what goes in now and what keeps waiting; the latter decides whether the
+      // window stays open afterwards (read from the plan, not from state, which this call can't see yet).
+      const all = [...pending.dds, ...pending.pictures, ...files];
+      const plan = opts.skip ? planSkip(pending, files[0]) : planDrop(pending, files, await pairDungeondraft(all));
+      const now = plan.now;
+      setPending(plan.pending);
+      const waiting = hasPending(plan.pending);
+      // Everything waits for its other half: the window stays open with it.
+      if (!now.length) return;
+      const r = await importFiles(room, now, { name: name.trim(), order, covered, onProgress: setWorking });
       if (!r.scenes.length) {
         for (const n of r.notes) room.toast(n, "error");
         // Opened by a drop that brought nothing in: don't leave an empty window behind.
-        if (props.files) props.onClose();
+        if (props.files && !waiting) props.onClose();
         return;
       }
       room.viewSceneLocally(r.scenes[0].id);
-      if (r.owlbear || r.notes.length) {
-        // Worth a proper look: what came in, and what didn't.
+      if (r.owlbear || r.notes.length || r.attach.length) {
+        // Worth a proper look: what came in, what didn't, and how the Dungeondraft data went.
         setReport(r);
         return;
       }
-      props.onCreated(r.scenes[0].id, false);
-      room.toast(
+      const note =
         r.scenes.length > 1
           ? `Created ${r.scenes.length} scenes, one per map. ${r.gridFromFile} had their grid in the file.`
-          : gridNote(r.scenes[0], r.gridFromFile > 0),
-      );
+          : gridNote(r.scenes[0], r.gridFromFile > 0);
+      if (waiting) {
+        // The window stays for the file still waiting; the scene is there to see behind it.
+        room.toast(note);
+        return;
+      }
+      props.onCreated(r.scenes[0].id, false);
+      room.toast(note);
     } finally {
       busy.current = false;
       setWorking(null);
     }
   };
+
+  /** A pending project file given up on: it's reported, as one brought in alone is. */
+  const skipProjectFile = (f: File) => {
+    const next = withoutPending(pending, f);
+    setPending(next);
+    room.toast(loneProjectFileNote(f.name), "error");
+    if (props.files && !hasPending(next) && !report) props.onClose();
+  };
+  /** A pending picture brought in on its own: a plain scene. */
+  const skipPicture = (f: File) => void onFiles([f], { skip: true });
 
   if (props.files?.length && !started.current) {
     started.current = true;
@@ -203,8 +235,14 @@ export function NewSceneDialog(props: {
   }
 
   if (report) {
+    // With a file still waiting, Done comes back to the window for it.
+    const done = () => (hasPending(pending) ? setReport(null) : props.onCreated(report.scenes[0].id, false));
+    const check = (sceneId: string) => {
+      room.store.set({ attachDD: { sceneId, mode: "check" } });
+      props.onCreated(sceneId, false);
+    };
     return (
-      <Modal title="Maps brought in" onClose={() => props.onCreated(report.scenes[0].id, false)} width={480}>
+      <Modal title="Maps brought in" onClose={done} width={480}>
         <p>
           {report.scenes.length === 1 ? "One new scene" : `${report.scenes.length} new scenes`}:{" "}
           <strong>{report.scenes.map((s) => s.name).join(", ")}</strong>.{" "}
@@ -217,6 +255,30 @@ export function NewSceneDialog(props: {
               : `${report.gridFromFile} of them had their grid in the file; check the others with Edit scene.`}
           {report.owlbear && " Fog and tokens from Owlbear came too."}
         </p>
+        {report.attach.length > 0 && (
+          <ul class="import-notes small">
+            {report.attach.map((a) => (
+              <li key={a.sceneId}>
+                {a.note}
+                {a.status !== "ok" && (
+                  <>
+                    {" "}
+                    <button class="link-btn" onClick={() => check(a.sceneId)}>
+                      Check…
+                    </button>
+                  </>
+                )}
+                {a.warnings.length > 0 && (
+                  <ul class="muted">
+                    {a.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         {report.notes.length > 0 && (
           <>
             <p class="small muted">Left out:</p>
@@ -228,7 +290,7 @@ export function NewSceneDialog(props: {
           </>
         )}
         <div class="dialog-actions">
-          <button class="btn btn-primary" onClick={() => props.onCreated(report.scenes[0].id, false)}>
+          <button class="btn btn-primary" onClick={done}>
             Done
           </button>
         </div>
@@ -270,6 +332,33 @@ export function NewSceneDialog(props: {
           covered in fog
         </label>
       )}
+      {mode === "upload" && hasPending(pending) && (
+        <ul class="dd-pending small">
+          {pending.dds.map((f) => (
+            <li key={f.name + f.size}>
+              <strong>{f.name}</strong>: {DD_UI.pendingDd}{" "}
+              <button class="link-btn" onClick={() => fileRef.current?.click()}>
+                Choose the export…
+              </button>{" "}
+              <button class="link-btn" onClick={() => skipProjectFile(f)}>
+                Skip
+              </button>
+            </li>
+          ))}
+          {pending.pictures.map((f) => (
+            <li key={f.name + f.size}>
+              <strong>{f.name}</strong>:{" "}
+              <button class="link-btn" onClick={() => fileRef.current?.click()}>
+                Add its project file…
+              </button>{" "}
+              {DD_UI.pendingPicture}{" "}
+              <button class="link-btn" onClick={() => skipPicture(f)}>
+                Skip
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {mode === "upload" && (
         <div
           class={cx("upload-drop", dragOver && "over")}
@@ -296,6 +385,10 @@ export function NewSceneDialog(props: {
             </li>
             <li>
               <strong>Dungeondraft</strong> and other Universal VTT files (.dd2vtt, .uvtt, .df2vtt), with their grid.
+            </li>
+            <li>
+              <strong>Dungeondraft project files</strong> (.dungeondraft_map), with their export: seasons then use the map's own
+              terrain, water, buildings and trees.
             </li>
             <li>
               <strong>Owlbear Rodeo backups</strong> (.ob2), with grid, fog and tokens. In Owlbear: Manage Storage, Export
@@ -376,6 +469,46 @@ function num(v: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** Under Map: the scene's Dungeondraft data for exact seasons (design 2.1 C), with Attach…, or Change… and Remove. */
+function DungeondraftRow(props: { scene: Scene }) {
+  const room = useRoom();
+  const s = props.scene;
+  const md = s.mapData;
+  const asset = useRoomState((st) => (md ? st.assets[md.assetId] : undefined));
+  const state = useRoomState((st) => st.mapDataState[s.id]) ?? localDataState(s);
+  const sidecar = useSidecar(room.roomId, md?.assetId);
+  const open = () => room.store.set({ attachDD: { sceneId: s.id, mode: "attach" } });
+  const remove = () => {
+    if (!md) return;
+    touchedSidecars.add(md.assetId);
+    room.setMapData(s.id, null);
+    room.toast(DD_UI.removed);
+  };
+  return (
+    <p class="small dd-row">
+      <span class="muted">Dungeondraft data:</span>{" "}
+      {md ? (
+        <>
+          {dataRow(asset?.name, sidecar?.objects.n, state)}{" "}
+          <button class="link-btn" onClick={open}>
+            Change…
+          </button>{" "}
+          <button class="link-btn" onClick={remove}>
+            Remove
+          </button>
+        </>
+      ) : (
+        <>
+          none.{" "}
+          <button class="link-btn" onClick={open} title="Attach the map's .dungeondraft_map file, so seasons know exactly where the snow, water, buildings and trees are">
+            Attach…
+          </button>
+        </>
+      )}
+    </p>
+  );
+}
+
 function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const room = useRoom();
   const s = props.scene;
@@ -401,6 +534,9 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
       width: asset.width,
       height: asset.height,
       grid: sameSize ? g : { ...g, size: guessGridSize(asset.width, asset.height) },
+      // The picture's place in its Dungeondraft map is the old picture's (design 2.8). The
+      // Dungeondraft data stays, paused until "Use it with this picture" in the season box.
+      mapRect: null,
     };
     if (sameSize) {
       // Another version of the same map (day and night, say): the fog still lines up.
@@ -448,6 +584,7 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
           }}
         />
       </div>
+      {s.mapAssetId && <DungeondraftRow scene={s} />}
       {!s.mapAssetId && (
         <div class="row">
           <label class="field">
