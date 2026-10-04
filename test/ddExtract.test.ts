@@ -16,7 +16,7 @@ import {
   EXTRACT, EXTRACTOR_VERSION, ExtractError, chooseLevel, extractSidecar, pictureRect, previewOverlay, previewSize, rankLevels,
   type ExtractOptions, type PictureRect, type PictureSample,
 } from "../src/client/dd/extract";
-import { levelCentres, objectFit } from "../src/client/dd/fit";
+import { levelCentres, levelRadii, objectFit } from "../src/client/dd/fit";
 import { pathRibbon } from "../src/client/dd/geometry";
 import { SPRITE_SIZES } from "../src/client/dd/spriteSizes";
 import type { SpriteSizes } from "../src/client/dd/measure";
@@ -413,7 +413,7 @@ describe("the automatic shift on wrong maps (2.4): only a placement that scores 
     const text = scatterMap(a, 24).text;
     const r = run(text, "0", { pps: 24, text: scatterMap(b, 24).text });
     const L = r.map.world.levels[0];
-    return { r, L, centres: levelCentres(L) };
+    return { r, L, centres: levelCentres(L), radii: levelRadii(L) };
   };
 
   it("map 1 on map 8's picture: \"no\" with a whole-square best whose own fit isn't \"yes\": not shifted, held", () => {
@@ -427,12 +427,12 @@ describe("the automatic shift on wrong maps (2.4): only a placement that scores 
     expect(r.sidecar.meta.rect).toEqual([0, 0, 20 * GRID, 12 * GRID]);
   });
 
-  it("maps 3 on 1, 10 on 9, 1 on 9: the best of the search fits \"yes\" there by chance, but most trees aren't in the picture: not shifted, held", () => {
-    for (const [a, b] of [[3, 1], [10, 9], [1, 9]]) {
-      const { r, centres } = wrong(a, b);
+  it("maps 3 on 2, 10 on 9, 1 on 9: the best of the search fits \"yes\" there by chance, but most trees aren't in the picture: not shifted, held", () => {
+    for (const [a, b] of [[3, 2], [10, 9], [1, 9]]) {
+      const { r, centres, radii } = wrong(a, b);
       expect(r.report.fit.verdict, `${a} on ${b}`).toBe("no");
       const s = r.report.fit.shiftSq!;
-      expect(objectFit(centres, { rect: [-s[0] * GRID, -s[1] * GRID, (20 - s[0]) * GRID, (12 - s[1]) * GRID] }, r.picture).verdict, `${a} on ${b}`).toBe("yes");
+      expect(objectFit(centres, { rect: [-s[0] * GRID, -s[1] * GRID, (20 - s[0]) * GRID, (12 - s[1]) * GRID] }, r.picture, radii).verdict, `${a} on ${b}`).toBe("yes");
       expect(r.report.shifted, `${a} on ${b}`).toBeUndefined();
       expect(r.report.hold, `${a} on ${b}`).toBe("fit");
     }

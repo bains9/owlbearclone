@@ -15,7 +15,7 @@ import { isSnowy } from "../room/seasonExact";
 /** Pack items over this share of the area of objects and paths: say so and suggest comparing (extract.ts EXTRACT.packWarn). */
 export const PACK_WARN_SHARE = 0.15;
 /** The extractor this build attaches with (extract.ts EXTRACTOR_VERSION): older data gets "attach again". */
-export const CURRENT_EXTRACTOR = 1;
+export const CURRENT_EXTRACTOR = 2;
 
 /** The fixed texts (6.1). */
 export const DD_UI = {

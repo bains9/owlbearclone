@@ -49,11 +49,11 @@ import { REACH_DIRS, rasterSidecar } from "./raster";
 import { alignPlainImage, matchDd2vttLevel } from "./align";
 import { patternPolygon, pathRibbon, roofPolygon, wallRibbon, type Ribbon } from "./geometry";
 import { fillEllipse, fillPolygons, waterDepth, workBudget, type RasterSpec } from "./ddRaster";
-import { levelCentres, objectFit } from "./fit";
+import { levelCentres, levelRadii, objectFit } from "./fit";
 import { colourTable, lutIndex } from "../room/seasonPixels";
 
 /** Bumped with every geometry change; stored in each sidecar (roles are re-derived at run time instead). */
-export const EXTRACTOR_VERSION = 1;
+export const EXTRACTOR_VERSION = 2;
 
 /** Most portal, light and line-of-sight points a VttMeta keeps, in all. */
 export const VTT_META_POINTS = 20_000;
@@ -92,8 +92,12 @@ export interface FitResult {
   verdict: "yes" | "unsure" | "no";
   /** score(0, 0) over the best shifted score. */
   lead: number;
-  /** sharp(0, 0): the mean of the four half-square neighbours' scores over score(0, 0). */
+  /** sharp(0, 0): the mean of the four half-square neighbours' scores over score(0, 0), over the small objects when there are enough (fit.ts). */
   sharp: number;
+  /** The highest of those four over score(0, 0): at most 1 at a peak. */
+  peak?: number;
+  /** How many small objects carried sharp and peak (0: every object did). */
+  small?: number;
   /** The best shift, in squares. */
   best: [number, number];
   /** On "no" with a whole-square best: the shift that lines it up, in squares. */
@@ -283,7 +287,7 @@ export function rankLevels(map: DDMap, pic: PictureSample, rect: PictureRect, vt
       i, L, terrainOn, vs,
       vttWinner: vttWin !== null && vs === vttWin,
       group: group(terrainOn),
-      fit: objectFit(levelCentres(L), rect, pic),
+      fit: objectFit(levelCentres(L), rect, pic, levelRadii(L)),
       current: current !== null && L.id === current,
     };
   });
@@ -370,9 +374,9 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
 
   // Line up: the fit, and the automatic whole-square shift (2.4).
   progress("Checking that the map lines up with the picture…");
-  const centres = levelCentres(L);
+  const centres = levelCentres(L), radii = levelRadii(L);
   let used = moved(rect.rect, opts.shift ?? [0, 0]);
-  let fit = objectFit(centres, { rect: used }, pic);
+  let fit = objectFit(centres, { rect: used }, pic, radii);
   let shifted: [number, number] | undefined = opts.shift && (opts.shift[0] !== 0 || opts.shift[1] !== 0) ? [opts.shift[0], opts.shift[1]] : undefined;
 
   // Objects: roles, a generous first cut to the crop, measurement (with presence, 2.5).
@@ -408,7 +412,7 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
   let meas: ReturnType<typeof measureAt> | null = null;
   if (!opts.shift && opts.autoShift !== false && fit.verdict === "no" && fit.shiftSq && fit.objects >= EXTRACT.shiftObjects) {
     const r2 = moved(rect.rect, fit.shiftSq);
-    const f2 = objectFit(centres, { rect: r2 }, pic);
+    const f2 = objectFit(centres, { rect: r2 }, pic, radii);
     if (f2.verdict === "yes") {
       const m2 = measureAt(r2);
       if (!m2.summary.lowerFit && m2.summary.dropped <= EXTRACT.shiftDropped * m2.summary.tested) {
@@ -1243,10 +1247,13 @@ function nearFloors(L: Level, crop: Box, top: number, perRow: number, rows: numb
 
 /**
  * Building floors (4.1: floor polygons ∩ tile cells; tiles without polygons): per row, runs of
- * tiled cells whose centre lies in a floor polygon take those polygons clipped to the run; runs
- * of tiled cells outside every polygon are whole cells. Without tiles, the polygons as they are.
- * `floors`: the polygons that count (nearFloors); more work than EXTRACT.floorWork, and the map
- * is refused.
+ * tiled cells whose centre lies in a floor polygon take those polygons clipped to the run; a
+ * tiled cell whose centre lies outside but that a polygon's box reaches takes the polygons
+ * clipped to the cell, and is a whole cell only when none of them touches it (M2: Tulgi's round
+ * hut tiles the cells its circle crosses, and the corners outside the circle are snow in the
+ * export); runs of tiled cells no polygon reaches are whole cells. Without tiles, the polygons as
+ * they are. `floors`: the polygons that count (nearFloors); more work than EXTRACT.floorWork, and
+ * the map is refused.
  */
 function floorShape(L: Level, crop: Box, floors: Floors): ShapeLayer | null {
   const sb = new ShapeBuilder(AR.FLOOR, DD_LAYER.FLOOR, 1, crop);
@@ -1289,26 +1296,36 @@ function floorShape(L: Level, crop: Box, floors: Floors): ShapeLayer | null {
     active = active.filter((k) => boxes[k][3] > top);
     if (added) active.sort((a, b) => a - b);
     const row = (cy - cy0) * ww;
+    // 0: no polygon's box reaches the cell; 1: its centre lies in a polygon; 2: a box reaches it, its centre outside.
+    const kind = (cx: number): number => {
+      if (inPoly[row + cx - cx0]) return 1;
+      const l = cx * GRID, r = l + GRID;
+      for (const k of active) { const b = boxes[k]; if (b[2] > l && b[0] < r) return 2; }
+      return 0;
+    };
     let cx = cx0;
     while (cx < cx1) {
       const i = cy * t.width + cx;
       if (t.cells[i] < 0) { cx++; continue; }
-      const flag = inPoly[row + cx - cx0];
+      const flag = kind(cx);
+      work.left -= active.length;
       let e = cx + 1;
-      while (e < cx1 && t.cells[cy * t.width + e] >= 0 && inPoly[row + e - cx0] === flag) e++;
+      if (flag !== 2) while (e < cx1 && t.cells[cy * t.width + e] >= 0 && kind(e) === flag) { e++; work.left -= active.length; }
       const run: Box = [cx * GRID, top, e * GRID, bottom];
       if (!flag) {
         sb.ring(Float64Array.from([run[0], run[1], run[2], run[1], run[2], run[3], run[0], run[3]]));
       } else {
-        work.left -= active.length;
+        let touched = false;
         for (const k of active) {
           const b = boxes[k];
           if (b[2] <= run[0] || b[0] >= run[2]) continue;
           // A clip allocates a ring and keeps it: about a microsecond, some 500 edge tests' time.
           work.left -= EXTRACT.clipWork + 4 * (polys[k].length >> 1);
           const c = clipRing(polys[k], run);
-          if (c.length >= 6) sb.ring(c);
+          if (c.length >= 6) { sb.ring(c); touched = true; }
         }
+        // A tile no polygon touches is a floor of its own (the Floor tool's).
+        if (flag === 2 && !touched) sb.ring(Float64Array.from([run[0], run[1], run[2], run[1], run[2], run[3], run[0], run[3]]));
       }
       if (work.left < 0) throw tooBig();
       cx = e;

@@ -1,11 +1,13 @@
 // The object-centre fit (design 2.4, fit.ts): the verdict rule on synthetic pairs (WP9's fake
 // exports: correct, swapped, shifted by squares and half squares, a same-aspect half-scale crop),
 // from the sidecar alone, and on the public sample pairs (DD_FIXTURES, skipped when absent): the 7
-// correct pairs are never "no", the 2 swapped never "yes", and shifted pictures never "yes".
+// correct pairs are never "no", the 2 swapped never "yes", and shifted pictures never "yes". The
+// sharpness and the peak test come from the small objects (M2: waterfall's big crowns), checked
+// on the synthetic maps and on waterfall's 1.2 export (DD_VERN), which must say "yes".
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
 import { GRID, type DDMap } from "../src/client/dd/model";
-import { FIT, levelCentres, objectFit, sidecarFit } from "../src/client/dd/fit";
+import { FIT, levelCentres, levelRadii, objectFit, sidecarFit } from "../src/client/dd/fit";
 import { chooseLevel, extractSidecar, pictureRect, rankLevels, type PictureRect, type PictureSample } from "../src/client/dd/extract";
 import { OR } from "../src/client/dd/roles";
 import { SPRITE_SIZES } from "../src/client/dd/spriteSizes";
@@ -59,6 +61,36 @@ describe("the fit on synthetic pairs (fake exports at 24 px a square)", () => {
     // Moving the rectangle by -best lines it up.
     const moved: PictureRect = { rect: [-2 * GRID, -1 * GRID, (20 - 2) * GRID, (12 - 1) * GRID] };
     expect(objectFit(levelCentres(levelOf(map, s.levelKey)), moved, pic).verdict).toBe("yes");
+  });
+
+  it("sharpness and the peak come from the small objects (prior radius <= FIT.small squares) when there are 8 of them, else from all", () => {
+    const s = scatterMap(1);
+    const map = parseDungeondraftMap(s.text);
+    const L = levelOf(map, s.levelKey);
+    const pic = fakeExportFromMap(map, s.levelKey, 24);
+    const c = levelCentres(L), radii = levelRadii(L);
+    expect(radii.length).toBe(c.length / 2);
+    const smallIdx = Array.from(radii).map((r, i) => (r <= FIT.small * GRID ? i : -1)).filter((i) => i >= 0);
+    expect(smallIdx.length).toBeGreaterThanOrEqual(FIT.minObjects);
+    expect(smallIdx.length).toBeLessThan(radii.length);
+    const f = objectFit(c, wholeMap(map), pic, radii);
+    expect(f.small).toBe(smallIdx.length);
+    // The same sharpness and peak as the fit of the small objects alone; the lead over every object.
+    const sub = objectFit(Float64Array.from(smallIdx.flatMap((i) => [c[i * 2], c[i * 2 + 1]])), wholeMap(map), pic);
+    expect(f.sharp).toBeCloseTo(sub.sharp, 6);
+    expect(f.peak).toBeCloseTo(sub.peak!, 6);
+    const all = objectFit(c, wholeMap(map), pic);
+    expect(f.lead).toBe(all.lead);
+    expect(all.small).toBe(0);
+    // Radii that leave fewer than 8 small objects: every object carries the sharpness, as without radii.
+    const big = Float64Array.from(radii, () => 5 * GRID);
+    expect(objectFit(c, wholeMap(map), pic, big)).toEqual(all);
+    // The correct placement is a peak; half a square off, the true placement is a higher neighbour.
+    expect(f.verdict).toBe("yes");
+    expect(f.peak).toBeLessThanOrEqual(FIT.peak);
+    const half = objectFit(c, wholeMap(map), fakeExportFromMap(map, s.levelKey, 24, { shift: [0.5, 0] }), radii);
+    expect(half.peak).toBeGreaterThan(FIT.peak);
+    expect(half.verdict).not.toBe("yes");
   });
 
   it("fewer than 8 objects in the picture: \"unsure\", never \"yes\" or \"no\"", () => {
@@ -194,17 +226,25 @@ describe("the fit on the public sample pairs (DD_FIXTURES)", () => {
     }
   });
 
-  it.skipIf(!haveVernExport("waterfall.vtt"))(`waterfall on Vern's 1.2 export (${DD_VERN}): never "no"; shifted 2 squares, never "yes"`, () => {
+  it.skipIf(!haveVernExport("waterfall.vtt"))(`waterfall on Vern's 1.2 export (${DD_VERN}): "yes", from its small things; shifted half a square or 2 squares, never "yes"`, () => {
     const map = parseDungeondraftMap(waterfallText());
     const full = vernPicture("waterfall.vtt");
     const r = pictureRect(map, full.w, full.h, full.vtt);
     if ("error" in r) throw new Error(r.error);
     const pic = atPxPerSquare(full, 50, 35, 24);
-    const c = levelCentres(map.world.levels[0]);
-    const f = objectFit(c, r, pic);
-    console.log(`waterfall: ${f.verdict}, lead ${f.lead.toFixed(2)}, sharp ${f.sharp.toFixed(2)}, best ${f.best}, ${f.objects} objects`);
-    expect(f.verdict).not.toBe("no");
+    const L = map.world.levels[0];
+    const c = levelCentres(L), radii = levelRadii(L);
+    const f = objectFit(c, r, pic, radii);
+    console.log(`waterfall: ${f.verdict}, lead ${f.lead.toFixed(2)}, sharp ${f.sharp.toFixed(2)}, peak ${f.peak!.toFixed(2)}, ${f.small} small of ${f.objects} objects, best ${f.best}`);
+    expect(f.verdict).toBe("yes");
     expect(f.lead).toBeGreaterThan(1.2);
-    expect(objectFit(c, shiftRect(r, 2, 0), pic).verdict).not.toBe("yes");
+    expect(f.small).toBeGreaterThanOrEqual(FIT.minObjects);
+    // Over every object (27 pines and eucalyptus wider than the half-square step), the correct
+    // placement isn't sharp: that is why the small ones carry it.
+    expect(objectFit(c, r, pic).sharp).toBeGreaterThan(FIT.yesSharp);
+    for (const [dx, dy] of [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5], [2, 0]]) {
+      const g = objectFit(c, shiftRect(r, dx, dy), pic, radii);
+      expect(g.verdict, `shifted ${dx},${dy}`).not.toBe("yes");
+    }
   });
 });
