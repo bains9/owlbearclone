@@ -1580,6 +1580,46 @@ button:disabled {
 .monster-credit {
   margin-top: 12px;
 }
+.npcs {
+  margin-top: 8px;
+}
+.npc-pick {
+  align-items: stretch;
+}
+.npc-pick .field {
+  margin: 4px 0;
+}
+.npc-pick select {
+  width: 100%;
+}
+.npc-place {
+  align-items: flex-start;
+  margin-top: 4px;
+}
+.asset.npc {
+  flex: none;
+  width: 108px;
+  padding: 6px 4px;
+}
+.asset.npc.busy {
+  opacity: 0.55;
+  cursor: progress;
+}
+.npc-art {
+  width: 96px;
+  height: 96px;
+  display: block;
+}
+.npc-place-text {
+  flex: 1;
+  min-width: 140px;
+}
+.npc-place-text p {
+  margin: 8px 0 0;
+}
+.npc-credit {
+  margin-top: 12px;
+}
 .asset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));

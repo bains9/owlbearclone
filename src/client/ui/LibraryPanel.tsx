@@ -5,6 +5,7 @@ import { fileUrl } from "../api";
 import { PLAYER_COLORS } from "../identity";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
 import { MonstersSection } from "./MonstersSection";
+import { NpcsSection } from "./NpcsSection";
 
 export function LibraryPanel() {
   const room = useRoom();
@@ -14,8 +15,9 @@ export function LibraryPanel() {
   const uploading = useRoomState((s) => s.uploading);
   const items = useRoomState((s) => s.items);
   const scenes = useRoomState((s) => s.scenes);
-  // The GM's Monsters tab lists ready-made creatures rather than uploads.
-  const [tab, setTab] = useState<AssetKind | "monsters">("token");
+  // The GM's Monsters and NPCs tabs list ready-made tokens rather than uploads.
+  const [tab, setTab] = useState<AssetKind | "monsters" | "npcs">("token");
+  const readyMade = tab === "monsters" || tab === "npcs";
   const [label, setLabel] = useState("");
   const [renaming, setRenaming] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<Asset | null>(null);
@@ -91,6 +93,9 @@ export function LibraryPanel() {
             <button class={cx("seg-btn wide", tab === "monsters" && "active")} onClick={() => setTab("monsters")}>
               Monsters
             </button>
+            <button class={cx("seg-btn wide", tab === "npcs" && "active")} onClick={() => setTab("npcs")}>
+              NPCs
+            </button>
             <button class={cx("seg-btn wide", tab === "map" && "active")} onClick={() => setTab("map")}>
               Maps
             </button>
@@ -98,7 +103,7 @@ export function LibraryPanel() {
         ) : (
           <h3>Your images</h3>
         )}
-        {tab !== "monsters" && (
+        {!readyMade && (
           <button class="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
             <Upload size={14} /> {uploading ? `Uploading ${uploading}…` : "Upload"}
           </button>
@@ -112,7 +117,7 @@ export function LibraryPanel() {
           onChange={(e) => {
             const files = [...(e.currentTarget.files ?? [])];
             e.currentTarget.value = "";
-            if (files.length && tab !== "monsters") void room.upload(files, tab);
+            if (files.length && !readyMade) void room.upload(files, tab);
           }}
         />
       </div>
@@ -123,6 +128,8 @@ export function LibraryPanel() {
 
       {tab === "monsters" ? (
         <MonstersSection />
+      ) : tab === "npcs" ? (
+        <NpcsSection />
       ) : list.length === 0 ? (
         <p class="muted small">Nothing uploaded yet.</p>
       ) : (

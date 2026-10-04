@@ -93,6 +93,7 @@ import type { SeasonJob } from "./seasons";
 import { ALGO_VERSION, seedFrom } from "./seasonPixels";
 import { isDungeondraftProject, isVttFile, looksLikeMap } from "../mapImport";
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
+import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -4099,7 +4100,12 @@ export class Board implements BoardApi {
   private onDragOver = (e: DragEvent): void => {
     if (this.room.display) return;
     const types = e.dataTransfer ? [...e.dataTransfer.types] : [];
-    if (types.includes("application/x-tabletop-asset") || types.includes(MONSTER_DRAG_TYPE) || types.includes("Files")) {
+    if (
+      types.includes("application/x-tabletop-asset") ||
+      types.includes(MONSTER_DRAG_TYPE) ||
+      types.includes(NPC_DRAG_TYPE) ||
+      types.includes("Files")
+    ) {
       e.preventDefault();
       e.dataTransfer!.dropEffect = "copy";
     }
@@ -4123,6 +4129,12 @@ export class Board implements BoardApi {
     const monster = readMonsterDrag(e.dataTransfer?.getData(MONSTER_DRAG_TYPE));
     if (monster) {
       void placeMonster(this.room, monster.id, world, monster.hidden);
+      return;
+    }
+    // An NPC from the GM's NPCs list, likewise.
+    const npc = readNpcDrag(e.dataTransfer?.getData(NPC_DRAG_TYPE));
+    if (npc) {
+      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden);
       return;
     }
     void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);

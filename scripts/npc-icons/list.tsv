@@ -1,0 +1,32 @@
+kind	id	name	icon	colour	size	group
+race	nyloran	Nyloran	delapouite_woman-elf-face	#f3e9dc	medium	Elves
+race	sylvan	Sylvan	delapouite_woman-elf-face	#d08b57	medium	Elves
+race	duga	Duga	delapouite_woman-elf-face	#e2b48a	medium	Elves
+race	half-elf	Half-elf	delapouite_elf-ear	#eadfcf	medium	Elves
+race	dwerv	Dwerv	delapouite_dwarf-face	#ecc9a0	medium	Dwerves and gnomes
+race	gnome	Gnome	cathelineau_bad-gnome	#f1e2c8	small	Dwerves and gnomes
+race	oesir	Oesir	delapouite_viking-head	#f6ecd2	medium	Humans
+race	firgald	Firgald	delapouite_closed-barbute	#e7e1d6	medium	Humans
+race	wyddin	Wyddin	delapouite_character	#e8d3b8	medium	Humans
+race	danae	Danae	delapouite_robin-hood-hat	#f0c4a0	medium	Humans
+race	octran	Octran	lorc_crested-helmet	#e9cf9c	medium	Humans
+race	goblin	Goblin	caro-asercion_goblin	#b9d98a	small	NPC races
+race	hobgoblin	Hobgoblin	delapouite_goblin-head	#e0a070	medium	NPC races
+race	lizardfolk	Lizardfolk	lorc_lizardman	#a8d08a	medium	NPC races
+race	kobold	Kobold	lorc_lizardman	#d8b06a	small	NPC races
+race	sea-elf	Sea Elf	delapouite_woman-elf-face	#8fd4c6	medium	NPC races
+race	urk	Urk	delapouite_orc-head	#a9c48a	medium	NPC races
+class	fighter	Fighter	lorc_crossed-swords	#d9534f		Classes
+class	crusader	Crusader	delapouite_templar-shield	#f0c040		Classes
+class	samurai	Samurai	delapouite_katana	#e0573c		Classes
+class	ranger	Ranger	delapouite_bow-arrow	#5cb85c		Classes
+class	cleric	Cleric	lorc_holy-symbol	#f5e6a8		Classes
+class	war-cleric	War Cleric	lorc_mace-head	#c9a227		Classes
+class	nature-cleric	Nature Cleric	delapouite_oak-leaf	#7cc35a		Classes
+class	rogue	Rogue	lorc_plain-dagger	#8e9aaf		Classes
+class	monk	Monk	lorc_fist	#e8964a		Classes
+class	mage	Mage	lorc_rune-stone	#5b9cf0		Classes
+class	shaman	Shaman	delapouite_totem	#b07cdb		Classes
+class	necromancer	Necromancer	lorc_evil-book	#7a5ba8		NPC classes
+class	death-knight	Death Knight	lorc_dread-skull	#9b2335		NPC classes
+class	bog-witch	Bog Witch	lorc_cauldron	#5f8f4a		NPC classes

@@ -18,6 +18,20 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest update came out on 3 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "NPC tokens by race and class (3 October 2026, night)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then the **NPCs** tab.",
+          "Pick a race and a class, then click **Place** to put the NPC in the middle of your view, or drag the picture onto the map."
+        ],
+        "notes": [
+          "A token for any of the 17 races and 14 classes in the group's own campaign handbook, from a Nyloran Mage to an Urk Death Knight: the race's head on a dark disc, a ring in the class's colour and a small badge with the class's emblem. The picture in the panel shows it before you place it.",
+          "It's named after the pair, \"Octran Crusader\", numbered like duplicates when the scene already has one, and sized for the map's squares by the race's D&D size (one square: gnomes, goblins and kobolds are Small, the rest Medium).",
+          "**Add hidden** works as on the **Monsters** tab, and is the same setting: tick it on either tab and both add hidden.",
+          "NPC tokens work like any picture token, on every page and on the table display. Only the **NPCs** tab needs a reload (**Update: Reload**) on a page opened before this update.",
+          "See **NPC tokens by race and class**."
+        ]
+      },
+      {
         "title": "Monsters ready to use (3 October 2026, later)",
         "steps": [
           "GM: click **Tokens & images** in the top bar, then the **Monsters** tab.",
@@ -473,6 +487,7 @@ export const GUIDE: GuideSection[] = [
           "Players only see the pictures they uploaded themselves, and can have up to 100. After that they see **You've uploaded as many images as a player can. Delete some of yours first.**",
           "GM: your **Tokens** tab also lists the pictures players have uploaded.",
           "GM: the **Monsters** tab has 55 ready-made monsters, sized for the map. See **Monsters**.",
+          "GM: the **NPCs** tab makes a token for any race and class from the campaign handbook. See **NPC tokens by race and class**.",
           "The GM's **Maps** tab holds map pictures. You use those from the **Scenes** panel."
         ]
       },
@@ -650,6 +665,25 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "NPC tokens by race and class",
+        "steps": [
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click the **NPCs** tab, between **Monsters** and **Maps**.",
+          "Pick a race from the **Race** list and a class from the **Class** list. The picture below shows the token as it will look.",
+          "Click **Place** (or the picture) to put it in the middle of your view, or drag the picture onto the map and let go where you want it."
+        ],
+        "notes": [
+          "An NPC you place with **Place** or a click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
+          "The races and classes are the group's own, from the campaign handbook: the races in the groups Elves (Nyloran, Sylvan, Duga, Half-elf), Dwerves and gnomes (Dwerv, Gnome), Humans (Oesir, Firgald, Wyddin, Danae, Octran) and NPC races (Goblin, Hobgoblin, Lizardfolk, Kobold, Sea Elf, Urk); the classes in Classes (Fighter, Crusader, Samurai, Ranger, Cleric, War Cleric, Nature Cleric, Rogue, Monk, Mage, Shaman) and NPC classes (Necromancer, Death Knight, Bog Witch).",
+          "The token is the race's head, in the race's colour, on a dark disc, with a ring in the class's colour and a small round badge at the bottom right in the same colour, holding the class's emblem. The token's own colour (the one its initiative entry gets) is the class's too.",
+          "It's named after the pair, \"Octran Crusader\", and numbered when the scene already has one: \"Octran Crusader 2\", then one higher than the highest number there, as duplicates are. Other scenes don't count.",
+          "Each comes in at the race's D&D size: Gnome, Goblin and Kobold are Small, every other race Medium, and both are one square. Pointing at the picture or **Place** says so, for example \"Octran Crusader: Medium, 1×1 squares\". To change it, select the token and pick another size from the **Size in squares** list in the bar.",
+          "**Add hidden** is the same setting as on the **Monsters** tab, remembered on this device: tick it on either tab and both add hidden, until you untick it. Hidden NPCs work like hidden monsters: see **Add hidden, for ambushes**.",
+          "The first time you use a race and class together in a room it takes a moment: its picture is made and uploaded, and the picture is dimmed and **Place** waits until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"NPC: \" and the pair's name. If you rename or delete it, the next one you place makes a new picture.",
+          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+        ]
+      },
+      {
         "title": "Sizes",
         "steps": [],
         "notes": [
@@ -686,7 +720,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "Monster icons by Lorc, Delapouite, Caro Asercion, Cathelineau and Skoll (recoloured and set on token discs), from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).",
-          "The same credit is at the bottom of the **Monsters** tab."
+          "The same credit is at the bottom of the **Monsters** tab.",
+          "NPC icons by Delapouite, Lorc, Cathelineau and Caro Asercion (recoloured and set on token discs), from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The races and classes themselves are the group's own, from its campaign handbook. The same credit is at the bottom of the **NPCs** tab."
         ]
       }
     ]
