@@ -29,6 +29,8 @@ import type {
 } from "../../shared/types";
 import { compassesOn, isCompass } from "../../shared/types";
 import { LIMITS } from "../../shared/sanitize";
+import { switchUnits } from "../../shared/units";
+import type { GridUnits } from "../../shared/units";
 import type { FloorId, StampId } from "../../shared/terrain";
 import { BUILD_ID } from "../../shared/build";
 import { uploadImage } from "../api";
@@ -222,6 +224,17 @@ interface UndoEntry {
   steps?: { undo: (items: ItemMap) => ItemOps; redo: (items: ItemMap) => ItemOps };
   /** Build steps that fold into this one (a burst of turning): which burst, and when the last came. */
   coalesce?: { key: string; at: number };
+  /**
+   * Switching the room's scenes between feet and metres (Room settings): one step for all of
+   * them, which undo reaches from whichever scene you're looking at. Each scene's unit before
+   * and after; nothing else about its grid.
+   */
+  units?: { id: string; before: GridUnits; after: GridUnits }[];
+}
+
+/** Whether undo can reach this step from the scene you're looking at. */
+function reachable(e: UndoEntry, view: string | null): boolean {
+  return e.sceneId === view || !!e.units;
 }
 
 const MAX_MESSAGES = 300;
@@ -716,8 +729,10 @@ export class RoomClient {
 
       case "scene.delete": {
         this.scenePending.delete(msg.id);
-        this.undoStack = this.undoStack.filter((e) => e.sceneId !== msg.id);
-        this.redoStack = this.redoStack.filter((e) => e.sceneId !== msg.id);
+        // A units step (every scene at once) goes once none of the scenes it switched is left.
+        const keep = (e: UndoEntry) => (e.units ? e.units.some((u) => u.id !== msg.id && s.scenes[u.id]) : e.sceneId !== msg.id);
+        this.undoStack = this.undoStack.filter(keep);
+        this.redoStack = this.redoStack.filter(keep);
         const scenes = { ...s.scenes };
         delete scenes[msg.id];
         const items: ItemMap = {};
@@ -1000,33 +1015,50 @@ export class RoomClient {
 
   private refreshUndoFlags(): void {
     const view = this.state.viewSceneId;
-    const canUndo = this.undoStack.some((e) => e.sceneId === view);
-    const canRedo = this.redoStack.some((e) => e.sceneId === view);
+    const canUndo = this.undoStack.some((e) => reachable(e, view));
+    const canRedo = this.redoStack.some((e) => reachable(e, view));
     if (canUndo !== this.state.canUndo || canRedo !== this.state.canRedo) this.store.set({ canUndo, canRedo });
   }
 
-  /** Undoes your latest change on the scene you're looking at (never on a scene you can't see). */
+  /**
+   * Undoes your latest change on the scene you're looking at (never on a scene you can't see),
+   * or a switch of every scene between feet and metres.
+   */
   undo(): void {
     // As in Dungeondraft, undo and redo leave nothing selected in Build › Select.
     this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
-    const i = this.undoStack.findLastIndex((e) => e.sceneId === view);
+    const i = this.undoStack.findLastIndex((e) => reachable(e, view));
     if (i < 0) return;
     const [entry] = this.undoStack.splice(i, 1);
     this.redoStack.push(entry);
-    this.applyStep(entry.steps ? entry.steps.undo(this.state.items) : entry.undo, entry.scene?.before);
+    if (entry.units) this.applyUnits(entry.units, "before");
+    else this.applyStep(entry.steps ? entry.steps.undo(this.state.items) : entry.undo, this.keepUnits(entry.scene?.before));
     this.refreshUndoFlags();
   }
 
   redo(): void {
     this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
-    const i = this.redoStack.findLastIndex((e) => e.sceneId === view);
+    const i = this.redoStack.findLastIndex((e) => reachable(e, view));
     if (i < 0) return;
     const [entry] = this.redoStack.splice(i, 1);
     this.undoStack.push(entry);
-    this.applyStep(entry.steps ? entry.steps.redo(this.state.items) : entry.redo, entry.scene?.after);
+    if (entry.units) this.applyUnits(entry.units, "after");
+    else this.applyStep(entry.steps ? entry.steps.redo(this.state.items) : entry.redo, this.keepUnits(entry.scene?.after));
     this.refreshUndoFlags();
+  }
+
+  /**
+   * A scene step's grid (a new map records the whole grid) with the scene's unit as it is
+   * now. Only switching the room's scenes between feet and metres changes units as a step,
+   * and undo reaches that from any scene: undoing a map swap, before or after it, mustn't
+   * bring back the other unit on one scene.
+   */
+  private keepUnits(patch: ScenePatch | undefined): ScenePatch | undefined {
+    const current = patch?.grid && this.state.scenes[patch.id];
+    if (!patch?.grid || !current) return patch;
+    return { ...patch, grid: { ...patch.grid, unit: current.grid.unit, unitName: current.grid.unitName } };
   }
 
   /** Applies item changes together with a scene change: players never see one without the other. */
@@ -1057,6 +1089,34 @@ export class RoomClient {
     this.redoStack = [];
     this.applyStep(ops, after);
     this.refreshUndoFlags();
+  }
+
+  /**
+   * Switches every scene measured in feet to metres (toMetric: 5 ft becomes 1.5 m), or every
+   * one in metres back to feet, as one undoable step. Scenes in any other unit (squares, km)
+   * are left alone. Returns how many scenes changed.
+   */
+  switchSceneUnits(toMetric: boolean): number {
+    const list: NonNullable<UndoEntry["units"]> = [];
+    for (const scene of Object.values(this.state.scenes)) {
+      const after = switchUnits(scene.grid, toMetric);
+      if (after) list.push({ id: scene.id, before: { unit: scene.grid.unit, unitName: scene.grid.unitName }, after });
+    }
+    if (!list.length) return 0;
+    this.undoStack.push({ sceneId: null, redo: {}, undo: {}, units: list });
+    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+    this.redoStack = [];
+    this.applyUnits(list, "after");
+    this.refreshUndoFlags();
+    return list.length;
+  }
+
+  /** Gives each scene (still here) its unit from one side of a switch; the rest of its grid stays as it is now. */
+  private applyUnits(list: NonNullable<UndoEntry["units"]>, side: "before" | "after"): void {
+    for (const u of list) {
+      const scene = this.state.scenes[u.id];
+      if (scene) this.updateScene(u.id, { grid: { ...scene.grid, ...u[side] } });
+    }
   }
 
   /**

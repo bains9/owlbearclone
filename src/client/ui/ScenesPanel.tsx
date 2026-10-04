@@ -2,8 +2,8 @@ import { useRef, useState } from "preact/hooks";
 import { Check, ImagePlus, Play, Plus, SquarePen, Trash } from "lucide-preact";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
-import { DEFAULT_GRID } from "../../shared/sanitize";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
+import { defaultGrid, isMetric, newSceneUnits } from "../../shared/units";
 
 const GRID_TYPES: { id: GridType; label: string }[] = [
   { id: "square", label: "Squares" },
@@ -140,6 +140,8 @@ export function NewSceneDialog(props: {
   const assets = useRoomState((s) => s.assets);
   const scenes = useRoomState((s) => s.scenes);
   const uploading = useRoomState((s) => s.uploading);
+  // New scenes measure in feet or metres, as the room does.
+  const settings = useRoomState((s) => s.room?.settings);
   const [name, setName] = useState("");
   const fallbackName = `Scene ${Object.keys(scenes).length + 1}`;
   const [mode, setMode] = useState<"upload" | "library" | "blank">("upload");
@@ -320,7 +322,7 @@ export function NewSceneDialog(props: {
         (maps.length ? (
           <div class="asset-grid">
             {maps.map((a) => (
-              <button key={a.id} class="asset" title={a.name} onClick={() => create(sceneFromMap(a, name.trim() || a.name, order, covered))}>
+              <button key={a.id} class="asset" title={a.name} onClick={() => create(sceneFromMap(a, name.trim() || a.name, order, covered, newSceneUnits(settings)))}>
                 <img src={fileUrl(room.roomId, a.id)} alt={a.name} loading="lazy" />
                 <span class="asset-name">{a.name}</span>
               </button>
@@ -342,7 +344,7 @@ export function NewSceneDialog(props: {
               width: Math.max(1, Math.min(200, cols)) * size,
               height: Math.max(1, Math.min(200, rows)) * size,
               background: "#3a3f47",
-              grid: { ...DEFAULT_GRID, size, color: "#ffffff", opacity: 0.2 },
+              grid: { ...defaultGrid(settings), size, color: "#ffffff", opacity: 0.2 },
               fogCover: blankCovered,
               createdAt: Date.now(),
             }, true);
@@ -381,6 +383,7 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const s = props.scene;
   const g = s.grid;
   const assets = useRoomState((st) => st.assets);
+  const metric = useRoomState((st) => isMetric(st.room?.settings));
   const [pickMap, setPickMap] = useState(false);
   const [alignCells, setAlignCells] = useState(3);
   const [fogReset, setFogReset] = useState<null | "cover" | "clear">(null);
@@ -589,6 +592,7 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
           <CommitInput value={g.unitName} maxLength={12} onCommit={(v) => grid({ unitName: v.trim() })} />
         </label>
       </div>
+      {metric && <p class="small muted">This room measures in metres (Room settings): new scenes start with one square being 1.5 m.</p>}
       {!hex && (
       <label class="field">
         <span>Diagonals</span>

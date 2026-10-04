@@ -194,10 +194,17 @@ export function cellDistance(a: Point, b: Point, grid: GridSettings): number {
   return long;
 }
 
+/**
+ * A distance in the scene's unit, to 0.1 with no trailing ".0" and no float noise: "30 ft",
+ * "4.5 m", "6 m" (never "6.0 m" or "4.499999 m"). Under 0.05 it keeps two decimals.
+ */
 export function formatDistance(cells: number, grid: GridSettings): string {
   const value = cells * grid.unit;
-  const rounded = Number.isInteger(value) ? String(value) : value.toFixed(1);
-  return grid.unitName ? `${rounded} ${grid.unitName}` : rounded;
+  let rounded = Math.round(value * 10) / 10;
+  if (rounded === 0) rounded = Math.round(value * 100) / 100;
+  // Never "-0".
+  const text = String(rounded || 0);
+  return grid.unitName ? `${text} ${grid.unitName}` : text;
 }
 
 /**

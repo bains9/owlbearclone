@@ -20,7 +20,7 @@ export interface GridSettings {
   snap: boolean;
   color: string;
   opacity: number;
-  /** Distance one cell represents, e.g. 5 (ft). */
+  /** Distance one cell represents, e.g. 5 (ft) or 1.5 (m). */
   unit: number;
   unitName: string;
   diagonal: DiagonalRule;
@@ -222,6 +222,11 @@ export interface RoomSettings {
   playersCanAddTokens: boolean;
   /** When false, players may only move tokens they placed themselves. */
   playersMoveAll: boolean;
+  /**
+   * Measure in metres: new scenes start with one square being 1.5 m rather than 5 ft.
+   * Missing on rooms made before it existed, which measure in feet.
+   */
+  metric?: boolean;
 }
 
 export interface RoomInfo {

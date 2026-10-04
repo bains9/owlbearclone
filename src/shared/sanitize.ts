@@ -37,6 +37,9 @@ export const LIMITS = {
   itemsPerScene: 5000,
   /** Compass roses on one scene (one is usual). */
   compassesPerScene: 20,
+  /** What one grid square can be, in whatever unit the scene measures in. */
+  gridUnitMin: 0.01,
+  gridUnitMax: 100_000,
 } as const;
 
 // Ids can't start with "__" (so "__proto__" never becomes a key in a plain object).
@@ -323,7 +326,7 @@ export function sanitizeGrid(raw: unknown, fallback: GridSettings): GridSettings
     snap: bool(r.snap) ?? fallback.snap,
     color: cleanColor(r.color) ?? fallback.color,
     opacity: num(r.opacity, 0, 1) ?? fallback.opacity,
-    unit: num(r.unit, 0.01, 100000) ?? fallback.unit,
+    unit: num(r.unit, LIMITS.gridUnitMin, LIMITS.gridUnitMax) ?? fallback.unit,
     unitName: cleanText(r.unitName, 12) ?? fallback.unitName,
     diagonal: DIAGONALS.includes(r.diagonal as DiagonalRule) ? (r.diagonal as DiagonalRule) : fallback.diagonal,
   };
@@ -358,7 +361,11 @@ export function sanitizeSeason(v: unknown): SceneSeason | null | undefined {
   return { look, level, ...(seed !== undefined ? { seed } : {}) };
 }
 
-export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
+/**
+ * A whole scene, or with `existing`, a change to one. `grid` fills in whatever grid settings
+ * a new scene leaves out (the room's own defaults: feet or metres).
+ */
+export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings = DEFAULT_GRID): Scene | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   if (!isId(r.id)) return null;
@@ -379,7 +386,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
     width,
     height,
     background: cleanColor(r.background) ?? existing?.background ?? "#2b2f36",
-    grid: sanitizeGrid(r.grid, existing?.grid ?? DEFAULT_GRID),
+    grid: sanitizeGrid(r.grid, existing?.grid ?? grid),
     fogCover: bool(r.fogCover) ?? existing?.fogCover ?? false,
     createdAt: existing?.createdAt ?? num(r.createdAt, 0, 1e15) ?? Date.now(),
     ...(season ? { season } : {}),
@@ -412,10 +419,13 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
 
 export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSettings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const metric = bool(r.metric) ?? current.metric;
   return {
     playersCanDraw: bool(r.playersCanDraw) ?? current.playersCanDraw,
     playersCanAddTokens: bool(r.playersCanAddTokens) ?? current.playersCanAddTokens,
     playersMoveAll: bool(r.playersMoveAll) ?? current.playersMoveAll,
+    // Left out (a page from before metres, say) keeps what the room has; a room that never had it stays without.
+    ...(metric !== undefined ? { metric } : {}),
   };
 }
 
@@ -423,4 +433,6 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   playersCanDraw: true,
   playersCanAddTokens: true,
   playersMoveAll: true,
+  // This table is metric. Rooms made before the setting existed have none: they stay in feet.
+  metric: true,
 };

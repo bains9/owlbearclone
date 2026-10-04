@@ -15,10 +15,10 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 3 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 4 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
-        "title": "NPC tokens by race and class (3 October 2026, night)",
+        "title": "NPC tokens by race and class (4 October 2026, later)",
         "steps": [
           "GM: click **Tokens & images** in the top bar, then the **NPCs** tab.",
           "Pick a race and a class, then click **Place** to put the NPC in the middle of your view, or drag the picture onto the map."
@@ -29,6 +29,21 @@ export const GUIDE: GuideSection[] = [
           "**Add hidden** works as on the **Monsters** tab, and is the same setting: tick it on either tab and both add hidden.",
           "NPC tokens work like any picture token, on every page and on the table display. Only the **NPCs** tab needs a reload (**Update: Reload**) on a page opened before this update.",
           "See **NPC tokens by race and class**."
+        ]
+      },
+      {
+        "title": "Measure in metres (4 October 2026)",
+        "steps": [
+          "GM: open **Room settings** (the gear) and, under **Measuring**, tick **Measure in metres (1.5 m a square)**.",
+          "If the room has scenes measured in feet, choose **Switch them too** to change them to metres as well, or **Only new scenes** to leave them as they are."
+        ],
+        "notes": [
+          "With it ticked, every new scene in the room starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps and Owlbear Rodeo scenes. Owlbear scenes measured in feet come over in metres (5 ft becomes 1.5 m), and ones already in metres keep their scale.",
+          "The ruler and spell areas then read in metres, for example \"4.5 m\", \"6 m radius\" or \"7.5 m cone\".",
+          "New rooms measure in metres from the start. Rooms made before this update keep measuring in feet, and none of their scenes change, until the GM ticks the box.",
+          "Switching the scenes changes 5 ft to 1.5 m and 10 ft to 3 m (feet times 0.3, to the nearest 0.1 m). Scenes in metres or other units, like squares, stay as they are. Unticking the box offers the same the other way: 1.5 m back to 5 ft. **Undo** (Ctrl+Z) switches the scenes back in one step.",
+          "Any scene can still have its own distance, under **Distance** in **Edit scene**.",
+          "See **Measure in metres** in **Room settings and backups**."
         ]
       },
       {
@@ -297,7 +312,7 @@ export const GUIDE: GuideSection[] = [
           "**Tokens & images**: quick coloured tokens and uploaded images to put on the map. If the GM has turned this off for players, the panel says \"The GM has turned off adding tokens for players.\"",
           "**Initiative**: the turn order for combat.",
           "**Scenes** (GM only): every scene in the room. Preview one privately, or show it to the players.",
-          "**Room settings** (GM only): the room's name, the invite link, what players are allowed to do, backups, and deleting the room.",
+          "**Room settings** (GM only): the room's name, the invite link, what players are allowed to do, whether distances are in metres, backups, and deleting the room.",
           "Only one panel is open at a time. On a large screen, **Chat & dice** opens by itself when you enter a room."
         ]
       },
@@ -904,14 +919,15 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure** (the ruler) in the toolbar, or press **M**.",
           "Choose **Ruler** in the bar that appears.",
           "Drag from the starting point to where you want to go.",
-          "Read the distance on the label at the end, for example \"30 ft\".",
+          "Read the distance on the label at the end, for example \"30 ft\", or \"9 m\" in a room that measures in metres.",
           "Let go to clear the ruler."
         ],
         "notes": [
           "When the scene's **Snap tokens** box is ticked (in the **Scenes** panel, under **Grid**), the ruler runs from the centre of one square to the centre of another. With it unticked, the ruler measures from exactly where you press.",
-          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square.",
+          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square. In a room that measures in metres it says One square is 1.5 m.",
           "Depending on how the GM has set up the scene, diagonals count as one square, alternate one and two squares, or use straight-line distance. On hex grids, distance is always counted in hexes.",
-          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with), **Unit** (ft) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
+          "Distances are rounded to a tenth: \"7.5 m\", \"6 m\" (never \"6.0 m\").",
+          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with, or 1.5 in a room that measures in metres), **Unit** (ft, or m) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
         ]
       },
       {
@@ -920,7 +936,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure**, or press **M**.",
           "Pick a shape: **Circle (radius from a point)**, **Cone**, **Cube** or **Line (one square wide)**.",
           "Drag outwards from where the spell starts.",
-          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\".",
+          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\" (in metres, \"6 m radius\" or \"4.5 m cone\").",
           "Let go to clear it."
         ],
         "notes": [
@@ -1264,6 +1280,7 @@ export const GUIDE: GuideSection[] = [
           "**Clear all drawings** (GM) and **Clear my drawings** can be undone as well.",
           "GM: giving a scene a different map counts as one undo step. **Undo** brings back the old map and its fog. Other scene changes, such as its name or grid, can't be undone.",
           "Undo doesn't cover chat messages and rolls, the initiative list, room settings, or scenes brought in from a backup or an Owlbear Rodeo file.",
+          "GM: one exception to \"the scene you're looking at\": switching the room's scenes between feet and metres (**Measure in metres** in **Room settings**) is one undo step for all of them, and **Undo** reaches it from any scene. It puts back each scene's distance unit and nothing else; the room setting itself stays as you set it.",
           "Each scene keeps its own undo history. If you switch to another scene, **Undo** works on that scene. When you come back, you can still undo your earlier changes there, as long as they're among your last 200.",
           "Deleting a scene throws away its undo history.",
           "Your undo history only lasts while the page is open. If you reload the page, it starts fresh."
@@ -1363,6 +1380,7 @@ export const GUIDE: GuideSection[] = [
           "Room names can be up to 60 characters.",
           "A new room starts with one blank grid scene called \"Scene 1\", which players see as soon as they join.",
           "New rooms start with players allowed to add tokens, move any unlocked token, and draw on the map. To change that, open **Room settings** and untick the boxes under **What players can do**.",
+          "New rooms measure in metres: \"Scene 1\" and every new scene start with one square being 1.5 m. To use feet instead, untick **Measure in metres (1.5 m a square)** in **Room settings**.",
           "Until you make your first room, the list says \"No rooms yet. Create one above.\""
         ]
       },
@@ -1506,7 +1524,7 @@ export const GUIDE: GuideSection[] = [
           "Doesn't come over: walls and lights.",
           "Doesn't come over: tokens whose pictures you didn't tick when you exported.",
           "Doesn't come over: video maps.",
-          "Distance settings aren't read from Owlbear. Every scene starts with one square being 5 ft and diagonals counted the D&D 5e way. You can change this in **Edit scene**.",
+          "Distance: in a room that measures in metres, each scene comes over with Owlbear's scale in metres. 5ft becomes 1.5 m and 10ft becomes 3 m; a scale already in metres, or in other units, stays as it is. In a room that measures in feet, every scene starts with one square being 5 ft, whatever Owlbear says. Either way diagonals are counted the D&D 5e way. You can change this in **Edit scene**.",
           "Grid display settings aren't read from Owlbear either. Every scene starts with the grid lines showing (faint black) and tokens snapping to the grid. Change these under **Grid** in **Edit scene**."
         ]
       },
@@ -2002,12 +2020,13 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Units and diagonals",
         "steps": [
-          "Under **Distance**, set **One square is**, for example 5.",
-          "Set **Unit**, for example ft.",
+          "Under **Distance**, set **One square is**, for example 5 (or 1.5 for metres).",
+          "Set **Unit**, for example ft (or m).",
           "For square grids, choose how **Diagonals** count: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
         ],
         "notes": [
-          "New scenes start with one square being 5 ft and diagonals counted the D&D 5e way.",
+          "New scenes start with one square being 5 ft, or 1.5 m in a room that measures in metres, and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
+          "To change every scene in the room between feet and metres at once, use **Measure in metres** in **Room settings** rather than each scene.",
           "The ruler uses these settings."
         ]
       },
@@ -2536,7 +2555,7 @@ export const GUIDE: GuideSection[] = [
     "id": "room-settings",
     "title": "Room settings and backups",
     "audience": "gm",
-    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, backups, and the option to delete the room.",
+    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, backups, and the option to delete the room.",
     "parts": [
       {
         "title": "Open Room settings",
@@ -2585,6 +2604,23 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Measure in metres",
+        "steps": [
+          "Under **Measuring**, tick **Measure in metres (1.5 m a square)** to measure in metres, or untick it to measure in feet.",
+          "If some of the room's scenes are measured in the other unit, a window asks about them. Click **Switch them too** (**Switch it too** for one scene) to change them as well, **Only new scenes** to leave them as they are, or **Cancel**."
+        ],
+        "notes": [
+          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft, as they always have.",
+          "The line under the box says what new scenes start with, for example \"New scenes start with one square being 1.5 m.\"",
+          "New rooms start with the box ticked. A room made before this setting existed starts with it unticked, and nothing about its scenes changes until you tick it.",
+          "Switching to metres changes each scene measured in feet (ft, ft., feet or foot): 5 ft becomes 1.5 m, 10 ft becomes 3 m, and any other number is multiplied by 0.3 and rounded to the nearest 0.1 m. Unticking offers the reverse: 1.5 m becomes 5 ft, 3 m becomes 10 ft. Scenes in other units, like squares or km, are never changed.",
+          "A square that isn't a whole number of feet comes back slightly changed after a second switch, because of that rounding: 7.5 ft becomes 2.3 m, and switching back makes it 7.7 ft. **Undo** is the exact way back.",
+          "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",
+          "A message says how many scenes were switched, for example \"Switched 3 scenes to metres. Undo (Ctrl+Z) switches them back.\" If no scene needs switching, the box just changes, with no window.",
+          "Everyone's rulers and spell areas follow straight away. Each scene can still have its own distance under **Distance** in **Edit scene**."
+        ]
+      },
+      {
         "title": "Download a backup",
         "steps": [
           "Click **Download backup**.",
@@ -2612,6 +2648,7 @@ export const GUIDE: GuideSection[] = [
           "When the restore is done, a message tells you how much came back, for example \"Restored 3 scenes and 12 images from “Room name”.\"",
           "If you restore the same backup twice, you get two copies of each scene. The images are uploaded again too, so it uses twice as much of the room's image space.",
           "**Undo** can't take back a restore.",
+          "In a room that measures in metres, restored scenes measured in feet come in switched to metres (5 ft becomes 1.5 m), and the message ends \"… measured in feet and now measure in metres, like this room.\" In a room that measures in feet, restored scenes keep their distances as they were.",
           "A room can hold at most 100 scenes. Once it's full, any more scenes from the backup are refused with \"A room can hold at most 100 scenes.\"",
           "If the room runs out of space for images, the restore stops with \"This room has as many images as it can hold. Delete some first.\"",
           "If the file isn't a Tabletop backup, you see a message such as \"That isn't a Tabletop backup (no room.json).\"",

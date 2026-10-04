@@ -642,10 +642,10 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("leads What's new with the NPCs, dated the same day as the monsters, and points to the how-to", () => {
+  it("leads What's new with the NPCs, dated 4 October, and points to the how-to", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[0].title).toBe("NPC tokens by race and class (3 October 2026, night)");
-    expect(news.intro).toContain("The latest update came out on 3 October 2026.");
+    expect(news.parts[0].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(news.intro).toContain("The latest update came out on 4 October 2026.");
     const entry = text(news.parts[0].title);
     expect(entry).toContain("**NPCs** tab");
     expect(entry).toContain("campaign handbook");
