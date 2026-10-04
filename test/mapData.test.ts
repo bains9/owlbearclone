@@ -1,12 +1,13 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { packPng } from "../src/client/dd/pngBox";
 import { NO_NAME, REACH_N, SIDECAR_HEADER_BYTES, encodeSidecar, type SeasonSidecar } from "../src/client/dd/sidecar";
-import { SIDECAR_CACHE_SIZE, SidecarCache, sceneDataState, seasonData, usesData, type DataState } from "../src/client/room/mapData";
+import { SIDECAR_CACHE_SIZE, SeasonPlanner, SidecarCache, sceneDataState, seasonData, usesData } from "../src/client/room/mapData";
+import type { DataState, PlannedScene, SceneDataState, SidecarResult } from "../src/client/room/mapData";
 import { EXACT_VERSION } from "../src/client/room/seasonExact";
-import { analyse, bake } from "../src/client/room/seasonPixels";
+import { ALGO_VERSION, analyse, bake, seedFrom } from "../src/client/room/seasonPixels";
 import type { BakeOptions } from "../src/client/room/seasonPixels";
 import { ddKey, outdoorKey } from "../src/client/room/seasons";
-import type { SceneMapData } from "../src/shared/types";
+import type { GridSettings, SceneMapData } from "../src/shared/types";
 import { snowyMap } from "./fixtures/ddSynthetic";
 import { fakeExport } from "./fixtures/fakeExport";
 
@@ -63,9 +64,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Lets fetches, unpacking and the promise chains after them finish. */
-const settle = async () => {
-  for (let i = 0; i < 20; i++) await new Promise<void>((r) => (globalThis as unknown as { setImmediate(f: () => void): void }).setImmediate(r));
+/** setTimeout before the clock is faked: real work (unpacking a PNG) takes real time, more when the machine is busy. */
+const realTimeout = globalThis.setTimeout;
+
+/** Lets fetches, unpacking and the promise chains after them finish: real turns until `until` holds (10 s at most). */
+const settle = async (until: () => boolean) => {
+  for (let i = 0; i < 2000 && !until(); i++) await new Promise<void>((r) => realTimeout(r, 5));
+  expect(until()).toBe(true);
 };
 
 describe("SidecarCache", () => {
@@ -125,15 +130,12 @@ describe("SidecarCache", () => {
     await vi.advanceTimersByTimeAsync(4999);
     expect(fetched.length).toBe(1);
     await vi.advanceTimersByTimeAsync(1);
-    await settle();
-    expect(fetched.length).toBe(2);
+    await settle(() => fetched.length === 2);
     expect(cache.state("s1")).toBe("retrying");
     await vi.advanceTimersByTimeAsync(29_999);
     expect(fetched.length).toBe(2);
     await vi.advanceTimersByTimeAsync(1);
-    await settle();
-    expect(fetched.length).toBe(3);
-    expect(cache.state("s1")).toBe("missing");
+    await settle(() => fetched.length === 3 && cache.state("s1") === "missing");
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetched.length).toBe(3);
     expect(states).toEqual(["retrying", "missing"]);
@@ -150,7 +152,7 @@ describe("SidecarCache", () => {
     const cache = new SidecarCache(() => changed.push(cache.state("s1")));
     expect((await cache.get("room1", "s1")).ok).toBe(false);
     await vi.advanceTimersByTimeAsync(5000);
-    await settle();
+    await settle(() => cache.state("s1") === "ok");
     expect(changed).toEqual(["retrying", "ok"]);
     expect((await cache.get("room1", "s1")).ok).toBe(true);
   });
@@ -266,6 +268,112 @@ describe("a scene's data state", () => {
     expect(ddKey(seasonData({ ...md, forAssetId: "map9" }))).toBe(ddKey(seasonData(md)));
     expect(outdoorKey("map1")).toBe("map1");
     expect(outdoorKey("map1", d)).toBe("map1|dd:side1");
+  });
+});
+
+describe("the board's planning of a seasonal bake", () => {
+  const md: SceneMapData = { assetId: "side1", forAssetId: "map1" };
+  const img = {} as HTMLImageElement;
+  const scene = (over: Partial<PlannedScene> = {}): PlannedScene => ({
+    id: "scene1",
+    season: { look: "winter", level: 2 },
+    mapAssetId: "map1",
+    mapData: md,
+    width: 1200,
+    height: 900,
+    grid: { size: 60 } as GridSettings,
+    ...over,
+  });
+  /** The job's key without data, as the board has always made it. */
+  const plainKey = ["map1", "winter", 2, seedFrom("scene1") & 0xffff, 60, 1200, 900, ALGO_VERSION].join("|");
+  const STATES: readonly SceneDataState[] = ["none", "paused", "hold", "green", "ok", "loading", "retrying", "missing", "unreadable", "newer", "noDecompress"];
+  /** A cache standing in: every sidecar in the given state (asked for: "loading"), counting what's asked for. */
+  function cache(state?: DataState, snowShare = 1) {
+    const gets: string[] = [];
+    return {
+      gets,
+      get(_roomId: string, id: string): Promise<SidecarResult> {
+        gets.push(id);
+        return Promise.resolve({ ok: false, state: "missing" });
+      },
+      state: (id: string) => state ?? (gets.includes(id) ? "loading" : undefined),
+      meta: () => (state === "ok" ? sidecar(snowShare).meta : undefined),
+    };
+  }
+
+  it("ends the job's key in ddKey, and carries the data, exactly when the data is in use", () => {
+    const p = new SeasonPlanner(cache("ok"), "room1", () => {});
+    const plain = p.job(scene({ mapData: undefined }), img, "none", false)!;
+    expect(plain).toEqual({ key: plainKey, assetId: "map1", img, sceneW: 1200, sceneH: 900, square: 60, look: "winter", level: 2, seed: seedFrom("scene1") & 0xffff });
+    expect("data" in plain).toBe(false);
+    for (const st of STATES) {
+      const j = p.job(scene(), img, st, false)!;
+      expect(j.key, st).toBe(plainKey + (usesData(st) ? ddKey(seasonData(md)) : ""));
+      expect(j.key.includes("|dd:"), st).toBe(usesData(st));
+      expect(j.data, st).toEqual(usesData(st) ? { assetId: "side1" } : undefined);
+    }
+    // Every option the bake depends on is in the key and the data; the scene's own seed is used when it has one.
+    const dead = p.job(scene({ mapData: { ...md, bare: "dead", packs: "guess" }, season: { look: "autumn", level: 3, seed: 5 } }), img, "ok", false)!;
+    expect(dead.key).toBe(["map1", "autumn", 3, 5, 60, 1200, 900, ALGO_VERSION].join("|") + `|dd:side1:dead:auto:guess:${EXACT_VERSION}`);
+    expect(dead.data).toEqual({ assetId: "side1", bare: "dead", packs: "guess" });
+    // The grid is kept sane, as before.
+    expect(p.job(scene({ grid: { size: 2 } as GridSettings }), img, "ok", false)!.square).toBe(1200 / 160);
+  });
+
+  it("plans no bake without a season, without a map, or with seasons off on this device", () => {
+    const p = new SeasonPlanner(cache("ok"), "room1", () => {});
+    expect(p.job(scene({ season: undefined }), img, "ok", false)).toBeNull();
+    expect(p.job(scene({ mapAssetId: "" }), img, "ok", false)).toBeNull();
+    expect(p.job(scene(), img, "ok", true)).toBeNull();
+  });
+
+  it("fetches the sidecar at once only when asked to (the GM's device), and only one nobody has asked for", () => {
+    const c = cache();
+    const p = new SeasonPlanner(c, "room1", () => {});
+    // A player's device: only a seasonal bake fetches (3.5), so the state stays "loading" until then.
+    expect(p.state(scene())).toBe("loading");
+    expect(c.gets).toEqual([]);
+    expect(p.state(scene(), true)).toBe("loading");
+    expect(c.gets).toEqual(["side1"]);
+    // Asked for already: not again.
+    expect(p.state(scene(), true)).toBe("loading");
+    expect(c.gets).toEqual(["side1"]);
+    // Nothing to fetch for a scene without usable data.
+    const other: SceneMapData = { assetId: "side2", forAssetId: "map1" };
+    expect(p.state(scene({ mapData: { ...other, forAssetId: "map9" } }), true)).toBe("paused");
+    expect(p.state(scene({ mapData: { ...other, hold: true } }), true)).toBe("hold");
+    expect(p.state(scene({ mapData: undefined }), true)).toBe("none");
+    expect(c.gets).toEqual(["side1"]);
+    // A state the cache knows is reported as it is, with no fetch.
+    for (const st of ["ok", "retrying", "missing", "unreadable", "newer", "noDecompress"] as const) {
+      const known = cache(st);
+      expect(new SeasonPlanner(known, "room1", () => {}).state(scene(), true)).toBe(st);
+      expect(known.gets).toEqual([]);
+    }
+    const green = cache("ok", 0.1);
+    expect(new SeasonPlanner(green, "room1", () => {}).state(scene(), true)).toBe("green");
+    expect(green.gets).toEqual([]);
+  });
+
+  it("gives the baker its source, remembers data the bake refused (for those options only), and plans again on any news", () => {
+    const c = cache("ok");
+    let replans = 0;
+    const p = new SeasonPlanner(c, "room1", () => replans++);
+    expect(p.source.sidecars).toBe(c);
+    expect(p.source.roomId).toBe("room1");
+    // A load state is the cache's to report: nothing is remembered here, but the scene is planned again.
+    for (const st of ["retrying", "missing", "green", "newer"] as const) p.source.onDataState({ assetId: "side1" }, st);
+    expect(replans).toBe(4);
+    expect(p.state(scene())).toBe("ok");
+    // A refusal sticks for the visit, for those options: the job then has the plain key, and nothing from the data.
+    p.source.onDataState({ assetId: "side1" }, "unreadable");
+    expect(replans).toBe(5);
+    expect(p.state(scene())).toBe("unreadable");
+    const j = p.job(scene(), img, p.state(scene()), false)!;
+    expect(j.key).toBe(plainKey);
+    expect(j.data).toBeUndefined();
+    expect(p.state(scene({ mapData: { ...md, bare: "dead" } }))).toBe("ok");
+    expect(p.job(scene({ mapData: { ...md, bare: "dead" } }), img, "ok", false)!.key).toBe(plainKey + ddKey({ assetId: "side1", bare: "dead" }));
   });
 });
 

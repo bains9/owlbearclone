@@ -10,7 +10,7 @@
 // what the exact branches cost.
 import { describe, expect, it } from "vitest";
 import { GRID } from "../src/client/dd/model";
-import { rasterSidecar } from "../src/client/dd/raster";
+import { REACH_DIRS, rasterSidecar } from "../src/client/dd/raster";
 import { AR, OR, TR, type AreaRole } from "../src/client/dd/roles";
 import { DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_UNITS, type ObjectTable, type SeasonSidecar, type ShapeLayer } from "../src/client/dd/sidecar";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
@@ -486,6 +486,14 @@ function withObjects(sc: SeasonSidecar, edit: (o: ObjectTable) => void): SeasonS
   return { ...sc, objects: c };
 }
 
+/** One deciduous tree at the origin reaching 64 squares every way: its crown covers the whole map. */
+function oneCrownOverAll(): ObjectTable {
+  return {
+    n: 1, role: Uint8Array.of(OR.DECIDUOUS), layer: Int16Array.of(100), x: new Int32Array(1), y: new Int32Array(1), rot: new Uint8Array(1),
+    flags: new Uint8Array(1), name: Uint16Array.of(NO_NAME), reach: new Uint16Array(REACH_N).fill(65535),
+  };
+}
+
 /** Object i's own coverage, drawn alone (its 16-gon). */
 function alone(sc: SeasonSidecar, i: number, w: number, h: number): Uint8Array {
   const o = sc.objects;
@@ -850,9 +858,25 @@ describe("analyseExact refuses what it can't do exactly", () => {
     expect(g.meta.snowShare).toBeLessThan(0.5);
     const pic = fakeExport(g, PPS);
     expect(() => analyseExact(pic.rgba, pic.w, pic.h, PPS, g, {})).toThrow(/green/);
-    expect(analyseExact(pic.rgba, pic.w, pic.h, PPS, g, { drawn: "winter" }).snow).not.toBeNull();
     const s = snowyMap().sidecar;
     expect(() => analyseExact(pic.rgba, pic.w, pic.h, PPS, s, { drawn: "green" })).toThrow(/green/);
+    // "Winter" overrides the data's share: a snowy picture whose data claims green analyses.
+    const claimsGreen: SeasonSidecar = { ...s, meta: { ...s.meta, snowShare: 0 } };
+    const snowPic = fakeExport(s, PPS);
+    expect(() => analyseExact(snowPic.rgba, snowPic.w, snowPic.h, PPS, claimsGreen, {})).toThrow(/green/);
+    expect(analyseExact(snowPic.rgba, snowPic.w, snowPic.h, PPS, claimsGreen, { drawn: "winter" }).snow!.ref).toBeGreaterThan(0.8);
+  });
+
+  it("throws when the picture shows no open snow to measure, so the pixel path takes over", () => {
+    // (Measured over no pixels, the snow's tone came out 0 and its colour black, which painted the
+    // grass black in winter.) One crown over the whole map; and a green picture called "winter".
+    const s = snowyMap().sidecar;
+    const pic = fakeExport(s, PPS);
+    const cover: SeasonSidecar = { ...s, objects: oneCrownOverAll() };
+    expect(() => analyseExact(pic.rgba, pic.w, pic.h, PPS, cover, {})).toThrow(/no open snow/);
+    const g = snowyMap({ green: true }).sidecar;
+    const gp = fakeExport(g, PPS);
+    expect(() => analyseExact(gp.rgba, gp.w, gp.h, PPS, g, { drawn: "winter" })).toThrow(/no open snow/);
   });
 
   it("throws on data the rasteriser couldn't draw in full, and on a picture too small for the analysis", () => {
@@ -1185,6 +1209,27 @@ describe("exact bakes of the snowy synthetic map (6.3 \"Exact seasons\")", () =>
     }
     expect(n).toBeGreaterThan(1_000);
     expect(after).toBeLessThanOrEqual(0.2 * before);
+    // No pale ring round it: the snow object's soft edge (the 2 bake pixels outside its solid
+    // footprint, on the roof) melts too, whether snow-coloured or mixed with the roof.
+    const solid = plane(roofSnow);
+    const rim = grownBy(solid, w, h, 2);
+    const roofA = R.area.get(AR.ROOF)!;
+    const roofLum = lumOf(FAKE_COLOURS.roof);
+    for (const [l, lv] of [["summer", 2], ["spring", 2], ["autumn", 2], ["summer", 1]] as const) {
+      const im = look(l, lv);
+      let nSnowy = 0, pale = 0, light = 0;
+      for (let k = 0; k < N; k++) {
+        if (!rim[k] || solid[k] || roofA[k] < 128) continue;
+        if (snowAt(full.rgba, k) >= 128) {
+          nSnowy++;
+          if (snowAt(im, k) >= 128) pale++;
+        }
+        if (lumOf(rgbAt(im, k)) > roofLum + 40) light++;
+      }
+      expect(nSnowy, `${l} ${lv}`).toBeGreaterThan(20);
+      expect(pale, `${l} ${lv}`).toBe(0);
+      expect(light, `${l} ${lv}`).toBeLessThanOrEqual(2);
+    }
     // Budding keeps most of it (60%), in patches.
     const bud = look("spring", 1);
     let stay = 0;
@@ -1267,6 +1312,105 @@ describe("exact bakes of the snowy synthetic map (6.3 \"Exact seasons\")", () =>
     // The bare tree's leaves thin as autumn goes on (the oak keeps its own: no thinning in v1).
     expect(bareT[2].n).toBeLessThan(0.6 * bareT[0].n);
     expect(bareT[1].n).toBeLessThan(bareT[0].n);
+  }, 60_000);
+
+  it("in deep winter, freshens the roof's snow as the ground's, and lays snow on the oak's leaves and a dead tree's branches", () => {
+    const img = look("winter", 3);
+    // The roof's snow: its shaded tones lifted (SN_GROUND is 0 there: it's the roof snow channel's).
+    const ref255 = a.snow!.ref * 255;
+    let nShade = 0, up = 0;
+    for (let k = 0; k < N; k++) {
+      const o = rgbAt(full.rgba, k);
+      if (roofSnow[k] < 250 || snowOf(o) < 128 || lumOf(o) >= ref255 - 10) continue;
+      nShade++;
+      if (lumOf(rgbAt(img, k)) - lumOf(o) >= 2) up++;
+    }
+    expect(nShade).toBeGreaterThan(300);
+    expect(up / nShade).toBeGreaterThan(0.9);
+    // The oak (K_BROAD): clumps of snow on its leaves.
+    const oak = grownBy(plane(own(ob.oak)), w, h, -3);
+    let nLeaf = 0, bright = 0;
+    for (let k = 0; k < N; k++) {
+      const o = rgbAt(full.rgba, k);
+      if (!oak[k] || snowOf(o) >= 128 || Math.max(...o) < 50) continue;
+      nLeaf++;
+      if (lumOf(rgbAt(img, k)) - lumOf(o) >= 30) bright++;
+    }
+    expect(nLeaf).toBeGreaterThan(5_000);
+    expect(bright / nLeaf).toBeGreaterThan(0.1);
+    // A dead tree (bare "dead", K_DEAD): flecks of snow along its branches.
+    const di = baked(exactScene(sm.sidecar, { bare: "dead" }, full), "winter", 3);
+    const dead = own(ob.dead);
+    let nBranch = 0, flecked = 0;
+    for (let k = 0; k < N; k++) {
+      const o = rgbAt(full.rgba, k);
+      const mx = Math.max(...o);
+      if (dead[k] < 128 || snowOf(o) >= 128 || mx < 60 || mx >= 200) continue;
+      nBranch++;
+      if (lumOf(rgbAt(di, k)) - lumOf(o) >= 40) flecked++;
+    }
+    expect(nBranch).toBeGreaterThan(500);
+    expect(flecked / nBranch).toBeGreaterThan(0.25);
+  }, 60_000);
+
+  it("uses every kind's reach by direction, not a radius: a capped oak reaching further east melts its cap there at Budding", () => {
+    // The oak capped, its reach eastward up to 2.2 times; and the same reach averaged all round.
+    // (The fixture's trees are round, so their radius would do: a lopsided one tells them apart.)
+    const o = sm.sidecar.objects;
+    const lop = withObjects(sm.sidecar, (t) => {
+      t.flags[ob.oak] |= OBJ_FLAG.CAPPED;
+      for (let k = 0; k < REACH_N; k++) {
+        const cos = REACH_DIRS[k * 2];
+        t.reach[ob.oak * REACH_N + k] = Math.round(o.reach[ob.oak * REACH_N + k] * (1 + 1.2 * (cos > 0 ? cos * cos : 0)));
+      }
+    });
+    let sum = 0;
+    for (let k = 0; k < REACH_N; k++) sum += lop.objects.reach[ob.oak * REACH_N + k];
+    const round = withObjects(lop, (t) => t.reach.fill(Math.round(sum / REACH_N), ob.oak * REACH_N, (ob.oak + 1) * REACH_N));
+    const fp = plane(alone(lop, ob.oak, w, h));
+    const disc = grownBy(plane(alone(round, ob.oak, w, h)), w, h, 3);
+    const t = exactScene(lop);
+    const img = baked(t, "spring", 1);
+    // The lobe past the averaged reach: cap snow, half melted at Budding (with a radius, untouched).
+    let n = 0, melted = 0;
+    for (let k = 0; k < N; k++) {
+      if (!fp[k] || disc[k] || snowAt(t.full.rgba, k) < 128) continue;
+      n++;
+      if (diffAt(img, t.full.rgba, k) >= 40) melted++;
+    }
+    expect(n).toBeGreaterThan(1_000);
+    expect(melted / n).toBeGreaterThan(0.85);
+  }, 60_000);
+
+  it("melts the roof's snow to that roof's own colour, not the slate default", () => {
+    // The roof painted terracotta (the fixture's roof is the default slate, which can't tell them apart).
+    const roofA = R.area.get(AR.ROOF)!;
+    const pic = new Uint8ClampedArray(full.rgba);
+    const terra = [150, 70, 60];
+    let repainted = 0;
+    for (let k = 0; k < N; k++) {
+      if (roofA[k] < 128 || roofSnow[k] > 0) continue;
+      const o = rgbAt(pic, k);
+      if (Math.abs(o[0] - FAKE_COLOURS.roof[0]) + Math.abs(o[1] - FAKE_COLOURS.roof[1]) + Math.abs(o[2] - FAKE_COLOURS.roof[2]) > 30) continue;
+      paint(pic, k, [terra[0] + o[0] - FAKE_COLOURS.roof[0], terra[1] + o[1] - FAKE_COLOURS.roof[1], terra[2] + o[2] - FAKE_COLOURS.roof[2]]);
+      repainted++;
+    }
+    expect(repainted).toBeGreaterThan(5_000);
+    const t = exactScene(sm.sidecar, {}, { ...full, rgba: pic });
+    const x = t.a.snow!.exact!;
+    const q = x.x.findIndex((v, i) => i % 3 === 1 && v === 255);
+    expect(q).toBeGreaterThan(0);
+    expect(near(x.roof.subarray(q - 1, q + 2), terra, 12)).toBe(true);
+    const img = baked(t, "summer", 2);
+    let n = 0, close = 0;
+    for (let k = 0; k < N; k++) {
+      if (roofSnow[k] < 250 || snowAt(pic, k) < 128) continue;
+      n++;
+      const c = rgbAt(img, k);
+      if (Math.max(Math.abs(c[0] - terra[0]), Math.abs(c[1] - terra[1]), Math.abs(c[2] - terra[2])) <= 30) close++;
+    }
+    expect(n).toBeGreaterThan(1_000);
+    expect(close / n).toBeGreaterThan(0.9);
   }, 60_000);
 
   it("melts the snow on a prop to the prop's own colour, not the stone grey", () => {
@@ -1420,6 +1564,96 @@ describe("exact bakes at a snow edge (6.3 \"Snow edges\")", () => {
   }
 });
 
+describe("exact bakes melt the snow on an earth path to earth (6.3 \"Exact seasons\", 5.5 item 7)", () => {
+  it("in three melt looks, the snow painted on the path ends the earth's colour, never grass", () => {
+    const base = snowyMap().sidecar;
+    const C = GRID * SIDECAR_UNITS.coord;
+    const ring = (x0: number, y0: number, x1: number, y1: number) => Int32Array.from([x0, y0, x1, y0, x1, y1, x0, y1].map((v) => Math.round(v * C)));
+    const path: ShapeLayer = { role: AR.PATH_EARTH, layer: -200, rule: 0, pts: ring(2, 6.25, 6.5, 6.75), ringEnds: Uint32Array.from([4]) };
+    const sc: SeasonSidecar = { ...base, shapes: [...base.shapes, path] };
+    const full = fakeExport(sc, BPS);
+    const { w, h } = full;
+    const N = w * h;
+    // (fakeExport draws the path brown: the case is snow drawn over it.)
+    const pathA = rasterSidecar(sc, { w, h }).area.get(AR.PATH_EARTH)!;
+    const painted: number[] = [];
+    for (let k = 0; k < N; k++) {
+      if (pathA[k] < 128) continue;
+      const v = ((k % w) * 7 + Math.floor(k / w) * 13) % 5;
+      const c = ((k * 2654435761) >>> 0) % 3 === 0 ? FAKE_COLOURS.snowShade : FAKE_COLOURS.snowLit;
+      paint(full.rgba, k, [c[0] - v, c[1] - v, c[2]]);
+      painted.push(k);
+    }
+    const inside = grownBy(Uint8Array.from(pathA, (v) => (v >= 128 ? 1 : 0)), w, h, -2);
+    const s = exactScene(sc, {}, full);
+    const RC = s.a.snow!.exact!.roleColour;
+    const earth = [RC[TR.EARTH * 3], RC[TR.EARTH * 3 + 1], RC[TR.EARTH * 3 + 2]];
+    expect(earth[0]).toBeGreaterThan(earth[2] + 20);
+    for (const [lk, lv] of [["summer", 2], ["spring", 3], ["autumn", 1]] as const) {
+      const img = baked(s, lk, lv);
+      let n = 0, earthy = 0, green = 0;
+      for (const k of painted) {
+        if (!inside[k] || snowAt(full.rgba, k) < 128) continue;
+        n++;
+        const c = rgbAt(img, k);
+        if (Math.max(Math.abs(c[0] - earth[0]), Math.abs(c[1] - earth[1]), Math.abs(c[2] - earth[2])) <= 45) earthy++;
+        if (greenish(c)) green++;
+      }
+      expect(n, `${lk} ${lv}`).toBeGreaterThan(2_000);
+      expect(earthy / n, `${lk} ${lv}`).toBeGreaterThan(0.95);
+      expect(green, `${lk} ${lv}`).toBe(0);
+    }
+  }, 60_000);
+});
+
+describe("exact bakes give what's kept a soft rim (5.5 item 1: keep under 0.25 melts, 0.25 to 0.5 blends the drawn pixel back, from 0.5 it's left alone)", () => {
+  it("a block of part keep on open snow blends by the ramp", () => {
+    const s = exactScene(snowyMap().sidecar);
+    const { full, a } = s;
+    const { w } = full;
+    const sn = a.snow!;
+    const X = sn.exact!;
+    // Analysis pixels of plain open snow (nothing exact there, SN_GROUND whole).
+    const [ax0, ax1, ay0, ay1] = [20, 70, 6, 24];
+    let plain = 0;
+    for (let y = ay0; y < ay1; y++) {
+      for (let x = ax0; x < ax1; x++) {
+        const k = y * a.aw + x;
+        if (!(X.x[k * 3] | X.x[k * 3 + 1] | X.x[k * 3 + 2] | X.partner[k]) && ch(a, k, SN_GROUND) === 255) plain++;
+      }
+    }
+    expect(plain).toBe((ax1 - ax0) * (ay1 - ay0));
+    const withKeep = (v: number): SeasonAnalysis => {
+      const x = new Uint8Array(X.x);
+      for (let y = ay0; y < ay1; y++) for (let xx = ax0; xx < ax1; xx++) x[(y * a.aw + xx) * 3] = v;
+      return { ...a, snow: { ...sn, exact: { ...X, x } } };
+    };
+    // Bake pixels well inside the block: the bilinear reads see the block's keep only.
+    const bx0 = 2 * ax0 + 4, bx1 = 2 * ax1 - 4, by0 = 2 * ay0 + 4, by1 = 2 * ay1 - 4;
+    for (const [lk, lv] of [["summer", 2], ["autumn", 1]] as const) {
+      const normal = baked(s, lk, lv);
+      let still = 0;
+      for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) if (diffAt(normal, full.rgba, y * w + x) < 30) still++;
+      expect(still, `${lk} ${lv}`).toBe(0);
+      for (const [v, kp] of [[64, 0], [96, (96 / 255 - 0.25) * 4], [128, 1]] as const) {
+        const img = baked(s, lk, lv, withKeep(v));
+        let maxErr = 0;
+        for (let y = by0; y < by1; y++) {
+          for (let x = bx0; x < bx1; x++) {
+            const p = (y * w + x) * 4;
+            for (let c = 0; c < 3; c++) {
+              const want = normal[p + c] + (full.rgba[p + c] - normal[p + c]) * kp;
+              const e = Math.abs(img[p + c] - want);
+              if (e > maxErr) maxErr = e;
+            }
+          }
+        }
+        expect(maxErr, `${lk} ${lv}, keep ${v}`).toBeLessThanOrEqual(2);
+      }
+    }
+  }, 60_000);
+});
+
 describe("exact bakes are deterministic, and strips match a whole pass (6.3 \"Byte-identity\", 5.6)", () => {
   const sm = snowyMap({ packRoof: true });
   const s = exactScene(sm.sidecar);
@@ -1487,11 +1721,12 @@ describe("exact seasons fall back to the pixel path untouched (6.3 \"Fallback\",
     const big: SeasonSidecar = { ...snowy, objects: { n, role: new Uint8Array(n).fill(OR.STRUCTURE), layer: new Int16Array(n), x: new Int32Array(n),
       y: new Int32Array(n), rot: new Uint8Array(n), flags: new Uint8Array(n), name: new Uint16Array(n).fill(NO_NAME),
       reach: new Uint16Array(n * REACH_N).fill(65535) } };
+    const cover: SeasonSidecar = { ...snowy, objects: oneCrownOverAll() };
     const pic = fakeExport(snowy, PPS);
     const fresh = () => new Uint8ClampedArray(pic.rgba);
     const ref = analyse(fresh(), pic.w, pic.h, PPS);
     const rgba = fresh();
-    for (const [sc, opts] of [[green, {}], [snowy, { drawn: "green" }], [big, {}]] as const) {
+    for (const [sc, opts] of [[green, {}], [snowy, { drawn: "green" }], [big, {}], [cover, {}]] as const) {
       expect(() => analyseExact(rgba, pic.w, pic.h, PPS, sc, opts)).toThrow(/exact seasons/);
     }
     expect(fnv(rgba)).toBe(fnv(pic.rgba));

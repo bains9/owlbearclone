@@ -184,7 +184,8 @@ describe("the dd worker: prepare", () => {
     const base = { t: "prepare" as const, id: 10, file: ddFile(snowy.text), pic: crop, picW: 640, picH: 400 };
     const a = answer(await run({ ...base, mapRect: [2, 1, 16, 10] })).m;
     const b = answer(await run({ ...base, vtt })).m;
-    if (a.t !== "prepared" || b.t !== "prepared") throw new Error(JSON.stringify([a, b]));
+    // (Only the refusals: a prepared answer stringified is a megabyte of pixels.)
+    if (a.t !== "prepared" || b.t !== "prepared") throw new Error(JSON.stringify([a, b].map((m) => (m.t === "error" ? m.message : m.t))));
     const rect = [2 * 256, 1 * 256, 18 * 256, 11 * 256];
     expect(decodeSidecar(a.sidecar).meta.rect).toEqual(rect);
     expect(decodeSidecar(b.sidecar).meta.rect).toEqual(rect);
@@ -277,13 +278,15 @@ describe("the dd worker: prepare", () => {
       { ...base, file: new File([snowy.text], "map.dungeondraft_map", { lastModified: 2 }) },
       { ...base, file: new File([snowy.text], "other.dungeondraft_map", { lastModified: 1 }) },
     ]) {
+      // From the base answer each time, so it's the change itself that's seen (not the one before it).
+      await runPosted(base);
       expect(lines(await runPosted(changed))[0]).toBe("Reading the project file…");
     }
     // A refusal keeps nothing.
     expect(prepared(await runPosted(base)).report.level).toBe(snowy.levelKey);
     expect(answer(await runPosted({ ...base, file: ddFile("{ not json") })).m.t).toBe("error");
     expect(lines(await runPosted(base))[0]).toBe("Reading the project file…");
-  });
+  }, 30_000); // about 20 small prepares: 3-4 s alone, more in a busy full suite
 
   it("an unclear level goes on hold unless the GM picked it; a .dd2vtt picks it clearly", async () => {
     const tw = twinLevels();

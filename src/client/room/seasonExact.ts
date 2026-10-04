@@ -1513,6 +1513,9 @@ export function analyseExact(rgba: Uint8ClampedArray, aw: number, ah: number, ce
   shrink(core, aw, ah);
   const open = new Uint8Array(N);
   openSnow(m, open, dr.snow, packSnow, pc.snowC, fk, gap, iceM, watM, core, keep);
+  // (No open snow to measure, as when one crown covers the whole map: snowColours would make the
+  // snow black. The caller falls back to the picture's own analysis.)
+  if (total(open) < cA * cA) throw new Error("exact seasons: the picture shows no open snow to measure");
   grow(m, 2, aw, ah);
   putChannel(sB, SN_GROUND, m, aw, ah, hs);
 

@@ -24,6 +24,8 @@ const px = vi.hoisted(() => ({
   analyseKeys: [] as string[],
   /** Strips (by width, and whether from the data) whose bake fails. */
   failIf: null as null | ((width: number, exact: boolean) => boolean),
+  /** How long the worker takes over an analysis from the data, in ms. */
+  exactMs: 1,
 }));
 
 vi.mock("../src/client/room/seasonPixels", () => ({
@@ -146,11 +148,11 @@ class FakeWorker {
   postMessage(sent: any, transfer: Transferable[] = []): void {
     // Handed over as a real worker's message is: what's transferred is gone from the page.
     const m = structuredClone(sent, { transfer });
+    if (m.t === "analyse") px.analyseKeys.push(m.key);
     setTimeout(() => {
       if (this.terminated) return;
       const reply = (data: unknown) => this.onmessage?.({ data });
       if (m.t === "analyse") {
-        px.analyseKeys.push(m.key);
         // As seasonWorker.ts: from the data when there is some, else (or when refused) guessed,
         // kept under the fallback key.
         let a: unknown;
@@ -184,7 +186,7 @@ class FakeWorker {
         return reply({ t: "error", id: m.id, message: String(err) });
       }
       reply({ t: "baked", id: m.id, rgba: m.rgba });
-    }, 1);
+    }, m.t === "analyse" && m.dd ? px.exactMs : 1);
   }
 
   terminate(): void {
@@ -238,7 +240,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   canvases = [];
   refuseAbove = Infinity;
-  Object.assign(px, { clock: 0, nsPerPx: 50, oneOff: 0, fields: "", failBakes: 0, analyses: 0, onBake: null, exactTries: 0, exactThrows: false, failIf: null });
+  Object.assign(px, { clock: 0, nsPerPx: 50, oneOff: 0, fields: "", failBakes: 0, analyses: 0, onBake: null, exactTries: 0, exactThrows: false, failIf: null, exactMs: 1 });
   px.strips.length = 0;
   px.analyseKeys.length = 0;
   FakeWorker.all = [];
@@ -781,6 +783,105 @@ describe("season baker with Dungeondraft data", () => {
     expect(console.warn).toHaveBeenCalled();
   });
 
+  it("goes back to the picture when a bake from the data fails both tries, so the plain map never stays", async () => {
+    // The analysis is fine, but every strip baked from the data fails (a kernel fault on this data, say).
+    px.failIf = (_width, exact) => exact;
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(4000);
+    expect(d.told).toEqual(["unreadable"]);
+    expect(d.state()).toBe("unreadable");
+    expect(d.b.job!.key).toBe(pixKey());
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+    expect(sharpFrom()).toBe("picture");
+    // Tried twice from the data (the worker may have stopped), then guessed from the picture, once.
+    expect(px.exactTries).toBe(2);
+    expect(px.analyseKeys).toEqual([ddAKey(), ddAKey(), PIXEL_AKEY]);
+    expect(px.analyses).toBe(1);
+    const results = (d.b.baker as unknown as { results: Map<string, unknown> }).results;
+    expect([...results.keys()]).toEqual([pixKey()]);
+    expect(console.warn).toHaveBeenCalled();
+    // Not asked for again, and the picture's own bake isn't held up by the failed one.
+    d.look = "spring";
+    d.show();
+    await wait(2000);
+    expect(d.b.job!.key).toBe(pixKey("spring"));
+    expect(px.exactTries).toBe(2);
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+  });
+
+  it("keeps a quick version made from the data when only the sharp one fails, and tries that again later", async () => {
+    px.failIf = (width, exact) => exact && width === 2400;
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    await wait(2000);
+    // The right season from the data, only softer: not the plain map, and not a guess.
+    expect(shownSize(d.b)).toEqual([512, 384]);
+    expect(d.told).toEqual([]);
+    expect(d.state()).toBe("ok");
+    expect(d.b.job!.key).toBe(pixKey() + ddKey(MD));
+    expect(px.analyses).toBe(0);
+    px.failIf = null;
+    await wait(7000);
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+    expect(sharpFrom()).toBe("data");
+    expect(d.told).toEqual([]);
+  });
+
+  it("ignores a sidecar that comes for a job the board has moved on from", async () => {
+    const cache = fakeCache({ S2: okResult(sidecarBytes()) });
+    let arrive!: (r: SidecarResult) => void;
+    const slow = new Promise<SidecarResult>((r) => (arrive = r));
+    const get = cache.get.bind(cache);
+    cache.get = (roomId, id) => (id === "S1" ? slow : get(roomId, id));
+    const d = ddBoard(cache);
+    // S1's sidecar is slow to come...
+    d.show();
+    await wait(200);
+    expect(px.analyseKeys).toEqual([]);
+    // ...and the GM attaches other data meanwhile, which comes at once.
+    const S2: SceneMapData = { assetId: "S2", forAssetId: "M" };
+    d.md = S2;
+    d.show();
+    await wait(2000);
+    expect(d.b.job!.key).toBe(pixKey() + ddKey(seasonData(S2)));
+    expect(sharpFrom()).toBe("data");
+    // S1's can't be found after all: nobody's waiting for it, so nothing is said, and nothing planned again.
+    arrive({ ok: false, state: "missing" });
+    await wait(2000);
+    expect(d.told).toEqual([]);
+    expect(px.analyseKeys).toEqual([ddAKey(S2)]);
+    expect(px.exactTries).toBe(1);
+    expect(d.b.job!.key).toBe(pixKey() + ddKey(seasonData(S2)));
+  });
+
+  it("keeps the newer job's bake going when an older one's data is refused meanwhile", async () => {
+    px.exactThrows = true;
+    px.exactMs = 2000;
+    const cache = fakeCache({ S1: okResult(sidecarBytes()) });
+    const d = ddBoard(cache);
+    d.show();
+    // S1's analysis is with the worker, which takes 2 s over it...
+    await wait(2000);
+    expect(px.analyseKeys).toEqual([ddAKey()]);
+    expect(d.told).toEqual([]);
+    // ...when the GM removes the data: the plain job is baking when the refusal comes back.
+    d.md = undefined;
+    d.show();
+    await wait(2000);
+    expect(d.told).toEqual(["unreadable"]);
+    expect(px.analyseKeys).toEqual([ddAKey(), PIXEL_AKEY]);
+    expect(px.analyses).toBe(2);
+    expect(d.b.results).toBe(2);
+    // The refusal was an older job's: the one under way wasn't started over, so nothing baked was thrown away.
+    expect(px.strips.filter((s) => s.width === 512).reduce((n, s) => n + s.rows, 0)).toBe(384);
+    expect(px.strips.filter((s) => s.width === 2400).reduce((n, s) => n + s.rows, 0)).toBe(1800);
+    expect(sharpFrom()).toBe("picture");
+    expect(shownSize(d.b)).toEqual([2400, 1800]);
+  });
+
   it("keeps the outdoor hint apart for a bake that uses data", async () => {
     const cache = fakeCache({ S1: okResult(sidecarBytes()) });
     const d = ddBoard(cache);
@@ -813,28 +914,39 @@ describe("season baker with Dungeondraft data", () => {
         await new Promise<void>((r) => realImmediate(r));
       }
     };
+    /**
+     * Real turns, no fake time, until `what` holds: how long fetching and unpacking take for real
+     * depends on how busy the machine is (the full suite runs other files alongside), so it's
+     * waited for, not counted in turns.
+     */
+    const settled = async (what: () => boolean) => {
+      for (let i = 0; i < 2000 && !what(); i++) await new Promise<void>((r) => realTimeout(r, 5));
+      expect(what()).toBe(true);
+    };
     let d: ReturnType<typeof ddBoard>;
     const cache = new SidecarCache(() => d.replan());
     d = ddBoard(cache);
     d.show();
     await io(2000);
-    expect(fetched.length).toBe(1);
-    expect(d.state()).toBe("retrying");
+    await settled(() => fetched.length === 1 && d.state() === "retrying");
     expect(d.b.job!.key).toBe(pixKey());
     expect(shownSize(d.b)).toEqual([2400, 1800]);
     expect(sharpFrom()).toBe("picture");
     await io(5000);
-    expect(fetched.length).toBe(2);
+    await settled(() => fetched.length === 2);
+    expect(d.state()).toBe("retrying");
     await io(30_000);
-    expect(fetched.length).toBe(3);
-    expect(d.state()).toBe("missing");
+    await settled(() => fetched.length === 3 && d.state() === "missing");
     await io(60_000);
     expect(fetched.length).toBe(3);
     // A scene change or the page in view again: tried once more, and it comes.
     px.strips.length = 0;
     cache.wake();
-    await io(2000);
+    // The job's short wait is over: its sidecar is asked for, and comes once unpacked (in real time).
+    await io(200);
     expect(fetched.length).toBe(4);
+    await settled(() => cache.state("S1") === "ok");
+    await io(2000);
     expect(d.state()).toBe("ok");
     expect(d.b.job!.key).toBe(pixKey() + ddKey(MD));
     expect(sharpFrom()).toBe("data");

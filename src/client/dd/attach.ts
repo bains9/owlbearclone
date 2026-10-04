@@ -4,7 +4,8 @@
 // picks the level, checks the fit, measures and compiles the sidecar. The raw file is never uploaded.
 //
 // The worker starts on the first attach or check, takes one message at a time, and stops after a
-// minute with nothing to do (a parsed map is big; nothing is kept between messages anyway).
+// minute with nothing to do (a parsed map is big). Between messages it keeps only its last prepare's
+// answer, so turning Compare on in the dialog doesn't read and measure the map again.
 // Every refusal reaches the caller as an AttachError whose message is plain text for the GM (6.1).
 // This file imports nothing of the worker's (the parser, the extractor, the season kernels), so
 // the page doesn't load them: the few numbers and texts both sides need are kept equal by a test.

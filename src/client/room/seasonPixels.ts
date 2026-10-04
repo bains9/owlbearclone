@@ -2885,7 +2885,10 @@ export const K_DEAD = 7;
  * data (seasonExact.ts; design 5.4). Analysis resolution throughout; never set by snowAnalysis.
  */
 export interface ExactSnow {
-  /** 3 bytes an analysis pixel: keep (0..255: left as drawn), roof snow (0..255), earth path (0..255). */
+  /**
+   * 3 bytes an analysis pixel: keep (0..255: left as drawn), roof snow (0..255), earth path (0..255;
+   * the kernels take an earth path from SN_EARTH, which the analysis sets there too).
+   */
   x: Uint8Array;
   /**
    * 1 byte an analysis pixel: the melt partner (a terrain role, roles.ts TR: ROCK, EARTH, SAND or
@@ -5033,9 +5036,6 @@ function exactAny(X: ExactSnow, aw: number, ah: number): Uint8Array {
   return out;
 }
 
-/** roles.ts TR.EARTH (ExactSnow.roleColour is indexed by terrain role). */
-const TR_EARTH = 4;
-
 /**
  * The fields for a strip, blended per row as Frame does: only the channels in use, and the
  * objects' channels only where SN_OBJ says there are any (elsewhere they read 0).
@@ -5946,20 +5946,27 @@ class Melt {
       const obj = o0 + (rb[c + C + SN_OBJ] - o0) * fx;
       // Dungeondraft data: what's left as drawn (pack items, structures, walls, floors, roofs) keeps
       // its bytes, with a soft rim (kp: how much of the drawn pixel comes back); the snow on a
-      // roof (rfK) and an earth path (ptK) melt their own way; at a snow edge the melt partner (pt).
-      // (Where there's no snow or object, nothing changes: with this data there's no grade.)
+      // roof (rfK) melts its own way; at a snow edge the melt partner (pt). (Where there's no snow
+      // or object, nothing changes: with this data there's no grade. An earth path is SN_EARTH.)
       let kp = 0;
       let rfK = 0;
-      let ptK = 0;
       let pt = 0;
+      let rim = false;
       if (ex !== null && fr.xHere(i)) {
         if (gnd <= 0 && obj <= 0) continue;
         const X = ex.x;
         const kv = fr.xAt(i, X, 3, 0) * INV255;
-        if (kv >= 0.5) continue;
-        kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
         rfK = fr.xAt(i, X, 3, 1) * INV255;
-        ptK = fr.xAt(i, X, 3, 2) * INV255;
+        if (rfK > 0 && T[li + 3] > 0) {
+          // Where roof snow lies, a pixel with any snow in it is the snow's, the roof's keep included:
+          // the snow object's soft edge reads as part roof (keepOf), which left a pale ring round it.
+          rim = kv > 0;
+          rfK += kv;
+          if (rfK > 1) rfK = 1;
+        } else {
+          if (kv >= 0.5) continue;
+          kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
+        }
         pt = ex.partner[rowQ + colQ[i]];
       }
       let nr = r;
@@ -6081,23 +6088,15 @@ class Melt {
           let qr = gr * k;
           let qg = gg * k;
           let qb = gb * k + 10 * (1 - mB) + 8 * shd;
-          if (ex !== null && (pt || ptK > 0)) {
+          if (pt) {
+            // A snow edge: the partner's own colour (rock, earth, sand, paving), with the pixel's
+            // own detail.
             const RC = (ex as ExactSnow).roleColour;
-            if (pt) {
-              // A snow edge: the partner's own colour (rock, earth, sand, paving), with the
-              // pixel's own detail.
-              let rl = mF * (1 + 0.6 * det);
-              rl = rl < 0.6 ? 0.6 : rl > 1.1 ? 1.1 : rl;
-              qr = RC[pt * 3] * rl;
-              qg = RC[pt * 3 + 1] * rl;
-              qb = RC[pt * 3 + 2] * rl;
-            } else {
-              // An earth path: snow on it melts to earth.
-              const ke = mB * mF * (1 + 0.5 * det) * this.earthK;
-              qr += (RC[TR_EARTH * 3] * ke - qr) * ptK;
-              qg += (RC[TR_EARTH * 3 + 1] * ke - qg) * ptK;
-              qb += (RC[TR_EARTH * 3 + 2] * ke - qb) * ptK;
-            }
+            let rl = mF * (1 + 0.6 * det);
+            rl = rl < 0.6 ? 0.6 : rl > 1.1 ? 1.1 : rl;
+            qr = RC[pt * 3] * rl;
+            qg = RC[pt * 3 + 1] * rl;
+            qb = RC[pt * 3 + 2] * rl;
           }
           if (mel > 0) {
             if (hasRem) {
@@ -6193,11 +6192,14 @@ class Melt {
       // Snow on a roof melts to the roof's own colour, with the snow's relief (its luma against its
       // lit tone; Budding: most of it stays, in patches).
       if (rfK > 0) {
-        let k = rfK * T[li + 3] * INV255;
+        // (At the rim, a pixel that's less than half snow is the snow's soft edge over the roof:
+        // the whole of it melts, to the roof's colour.)
+        const edge = rim && T[li + 3] < 128;
+        let k = edge ? rfK : rfK * T[li + 3] * INV255;
         if (budding && k > 0) k *= lin(0.44 - rank(RANK_OCTAVE, this.roofN.at(colU[i], w)), 12);
         if (k > 0) {
           // (Against the snow's lit tone: no open snow lies on a roof to give it its own.)
-          let rl = (0.299 * r + 0.587 * g + 0.114 * b) * INV255 * this.invRef;
+          let rl = edge ? 1 : (0.299 * r + 0.587 * g + 0.114 * b) * INV255 * this.invRef;
           rl = rl < 0.5 ? 0.5 : rl > 1.05 ? 1.05 : rl;
           const ro = (rowQ + colQ[i]) * 3;
           const RF = (ex as ExactSnow).roof;
@@ -6741,9 +6743,15 @@ function winterSnowy(px: Uint8ClampedArray, width: number, rows: number, o: Bake
       let kp = 0;
       if (ex !== null && fr.xHere(i)) {
         const kv = fr.xAt(i, ex.x, 3, 0) * INV255;
-        if (kv >= 0.5) continue;
-        kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
-        const rf = fr.xAt(i, ex.x, 3, 1) * INV255;
+        let rf = fr.xAt(i, ex.x, 3, 1) * INV255;
+        if (rf > 0 && T[li + 3] > 0) {
+          // (The roof snow's rim is the snow's, as in the melt.)
+          rf += kv;
+          if (rf > 1) rf = 1;
+        } else {
+          if (kv >= 0.5) continue;
+          kp = kv <= 0.25 ? 0 : (kv - 0.25) * 4;
+        }
         if (rf > gnd) gnd = rf;
       }
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
