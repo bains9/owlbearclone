@@ -38,6 +38,7 @@ import {
 } from "../../shared/terrain";
 import type { CellBounds } from "../../shared/terrain";
 import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
+import { isCompass } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
   deleteSelection,
@@ -48,6 +49,8 @@ import {
   toggleLocked,
 } from "./actions";
 import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
+import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
+import type { CompassLook } from "./compass";
 import {
   BuildEdit,
   BuildRenderer,
@@ -82,13 +85,17 @@ import {
   turnGroup,
 } from "./stampGeom";
 import type { Placed } from "./stampGeom";
-import { getImage, imageFailed } from "./images";
+import { getImage, imageFailed, imageStatus, retryImage } from "./images";
+import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
+import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
 import type { SeasonJob, SeasonJobData } from "./seasons";
 import { SeasonPlanner, SidecarCache } from "./mapData";
 import type { SceneDataState } from "./mapData";
 import { seedFrom } from "./seasonPixels";
 import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
+import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
+import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -344,6 +351,13 @@ export class Board implements BoardApi {
   private gridNode: Konva.Shape;
   private fogNode: Konva.Shape;
   private trailNode: Konva.Shape;
+  /** Compass roses again, over the fog where it covers them: a compass is never hidden by fog. */
+  private compassFogNode: Konva.Shape;
+  /**
+   * The compasses as last drawn over the fog (compassesKey). The fog is redrawn with the
+   * tokens only when this changes: a compass moved, turned, sized, hidden, added or deleted.
+   */
+  private compassLook = "";
   private previewGroup = new Konva.Group();
   /** Shows the fog brush's size under the pointer. */
   private brushCursor = new Konva.Circle({
@@ -478,6 +492,10 @@ export class Board implements BoardApi {
       listening: false,
       sceneFunc: (ctx) => this.drawTrails(native(ctx)),
     });
+    this.compassFogNode = new Konva.Shape({
+      listening: false,
+      sceneFunc: (ctx) => this.drawCompassesOnFog(native(ctx)),
+    });
     this.buildNode = new Konva.Shape({
       listening: false,
       sceneFunc: (ctx) => this.drawBuild(native(ctx)),
@@ -513,7 +531,7 @@ export class Board implements BoardApi {
     });
 
     this.bgLayer.add(this.bgRect, this.mapNode, this.buildNode, this.gridNode);
-    this.fogLayer.add(this.fogNode);
+    this.fogLayer.add(this.fogNode, this.compassFogNode);
     this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover);
     this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.fogLayer, this.uiLayer);
 
@@ -589,6 +607,7 @@ export class Board implements BoardApi {
     this.seasons.dispose();
     this.sidecars.dispose();
     for (const fn of this.cleanup) fn();
+    this.setMapLoad(NO_MAP_LOAD);
     this.anim.stop();
     this.stage.destroy();
     if (this.room.board === this) this.room.board = null;
@@ -762,6 +781,8 @@ export class Board implements BoardApi {
       this.seasons.cancel();
       // And Dungeondraft data that couldn't be loaded may be tried again.
       this.sidecars.wake();
+      // No scene: no map to be loading (a scene's own map is looked at below).
+      if (!scene) this.setMapLoad(NO_MAP_LOAD);
       this.renderedSceneId = sceneId;
       this.renderedScene = null;
       this.needsFit = true;
@@ -780,6 +801,7 @@ export class Board implements BoardApi {
         if (!prev || prev.grid.size !== scene.grid.size) force = true;
       } else {
         this.seasons.cancel();
+        this.setMapLoad(NO_MAP_LOAD);
       }
       this.syncBuildSeason(s, scene);
       this.bgLayer.visible(Boolean(scene));
@@ -862,12 +884,14 @@ export class Board implements BoardApi {
     // Seasons off on this device: no seasonal picture is wanted at all, so they all go.
     if (this.room.state.seasonsOff) this.seasons.clear();
     const dataState = this.publishDataState(scene);
-    const img = scene.mapAssetId
-      ? getImage(fileUrl(this.room.roomId, scene.mapAssetId), () => {
+    const url = scene.mapAssetId ? fileUrl(this.room.roomId, scene.mapAssetId) : null;
+    const img = url
+      ? getImage(url, () => {
           this.renderedScene = null;
           this.scheduleSync();
         })
       : null;
+    let season: string | null = null;
     if (img) {
       // In season: the seasonal picture once it's made (the plain map, or the last season's, until then).
       const job = this.seasonJob(scene, img, dataState);
@@ -876,6 +900,7 @@ export class Board implements BoardApi {
       if (job) {
         shown = this.seasons.image(job.key, job.assetId) ?? img;
         this.seasons.request(job);
+        if (this.seasons.making(job.key)) season = job.key;
       } else {
         this.seasons.cancel();
       }
@@ -889,6 +914,20 @@ export class Board implements BoardApi {
     }
     // Seasonal pictures the board has moved on from can be freed now (never the one mapNode holds).
     this.seasons.release(this.mapNode.image());
+    this.setMapLoad({ url, status: img ? "ready" : url ? imageStatus(url) : "ready", season });
+  }
+
+  /** Tells the page how the map picture is getting on, for the loading message (only when that changes). */
+  private setMapLoad(load: MapLoad): void {
+    if (!sameMapLoad(load, this.room.state.mapLoad)) this.room.store.set({ mapLoad: load });
+  }
+
+  retryMap(): void {
+    const url = this.room.state.mapLoad.url;
+    if (!url) return;
+    retryImage(url);
+    this.renderedScene = null;
+    this.scheduleSync();
   }
 
   /**
@@ -985,8 +1024,8 @@ export class Board implements BoardApi {
         this.dragging.delete(id);
       }
     }
-    // Props first (underneath), then characters; each in its own stacking order.
-    const layerRank = (t: TokenItem) => (t.layer === "prop" ? 0 : 1);
+    // Props first (underneath), then compasses, then characters; each in its own stacking order.
+    const layerRank = (t: TokenItem) => (isCompass(t) ? 1 : t.layer === "prop" ? 0 : 2);
     tokens.sort((a, b) => layerRank(a) - layerRank(b) || byZ(a, b)).forEach((t, i) => {
       const g = this.tokens.get(t.id)!.group;
       if (!this.dragging.has(t.id) && g.zIndex() !== i) g.zIndex(i);
@@ -1026,7 +1065,7 @@ export class Board implements BoardApi {
     fogs.sort(byZ);
     const fogChanged = fogs.length !== this.fogItems.length || fogs.some((f, i) => f !== this.fogItems[i]);
     this.fogItems = fogs;
-    this.tokenLayer.batchDraw();
+    this.drawTokens();
     this.drawLayer.batchDraw();
     if (fogChanged || force) {
       this.fogDirty = true;
@@ -1041,10 +1080,26 @@ export class Board implements BoardApi {
     g.opacity(t.hidden ? 0.5 : 1);
     // In "Player view" the GM sees what players do: hidden tokens aren't there.
     g.visible(!t.hidden || gmView);
+    const compass = isCompass(t);
+    // A compass is part of the map for players: they can't pick it, and clicks reach what's under it.
+    g.listening(!compass || this.room.isGm);
     const r = (t.size * cell) / 2;
     const body = new Konva.Group({ rotation: t.rotation });
     let drawn = false;
-    if (t.assetId) {
+    if (compass) {
+      body.add(
+        new Konva.Shape({
+          sceneFunc: (ctx) => drawCompass(native(ctx), r, t.rotation, t.color, FONT),
+          hitFunc: (ctx, shape) => {
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.95, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fillShape(shape);
+          },
+        }),
+      );
+      drawn = true;
+    } else if (t.assetId) {
       const url = fileUrl(this.room.roomId, t.assetId);
       const img = getImage(url, () => {
         n.dirty = true;
@@ -1097,10 +1152,12 @@ export class Board implements BoardApi {
 
     const gap = Math.max(2, cell * 0.05);
     const ringWidth = Math.max(2, cell * 0.04);
-    t.rings.forEach((color, i) => {
+    // (A compass has no status rings or name: its bar doesn't offer them.)
+    const rings = compass ? [] : t.rings;
+    rings.forEach((color, i) => {
       g.add(new Konva.Circle({ radius: r + gap * (i + 1), stroke: color, strokeWidth: ringWidth }));
     });
-    const outer = r + gap * (t.rings.length + 1);
+    const outer = r + gap * (rings.length + 1);
     if (t.hidden && gmView) {
       g.add(new Konva.Circle({ radius: outer, stroke: "#ffffff", strokeWidth: 1.5, dash: [4, 4], strokeScaleEnabled: false }));
     }
@@ -1115,7 +1172,7 @@ export class Board implements BoardApi {
         }),
       );
     }
-    if (t.label) {
+    if (t.label && !compass) {
       const fontSize = Math.max(10, Math.min(cell * 0.22, 32));
       const label = new Konva.Label({ y: r + gap * t.rings.length + fontSize * 0.3 });
       label.add(new Konva.Tag({ fill: "rgba(15,17,21,0.8)", cornerRadius: fontSize * 0.35 }));
@@ -1624,6 +1681,46 @@ export class Board implements BoardApi {
     c.restore();
   }
 
+  /**
+   * The compasses again, drawn only where the fog is (source-atop keeps to the fog's own
+   * pixels): a compass is a guide to the map, so fog never hides it. Where there's no fog the
+   * one on the token layer shows, under characters. Hidden ones aren't drawn over the fog.
+   */
+  private drawCompassesOnFog(c: CanvasRenderingContext2D): void {
+    if (!this.compassLook) return;
+    c.save();
+    c.globalCompositeOperation = "source-atop";
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || !isCompass(t) || t.hidden || !n.group.visible()) continue;
+      c.save();
+      c.translate(n.group.x(), n.group.y());
+      c.rotate((t.rotation * Math.PI) / 180);
+      drawCompass(c, (t.size * n.cell) / 2, t.rotation, t.color, FONT);
+      c.restore();
+    }
+    c.restore();
+  }
+
+  /**
+   * Redraws the tokens, and the fog too when a compass drawn over it has changed (moved,
+   * turned, hidden, gone): dragging an ordinary token doesn't redraw the fog every frame.
+   */
+  private drawTokens(): void {
+    this.tokenLayer.batchDraw();
+    const shown: CompassLook[] = [];
+    for (const [id, n] of this.tokens) {
+      const t = n.item;
+      if (!t || !isCompass(t)) continue;
+      const p = n.group.position();
+      shown.push({ id, x: p.x, y: p.y, rotation: t.rotation, r: (t.size * n.cell) / 2, color: t.color, shown: !t.hidden && n.group.visible() });
+    }
+    const look = compassesKey(shown);
+    if (look === this.compassLook) return;
+    this.compassLook = look;
+    this.fogLayer.batchDraw();
+  }
+
   /** Composites every fog shape into the cached fog image. */
   private renderFogImage(scene: Scene): void {
     const k = Math.min(1, FOG_CACHE_MAX / Math.max(scene.width, scene.height));
@@ -1910,7 +2007,7 @@ export class Board implements BoardApi {
         else if (item.kind === "drawing") this.offsetDrawing(m.id, m);
         this.remoteDrags.set(m.id, Date.now() + 3000);
       }
-      this.tokenLayer.batchDraw();
+      this.drawTokens();
       this.drawLayer.batchDraw();
       this.startAnim();
     }
@@ -1929,6 +2026,40 @@ export class Board implements BoardApi {
     while (node && !node.getAttr("itemId")) node = node.getParent();
     const id = node?.getAttr("itemId") as string | undefined;
     return id ? (this.room.state.items[id] ?? null) : null;
+  }
+
+  /**
+   * What a click at a screen point picks. A compass covers two squares or more of the map, so
+   * (for the GM: players never pick one) a click on it away from its middle goes on to a prop,
+   * drawing or note under it. The compass is picked in its middle, where nothing is under it,
+   * or anywhere on it once it's selected.
+   */
+  private pickAt(pos: Point): Item | null {
+    const hit = this.itemAt(pos);
+    if (!isCompass(hit) || this.room.state.selection.includes(hit.id)) return hit;
+    const n = this.tokens.get(hit.id);
+    if (!n) return hit;
+    const world = this.toWorld(pos);
+    if (inCompassCore({ x: n.group.x(), y: n.group.y(), size: hit.size }, n.cell, world)) return hit;
+    return this.tokenUnder(world, n.group) ?? this.itemAt(pos, this.drawLayer) ?? hit;
+  }
+
+  /**
+   * The topmost token, not a compass, under `group` (a compass's) at world point `p`: the hit
+   * canvas only knows the top one there.
+   */
+  private tokenUnder(p: Point, group: Konva.Group): TokenItem | null {
+    const below = group.zIndex();
+    let best: { t: TokenItem; z: number } | null = null;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || isCompass(t) || !n.group.visible() || !n.group.isListening()) continue;
+      const z = n.group.zIndex();
+      if (z >= below || (best && z < best.z)) continue;
+      const at = { x: n.group.x(), y: n.group.y(), size: t.size, rotation: t.rotation, assetId: t.assetId };
+      if (tokenCovers(at, n.cell, p)) best = { t, z };
+    }
+    return best?.t ?? null;
   }
 
   private get isGm(): boolean {
@@ -1974,7 +2105,7 @@ export class Board implements BoardApi {
         return;
       }
       // (In the Build tool a right-click never selects a token: the selection bar would hide its controls.)
-      const hit = e.button === 2 && st.tool !== "build" && !this.fogged(pos) ? this.itemAt(pos) : null;
+      const hit = e.button === 2 && st.tool !== "build" && !this.fogged(pos) ? this.pickAt(pos) : null;
       this.startPan(e.pointerId, pos, hit ? () => this.room.select([hit.id]) : undefined);
       return;
     }
@@ -2060,7 +2191,7 @@ export class Board implements BoardApi {
   }
 
   private selectDown(pointerId: number, pos: Point, world: Point, shift: boolean): void {
-    const hit = this.fogged(pos) ? null : this.itemAt(pos);
+    const hit = this.fogged(pos) ? null : this.pickAt(pos);
     const s = this.room.state;
     if (hit && shift && hit.kind !== "fog") {
       this.toggleSelected(hit.id);
@@ -2228,7 +2359,12 @@ export class Board implements BoardApi {
     for (const p of [pos, { x: pos.x + r, y: pos.y }, { x: pos.x - r, y: pos.y }, { x: pos.x, y: pos.y + r }, { x: pos.x, y: pos.y - r }]) {
       if (this.fogged(p)) continue;
       // Tokens sit above drawings, so a token under the eraser is what gets erased there.
-      const token = this.itemAt(p, this.tokenLayer);
+      let token = this.itemAt(p, this.tokenLayer);
+      if (isCompass(token)) {
+        // Not a compass (Delete takes one away): the eraser goes on to what's under it.
+        const n = this.tokens.get(token.id);
+        token = n ? this.tokenUnder(this.toWorld(p), n.group) : null;
+      }
       if (token?.kind === "token") {
         if (g.ids.has(token.id)) continue;
         if (token.locked) {
@@ -2242,7 +2378,7 @@ export class Board implements BoardApi {
         if (!canDelete(token, me)) continue;
         g.ids.add(token.id);
         this.tokens.get(token.id)?.group.hide();
-        this.tokenLayer.batchDraw();
+        this.drawTokens();
         continue;
       }
       const item = this.itemAt(p, this.drawLayer);
@@ -3215,6 +3351,46 @@ export class Board implements BoardApi {
     }
   }
 
+  /** Whether Alt means something here (the Build tool, or a compass this tab may size), so the browser shouldn't have it. */
+  private altIsOurs(): boolean {
+    const s = this.room.state;
+    if (s.tool === "build") return true;
+    return s.tool === "select" && s.selection.some((id) => {
+      const item = s.items[id];
+      return isCompass(item) && this.room.canMoveItem(item);
+    });
+  }
+
+  /**
+   * Move & select, with the pointer over a selected compass this tab may turn: the selected
+   * compasses the wheel turns. Otherwise none, and the wheel zooms as usual.
+   */
+  private wheelCompasses(pos: Point): TokenItem[] {
+    const s = this.room.state;
+    if (s.tool !== "select" || this.room.display) return [];
+    const hit = this.itemAt(pos, this.tokenLayer);
+    if (!isCompass(hit) || !s.selection.includes(hit.id) || !this.room.canMoveItem(hit)) return [];
+    return s.selection.map((id) => s.items[id]).filter((i): i is TokenItem => isCompass(i) && this.room.canMoveItem(i));
+  }
+
+  /**
+   * Wheel steps over a selected compass, as over the Build tool's objects: turns of 15 degrees
+   * (5 with Z) or, with Alt, a quarter square bigger or smaller (up is bigger). A burst of them
+   * is one undo step.
+   */
+  private wheelCompass(list: TokenItem[], intent: "turn" | "fine-turn" | "size", steps: number): void {
+    const patch: ItemPatch[] = [];
+    for (const t of list) {
+      if (intent === "size") {
+        const size = sizeBy(t.size, -steps * COMPASS_SIZE_STEP);
+        if (size !== t.size) patch.push({ id: t.id, set: { size } });
+      } else {
+        patch.push({ id: t.id, set: { rotation: turnBy(t.rotation, steps * (intent === "turn" ? 15 : 5)) } });
+      }
+    }
+    if (patch.length) this.room.change({ patch }, true, `compass|${this.burstKey()}|${list.map((t) => t.id).join()}`);
+  }
+
   private polyClick(world: Point): void {
     const scene = this.renderedScene!;
     const o = this.room.state.fogOpts;
@@ -3443,7 +3619,7 @@ export class Board implements BoardApi {
           n.shape.position({ x: n.base.x + dx, y: n.base.y + dy });
           moves.push({ id, x: round2(dx), y: round2(dy) });
         }
-        if (g.origs.size) this.tokenLayer.batchDraw();
+        if (g.origs.size) this.drawTokens();
         if (g.drawings.length) this.drawLayer.batchDraw();
         if (now - g.lastEph > EPH_INTERVAL) {
           g.lastEph = now;
@@ -3779,7 +3955,9 @@ export class Board implements BoardApi {
         const inside = (x: number, y: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
         const picked: string[] = [];
         for (const [id, n] of this.tokens) {
-          if (n.item && inside(n.item.x, n.item.y) && !this.fogged(this.toScreen(n.item))) picked.push(id);
+          // (Nor what can't be clicked: a compass, for players.)
+          if (!n.item || !n.group.listening()) continue;
+          if (inside(n.item.x, n.item.y) && !this.fogged(this.toScreen(n.item))) picked.push(id);
         }
         for (const [id, n] of this.drawings) {
           const r = n.shape.getClientRect({ relativeTo: this.drawLayer });
@@ -3889,7 +4067,7 @@ export class Board implements BoardApi {
           this.tokens.get(id)?.group.show();
         }
         this.drawLayer.batchDraw();
-        this.tokenLayer.batchDraw();
+        this.drawTokens();
         break;
       case "build-paint":
       case "build-rect":
@@ -3940,9 +4118,11 @@ export class Board implements BoardApi {
       e.timeStamp || performance.now(),
     );
     const target = this.wheelTarget();
+    // Over a selected compass with Move & select, the wheel turns it as it turns the Build tool's objects.
+    const compasses = target ? [] : this.wheelCompasses(pos);
     const intent = wheelIntent(
       { ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey, z: this.zDown, dx, dy },
-      target,
+      target ?? (compasses.length ? "selection" : null),
       step.kind,
       this.room.state.wheelTurns,
     );
@@ -3956,6 +4136,7 @@ export class Board implements BoardApi {
     if (intent !== "default") {
       // Over objects in the Build tool: the wheel turns or sizes them, as in Dungeondraft.
       if (target && step.steps) this.wheelStep(target, intent, step.steps);
+      else if (compasses.length && step.steps) this.wheelCompass(compasses, intent, step.steps);
       return;
     }
     const looksLikeTrackpadScroll = mode === 0 && (Math.abs(dx) > 0 || Math.abs(dy) < 40);
@@ -3970,7 +4151,12 @@ export class Board implements BoardApi {
   private onDragOver = (e: DragEvent): void => {
     if (this.room.display) return;
     const types = e.dataTransfer ? [...e.dataTransfer.types] : [];
-    if (types.includes("application/x-tabletop-asset") || types.includes("Files")) {
+    if (
+      types.includes("application/x-tabletop-asset") ||
+      types.includes(MONSTER_DRAG_TYPE) ||
+      types.includes(NPC_DRAG_TYPE) ||
+      types.includes("Files")
+    ) {
       e.preventDefault();
       e.dataTransfer!.dropEffect = "copy";
     }
@@ -3988,6 +4174,18 @@ export class Board implements BoardApi {
     const assetId = e.dataTransfer?.getData("application/x-tabletop-asset");
     if (assetId) {
       this.room.addToken({ assetId }, world);
+      return;
+    }
+    // A creature from the GM's Monsters list, hidden or not as the list showed.
+    const monster = readMonsterDrag(e.dataTransfer?.getData(MONSTER_DRAG_TYPE));
+    if (monster) {
+      void placeMonster(this.room, monster.id, world, monster.hidden);
+      return;
+    }
+    // An NPC from the GM's NPCs list, likewise.
+    const npc = readNpcDrag(e.dataTransfer?.getData(NPC_DRAG_TYPE));
+    if (npc) {
+      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden);
       return;
     }
     void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
@@ -4087,8 +4285,9 @@ export class Board implements BoardApi {
     if (document.querySelector(".modal-backdrop")) return;
     const mod = e.ctrlKey || e.metaKey;
     if (key === "Alt") {
-      // Alt reverses the Build tool, as in Dungeondraft; keep the browser's menu out of it.
-      if (this.room.state.tool === "build") e.preventDefault();
+      // Alt reverses the Build tool, as in Dungeondraft, and Alt+wheel sizes a selected
+      // compass; keep the browser's menu out of it.
+      if (this.altIsOurs()) e.preventDefault();
       this.setAlt(true);
       return;
     }
@@ -4312,7 +4511,7 @@ export class Board implements BoardApi {
 
   private onKeyUp = (e: KeyboardEvent): void => {
     if (e.key === "Alt") {
-      if (this.room.state.tool === "build") e.preventDefault();
+      if (this.altIsOurs()) e.preventDefault();
       this.setAlt(false);
     }
     if (e.key === "z" || e.key === "Z") this.zDown = false;

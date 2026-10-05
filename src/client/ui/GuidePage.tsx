@@ -13,15 +13,23 @@ const AUDIENCE: Record<GuideSection["audience"], string> = {
   everyone: "For everyone",
 };
 
-/** Text with **bold** (UI labels) and `code` (things to type) marked up. */
+/** Text with **bold** (UI labels), `code` (things to type) and [links](https://…) marked up. */
 function Rich(props: { text: string }): ComponentChildren {
   const out: ComponentChildren[] = [];
-  const re = /\*\*(.+?)\*\*|`(.+?)`/g;
+  const re = /\*\*(.+?)\*\*|`(.+?)`|\[(.+?)\]\((https:\/\/[^)\s]+)\)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(props.text))) {
     if (m.index > last) out.push(props.text.slice(last, m.index));
-    out.push(m[1] !== undefined ? <strong key={m.index}>{m[1]}</strong> : <code key={m.index}>{m[2]}</code>);
+    if (m[1] !== undefined) out.push(<strong key={m.index}>{m[1]}</strong>);
+    else if (m[2] !== undefined) out.push(<code key={m.index}>{m[2]}</code>);
+    else {
+      out.push(
+        <a key={m.index} href={m[4]} target="_blank" rel="noopener noreferrer">
+          {m[3]}
+        </a>,
+      );
+    }
     last = m.index + m[0].length;
   }
   if (last < props.text.length) out.push(props.text.slice(last));

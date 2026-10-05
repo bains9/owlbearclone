@@ -5,6 +5,7 @@ import { stepByCells } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { ItemPatch, TokenItem } from "../../shared/types";
+import { isCompass } from "../../shared/types";
 import type { RoomClient } from "./client";
 
 function selectedItems(room: RoomClient) {
@@ -50,17 +51,23 @@ export function numberedCopy(label: string, taken: string[]): string {
 export function duplicateSelection(room: RoomClient): void {
   const s = room.state;
   if (!s.me) return;
-  const tokens = selectedTokens(room);
+  // Players can't add compasses, so theirs never come into it.
+  let tokens = selectedTokens(room).filter((t) => room.isGm || !isCompass(t));
   if (!tokens.length) return;
   if (!room.isGm && !s.room?.settings.playersCanAddTokens) return;
   const scene = room.viewScene;
   if (!scene) return;
+  // Only as many compass copies as the scene has room for.
+  let fit = room.isGm ? room.compassesFit(tokens[0].sceneId, tokens.filter(isCompass).length) : 0;
+  tokens = tokens.filter((t) => !isCompass(t) || fit-- > 0);
+  if (!tokens.length) return;
   let z = room.nextZ(tokens[0].sceneId, "token");
   const taken = Object.values(s.items)
     .filter((i): i is TokenItem => i.kind === "token" && i.sceneId === tokens[0].sceneId)
     .map((t) => t.label);
   const copies: TokenItem[] = tokens.map((t) => {
-    const label = numberedCopy(t.label, taken);
+    // A compass keeps its "N" (no numbering: it never shows a label).
+    const label = isCompass(t) ? t.label : numberedCopy(t.label, taken);
     taken.push(label);
     // One cell to the right (on hex grids, the next hex over).
     const p = stepByCells(t, 1, 0, scene.grid);

@@ -16,7 +16,7 @@ import type {
   SceneMapData,
   SceneSeason,
 } from "./types";
-import { SEASON_LOOKS } from "./types";
+import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
 import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 
 export const LIMITS = {
@@ -38,6 +38,11 @@ export const LIMITS = {
   itemsPerScene: 5000,
   /** A Dungeondraft picture's rectangle in its map, in squares, either way from the origin. */
   mapRectMax: 10_000,
+  /** Compass roses on one scene (one is usual). */
+  compassesPerScene: 20,
+  /** What one grid square can be, in whatever unit the scene measures in. */
+  gridUnitMin: 0.01,
+  gridUnitMax: 100_000,
 } as const;
 
 // Ids can't start with "__" (so "__proto__" never becomes a key in a plain object).
@@ -190,6 +195,31 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
     if (x === undefined || y === undefined) return null;
     const assetId = r.assetId === undefined || r.assetId === null ? null : isId(r.assetId) ? r.assetId : undefined;
     if (assetId === undefined) return null;
+    // Built-in art this code doesn't know is refused rather than kept as a plain token.
+    const art = r.art === undefined || r.art === null ? null : TOKEN_ARTS.find((a) => a === r.art);
+    if (art === undefined) return null;
+    if (art === "compass") {
+      // Drawn by the browser, under characters: never an image, never a character.
+      return {
+        id: r.id,
+        sceneId: r.sceneId,
+        kind: "token",
+        z,
+        owner,
+        x,
+        y,
+        size: num(r.size, LIMITS.tokenSizeMin, LIMITS.tokenSizeMax) ?? 2,
+        rotation: rotation(r.rotation) ?? 0,
+        assetId: null,
+        color: cleanColor(r.color) ?? "#d62f2f",
+        label: cleanText(r.label, LIMITS.label) ?? "N",
+        hidden: bool(r.hidden) ?? false,
+        locked: bool(r.locked) ?? false,
+        rings: rings(r.rings) ?? [],
+        layer: "prop",
+        art,
+      };
+    }
     return {
       id: r.id,
       sceneId: r.sceneId,
@@ -276,6 +306,10 @@ export function sanitizeSet(item: Item, raw: unknown): Partial<MutableFields> | 
     if (!shapePointsOk(item.kind, item.shape, out.points as number[])) return null;
   }
   if (item.kind === "terrain" && !terrainFieldsOk(!!item.hidden, out as Partial<MutableFields>)) return null;
+  // A compass stays a compass: a prop, drawn without an image.
+  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null))) {
+    return null;
+  }
   if ("text" in out && !(item.kind === "drawing" && item.shape === "text")) return null;
   return out as Partial<MutableFields>;
 }
@@ -295,7 +329,7 @@ export function sanitizeGrid(raw: unknown, fallback: GridSettings): GridSettings
     snap: bool(r.snap) ?? fallback.snap,
     color: cleanColor(r.color) ?? fallback.color,
     opacity: num(r.opacity, 0, 1) ?? fallback.opacity,
-    unit: num(r.unit, 0.01, 100000) ?? fallback.unit,
+    unit: num(r.unit, LIMITS.gridUnitMin, LIMITS.gridUnitMax) ?? fallback.unit,
     unitName: cleanText(r.unitName, 12) ?? fallback.unitName,
     diagonal: DIAGONALS.includes(r.diagonal as DiagonalRule) ? (r.diagonal as DiagonalRule) : fallback.diagonal,
   };
@@ -367,7 +401,11 @@ export function sanitizeMapRect(v: unknown): [number, number, number, number] | 
   return w > 0 && h > 0 ? [x, y, w, h] : undefined;
 }
 
-export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
+/**
+ * A whole scene, or with `existing`, a change to one. `grid` fills in whatever grid settings
+ * a new scene leaves out (the room's own defaults: feet or metres).
+ */
+export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings = DEFAULT_GRID): Scene | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   if (!isId(r.id)) return null;
@@ -396,7 +434,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene): Scene | null {
     width,
     height,
     background: cleanColor(r.background) ?? existing?.background ?? "#2b2f36",
-    grid: sanitizeGrid(r.grid, existing?.grid ?? DEFAULT_GRID),
+    grid: sanitizeGrid(r.grid, existing?.grid ?? grid),
     fogCover: bool(r.fogCover) ?? existing?.fogCover ?? false,
     createdAt: existing?.createdAt ?? num(r.createdAt, 0, 1e15) ?? Date.now(),
     ...(season ? { season } : {}),
@@ -431,10 +469,13 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
 
 export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSettings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const metric = bool(r.metric) ?? current.metric;
   return {
     playersCanDraw: bool(r.playersCanDraw) ?? current.playersCanDraw,
     playersCanAddTokens: bool(r.playersCanAddTokens) ?? current.playersCanAddTokens,
     playersMoveAll: bool(r.playersMoveAll) ?? current.playersMoveAll,
+    // Left out (a page from before metres, say) keeps what the room has; a room that never had it stays without.
+    ...(metric !== undefined ? { metric } : {}),
   };
 }
 
@@ -442,4 +483,6 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   playersCanDraw: true,
   playersCanAddTokens: true,
   playersMoveAll: true,
+  // This table is metric. Rooms made before the setting existed have none: they stay in feet.
+  metric: true,
 };

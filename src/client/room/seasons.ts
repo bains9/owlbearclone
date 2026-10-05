@@ -229,6 +229,14 @@ export class SeasonBaker {
   }
 
   /**
+   * Whether a job's own picture is still to come: none made yet (not even the quick one), and
+   * not given up on for now. The board says "Making the season…" meanwhile.
+   */
+  making(key: string): boolean {
+    return !this.disposed && !this.results.has(key) && !this.failed.has(key);
+  }
+
+  /**
    * How much of the map is open ground with plants (for the "indoor map" hint), from the analysis in
    * use, if known. data: the job's data, when its bake uses it (its share is kept apart).
    */

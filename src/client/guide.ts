@@ -34,6 +34,75 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "NPC tokens by race and class (4 October 2026, later)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then the **NPCs** tab.",
+          "Pick a race and a class, then click **Place** to put the NPC in the middle of your view, or drag the picture onto the map."
+        ],
+        "notes": [
+          "A token for any of the 17 races and 14 classes in the group's own campaign handbook, from a Nyloran Mage to an Urk Death Knight: the race's head on a dark disc, a ring in the class's colour and a small badge with the class's emblem. The picture in the panel shows it before you place it.",
+          "It's named after the pair, \"Octran Crusader\", numbered like duplicates when the scene already has one, and sized for the map's squares by the race's D&D size (one square: gnomes, goblins and kobolds are Small, the rest Medium).",
+          "**Add hidden** works as on the **Monsters** tab, and is the same setting: tick it on either tab and both add hidden.",
+          "NPC tokens work like any picture token, on every page and on the table display. Only the **NPCs** tab needs a reload (**Update: Reload**) on a page opened before this update.",
+          "See **NPC tokens by race and class**."
+        ]
+      },
+      {
+        "title": "Measure in metres (4 October 2026)",
+        "steps": [
+          "GM: open **Room settings** (the gear) and, under **Measuring**, tick **Measure in metres (1.5 m a square)**.",
+          "If the room has scenes measured in feet, choose **Switch them too** to change them to metres as well, or **Only new scenes** to leave them as they are."
+        ],
+        "notes": [
+          "With it ticked, every new scene in the room starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps and Owlbear Rodeo scenes. Owlbear scenes measured in feet come over in metres (5 ft becomes 1.5 m), and ones already in metres keep their scale.",
+          "The ruler and spell areas then read in metres, for example \"4.5 m\", \"6 m radius\" or \"7.5 m cone\".",
+          "New rooms measure in metres from the start. Rooms made before this update keep measuring in feet, and none of their scenes change, until the GM ticks the box.",
+          "Switching the scenes changes 5 ft to 1.5 m and 10 ft to 3 m (feet times 0.3, to the nearest 0.1 m). Scenes in metres or other units, like squares, stay as they are. Unticking the box offers the same the other way: 1.5 m back to 5 ft. **Undo** (Ctrl+Z) switches the scenes back in one step.",
+          "Any scene can still have its own distance, under **Distance** in **Edit scene**.",
+          "See **Measure in metres** in **Room settings and backups**."
+        ]
+      },
+      {
+        "title": "Monsters ready to use (3 October 2026, later)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then the **Monsters** tab.",
+          "Click a monster to put it in the middle of your view, or drag it onto the map."
+        ],
+        "notes": [
+          "55 ready-made monsters, from goblins and skeletons to an ancient dragon, each a light picture on a dark disc with a coloured ring for its kind of creature.",
+          "Each one comes in at its D&D size, so it fits the map's squares: a Large ogre covers 2 by 2, a Huge giant 3 by 3.",
+          "Tick **Add hidden** to set up an ambush: the monsters you add are hidden from players until you show them.",
+          "The size list in the token bar now says which D&D sizes go with each size, for every token: **½×½ (Tiny)**, **1×1 (Small/Medium)**, **2×2 (Large)**, **3×3 (Huge)**, **4×4 (Gargantuan)**.",
+          "Monsters work like any picture token, on every page and on the table display. Only the **Monsters** tab needs a reload (**Update: Reload**) on a page opened before this update.",
+          "See **Monsters**."
+        ]
+      },
+      {
+        "title": "A compass for any map (3 October 2026)",
+        "steps": [
+          "GM: click **Tokens & images** in the top bar, then **Compass**.",
+          "Turn it with the dial in the bar at the bottom until its red N points to the map's north."
+        ],
+        "notes": [
+          "A compass rose you put on the map, like a prop. Everyone sees it, the table display too, and fog never hides it. Only the GM can move, turn, size, lock or delete it.",
+          "North can point any way: the dial turns it in 5° steps, the arrow buttons 15°, and with a mouse the wheel turns the selected compass under the pointer (15° a notch, 5° with **Z** held).",
+          "Pages opened before this update don't show compasses: they're asked to reload (**Update: Reload**).",
+          "See **A compass on the map**."
+        ]
+      },
+      {
+        "title": "Maps say when they're loading (3 October 2026)",
+        "steps": [],
+        "notes": [
+          "While a scene's map is still on its way, the board says **Loading map…** in the middle. It only shows when the map takes more than a moment, so a map your browser already has just appears, and it goes as soon as the map is there.",
+          "Every loading map comes with a word about Baldr, a different one each time. It doesn't make the map any faster, but Baldr insists.",
+          "If the map can't load, the board says \"Couldn't load the map, trying again…\" while it tries again by itself (no Baldr then: that's a real problem). If it still can't, it says \"Couldn't load the map. Check the connection, then try again.\", with a **Try again** button.",
+          "While a season is being made for the map, a small note in a corner says **Making the season…** until the seasonal look appears. A device with seasons turned off never shows it.",
+          "Everyone sees these, the table display too (in bigger letters). None of them gets in the way: the board under them works as usual.",
+          "See \"The map doesn't appear\" in **Troubleshooting**."
+        ]
+      },
+      {
         "title": "Dungeondraft project files explained (30 September 2026)",
         "steps": [
           "GM: in Dungeondraft, choose **Export** and set the export mode to **Universal VTT**.",
@@ -259,7 +328,7 @@ export const GUIDE: GuideSection[] = [
           "**Tokens & images**: quick coloured tokens and uploaded images to put on the map. If the GM has turned this off for players, the panel says \"The GM has turned off adding tokens for players.\"",
           "**Initiative**: the turn order for combat.",
           "**Scenes** (GM only): every scene in the room. Preview one privately, or show it to the players.",
-          "**Room settings** (GM only): the room's name, the invite link, what players are allowed to do, backups, and deleting the room.",
+          "**Room settings** (GM only): the room's name, the invite link, what players are allowed to do, whether distances are in metres, backups, and deleting the room.",
           "Only one panel is open at a time. On a large screen, **Chat & dice** opens by itself when you enter a room."
         ]
       },
@@ -448,6 +517,8 @@ export const GUIDE: GuideSection[] = [
           "The picture keeps its shape and is fitted inside the token's square. If it has a name, the name is shown underneath.",
           "Players only see the pictures they uploaded themselves, and can have up to 100. After that they see **You've uploaded as many images as a player can. Delete some of yours first.**",
           "GM: your **Tokens** tab also lists the pictures players have uploaded.",
+          "GM: the **Monsters** tab has 55 ready-made monsters, sized for the map. See **Monsters**.",
+          "GM: the **NPCs** tab makes a token for any race and class from the campaign handbook. See **NPC tokens by race and class**.",
           "The GM's **Maps** tab holds map pictures. You use those from the **Scenes** panel."
         ]
       },
@@ -463,7 +534,7 @@ export const GUIDE: GuideSection[] = [
           "On a phone or tablet, the two buttons are always showing.",
           "Each uploaded picture starts out named after its file.",
           "To delete a picture, click **Delete** (the bin). You're asked **Delete image?** first, and then it's removed for good.",
-          "The warning says anything using the picture will show a blank. On the map, a token that used it turns into a plain coloured circle showing the first letters of its name. A scene that used it as its map shows just its background.",
+          "The warning says anything using the picture will show a blank. On the map, a token that used it turns into a plain coloured circle showing the first letters of its name. A scene that used it as its map shows just its background, with the message that it couldn't load the map.",
           "GM: you can rename or delete any picture, including the ones players uploaded. Players can only rename or delete their own."
         ]
       },
@@ -519,7 +590,7 @@ export const GUIDE: GuideSection[] = [
           "Click a token to select it. A bar with its settings appears at the bottom of the map.",
           "Type a name in the **Name** box.",
           "Press **Enter**, or click somewhere else, to save the name.",
-          "Choose a size from the **Size in squares** list: ½×½, 1×1, 2×2, 3×3, 4×4 or 6×6.",
+          "Choose a size from the **Size in squares** list: ½×½ (Tiny), 1×1 (Small/Medium), 2×2 (Large), 3×3 (Huge), 4×4 (Gargantuan) or 6×6.",
           "For a plain coloured token, click a colour dot to change its colour.",
           "Click one of the six hollow coloured rings to put that ring around the token. Click it again to take it off.",
           "Click **Rotate left** or **Rotate right** to turn the token 45 degrees.",
@@ -528,6 +599,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Press **Escape** in the **Name** box to cancel a name change.",
+          "The names in brackets are the D&D sizes of creature that take up that much of the map: a Tiny creature half a square, Small and Medium ones a square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
           "A ring brightens when it's on. Pointing at the rings shows **Status rings**. The six colours are red, orange, green, blue, purple and white, and a token can wear several at once.",
           "Props, such as doors, chests or furniture, always sit underneath characters. Click the armchair again to turn a prop back into a character.",
           "**Add to initiative** adds the token with its name and a score of 0, then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
@@ -598,6 +670,89 @@ export const GUIDE: GuideSection[] = [
           "Players can't move, change or delete a locked token, but you still can.",
           "With several tokens selected, the button is called **Lock or unlock (L)**.",
           "A player who's allowed to add tokens can still copy a locked token. The copy isn't locked and belongs to that player, so they can move and delete it."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "monsters",
+    "title": "Monsters",
+    "audience": "gm",
+    "intro": "Tabletop comes with 55 ready-made monsters, from goblins and skeletons to an ancient dragon. Each is a token that comes in at its D&D size, so it fits the map's squares, named after the creature. Only you can see the list.",
+    "parts": [
+      {
+        "title": "Place a monster",
+        "steps": [
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click the **Monsters** tab, between **Tokens** and **Maps**.",
+          "To find one, type part of its name in the **Search monsters** box, or pick a kind of creature from the **All types** list.",
+          "Click the monster to put it in the middle of your view, or drag it onto the map and let go where you want it."
+        ],
+        "notes": [
+          "A monster you click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
+          "Each monster is a light picture on a dark disc, with a coloured ring for its kind: gold for humanoids, teal for undead, green for beasts, orange for monstrosities, brown for giants, red for dragons, pink for fiends, blue for elementals, grey for constructs, yellow-green for plants and purple for fey.",
+          "The first time you use a monster in a room it takes a moment: its picture is made and uploaded, and a monster you clicked is dimmed in the list until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"Monster: \" and the creature's name. If you rename or delete it, the next one you place makes a new picture.",
+          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+        ]
+      },
+      {
+        "title": "NPC tokens by race and class",
+        "steps": [
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click the **NPCs** tab, between **Monsters** and **Maps**.",
+          "Pick a race from the **Race** list and a class from the **Class** list. The picture below shows the token as it will look.",
+          "Click **Place** (or the picture) to put it in the middle of your view, or drag the picture onto the map and let go where you want it."
+        ],
+        "notes": [
+          "An NPC you place with **Place** or a click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
+          "The races and classes are the group's own, from the campaign handbook: the races in the groups Elves (Nyloran, Sylvan, Duga, Half-elf), Dwerves and gnomes (Dwerv, Gnome), Humans (Oesir, Firgald, Wyddin, Danae, Octran) and NPC races (Goblin, Hobgoblin, Lizardfolk, Kobold, Sea Elf, Urk); the classes in Classes (Fighter, Crusader, Samurai, Ranger, Cleric, War Cleric, Nature Cleric, Rogue, Monk, Mage, Shaman) and NPC classes (Necromancer, Death Knight, Bog Witch).",
+          "The token is the race's head, in the race's colour, on a dark disc, with a ring in the class's colour and a small round badge at the bottom right in the same colour, holding the class's emblem. The token's own colour (the one its initiative entry gets) is the class's too.",
+          "It's named after the pair, \"Octran Crusader\", and numbered when the scene already has one: \"Octran Crusader 2\", then one higher than the highest number there, as duplicates are. Other scenes don't count.",
+          "Each comes in at the race's D&D size: Gnome, Goblin and Kobold are Small, every other race Medium, and both are one square. Pointing at the picture or **Place** says so, for example \"Octran Crusader: Medium, 1×1 squares\". To change it, select the token and pick another size from the **Size in squares** list in the bar.",
+          "**Add hidden** is the same setting as on the **Monsters** tab, remembered on this device: tick it on either tab and both add hidden, until you untick it. Hidden NPCs work like hidden monsters: see **Add hidden, for ambushes**.",
+          "The first time you use a race and class together in a room it takes a moment: its picture is made and uploaded, and the picture is dimmed and **Place** waits until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"NPC: \" and the pair's name. If you rename or delete it, the next one you place makes a new picture.",
+          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+        ]
+      },
+      {
+        "title": "Sizes",
+        "steps": [],
+        "notes": [
+          "The letter in the corner of each monster is its D&D size: **T** Tiny, **S** Small, **M** Medium, **L** Large, **H** Huge, **G** Gargantuan.",
+          "Each size covers as many squares as in D&D: Tiny half a square, Small and Medium one square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
+          "Pointing at a monster in the list shows its size and kind, for example \"Ogre: Large giant, 2×2 squares\".",
+          "To change a monster's size on the map, select it and pick another from the **Size in squares** list in the bar. The list says which D&D sizes go with each size, for every token."
+        ]
+      },
+      {
+        "title": "Add hidden, for ambushes",
+        "steps": [
+          "Tick **Add hidden**, above the monsters.",
+          "Place the monsters as usual.",
+          "When the players spring the trap, select the monsters and press **H** (or click the crossed-out eye in the bar) to show them."
+        ],
+        "notes": [
+          "Hidden monsters are see-through for you, with a dashed white ring, and players' browsers never receive them, so they can't be spotted early. Their initiative entries are hidden from players too.",
+          "**Add hidden** stays ticked on this device (the browser remembers it) until you untick it, so remember to untick it when you want monsters in plain sight."
+        ]
+      },
+      {
+        "title": "Several of the same monster",
+        "steps": [
+          "Click the same monster again for each one you want, or select one on the map and press **Ctrl+D**."
+        ],
+        "notes": [
+          "They get numbered names, as duplicates do: the first is \"Goblin\", the next \"Goblin 2\", then \"Goblin 3\", always one higher than the highest number already on the scene.",
+          "Monsters on other scenes don't count, so each scene starts again at \"Goblin\"."
+        ]
+      },
+      {
+        "title": "Where the pictures come from",
+        "steps": [],
+        "notes": [
+          "Monster icons by Lorc, Delapouite, Caro Asercion, Cathelineau and Skoll (recoloured and set on token discs), from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).",
+          "The same credit is at the bottom of the **Monsters** tab.",
+          "NPC icons by Delapouite, Lorc, Cathelineau and Caro Asercion (recoloured and set on token discs), from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The races and classes themselves are the group's own, from its campaign handbook. The same credit is at the bottom of the **NPCs** tab."
         ]
       }
     ]
@@ -780,14 +935,15 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure** (the ruler) in the toolbar, or press **M**.",
           "Choose **Ruler** in the bar that appears.",
           "Drag from the starting point to where you want to go.",
-          "Read the distance on the label at the end, for example \"30 ft\".",
+          "Read the distance on the label at the end, for example \"30 ft\", or \"9 m\" in a room that measures in metres.",
           "Let go to clear the ruler."
         ],
         "notes": [
           "When the scene's **Snap tokens** box is ticked (in the **Scenes** panel, under **Grid**), the ruler runs from the centre of one square to the centre of another. With it unticked, the ruler measures from exactly where you press.",
-          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square.",
+          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square. In a room that measures in metres it says One square is 1.5 m.",
           "Depending on how the GM has set up the scene, diagonals count as one square, alternate one and two squares, or use straight-line distance. On hex grids, distance is always counted in hexes.",
-          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with), **Unit** (ft) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
+          "Distances are rounded to a tenth: \"7.5 m\", \"6 m\" (never \"6.0 m\").",
+          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with, or 1.5 in a room that measures in metres), **Unit** (ft, or m) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
         ]
       },
       {
@@ -796,7 +952,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure**, or press **M**.",
           "Pick a shape: **Circle (radius from a point)**, **Cone**, **Cube** or **Line (one square wide)**.",
           "Drag outwards from where the spell starts.",
-          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\".",
+          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\" (in metres, \"6 m radius\" or \"4.5 m cone\").",
           "Let go to clear it."
         ],
         "notes": [
@@ -1140,6 +1296,7 @@ export const GUIDE: GuideSection[] = [
           "**Clear all drawings** (GM) and **Clear my drawings** can be undone as well.",
           "GM: giving a scene a different map counts as one undo step. **Undo** brings back the old map and its fog. Other scene changes, such as its name or grid, can't be undone.",
           "Undo doesn't cover chat messages and rolls, the initiative list, room settings, or scenes brought in from a backup or an Owlbear Rodeo file.",
+          "GM: one exception to \"the scene you're looking at\": switching the room's scenes between feet and metres (**Measure in metres** in **Room settings**) is one undo step for all of them, and **Undo** reaches it from any scene. It puts back each scene's distance unit and nothing else; the room setting itself stays as you set it.",
           "Each scene keeps its own undo history. If you switch to another scene, **Undo** works on that scene. When you come back, you can still undo your earlier changes there, as long as they're among your last 200.",
           "Deleting a scene throws away its undo history.",
           "Your undo history only lasts while the page is open. If you reload the page, it starts fresh."
@@ -1239,6 +1396,7 @@ export const GUIDE: GuideSection[] = [
           "Room names can be up to 60 characters.",
           "A new room starts with one blank grid scene called \"Scene 1\", which players see as soon as they join.",
           "New rooms start with players allowed to add tokens, move any unlocked token, and draw on the map. To change that, open **Room settings** and untick the boxes under **What players can do**.",
+          "New rooms measure in metres: \"Scene 1\" and every new scene start with one square being 1.5 m. To use feet instead, untick **Measure in metres (1.5 m a square)** in **Room settings**.",
           "Until you make your first room, the list says \"No rooms yet. Create one above.\""
         ]
       },
@@ -1382,7 +1540,7 @@ export const GUIDE: GuideSection[] = [
           "Doesn't come over: walls and lights.",
           "Doesn't come over: tokens whose pictures you didn't tick when you exported.",
           "Doesn't come over: video maps.",
-          "Distance settings aren't read from Owlbear. Every scene starts with one square being 5 ft and diagonals counted the D&D 5e way. You can change this in **Edit scene**.",
+          "Distance: in a room that measures in metres, each scene comes over with Owlbear's scale in metres. 5ft becomes 1.5 m and 10ft becomes 3 m; a scale already in metres, or in other units, stays as it is. In a room that measures in feet, every scene starts with one square being 5 ft, whatever Owlbear says. Either way diagonals are counted the D&D 5e way. You can change this in **Edit scene**.",
           "Grid display settings aren't read from Owlbear either. Every scene starts with the grid lines showing (faint black) and tokens snapping to the grid. Change these under **Grid** in **Edit scene**."
         ]
       },
@@ -1878,12 +2036,13 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Units and diagonals",
         "steps": [
-          "Under **Distance**, set **One square is**, for example 5.",
-          "Set **Unit**, for example ft.",
+          "Under **Distance**, set **One square is**, for example 5 (or 1.5 for metres).",
+          "Set **Unit**, for example ft (or m).",
           "For square grids, choose how **Diagonals** count: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
         ],
         "notes": [
-          "New scenes start with one square being 5 ft and diagonals counted the D&D 5e way.",
+          "New scenes start with one square being 5 ft, or 1.5 m in a room that measures in metres, and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
+          "To change every scene in the room between feet and metres at once, use **Measure in metres** in **Room settings** rather than each scene.",
           "The ruler uses these settings."
         ]
       },
@@ -1938,7 +2097,8 @@ export const GUIDE: GuideSection[] = [
           "The shuffle button next to the strengths keeps the season but moves the snow drifts, fallen leaves or flowers to other places.",
           "Picking a season starts at the strength you last used for it on this device (the middle one the first time).",
           "The season button in the top bar shows the scene's season: a snowflake for Winter, a leaf for Autumn, a flower for Spring and a sun for Summer.",
-          "The first time a screen shows a season, it redraws the map: a rough version appears first, then the sharp one a moment later. Going back to a season used a moment ago is instant."
+          "The first time a screen shows a season, it redraws the map: a rough version appears first, then the sharp one a moment later. Going back to a season used a moment ago is instant.",
+          "If that takes more than a moment, a small note in a corner of the board says **Making the season…** (bottom right; at the top on a phone) until the season appears. Meanwhile the map shows as drawn, or in the season it had before."
         ]
       },
       {
@@ -1990,6 +2150,62 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "That device then shows every map as drawn. Everyone else still sees the season, and so does a table display, even one you open on this device. Tick it again to see seasons.",
           "Players can do this too, on their own devices."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "compass",
+    "title": "A compass on the map",
+    "audience": "gm",
+    "intro": "Put a compass rose on any map and turn it so its N points to that map's north, whichever way that is on the picture. It's part of the map: everyone sees it, players and the table display too, and only you can move or change it.",
+    "parts": [
+      {
+        "title": "Add a compass",
+        "steps": [
+          "Go to the scene you want it on: the live one, or one you're previewing.",
+          "Click the **Tokens & images** button (the pictures icon) in the top bar.",
+          "Click **Compass**, under the quick tokens."
+        ],
+        "notes": [
+          "A compass rose two squares across appears in the middle of your view, North pointing up. It's selected, and **Move & select** is switched on, so you can turn or drag it at once. On a phone the panel closes, so you can see it and its bar.",
+          "It belongs to that scene. Each scene can have its own, and a scene can have several (up to 20), though one is usual. At 20, **Compass** and **Duplicate** say so and add no more.",
+          "It sits on top of the map and drawings and under the characters' tokens. Fog never hides it, so players can find their bearings even on a map that's still covered.",
+          "Players and the table display see it, but players can't select, move, turn, size or delete it: a click on it goes to whatever is under it.",
+          "Adding it is one step for **Undo** (Ctrl+Z)."
+        ]
+      },
+      {
+        "title": "Turn it so N points north",
+        "steps": [
+          "With **Move & select** (**V**), click the middle of the compass (where the points meet) to select it.",
+          "In the bar at the bottom, drag the dial until the red N points to the map's north. The number beside it is how far North is turned, clockwise from straight up."
+        ],
+        "notes": [
+          "The arrow buttons either side of the dial turn it 15° at a time. On a phone or tablet, drag the dial with your finger.",
+          "With a mouse, point at the selected compass and scroll the wheel: it turns 15° a notch, as objects do in the Build tool. To turn it 5° at a time, hold **Z** while you scroll. **Alt** and the wheel make it bigger or smaller. Away from the compass, the wheel zooms as usual.",
+          "To zoom while the pointer is over the selected compass (when it fills the view, say), hold **Ctrl** as you scroll, or press **Escape** to let go of the compass first.",
+          "If your mouse wheel moves the map instead of turning it, or you use a trackpad, hold **Z** while you scroll, or use the dial.",
+          "**[** and **]** turn it 45° (15° with **Shift**), as they turn any token.",
+          "One drag of the dial, or one quick run of wheel turns, is one step for **Undo**."
+        ]
+      },
+      {
+        "title": "Move, size, lock or delete it",
+        "steps": [
+          "Drag the compass to move it. It snaps to the grid; hold **Alt** as you let go to put it anywhere.",
+          "To change its size, pick one in the bar (½ to 6 squares).",
+          "To lock it, click the padlock in the bar, or press **L**.",
+          "To remove it, press **Delete**, or click the bin in the bar."
+        ],
+        "notes": [
+          "A locked compass stays exactly as it is, even for you: it can't be dragged, turned or sized until you unlock it (click the padlock or press **L** again). You can still delete it.",
+          "A compass doesn't get in the way of what's under it. While it isn't selected, only its middle picks it: a click elsewhere on it goes to a prop, drawing or note underneath. Once it's selected, you can grab it anywhere.",
+          "The eraser leaves compasses alone and erases what's under them. To remove a compass, select it and press **Delete**.",
+          "The eye button (**H**) hides it from players, as with tokens. You see a hidden compass dimmed.",
+          "**Duplicate** (Ctrl+D) puts a copy one square to the right.",
+          "Each move, turn, size change and delete is one step for **Undo**.",
+          "A page opened before 3 October 2026 doesn't show compasses. It's asked to reload (**Update: Reload**); if the table display is one, you're told so you can reload it."
         ]
       }
     ]
@@ -2374,7 +2590,7 @@ export const GUIDE: GuideSection[] = [
     "id": "room-settings",
     "title": "Room settings and backups",
     "audience": "gm",
-    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, backups, and the option to delete the room.",
+    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, backups, and the option to delete the room.",
     "parts": [
       {
         "title": "Open Room settings",
@@ -2423,6 +2639,23 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Measure in metres",
+        "steps": [
+          "Under **Measuring**, tick **Measure in metres (1.5 m a square)** to measure in metres, or untick it to measure in feet.",
+          "If some of the room's scenes are measured in the other unit, a window asks about them. Click **Switch them too** (**Switch it too** for one scene) to change them as well, **Only new scenes** to leave them as they are, or **Cancel**."
+        ],
+        "notes": [
+          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft, as they always have.",
+          "The line under the box says what new scenes start with, for example \"New scenes start with one square being 1.5 m.\"",
+          "New rooms start with the box ticked. A room made before this setting existed starts with it unticked, and nothing about its scenes changes until you tick it.",
+          "Switching to metres changes each scene measured in feet (ft, ft., feet or foot): 5 ft becomes 1.5 m, 10 ft becomes 3 m, and any other number is multiplied by 0.3 and rounded to the nearest 0.1 m. Unticking offers the reverse: 1.5 m becomes 5 ft, 3 m becomes 10 ft. Scenes in other units, like squares or km, are never changed.",
+          "A square that isn't a whole number of feet comes back slightly changed after a second switch, because of that rounding: 7.5 ft becomes 2.3 m, and switching back makes it 7.7 ft. **Undo** is the exact way back.",
+          "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",
+          "A message says how many scenes were switched, for example \"Switched 3 scenes to metres. Undo (Ctrl+Z) switches them back.\" If no scene needs switching, the box just changes, with no window.",
+          "Everyone's rulers and spell areas follow straight away. Each scene can still have its own distance under **Distance** in **Edit scene**."
+        ]
+      },
+      {
         "title": "Download a backup",
         "steps": [
           "Click **Download backup**.",
@@ -2450,6 +2683,7 @@ export const GUIDE: GuideSection[] = [
           "When the restore is done, a message tells you how much came back, for example \"Restored 3 scenes and 12 images from “Room name”.\"",
           "If you restore the same backup twice, you get two copies of each scene. The images are uploaded again too, so it uses twice as much of the room's image space.",
           "**Undo** can't take back a restore.",
+          "In a room that measures in metres, restored scenes measured in feet come in switched to metres (5 ft becomes 1.5 m), and the message ends \"… measured in feet and now measure in metres, like this room.\" In a room that measures in feet, restored scenes keep their distances as they were.",
           "A room can hold at most 100 scenes. Once it's full, any more scenes from the backup are refused with \"A room can hold at most 100 scenes.\"",
           "If the room runs out of space for images, the restore stops with \"This room has as many images as it can hold. Delete some first.\"",
           "If the file isn't a Tabletop backup, you see a message such as \"That isn't a Tabletop backup (no room.json).\"",
@@ -2506,7 +2740,7 @@ export const GUIDE: GuideSection[] = [
           "**Drag empty map**: move your view, while **Move & select** is on",
           "**Right- or middle-button drag**: move your view, with any tool",
           "**Space+drag**: move your view, with any tool",
-          "**Mouse wheel**: zoom in and out around the pointer (GM: in the Build tool's **Objects**, and in **Select** with objects selected, it turns objects instead)",
+          "**Mouse wheel**: zoom in and out around the pointer (GM: in the Build tool's **Objects**, and in **Select** with objects selected, it turns objects instead, and over a selected compass it turns the compass)",
           "**Ctrl+mouse wheel**: zoom, always, even where the wheel turns objects or moves the map (small, smooth wheel steps are treated like a trackpad scroll)",
           "**Pinch** on a trackpad: zoom",
           "**Two-finger scroll** on a trackpad: move your view",
@@ -2528,6 +2762,7 @@ export const GUIDE: GuideSection[] = [
           "**Escape**: stop what you're in the middle of (a drag, a drawing, a measurement), or clear the selection",
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
+          "**Mouse wheel** over a selected compass: turn it 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller; **Ctrl**+wheel still zooms (GM)",
           "**Alt** while letting go of a token you're dragging: don't snap to the grid",
           "**H**: hide or show the selected tokens, drawings and notes (GM)",
           "**L**: lock or unlock the selected tokens (GM)",
@@ -2651,6 +2886,20 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Changes you made while disconnected are sent once the connection is back, as long as you haven't reloaded.",
           "On a phone, switching back to the browser makes it try again straight away."
+        ]
+      },
+      {
+        "title": "The map doesn't appear",
+        "steps": [
+          "If the board says **Loading map…**, wait: a big map on a slow connection can take a little while. Tokens, the grid and fog are there meanwhile.",
+          "If it says \"Couldn't load the map, trying again…\", it's already trying again by itself. Check your Wi-Fi or mobile data.",
+          "If it says \"Couldn't load the map. Check the connection, then try again.\", it has stopped trying. Check the connection, then click **Try again**.",
+          "If it still won't load, reload the page."
+        ],
+        "notes": [
+          "If the map never loads for anyone, its picture may have been deleted from **Tokens & images**. GM: pick a map for the scene again in the scene editor.",
+          "No message and no map: the scene doesn't have a map (a blank grid, or a map you build).",
+          "**Making the season…** in a corner isn't a problem: the map is there, and its seasonal look follows in a moment. If seasons are slow on a device, see \"If maps are slow to appear on a device\" in **Seasons: snow, autumn leaves, blossom and drought**."
         ]
       },
       {

@@ -12,6 +12,7 @@
 import { LIMITS } from "../shared/sanitize";
 import { simplify } from "../shared/geometry";
 import type { GridType } from "../shared/types";
+import type { GridUnits } from "../shared/units";
 import type { MapFile } from "./mapImport";
 import { nameFromFile } from "./mapImport";
 import { openZip, readEntry, readText } from "./zip";
@@ -69,6 +70,18 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export function isOb2File(f: File): boolean {
   return /\.ob2$/i.test(f.name);
+}
+
+/**
+ * What one cell is, from an Owlbear grid scale: "5ft", "1.5m", "10 ft", "2,5 m". Undefined
+ * when it isn't a number and a unit (the room's own units are used then).
+ */
+export function parseScale(v: unknown): GridUnits | undefined {
+  const m = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(.*?)\s*$/.exec(str(v));
+  if (!m) return undefined;
+  const unit = Number(m[1].replace(",", "."));
+  if (!(unit >= 0.01 && unit <= 100000)) return undefined;
+  return { unit, unitName: m[2].slice(0, 12) };
 }
 
 const GRID_TYPES: Record<string, GridType> = { SQUARE: "square", HEX_VERTICAL: "hex-pointy", HEX_HORIZONTAL: "hex-flat" };
@@ -414,7 +427,7 @@ async function sceneFromDoc(
   const s = pt(M.scale, { x: 1, y: 1 });
   const rotation = ((num(M.rotation, 0) % 360) + 360) % 360;
   const type = GRID_TYPES[str(docGrid.type) || "SQUARE"];
-  const map: MapFile = { name, image: file, width: W || undefined, height: H || undefined };
+  const map: MapFile = { name, image: file, width: W || undefined, height: H || undefined, scale: parseScale(docGrid.scale) };
   const square = rotation === 0 && Math.abs(Math.abs(s.x) - Math.abs(s.y)) < 1e-6 * Math.max(1, Math.abs(s.x));
   if (!type) {
     notes.push(`"${name}" uses an isometric grid, which isn't supported: it has a square grid here for now.`);

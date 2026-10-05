@@ -42,7 +42,7 @@ import {
   Type,
   Undo2,
 } from "lucide-preact";
-import { isHex } from "../../shared/geometry";
+import { formatDistance, isHex } from "../../shared/geometry";
 import type { MeasureShape } from "../../shared/protocol";
 import {
   FLOORS,
@@ -904,8 +904,8 @@ function MeasureHint() {
         </label>
       )}
       <span class="hint">
-        {o.shape === "ruler" ? "Drag to measure." : "Drag from the spell's origin."} One {hex ? "hex" : "square"} is {grid.unit}{" "}
-        {grid.unitName}; {rule}.
+        {o.shape === "ruler" ? "Drag to measure." : "Drag from the spell's origin."} One {hex ? "hex" : "square"} is{" "}
+        {formatDistance(1, grid)}; {rule}.
       </span>
     </div>
   );

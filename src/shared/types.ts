@@ -20,7 +20,7 @@ export interface GridSettings {
   snap: boolean;
   color: string;
   opacity: number;
-  /** Distance one cell represents, e.g. 5 (ft). */
+  /** Distance one cell represents, e.g. 5 (ft) or 1.5 (m). */
   unit: number;
   unitName: string;
   diagonal: DiagonalRule;
@@ -127,9 +127,40 @@ export interface TokenItem extends ItemBase {
    * Missing on tokens saved before layers existed, which are characters.
    */
   layer?: TokenLayer;
+  /**
+   * Built-in art the browser draws instead of an image or a coloured disc. "compass": a
+   * compass rose the GM puts on the map, North pointing `rotation` degrees clockwise from
+   * up, its needle in `color`. Missing on ordinary tokens. Code from before it (protocol
+   * under 4) isn't sent compasses: it would take one for a plain token.
+   */
+  art?: TokenArt;
 }
 
 export type TokenLayer = "character" | "prop";
+
+export const TOKEN_ARTS = ["compass"] as const;
+export type TokenArt = (typeof TOKEN_ARTS)[number];
+
+/** A compass rose on the map (a token drawn as one). */
+export function isCompass(item: Item | null | undefined): item is TokenItem & { art: "compass" } {
+  return item?.kind === "token" && item.art === "compass";
+}
+
+/** How many compasses these items put on a scene. */
+export function compassesOn(items: Iterable<Item>, sceneId: string): number {
+  let n = 0;
+  for (const item of items) if (item.sceneId === sceneId && isCompass(item)) n++;
+  return n;
+}
+
+/**
+ * Whether `item`, put in place of `existing` (none: a new item), brings a compass to its scene
+ * that wasn't there: a new one, a token made into one, or one moved over from another scene.
+ * Those count against the scene's limit; a compass changed where it is doesn't.
+ */
+export function bringsCompass(existing: Item | null | undefined, item: Item): boolean {
+  return isCompass(item) && !(isCompass(existing) && existing.sceneId === item.sceneId);
+}
 
 export type DrawShape = "pen" | "line" | "rect" | "ellipse" | "poly" | "text";
 
@@ -219,6 +250,11 @@ export interface RoomSettings {
   playersCanAddTokens: boolean;
   /** When false, players may only move tokens they placed themselves. */
   playersMoveAll: boolean;
+  /**
+   * Measure in metres: new scenes start with one square being 1.5 m rather than 5 ft.
+   * Missing on rooms made before it existed, which measure in feet.
+   */
+  metric?: boolean;
 }
 
 export interface RoomInfo {

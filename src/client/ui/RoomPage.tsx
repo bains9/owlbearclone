@@ -25,6 +25,7 @@ import { ChatPanel, RollView } from "./ChatPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
+import { MapLoading } from "./MapLoading";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
@@ -187,7 +188,12 @@ export function BoardView() {
     const board = new Board(ref.current!, room);
     return () => board.destroy();
   }, [room]);
-  return <div class="board" ref={ref} />;
+  return (
+    <>
+      <div class="board" ref={ref} />
+      <MapLoading />
+    </>
+  );
 }
 
 const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boolean }[] = [
@@ -558,6 +564,7 @@ const SHORTCUTS: [string, string][] = [
   ["Alt while dropping a token", "Don't snap to the grid"],
   ["Arrow keys", "Move the selected tokens one square (or hex)"],
   ["[ and ]", "Rotate the selected token 45° (Shift: 15°)"],
+  ["Compass selected: wheel, Z+wheel, Alt+wheel", "Turn it 15°, turn it 5°, change its size (GM; with the pointer over it; Ctrl+wheel zooms)"],
   ["Fog brush: [ and ]", "Smaller or bigger brush (Shift: bigger steps)"],
   ["Build tool: [ and ]", "Brush size, or turn objects 15° (Shift: 5°): the next one, or the selected ones"],
   ["Build tool: Alt", "Take away instead: cut out a room, erase terrain, remove walls, doors or objects"],

@@ -12,6 +12,7 @@
 
 import type { GridType } from "../shared/types";
 import type { VttMeta } from "./dd/extract";
+import type { GridUnits } from "../shared/units";
 
 /** A map ready to become a scene. */
 export interface MapFile {
@@ -36,6 +37,8 @@ export interface MapFile {
   dd?: File;
   /** For a Universal VTT file: where its picture lies in the map and which level it shows (for `dd`). */
   vtt?: VttMeta;
+  /** What one cell is, when the file says (an Owlbear Rodeo scale such as 5 ft). */
+  scale?: GridUnits;
 }
 
 /** What the file picker offers. */

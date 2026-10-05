@@ -597,7 +597,8 @@ describe("the guide (6.2)", () => {
     // this one goes above them, newest first (re-date it if it ships another day).
     expect(whatsNew.parts[0].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, latest)");
     expect(whatsNew.intro).toContain("4 October 2026");
-    expect(whatsNew.parts[1].title).toBe("Dungeondraft project files explained (30 September 2026)");
+    expect(whatsNew.parts[1].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(whatsNew.parts.map((p) => p.title)).toContain("Dungeondraft project files explained (30 September 2026)");
   });
 
   it("has the Seasons part with 6.2's steps and notes, adjusted for Par's pack option", () => {

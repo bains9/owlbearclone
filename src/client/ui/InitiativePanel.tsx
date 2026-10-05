@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Dices, Plus, Trash, X } from "lucide-preact"
 import { secureRng } from "../../shared/dice";
 import { randomId } from "../../shared/ids";
 import type { TokenItem } from "../../shared/types";
+import { isCompass } from "../../shared/types";
 import { CommitInput, ConfirmDialog, cx, useRoom, useRoomState } from "./common";
 
 export function InitiativePanel() {
@@ -50,7 +51,7 @@ export function InitiativePanel() {
 
   const selectedTokens = selection
     .map((id) => items[id])
-    .filter((i): i is TokenItem => i?.kind === "token" && !entries.some((e) => e.tokenId === i.id));
+    .filter((i): i is TokenItem => i?.kind === "token" && !isCompass(i) && !entries.some((e) => e.tokenId === i.id));
 
   return (
     <div class="panel-body">

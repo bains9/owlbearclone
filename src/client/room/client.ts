@@ -5,7 +5,7 @@
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
-import { applyOps, inverseOps, isEmptyOps } from "../../shared/ops";
+import { applyOps, inverseOps, isEmptyOps, isPatchOnly, mergePatches } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
 import { canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
@@ -27,6 +27,10 @@ import type {
   SceneMapData,
   TokenItem,
 } from "../../shared/types";
+import { compassesOn, isCompass } from "../../shared/types";
+import { LIMITS } from "../../shared/sanitize";
+import { switchUnits } from "../../shared/units";
+import type { GridUnits } from "../../shared/units";
 import type { FloorId, StampId } from "../../shared/terrain";
 import { BUILD_ID } from "../../shared/build";
 import { uploadImage } from "../api";
@@ -37,9 +41,12 @@ import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
 import { composeBuildUndo } from "./build";
-import { canFold, pressX } from "./buildInput";
+import { canFold, canFoldPlain, pressX } from "./buildInput";
+import { COMPASS_COLOR, COMPASS_LABEL, COMPASS_SIZE } from "./compass";
 import type { SelectReturn, WheelPref } from "./buildInput";
 import type { SceneDataState } from "./mapData";
+import { NO_MAP_LOAD } from "./mapLoading";
+import type { MapLoad } from "./mapLoading";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
 
@@ -169,6 +176,8 @@ export interface RoomState {
   mapOutdoor: Record<string, number>;
   /** Each scene's Dungeondraft data state on this device (by scene id), for the Season notes (6.1). */
   mapDataState: Record<string, SceneDataState>;
+  /** The current scene's map picture on this device: loading, failed or there, and its season being made. */
+  mapLoad: MapLoad;
   /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
   buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
   /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
@@ -210,6 +219,8 @@ export interface BoardApi {
   buildAction(a: BuildAction): void;
   /** Build › Select: selects nothing. */
   clearBuildSelection(): void;
+  /** Loads the scene's map picture again after it was given up on (the Try again button). */
+  retryMap(): void;
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -234,6 +245,17 @@ interface UndoEntry {
   steps?: { undo: (items: ItemMap) => ItemOps; redo: (items: ItemMap) => ItemOps };
   /** Build steps that fold into this one (a burst of turning): which burst, and when the last came. */
   coalesce?: { key: string; at: number };
+  /**
+   * Switching the room's scenes between feet and metres (Room settings): one step for all of
+   * them, which undo reaches from whichever scene you're looking at. Each scene's unit before
+   * and after; nothing else about its grid.
+   */
+  units?: { id: string; before: GridUnits; after: GridUnits }[];
+}
+
+/** Whether undo can reach this step from the scene you're looking at. */
+function reachable(e: UndoEntry, view: string | null): boolean {
+  return e.sceneId === view || !!e.units;
 }
 
 const MAX_MESSAGES = 300;
@@ -423,6 +445,7 @@ export class RoomClient {
       seasonsOff: displayKey === null && loadSeasonsOff(),
       mapOutdoor: {},
       mapDataState: {},
+      mapLoad: NO_MAP_LOAD,
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
@@ -744,8 +767,10 @@ export class RoomClient {
 
       case "scene.delete": {
         this.scenePending.delete(msg.id);
-        this.undoStack = this.undoStack.filter((e) => e.sceneId !== msg.id);
-        this.redoStack = this.redoStack.filter((e) => e.sceneId !== msg.id);
+        // A units step (every scene at once) goes once none of the scenes it switched is left.
+        const keep = (e: UndoEntry) => (e.units ? e.units.some((u) => u.id !== msg.id && s.scenes[u.id]) : e.sceneId !== msg.id);
+        this.undoStack = this.undoStack.filter(keep);
+        this.redoStack = this.redoStack.filter(keep);
         const scenes = { ...s.scenes };
         delete scenes[msg.id];
         const items: ItemMap = {};
@@ -938,13 +963,41 @@ export class RoomClient {
 
   // ---------------------------------------------------------------- item changes
 
-  /** Applies a change locally, sends it, and (by default) records it for undo. */
-  change(ops: ItemOps, undoable = true): void {
+  /**
+   * Applies a change locally, sends it, and (by default) records it for undo. With a
+   * `coalesce` key, a change of fields only folds into the step on top when that one is from
+   * the same burst (turning a compass with the wheel, say), so one undo takes back the burst.
+   * `held`: the burst is a drag still held down (the compass bar's dial), so a pause in it
+   * doesn't start a new step.
+   */
+  change(ops: ItemOps, undoable = true, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
     if (undoable) {
-      this.undoStack.push({ sceneId: this.sceneOf(ops), redo: ops, undo: inverseOps(this.state.items, ops) });
-      if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
-      this.redoStack = [];
+      const sceneId = this.sceneOf(ops);
+      const now = Date.now();
+      const top = this.undoStack.at(-1);
+      if (
+        coalesce !== undefined &&
+        top &&
+        isPatchOnly(ops) &&
+        isPatchOnly(top.redo) &&
+        isPatchOnly(top.undo) &&
+        canFoldPlain(top, coalesce, sceneId, now, !this.redoStack.length, held)
+      ) {
+        // Undo goes back to how things were before the burst; redo to how it ended.
+        top.undo = { patch: mergePatches(inverseOps(this.state.items, ops).patch ?? [], top.undo.patch!) };
+        top.redo = { patch: mergePatches(top.redo.patch!, ops.patch!) };
+        top.coalesce = { key: coalesce, at: now };
+      } else {
+        this.undoStack.push({
+          sceneId,
+          redo: ops,
+          undo: inverseOps(this.state.items, ops),
+          ...(coalesce !== undefined ? { coalesce: { key: coalesce, at: now } } : {}),
+        });
+        if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+        this.redoStack = [];
+      }
     }
     this.applyLocal(ops);
     this.refreshUndoFlags();
@@ -1000,33 +1053,50 @@ export class RoomClient {
 
   private refreshUndoFlags(): void {
     const view = this.state.viewSceneId;
-    const canUndo = this.undoStack.some((e) => e.sceneId === view);
-    const canRedo = this.redoStack.some((e) => e.sceneId === view);
+    const canUndo = this.undoStack.some((e) => reachable(e, view));
+    const canRedo = this.redoStack.some((e) => reachable(e, view));
     if (canUndo !== this.state.canUndo || canRedo !== this.state.canRedo) this.store.set({ canUndo, canRedo });
   }
 
-  /** Undoes your latest change on the scene you're looking at (never on a scene you can't see). */
+  /**
+   * Undoes your latest change on the scene you're looking at (never on a scene you can't see),
+   * or a switch of every scene between feet and metres.
+   */
   undo(): void {
     // As in Dungeondraft, undo and redo leave nothing selected in Build › Select.
     this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
-    const i = this.undoStack.findLastIndex((e) => e.sceneId === view);
+    const i = this.undoStack.findLastIndex((e) => reachable(e, view));
     if (i < 0) return;
     const [entry] = this.undoStack.splice(i, 1);
     this.redoStack.push(entry);
-    this.applyStep(entry.steps ? entry.steps.undo(this.state.items) : entry.undo, entry.scene?.before);
+    if (entry.units) this.applyUnits(entry.units, "before");
+    else this.applyStep(entry.steps ? entry.steps.undo(this.state.items) : entry.undo, this.keepUnits(entry.scene?.before));
     this.refreshUndoFlags();
   }
 
   redo(): void {
     this.board?.clearBuildSelection();
     const view = this.state.viewSceneId;
-    const i = this.redoStack.findLastIndex((e) => e.sceneId === view);
+    const i = this.redoStack.findLastIndex((e) => reachable(e, view));
     if (i < 0) return;
     const [entry] = this.redoStack.splice(i, 1);
     this.undoStack.push(entry);
-    this.applyStep(entry.steps ? entry.steps.redo(this.state.items) : entry.redo, entry.scene?.after);
+    if (entry.units) this.applyUnits(entry.units, "after");
+    else this.applyStep(entry.steps ? entry.steps.redo(this.state.items) : entry.redo, this.keepUnits(entry.scene?.after));
     this.refreshUndoFlags();
+  }
+
+  /**
+   * A scene step's grid (a new map records the whole grid) with the scene's unit as it is
+   * now. Only switching the room's scenes between feet and metres changes units as a step,
+   * and undo reaches that from any scene: undoing a map swap, before or after it, mustn't
+   * bring back the other unit on one scene.
+   */
+  private keepUnits(patch: ScenePatch | undefined): ScenePatch | undefined {
+    const current = patch?.grid && this.state.scenes[patch.id];
+    if (!patch?.grid || !current) return patch;
+    return { ...patch, grid: { ...patch.grid, unit: current.grid.unit, unitName: current.grid.unitName } };
   }
 
   /** Applies item changes together with a scene change: players never see one without the other. */
@@ -1064,6 +1134,34 @@ export class RoomClient {
     this.redoStack = [];
     this.applyStep(ops, after);
     this.refreshUndoFlags();
+  }
+
+  /**
+   * Switches every scene measured in feet to metres (toMetric: 5 ft becomes 1.5 m), or every
+   * one in metres back to feet, as one undoable step. Scenes in any other unit (squares, km)
+   * are left alone. Returns how many scenes changed.
+   */
+  switchSceneUnits(toMetric: boolean): number {
+    const list: NonNullable<UndoEntry["units"]> = [];
+    for (const scene of Object.values(this.state.scenes)) {
+      const after = switchUnits(scene.grid, toMetric);
+      if (after) list.push({ id: scene.id, before: { unit: scene.grid.unit, unitName: scene.grid.unitName }, after });
+    }
+    if (!list.length) return 0;
+    this.undoStack.push({ sceneId: null, redo: {}, undo: {}, units: list });
+    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+    this.redoStack = [];
+    this.applyUnits(list, "after");
+    this.refreshUndoFlags();
+    return list.length;
+  }
+
+  /** Gives each scene (still here) its unit from one side of a switch; the rest of its grid stays as it is now. */
+  private applyUnits(list: NonNullable<UndoEntry["units"]>, side: "before" | "after"): void {
+    for (const u of list) {
+      const scene = this.state.scenes[u.id];
+      if (scene) this.updateScene(u.id, { grid: { ...scene.grid, ...u[side] } });
+    }
   }
 
   /**
@@ -1106,10 +1204,53 @@ export class RoomClient {
   canMoveItem(item: Item): boolean {
     const s = this.state;
     if (!s.me || !s.room) return false;
+    // A locked compass stays put even for the GM, until it's unlocked: that's what locking it is for.
+    if (isCompass(item) && item.locked) return false;
     return canMove(item, s.me, s.room.settings);
   }
 
-  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size">>, at?: Point): TokenItem | null {
+  /** GM: a compass rose in the middle of the view, two squares across, North up, selected. */
+  addCompass(): TokenItem | null {
+    const s = this.state;
+    const scene = this.viewScene;
+    if (!scene || !s.me || !this.isGm || !this.compassesFit(scene.id, 1)) return null;
+    const raw = this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
+    const pos = scene.grid.snap ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
+    const compass: TokenItem = {
+      id: randomId(12),
+      sceneId: scene.id,
+      kind: "token",
+      z: this.nextZ(scene.id, "token"),
+      owner: s.me.userId,
+      x: Math.round(pos.x * 100) / 100,
+      y: Math.round(pos.y * 100) / 100,
+      size: COMPASS_SIZE,
+      rotation: 0,
+      assetId: null,
+      color: COMPASS_COLOR,
+      label: COMPASS_LABEL,
+      hidden: false,
+      locked: false,
+      rings: [],
+      layer: "prop",
+      art: "compass",
+    };
+    this.change({ upsert: [compass] });
+    this.store.set({ selection: [compass.id], tool: "select" });
+    return compass;
+  }
+
+  /**
+   * How many of `n` more compasses a scene has room for. When it's fewer, says so: the server
+   * would refuse the rest, and they'd vanish again without a word.
+   */
+  compassesFit(sceneId: string, n: number): number {
+    const free = Math.max(0, LIMITS.compassesPerScene - compassesOn(Object.values(this.state.items), sceneId));
+    if (free < n) this.toast(`A scene can have up to ${LIMITS.compassesPerScene} compasses. Delete one to add another.`, "error");
+    return Math.min(n, free);
+  }
+
+  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point): TokenItem | null {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !s.room) return null;
@@ -1120,7 +1261,7 @@ export class RoomClient {
     const size = opts.size ?? 1;
     const raw = at ?? this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
     let pos = scene.grid.snap ? snapTokenCenter(raw, size, scene.grid) : raw;
-    if (!at) pos = this.freeSpotNear(scene, pos);
+    if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
       id: randomId(12),
       sceneId: scene.id,
@@ -1134,7 +1275,8 @@ export class RoomClient {
       assetId: opts.assetId ?? null,
       color: opts.color ?? s.me.color,
       label: opts.label ?? "",
-      hidden: false,
+      // Only the GM hides things from players.
+      hidden: this.isGm && Boolean(opts.hidden),
       locked: false,
       rings: [],
     };
@@ -1143,14 +1285,26 @@ export class RoomClient {
     return token;
   }
 
-  /** The nearest grid position to `p` (spiralling outwards) that no token already sits on. */
-  private freeSpotNear(scene: Scene, p: Point): Point {
+  /**
+   * The nearest grid position to `p` (spiralling outwards) where a token `size` squares across
+   * covers no other token: on a square grid their squares don't overlap, on a hex grid their
+   * circles don't (side by side is fine). Where there's no such spot nearby, `p` itself.
+   */
+  private freeSpotNear(scene: Scene, p: Point, size: number): Point {
     const g = scene.grid.size;
     const step = cellSpacing(scene.grid);
+    const hex = isHex(scene.grid);
     const taken = Object.values(this.state.items).filter(
       (i): i is TokenItem => i.kind === "token" && i.sceneId === scene.id,
     );
-    const free = (q: Point) => taken.every((t) => Math.hypot(t.x - q.x, t.y - q.y) >= g * 0.5);
+    // A little short of touching, so rounding doesn't count neighbours as overlapping.
+    const apart = (t: TokenItem) => ((size + t.size) / 2) * g * 0.95;
+    const free = (q: Point) =>
+      taken.every((t) =>
+        hex
+          ? Math.hypot(t.x - q.x, t.y - q.y) >= apart(t)
+          : Math.max(Math.abs(t.x - q.x), Math.abs(t.y - q.y)) >= apart(t),
+      );
     for (let ring = 0; ring <= 8; ring++) {
       const candidates: [number, number][] = [];
       for (let dy = -ring; dy <= ring; dy++) {
@@ -1163,7 +1317,7 @@ export class RoomClient {
       candidates.sort((a, b) => Math.hypot(...a) - Math.hypot(...b) || angle(a) - angle(b));
       for (const [dx, dy] of candidates) {
         const raw = { x: p.x + dx * step.x, y: p.y + dy * step.y };
-        const q = isHex(scene.grid) ? snapTokenCenter(raw, 1, scene.grid) : raw;
+        const q = hex ? snapTokenCenter(raw, 1, scene.grid) : raw;
         if (q.x < 0 || q.y < 0 || q.x > scene.width || q.y > scene.height) continue;
         if (free(q)) return q;
       }

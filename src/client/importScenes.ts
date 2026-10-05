@@ -8,6 +8,8 @@ import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
 import type { Asset, FogItem, Item, Scene, SceneMapData, TokenItem } from "../shared/types";
+import { importedUnits } from "../shared/units";
+import type { GridUnits } from "../shared/units";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
 import type { AttachReport, VttMeta } from "./dd/extract";
 import { gridSizeFor, readMapFiles } from "./mapImport";
@@ -26,13 +28,15 @@ export const touchedSidecars = new Set<string>();
 /**
  * A scene for an uploaded map. The grid comes from the map file or its name when
  * they say what it is (scaled to the uploaded image, which may have been shrunk),
- * otherwise it's a guess from the image size.
+ * otherwise it's a guess from the image size. `units`: what one square is (the room's
+ * feet or metres).
  */
 export function sceneFromMap(
   asset: Asset,
   name: string,
   order: number,
   fogCover: boolean,
+  units: GridUnits,
   from?: { map: MapFile; source: { width: number; height: number } },
 ): Scene {
   const known = from ? gridSizeFor(from.map, asset.width, asset.height, from.source) : null;
@@ -54,6 +58,7 @@ export function sceneFromMap(
     background: "#1b1e24",
     grid: {
       ...DEFAULT_GRID,
+      ...units,
       type,
       size,
       offsetX: offset(from?.map.offsetX, periodX),
@@ -201,6 +206,8 @@ export async function importFiles(
 ): Promise<ImportResult> {
   const result: ImportResult = { scenes: [], gridFromFile: 0, notes: [], owlbear: false, attach: [] };
   let order = opts.order;
+  // Feet or metres, as the room measures (Owlbear scenes bring their own scale).
+  const settings = room.state.room?.settings;
 
   const plain = files.filter((f) => !isOb2File(f));
   if (plain.length) {
@@ -227,7 +234,7 @@ export async function importFiles(
         }
       }
       const fromFile = gridSizeFor(d.map, d.asset.width, d.asset.height, d.source) !== null;
-      const scene = sceneFromMap(d.asset, name, order++, opts.covered, d);
+      const scene = sceneFromMap(d.asset, name, order++, opts.covered, importedUnits(d.map.scale, settings), d);
       if (attach) scene.mapData = attach.mapData;
       // The picture's place in its map, from the .dd2vtt, whether or not the data could be attached:
       // so a later attach (Edit scene › Map, or the project file dropped alone) needs no second file (2.1 step 5).
@@ -265,7 +272,7 @@ export async function importFiles(
     const owner = room.state.me?.userId ?? "";
     for (const d of done) {
       const src = imp.scenes.find((s) => s.map === d.map)!;
-      const scene = sceneFromMap(d.asset, d.map.name, order++, src.fogCover, d);
+      const scene = sceneFromMap(d.asset, d.map.name, order++, src.fogCover, importedUnits(d.map.scale, settings), d);
       room.createScene(scene);
       result.scenes.push(scene);
       if (gridSizeFor(d.map, d.asset.width, d.asset.height, d.source) !== null) result.gridFromFile++;

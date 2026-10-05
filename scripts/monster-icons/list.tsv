@@ -1,0 +1,55 @@
+goblin	Goblin	caro-asercion/goblin	small	humanoid
+orc	Orc	delapouite/orc-head	medium	humanoid
+bandit	Bandit	delapouite/bandit	medium	humanoid
+cultist	Cultist	lorc/cultist	medium	humanoid
+soldier	Soldier	lorc/visored-helm	medium	humanoid
+archer	Archer	delapouite/archer	medium	humanoid
+mage	Mage	delapouite/wizard-face	medium	humanoid
+berserker	Berserker	delapouite/barbarian	medium	humanoid
+pirate	Pirate	delapouite/pirate-captain	medium	humanoid
+lizardfolk	Lizardfolk	lorc/lizardman	medium	humanoid
+troglodyte	Troglodyte	delapouite/troglodyte	medium	humanoid
+brute	Brute	delapouite/brute	medium	humanoid
+skeleton	Skeleton	lorc/skull-crossed-bones	medium	undead
+zombie	Zombie	delapouite/shambling-zombie	medium	undead
+ghost	Ghost	lorc/ghost	medium	undead
+wraith	Wraith	lorc/spectre	medium	undead
+mummy	Mummy	delapouite/mummy-head	medium	undead
+vampire	Vampire	delapouite/vampire-dracula	medium	undead
+lich	Lich	lorc/crowned-skull	medium	undead
+wolf	Wolf	lorc/wolf-head	medium	beast
+bear	Bear	delapouite/bear-head	large	beast
+giant-spider	Giant spider	lorc/hanging-spider	large	beast
+giant-rat	Giant rat	delapouite/rat	small	beast
+snake	Snake	lorc/snake	medium	beast
+boar	Boar	caro-asercion/boar	medium	beast
+giant-bat	Giant bat	lorc/evil-bat	large	beast
+shark	Shark	lorc/shark-jaws	large	beast
+giant-scorpion	Giant scorpion	lorc/scorpion	large	beast
+mimic	Mimic	delapouite/mimic-chest	medium	monstrosity
+ooze	Ooze	delapouite/slime	large	monstrosity
+minotaur	Minotaur	lorc/minotaur	large	monstrosity
+harpy	Harpy	lorc/harpy	medium	monstrosity
+medusa	Medusa	cathelineau/medusa-head	medium	monstrosity
+werewolf	Werewolf	lorc/werewolf	medium	monstrosity
+hydra	Hydra	lorc/hydra	huge	monstrosity
+griffon	Griffon	delapouite/griffin-symbol	large	monstrosity
+centaur	Centaur	delapouite/centaur	large	monstrosity
+giant-worm	Giant worm	lorc/worm-mouth	gargantuan	monstrosity
+kraken	Kraken	delapouite/kraken-tentacle	gargantuan	monstrosity
+floating-eye	Floating eye	lorc/behold	large	monstrosity
+ogre	Ogre	delapouite/ogre	large	giant
+troll	Troll	skoll/troll	large	giant
+giant	Giant	delapouite/giant	huge	giant
+cyclops	Cyclops	lorc/cyclops	huge	giant
+wyvern	Wyvern	lorc/wyvern	large	dragon
+young-dragon	Young dragon	lorc/dragon-head	large	dragon
+adult-dragon	Adult dragon	delapouite/spiked-dragon-head	huge	dragon
+ancient-dragon	Ancient dragon	lorc/dragon-spiral	gargantuan	dragon
+imp	Imp	lorc/imp	tiny	fiend
+demon	Demon	delapouite/devil-mask	large	fiend
+elemental	Elemental	lorc/flame-spin	large	elemental
+golem	Golem	delapouite/rock-golem	large	construct
+gargoyle	Gargoyle	delapouite/gargoyle	medium	construct
+shambling-mound	Shambling mound	delapouite/shambling-mound	large	plant
+sprite	Sprite	delapouite/fairy	tiny	fey
