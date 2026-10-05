@@ -13,8 +13,8 @@
 import type { Asset } from "../../shared/types";
 import type { RoomClient } from "../room/client";
 import { uploadBlob } from "../api";
-import type { AttachReport, FitResult, PictureSample, VttMeta } from "./extract";
-import type { DdWorkerIn, DdWorkerOut } from "./messages";
+import type { AttachReport, PictureSample, VttMeta } from "./extract";
+import type { CheckResult, DdWorkerIn, DdWorkerOut } from "./messages";
 import { DEFAULT_LIMITS, GRID } from "./model";
 import { canUnpack, packPng, unpackPng } from "./pngBox";
 import { SECTION, SIDECAR_CAPS, SIDECAR_FORMAT, SIDECAR_HEADER_BYTES, SidecarError, readFormat } from "./sidecar";
@@ -99,9 +99,13 @@ export async function prepareAttach(ddFile: File, picture: Blob, picSize: { widt
   return res;
 }
 
-/** Checks an attached sidecar against a picture (Check..., or Use it with this picture), by the object-centre fit. */
+/**
+ * Checks an attached sidecar against a picture (Check..., or Use it with this picture), by the
+ * object-centre fit. A picture of another shape is a hard refusal (hard: true); anything that
+ * stopped the check (no network, damaged data) is a plain one.
+ */
 export async function checkAttached(sidecarAssetUrl: string, picture: Blob,
-  picSize: { width: number; height: number }): Promise<FitResult | { error: string }> {
+  picSize: { width: number; height: number }): Promise<CheckResult> {
   try {
     if (!canUnpack()) return { error: ATTACH_TEXT.noUnpack };
     let res: Response;

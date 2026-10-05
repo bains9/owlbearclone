@@ -912,21 +912,30 @@ function waterfall(): { sc: SeasonSidecar; vern: Picture | null } {
 }
 
 describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, from Vern's 1.2 export through the extractor (DD_VERN)", () => {
-  const { sc, vern } = waterfall();
   // The app's analysis size for this picture: 20 px a square (3600 x 2520 at 72 px a square).
   const w = 1000, h = 700;
-  const pic = downsample(vern!, w, h).rgba as Uint8ClampedArray;
-  const a = analyseExact(pic, w, h, 20, sc, {});
-  const sn = a.snow!;
-  const x = sn.exact!;
   const N = w * h;
+  // Made on first use: vitest runs a skipped block's body too, and without Vern's export there's nothing to read.
+  let made: { sc: SeasonSidecar; pic: Uint8ClampedArray; a: SeasonAnalysis } | null = null;
+  const vw = () => {
+    if (!made) {
+      const { sc, vern } = waterfall();
+      if (!vern) throw new Error("Vern's waterfall export is missing");
+      const pic = downsample(vern, w, h).rgba as Uint8ClampedArray;
+      made = { sc, pic, a: analyseExact(pic, w, h, 20, sc, {}) };
+    }
+    const { sc, pic, a } = made;
+    return { sc, pic, a, sn: a.snow!, x: a.snow!.exact! };
+  };
   const share = (c: number) => {
+    const { a } = vw();
     let n = 0;
     for (let k = 0; k < N; k++) if (ch(a, k, c) >= 128) n++;
     return n / N;
   };
 
   it("is snowy, with its trees by kind: 27 evergreens, 2 oaks, 8 bare trees, 4 props (4.1)", () => {
+    const { sc, pic, a, sn } = vw();
     expect(isSnowy(sc.meta)).toBe(true);
     expect(exactLayers(sc, w, h).snowShare).toBeGreaterThan(0.99);
     const kinds = new Map<number, number>();
@@ -946,6 +955,7 @@ describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, fr
   });
 
   it("melts its painted snow, keeps its yellow-orange water, cliffs and pack rock as drawn, and finds no water to freeze", () => {
+    const { sc, pic, sn, x } = vw();
     expect(share(SN_GROUND)).toBeGreaterThan(0.6);
     expect(share(SN_EVER)).toBeGreaterThan(0.03);
     expect(share(SN_WATER) + share(SN_ICE) + share(SN_EARTH)).toBe(0);
@@ -963,10 +973,25 @@ describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, fr
   });
 
   it("is deterministic and leaves the picture alone", () => {
+    const { sc, pic, a } = vw();
     const before = new Uint8ClampedArray(pic);
     expect(snowHash(analyseExact(pic, w, h, 20, sc, {}))).toBe(snowHash(a));
     expect(fnv(pic)).toBe(fnv(before));
   });
+
+  it("bakes byte for byte as recorded under EXACT_VERSION 1 (a change here bumps it: see goldenOf)", () => {
+    const { pic, a } = vw();
+    const looks: Uint8ClampedArray[] = [];
+    for (const look of LOOKS) {
+      for (const level of LEVELS) {
+        const img = new Uint8ClampedArray(pic);
+        bake(img, w, h, { x0: 0, y0: 0, scale: 1, cell: 20, seed: 777, look, level, a, sceneW: w, sceneH: h });
+        looks.push(img);
+      }
+    }
+    expect(EXACT_VERSION).toBe(1);
+    expect(`${snowHash(a)} ${fnv(...looks)}`).toBe("bd96a0ea e570a67d");
+  }, 60_000);
 });
 
 describe("analyseExact's time (6.4: rasterSidecar + analyseExact under 80 ms warm at 1024 px on a desktop)", () => {
@@ -1710,6 +1735,45 @@ describe("exact bakes are deterministic, and strips match a whole pass (6.3 \"By
       const img = baked(t, l, 2);
       for (let i = 3; i < img.length; i += 4) if (img[i] !== pic[i]) throw new Error(`alpha changed at ${i} in ${l}`);
     }
+  }, 60_000);
+});
+
+// ------------------------------------------------------------------ the golden hashes of exact bakes
+
+/**
+ * The analysis (snowHash) and the twelve looks (4 looks x 3 levels, seed 777) of an exact scene,
+ * as two FNV-1a hashes. Bakes of exact scenes are cached under EXACT_VERSION (mapData.ts ddKey),
+ * so a change to these bytes must come with an EXACT_VERSION bump: update the hashes below and
+ * EXACT_VERSION together (the contract test above pins the version they were recorded under).
+ */
+function goldenOf(s: ExactScene): string {
+  const looks: Uint8ClampedArray[] = [];
+  for (const l of LOOKS) for (const lv of LEVELS) looks.push(baked(s, l, lv));
+  return `${snowHash(s.a)} ${fnv(...looks)}`;
+}
+
+describe("exact bakes are pinned byte for byte (5.6: a kernel or role change bumps EXACT_VERSION)", () => {
+  // Recorded under EXACT_VERSION 1. The synthetic maps between them reach every exact-only branch
+  // of the kernels: melt to the role's and the prop's own colours, roof snow, the frost on a
+  // tree's snow, shore ice on water that freezes (frozenLake), a snow edge, bare trees both ways,
+  // and pack items both ways.
+  const GOLDEN: Record<string, string> = {
+    "snowy, pack roof": "05992fe6 2ccc407e",
+    "snowy, bare dead, packs guess": "3156b4c1 0843aa7f",
+    "frozen lake": "25bebee4 1ed15452",
+    "jagged edge": "2dbd4038 67a22ff6",
+  };
+
+  it("recorded under this EXACT_VERSION", () => {
+    expect(EXACT_VERSION).toBe(1);
+  });
+
+  it.each(Object.keys(GOLDEN))("%s", (name) => {
+    const s = name === "snowy, pack roof" ? exactScene(snowyMap({ packRoof: true }).sidecar)
+      : name === "snowy, bare dead, packs guess" ? exactScene(snowyMap().sidecar, { bare: "dead", packs: "guess" })
+        : name === "frozen lake" ? exactScene(frozenLake().sidecar)
+          : exactScene(jaggedEdge().sidecar);
+    expect(goldenOf(s)).toBe(GOLDEN[name]);
   }, 60_000);
 });
 

@@ -1,6 +1,6 @@
 // Readers for the Godot 3 text values that Dungeondraft writes inside its JSON:
 //   "Vector2( 12.5, -3 )"
-//   "PoolByteArray( 0, 255, ... )", "PoolIntArray( -1, 3 )", "PoolRealArray( 1.5 )"
+//   "PoolByteArray( 0, 255, ... )", "PoolIntArray( -1, 3 )"
 //   "PoolVector2Array( x0, y0, x1, y1, ... )"
 //   colours "aarrggbb" (Godot 3 Color.to_html(true) is ARGB)
 //   node ids: strings are hexadecimal ("5b" = 91); some older saves write plain decimal numbers.
@@ -170,13 +170,6 @@ export function parsePoolIntArray(v: unknown, maxLen: number): Int32Array | null
   const body = inner(v, "PoolIntArray");
   if (body === null) return null;
   return scanNumbers(body, maxLen, (n) => new Int32Array(n), { integer: true, min: -2147483648, max: 2147483647 });
-}
-
-export function parsePoolRealArray(v: unknown, maxLen: number): Float64Array | null {
-  if (typeof v !== "string") return null;
-  const body = inner(v, "PoolRealArray");
-  if (body === null) return null;
-  return scanNumbers(body, maxLen, (n) => new Float64Array(n), { integer: false, min: -1e12, max: 1e12 });
 }
 
 /** Returns interleaved [x0, y0, x1, y1, ...]; `maxPoints` bounds the number of points. */

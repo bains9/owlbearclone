@@ -6,14 +6,14 @@
 // public samples when DD_FIXTURES has them. Both skip cleanly when absent.
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
-import { GRID, MS_EDGE_BUFFER, type DDMap, type MapObject } from "../src/client/dd/model";
+import { GRID, MS_EDGE_BUFFER, type DDMap, type MapObject, type WaterNode } from "../src/client/dd/model";
 import { rasterSidecar, type SidecarLayers } from "../src/client/dd/raster";
 import { AR, NAMED_ROLES, OR, TR, defaultName, objectRole, terrainRole, type ObjectRole } from "../src/client/dd/roles";
 import {
   DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_UNITS, decodeSidecar, encodeSidecar, type SeasonSidecar,
 } from "../src/client/dd/sidecar";
 import {
-  EXTRACT, EXTRACTOR_VERSION, ExtractError, chooseLevel, extractSidecar, pictureRect, previewOverlay, previewSize, rankLevels,
+  EXTRACT, EXTRACTOR_VERSION, ExtractError, checkWater, chooseLevel, extractSidecar, pictureRect, previewOverlay, previewSize, rankLevels,
   type ExtractOptions, type PictureRect, type PictureSample,
 } from "../src/client/dd/extract";
 import { levelCentres, levelRadii, objectFit } from "../src/client/dd/fit";
@@ -920,6 +920,54 @@ describe("caps and the preview", () => {
     expect(msD).toBeLessThan(perf ? 100 : 1000);
     expect(msE).toBeLessThan(perf ? 500 : 2000);
   });
+
+  it("bounded work on water: thousands of tall slivers, or more rings than a sidecar holds, are refused before measuring fills them in", () => {
+    const s = scatterMap(1);
+    const node = (polygon: number[], children: WaterNode[] = []): WaterNode => ({
+      ref: null, polygon: Float64Array.from(polygon), depth: 1, isOpen: false, deepColor: null, shallowColor: null, blendDistance: null, children,
+    });
+    /** n slivers 3 world units wide, each from the top of the map to y1 (squares), along the map. */
+    const slivers = (map: DDMap, n: number, y1: number) => {
+      const W = map.world.width * GRID;
+      const kids = Array.from({ length: n }, (_, i) => node([(i * 7) % W, 0, ((i * 7) % W) + 3, 0, (i * 7) % W, y1 * GRID]));
+      map.world.levels[0].water = { disableBorder: false, root: { ...node([], kids), depth: 0 } };
+    };
+    const pic = fakeExportFromMap(parseDungeondraftMap(s.text), "0", 32);
+    const timed = (f: () => void) => { const t0 = performance.now(); f(); return performance.now() - t0; };
+    const steps: string[] = [];
+    const refused = (map: DDMap) => timed(() => expect(() => extractSidecar(map, "0", wholeMap(map), pic, FIXTURE_SPRITES, { levels: [], onProgress: (t) => steps.push(t) }))
+      .toThrow("This map is too big for exact seasons."));
+    // 19,000 slivers the height of the map: within the sidecar's 20,000 rings, but filling them for
+    // measuring would take seconds (each spans every row of the picture): refused at once.
+    const a = parseDungeondraftMap(s.text);
+    slivers(a, 19_000, a.world.height);
+    const msA = refused(a);
+    // 21,000 tiny slivers: next to no work, but more rings than a sidecar holds.
+    const b = parseDungeondraftMap(s.text);
+    slivers(b, 21_000, 0.01);
+    const msB = refused(b);
+    expect(steps.some((t) => t.startsWith("Measuring"))).toBe(false);
+    // 1,000 slivers half the map's height: accepted, as any real map's water is.
+    const c = parseDungeondraftMap(s.text);
+    slivers(c, 1000, c.world.height / 2);
+    const rows = c.world.height * 32;
+    const work = checkWater(c.world.levels[0], [0, 0, c.world.width * GRID, c.world.height * GRID], 0, GRID / 32, rows);
+    expect(work).toBeGreaterThan(0);
+    expect(work).toBeLessThan(EXTRACT.waterWork);
+    // Each edge costs the rows it spans (the two long edges of a sliver: half the rows each), times the sort.
+    expect(work).toBe(1000 * 2 * (rows / 2) * Math.ceil(Math.log2(3000 + 2)));
+    const msC = timed(() => extractSidecar(c, "0", wholeMap(c), pic, FIXTURE_SPRITES, { levels: [] }));
+    console.log(`water: 19,000 tall slivers refused in ${msA.toFixed(0)} ms, 21,000 tiny ones in ${msB.toFixed(0)} ms; 1,000 half-height ones extracted in ${msC.toFixed(0)} ms`);
+    const perf = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PERF;
+    expect(msA).toBeLessThan(perf ? 200 : 2000);
+    expect(msB).toBeLessThan(perf ? 200 : 2000);
+    // Water outside the picture's rows costs no filling; an open node and the root's empty polygon count for nothing.
+    const d = parseDungeondraftMap(s.text);
+    slivers(d, 19_000, d.world.height);
+    expect(checkWater(d.world.levels[0], [0, 0, d.world.width * GRID, d.world.height * GRID], 100 * GRID, GRID / 32, rows)).toBe(0);
+    d.world.levels[0].water.root!.children.forEach((k) => (k.isOpen = true));
+    expect(checkWater(d.world.levels[0], [0, 0, d.world.width * GRID, d.world.height * GRID], 0, GRID / 32, rows)).toBe(0);
+  }, 30_000);
 
   it("previewSize: the long side is `size`, the other by the aspect", () => {
     expect(previewSize(640, 384, 512)).toEqual([512, 307]);

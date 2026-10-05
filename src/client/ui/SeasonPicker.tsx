@@ -209,8 +209,10 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
     }
   };
   const setData = (next: SceneMapData) => room.setMapData(s.id, next);
-  // The controls apply while the data is in use, and to a green map's data (its "drawn in" may be wrong).
-  const controls = usesData(props.state) || props.state === "green";
+  // The controls apply while the data is in use; a green map's data (v1 doesn't use it) gets only
+  // "drawn in", which may be wrong: Winter then puts the data to use, with the other controls.
+  const inUse = usesData(props.state);
+  const controls = inUse || props.state === "green";
   const drawn = md?.drawn ?? (meta ? drawnDefault(meta) : "winter");
   const bare = md?.bare ?? bareDefault(drawn);
   const packs = md?.packs ?? "drawn";
@@ -241,7 +243,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
           </div>
         </div>
       )}
-      {md && meta && controls && hasBareTrees(meta) && (
+      {md && meta && inUse && hasBareTrees(meta) && (
         <div class="season-ctl" title={DD_UI.bareTitle}>
           <span class="small">Bare trees</span>
           <div class="seg" role="group" aria-label="Bare trees">
@@ -253,7 +255,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
           </div>
         </div>
       )}
-      {md && meta && controls && hasPackItems(meta) && (
+      {md && sidecar && inUse && hasPackItems(sidecar.meta, sidecar.objects) && (
         <div class="season-ctl" title={DD_UI.packsTitle}>
           <span class="small">Asset-pack items</span>
           <div class="seg" role="group" aria-label="Asset-pack items">

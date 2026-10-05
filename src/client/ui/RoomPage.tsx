@@ -431,7 +431,7 @@ function AttachDDDialog() {
   }, [gone]);
   if (!req || !scene || !scene.mapAssetId) return null;
   // Keyed so each request starts afresh.
-  return <AttachDungeondraft key={req.sceneId} scene={scene} files={req.files} mode={req.mode} onClose={close} />;
+  return <AttachDungeondraft key={req.sceneId} scene={scene} files={req.files} vtt={req.vtt} mode={req.mode} onClose={close} />;
 }
 
 function NoteDialog() {

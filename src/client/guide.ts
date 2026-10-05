@@ -18,7 +18,7 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest update came out on 4 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
-        "title": "Exact seasons from Dungeondraft files (4 October 2026)",
+        "title": "Exact seasons from Dungeondraft files (4 October 2026, latest)",
         "steps": [
           "GM: in Dungeondraft, save the map (the .dungeondraft_map file) and export it (**Universal VTT** or PNG).",
           "Bring both files into Tabletop together: drop them on the map, or click **Import Dungeondraft map** in the Build tool's bar and pick both. If they're in different folders, bring one and then the other: the **New scene** window waits for the second.",
@@ -28,7 +28,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "A map made in Dungeondraft can now bring its project file along with its picture. With it, seasons know exactly where the snow, grass, water, buildings and trees are, instead of guessing from the picture: on a winter map, Spring, Summer and Autumn melt the snow only where it's painted, leaves come only on the trees you placed and by their kind (pines stay green in autumn), and water, buildings and caves stay exact.",
           "This works on winter maps now; green maps follow in a later update, and their data is kept for then. Without a project file, seasons work as before, guessed from the picture.",
-          "Things from asset packs stay as drawn, unless you pick **Guess from the picture** under **Asset-pack items** in the season box. Bare trees come into leaf on a winter map: **Bare trees** in the season box changes that, and **This map is drawn in** corrects which season the picture shows.",
+          "Things placed from asset packs stay as drawn, unless you pick **Guess from the picture** under **Asset-pack items** in the season box; paths, ground and roofs from asset packs always do. Bare trees come into leaf on a winter map: **Bare trees** in the season box changes that, and **This map is drawn in** corrects which season the picture shows.",
           "The project file itself is never uploaded: only what seasons need from the one level you pick. Players can't see other levels, secret doors, notes or the file's name.",
           "A project file brought in by itself still tells you it has no picture in it and what to do. See **Exact seasons for Dungeondraft maps** under **Seasons**."
         ]
@@ -1972,7 +1972,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "With the project file, seasons know exactly what's in the map: snow melts only where it's painted, leaves grow only on the trees you placed and by their kind (pines stay green in autumn), and water, buildings and caves are exact. Without it, seasons are guessed from the picture, as on any other map.",
           "The project file must be the one the picture was exported from. If you change the map in Dungeondraft, export it again and attach it again. The window checks that the file lines up with the picture, and says so when it can't be sure or when the map seems to have grown since the export.",
-          "Things from asset packs stay as drawn in every season, because Tabletop can't tell what they are. If you'd rather seasons treated them as they treat a plain picture, pick **Guess from the picture** under **Asset-pack items** in the season box (it's shown when the map has any). **Leave as drawn** is the default.",
+          "Things placed from asset packs stay as drawn in every season, because Tabletop can't tell what they are. If you'd rather the trees and snow the picture shows on them changed with the season, judged by their colours, pick **Guess from the picture** under **Asset-pack items** in the season box (it's shown when the map has any). **Leave as drawn** is the default. Paths, ground and roofs from asset packs stay as drawn either way.",
           "A bare tree comes into leaf on a snowy map and stays dead on a green one: change it under **Bare trees**. If Tabletop mistakes which season your map shows, change **This map is drawn in**.",
           "Exact seasons work on winter maps now; green maps follow in a later update. A green map's data is kept, and its seasons are guessed from the picture until then.",
           "The project file itself is never uploaded, only what seasons need from the one level: players can't see other levels, secret doors, notes or the file's name.",

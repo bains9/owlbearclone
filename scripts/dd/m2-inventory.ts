@@ -1,6 +1,7 @@
 // M2 inventory: per sample map, what the checklist items of design 6.6 need to look at: mirrored
-// objects (with their rotation), rotated or mirrored paths and patterns, the layers used by each
-// kind of thing, and the terrain's blending settings.
+// objects (with their rotation), rotated paths, patterns rotated by shape or by texture, the
+// layers used by each kind of thing, and the terrain's blending settings. (Paths and patterns
+// have no mirror in Dungeondraft's files, so none is counted; only objects can be mirrored.)
 //   node --import ./scripts/dd/register.mjs scripts/dd/m2-inventory.ts
 import { readFileSync, existsSync } from "node:fs";
 import { parseDungeondraftMap } from "../../src/client/dd/parse";
@@ -21,8 +22,8 @@ for (const p of PAIRS) {
       (mirrored.length ? ": " + mirrored.slice(0, 12).map((o) => `${defaultName(o.texture)?.split("/").pop() ?? "pack"}@rot${o.rotation.toFixed(2)}`).join(" ") : ""));
     const roots = L.objects.filter((o) => /roots/.test(defaultName(o.texture) ?? ""));
     if (roots.length) console.log(`    roots ${roots.length} at layers [${layers(roots)}]`);
-    console.log(`    paths ${L.paths.length} layers [${layers(L.paths)}], rotated ${L.paths.filter((x) => x.rotation !== 0).length}, mirrored ${L.paths.filter((x) => x.mirror).length}, scaled ${L.paths.filter((x) => x.scale.x !== 1 || x.scale.y !== 1).length}`);
-    console.log(`    patterns ${L.patterns.length} layers [${layers(L.patterns)}], rotated ${L.patterns.filter((x) => x.rotation !== 0).length}, mirrored ${L.patterns.filter((x) => x.mirror).length}`);
+    console.log(`    paths ${L.paths.length} layers [${layers(L.paths)}], rotated ${L.paths.filter((x) => x.rotation !== 0).length}, scaled ${L.paths.filter((x) => x.scale.x !== 1 || x.scale.y !== 1).length}`);
+    console.log(`    patterns ${L.patterns.length} layers [${layers(L.patterns)}], shape rotated ${L.patterns.filter((x) => x.shapeRotation !== 0).length}, texture rotated ${L.patterns.filter((x) => x.textureRotation !== 0).length}`);
     console.log(`    walls ${L.walls.length} (loops ${L.walls.filter((w) => w.loop).length}, cave type ${L.walls.filter((w) => w.type === 2).length}); roofs ${L.roofs.length}; materials ${L.materials.length} layers [${layers(L.materials)}]; floors ${L.floorPolygons.length}; tiles ${L.tiles ? "yes" : "no"}; caves ${L.cave ? "yes" : "no"}`);
     const water = L.water.root?.children ?? [];
     console.log(`    water bodies ${water.length} (blend ${water.map((w) => w.blendDistance).join(",")})`);

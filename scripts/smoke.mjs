@@ -606,20 +606,32 @@ async function main() {
   check(Boolean(thawed) && !("season" in thawed.scene), "a season of null turns it off, for players too");
 
   // Dungeondraft data on a scene: kept by changes that leave it out (as old tabs send), a
-  // malformed one changes nothing, extra keys are dropped, and null removes it.
+  // malformed one changes nothing, extra keys are dropped, and null removes it. Players get it only
+  // while it's in use: data on hold (or made for another picture) may show another level or map.
   alice.clear();
+  tab2.clear();
   const md = { assetId: ddAsset.id, forAssetId: gmAsset.id, hold: true };
-  tab2.send({ t: "scene.upsert", seq: 12, scene: { id: scene2.id, mapData: { ...md, file: "secret.dungeondraft_map" }, mapRect: [0, 0, 35, 25] } });
-  const attached = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 12);
+  const picture = scene2.mapAssetId ?? null;
+  tab2.send({ t: "scene.upsert", seq: 12, scene: { id: scene2.id, mapAssetId: gmAsset.id, mapData: { ...md, file: "secret.dungeondraft_map" }, mapRect: [0, 0, 35, 25] } });
+  const held = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 12);
   check(
-    JSON.stringify(attached?.scene.mapData) === JSON.stringify(md) && attached.scene.mapRect?.join() === "0,0,35,25",
-    "players on the scene get its Dungeondraft data's ids, and nothing more",
+    Boolean(held) && !("mapData" in held.scene) && held.scene.mapRect?.join() === "0,0,35,25" && !JSON.stringify(held).includes(ddAsset.id),
+    "players don't get Dungeondraft data on hold, not even its id",
   );
+  const heldGm = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 12);
+  check(JSON.stringify(heldGm?.scene.mapData) === JSON.stringify(md), "the GM gets the data on hold, and nothing more");
   tab2.send({ t: "scene.upsert", seq: 13, scene: { id: scene2.id, name: "Dungeon, level 2", mapData: { assetId: "../x", forAssetId: gmAsset.id }, mapRect: [0, 0, 0, 25] } });
   const keptData = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 13);
   check(keptData?.scene.mapData?.assetId === ddAsset.id && keptData.scene.mapRect?.join() === "0,0,35,25", "a change without valid Dungeondraft data keeps the scene's");
   alice.clear();
-  tab2.send({ t: "items", seq: 14, scene: { id: scene2.id, mapData: null, mapRect: null } });
+  tab2.send({ t: "scene.upsert", seq: 14, scene: { id: scene2.id, mapData: { assetId: ddAsset.id, forAssetId: gmAsset.id } } });
+  const inUse = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 14);
+  check(
+    JSON.stringify(inUse?.scene.mapData) === JSON.stringify({ assetId: ddAsset.id, forAssetId: gmAsset.id }),
+    "players on the scene get its Dungeondraft data's ids once it's in use, and nothing more",
+  );
+  alice.clear();
+  tab2.send({ t: "items", seq: 15, scene: { id: scene2.id, mapAssetId: picture, mapData: null, mapRect: null } });
   const detached = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
   check(Boolean(detached) && !("mapData" in detached.scene) && !("mapRect" in detached.scene), "null removes the Dungeondraft data, for players too");
   tab2.ws.close();

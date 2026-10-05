@@ -610,10 +610,53 @@ describe("importing a picture with its Dungeondraft project file", () => {
         preview,
       });
       vi.mocked(attach.uploadSidecar).mockResolvedValue(asset("side3", 512, 3, "mapdata"));
-      const r = await importFiles(room, [img("Waterfall.png", 3600, 2520), dd("waterfall.dungeondraft_map")], { name: "", order: 0, covered: false });
+      const ddf = dd("waterfall.dungeondraft_map");
+      const r = await importFiles(room, [img("Waterfall.png", 3600, 2520), ddf], { name: "", order: 0, covered: false });
       expect(scenes[0].mapData).toEqual({ assetId: "side3", forAssetId: "map1", hold: true });
-      expect(r.attach).toEqual([{ sceneId: scenes[0].id, status, note, warnings: [] }]);
+      // The project file stays with the line, so Check… can open the attach dialog on it (its levels and preview).
+      expect(r.attach).toEqual([{ sceneId: scenes[0].id, status, note, warnings: [], dd: ddf }]);
     }
+    // Data attached and in use keeps no file.
+    const { room } = gmRoom();
+    vi.mocked(attach.prepareAttach).mockResolvedValue({ report: report(), sidecar: sidecarBytes, preview });
+    const r = await importFiles(room, [img("Waterfall.png", 3600, 2520), dd("waterfall.dungeondraft_map")], { name: "", order: 0, covered: false });
+    expect(r.attach[0].dd).toBeUndefined();
+  });
+
+  it("keeps a .dd2vtt pair's rectangle on the scene even when its data couldn't be attached, and the .dd2vtt's details for Check… on hold", async () => {
+    const vttText = JSON.stringify({
+      format: 0.3,
+      resolution: { map_origin: { x: 2, y: 1 }, map_size: { x: 48, y: 27 }, pixels_per_grid: 72 },
+      line_of_sight: [],
+      portals: [{ position: { x: 5, y: 5 } }],
+      lights: [],
+      image: PNG_1x1,
+    });
+    const files = () => [dd("Pelcs.dungeondraft_map", 50, 35), new File([vttText], "Pelcs.dd2vtt")];
+    // Refused by the worker, and the sidecar's upload failing: the scene still knows where its picture lies.
+    const { room, scenes } = gmRoom(1);
+    vi.mocked(attach.prepareAttach).mockRejectedValueOnce(new attach.AttachError("Pelcs.dungeondraft_map isn't a Dungeondraft map, or it's damaged."));
+    const r1 = await importFiles(room, files(), { name: "", order: 0, covered: false });
+    expect(r1.attach).toEqual([]);
+    expect(scenes[0].mapData).toBeUndefined();
+    expect(scenes[0].mapRect).toEqual([2, 1, 48, 27]);
+    vi.mocked(attach.prepareAttach).mockResolvedValue({ report: report({ levels: TWO_LEVELS, level: "1" }), sidecar: sidecarBytes, preview });
+    vi.mocked(attach.uploadSidecar).mockRejectedValueOnce(new Error("network down"));
+    const r2 = await importFiles(room, files(), { name: "", order: 1, covered: false });
+    expect(r2.notes).toEqual(["Pelcs: the Dungeondraft data couldn't be saved (network down). Attach it again with Edit scene › Map."]);
+    expect(scenes[1].mapData).toBeUndefined();
+    expect(scenes[1].mapRect).toEqual([2, 1, 48, 27]);
+    // On hold for its level: the line carries the project file and the .dd2vtt's details.
+    vi.mocked(attach.prepareAttach).mockResolvedValue({ report: report({ levels: TWO_LEVELS, level: "1", hold: "level" }), sidecar: sidecarBytes, preview });
+    vi.mocked(attach.uploadSidecar).mockResolvedValue(asset("side9", 512, 3, "mapdata"));
+    const pair = files();
+    const r3 = await importFiles(room, pair, { name: "", order: 2, covered: false });
+    expect(r3.attach[0]).toMatchObject({ status: "level", dd: pair[0] });
+    expect(r3.attach[0].vtt?.resolution.map_origin).toEqual({ x: 2, y: 1 });
+    expect(scenes[2].mapRect).toEqual([2, 1, 48, 27]);
+    // A .dd2vtt brought in without a project file is a plain picture, as before.
+    await importFiles(room, [new File([vttText], "Plain.dd2vtt")], { name: "", order: 3, covered: false });
+    expect(scenes[3].mapRect).toBeUndefined();
   });
 
   it("reports a fit that couldn't be fully checked, a whole-square shift, and the extractor's warnings", async () => {

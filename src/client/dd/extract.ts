@@ -189,6 +189,12 @@ export const EXTRACT = {
   floorWork: 50_000_000,
   /** ... of which each floor polygon clipped to a run of tiled cells costs this, besides its points. */
   clipWork: 512,
+  /**
+   * Work (water edges times the picture rows each spans, times the sort of a row's crossings, as
+   * fillPolygons works) filling the water for measuring may spend; past it the map is refused
+   * before measuring [M: the real maps' water costs at most 0.1% of it at 32 px a square].
+   */
+  waterWork: 50_000_000,
   /** The cave rim's width, world units (4.1: 0.35 square), and the step of its bitmap. */
   rim: 0.35 * GRID,
   rimStep: 32,
@@ -396,6 +402,8 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     // The floors too (measuring leaves them out of its ground models), so a file of very many
     // floor polygons is refused before measuring fills them all in.
     const floors = nearFloors(L, crop, r[1], (r[3] - r[1]) / pic.h, pic.h);
+    // The water likewise: measuring fills all of it over the picture.
+    checkWater(L, crop, r[1], (r[3] - r[1]) / pic.h, pic.h);
     const roles = near.map(roleOf);
     const notes: string[] = [];
     progress(`Measuring the things in the picture (0 of ${near.length})…`);
@@ -1205,6 +1213,46 @@ function caveRim(floor: BitGrid, entrance: BitGrid | null, crop: Box): BitmapLay
     rim = true;
   }
   return rim ? { role: AR.CAVE_RIM, layer: DD_LAYER.CAVE, step: s, ox, oy, w, h, bits } : null;
+}
+
+/**
+ * Refuses a level whose water a sidecar can't hold, or would take too long to fill over the
+ * picture's rows for measuring (`rows` of `perRow` world units from `top`), before measuring
+ * fills it in: more closed water rings reaching the crop grown by a square, or more of their
+ * points, than SIDECAR_CAPS allows (each such ring becomes at least one of the sidecar's, nearly
+ * always with its points), or more than EXTRACT.waterWork to fill (rasterWater fills every closed
+ * ring: each edge costs the rows it spans, times the sort of a row's crossings). Returns the work.
+ */
+export function checkWater(L: Pick<Level, "water">, crop: Box, top: number, perRow: number, rows: number): number {
+  const root = L.water.root;
+  if (!root) return 0;
+  const near: Box = [crop[0] - GRID, crop[1] - GRID, crop[2] + GRID, crop[3] + GRID];
+  const rowsOk = perRow > 0 && Number.isFinite(perRow) && Number.isFinite(top);
+  let rings = 0, points = 0, edges = 0, edgeRows = 0;
+  const stack: WaterNode[] = [root];
+  while (stack.length) {
+    const n = stack.pop()!;
+    for (const c of n.children) stack.push(c);
+    const p = n.polygon;
+    if (n.isOpen || p.length < 6) continue;
+    const k = p.length >> 1;
+    edges += k;
+    if (overlaps(ringBox(p), near)) {
+      rings++;
+      points += k;
+      if (rings > SIDECAR_CAPS.rings || points > SIDECAR_CAPS.points) throw new ExtractError("This map is too big for exact seasons.");
+    }
+    if (!rowsOk) continue;
+    for (let i = 0; i < k; i++) {
+      const j = i + 1 < k ? i + 1 : 0;
+      const a = (p[i * 2 + 1] - top) / perRow, b = (p[j * 2 + 1] - top) / perRow;
+      const lo = Math.max(0, Math.min(a, b)), hi = Math.min(rows, Math.max(a, b));
+      if (hi > lo) edgeRows += hi - lo;
+    }
+  }
+  const work = edgeRows * Math.ceil(Math.log2(edges + 2));
+  if (!(work <= EXTRACT.waterWork)) throw new ExtractError("This map is too big for exact seasons.");
+  return work;
 }
 
 /** The floor polygons that count (nearFloors), positive, with their boxes. */

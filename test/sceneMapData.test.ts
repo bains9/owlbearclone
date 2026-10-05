@@ -197,6 +197,31 @@ describe("the client's copy of a scene", () => {
     expect(room.state.scenes.scene1).toMatchObject({ mapData: MD, mapRect: [0, 0, 50, 35] });
   });
 
+  it("choosing the scene's picture: the same one again keeps the .dd2vtt's rectangle; another drops it in the same undoable step, here and on the server", async () => {
+    const withRect = scene({ mapData: MD, mapRect: [10, 5, 30, 20] });
+    const room = client(withRect);
+    // What SceneEditor.setMap sends: the picture, its size and the grid, and nothing about mapRect.
+    room.changeScene("scene1", { mapAssetId: "map1", width: 3600, height: 2520, grid: { ...DEFAULT_GRID } }, {});
+    expect(room.state.scenes.scene1.mapRect).toEqual([10, 5, 30, 20]);
+    let last = sent(room).at(-1);
+    expect(last?.t === "items" && last.scene && "mapRect" in last.scene).toBe(false);
+    expect(sanitizeScene(last?.t === "items" ? last.scene : null, withRect)!.mapRect).toEqual([10, 5, 30, 20]);
+    // Another picture: the rectangle goes with it, the data stays (paused), and undo brings both back.
+    room.changeScene("scene1", { mapAssetId: "map2", width: 3456, height: 1944, grid: { ...DEFAULT_GRID } }, {});
+    expect("mapRect" in room.state.scenes.scene1).toBe(false);
+    expect(room.state.scenes.scene1.mapData).toEqual(MD);
+    last = sent(room).at(-1);
+    expect(last?.t === "items" && last.scene && last.scene.mapRect).toBeNull();
+    room.undo();
+    expect(room.state.scenes.scene1).toMatchObject({ mapAssetId: "map1", mapRect: [10, 5, 30, 20] });
+    // setMap leaves mapRect to changeScene's rule (its picture's patch has no mapRect).
+    const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+    const panel = fs.readFileSync(new URL("../src/client/ui/ScenesPanel.tsx", import.meta.url), "utf8");
+    const setMap = panel.slice(panel.indexOf("const setMap = (asset: Asset) =>"), panel.indexOf("if (sameSize) {", panel.indexOf("const setMap = (asset: Asset) =>")));
+    expect(setMap).toContain("mapAssetId: asset.id,");
+    expect(setMap).not.toMatch(/^\s*mapRect:/m);
+  });
+
   it("a setting given as undefined is left alone, here and on the server, never cleared", () => {
     const room = client(scene({ mapRect: [0, 0, 48, 27] }));
     // How an attach with a plain picture (no .dd2vtt, so no rectangle) naturally reads.

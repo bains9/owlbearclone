@@ -32,6 +32,7 @@ import { BUILD_ID } from "../../shared/build";
 import { uploadImage } from "../api";
 import type { Uploaded } from "../api";
 import type { MapFile } from "../mapImport";
+import type { VttMeta } from "../dd/extract";
 import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
@@ -122,6 +123,8 @@ export interface AttachDDRequest {
   sceneId: string;
   /** The project file (and maybe its .dd2vtt) already chosen, e.g. dropped on the board. */
   files?: File[];
+  /** A .dd2vtt's details already read (the import report's Check… on data on hold), for its level and grid. */
+  vtt?: VttMeta;
   /** "attach" (the default): new data; "check": look at the data the scene has (Check…). */
   mode?: "attach" | "check";
 }

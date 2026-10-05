@@ -362,11 +362,13 @@ describe("the dd worker: check", () => {
       .toEqual({ t: "checked", id: 3, fit: { error: DD_TEXT.unreadable } });
     expect(answer(await run({ t: "check", id: 4, sidecar: bytes, pic: pic32, picW: 640, picH: 640 })).m).toEqual({
       t: "checked", id: 4,
-      fit: { error: "This picture is 640×640, which isn't the shape of the map this data was made for (20×12 squares), so it can't be used with it." },
+      // The hard check (2.8): marked so the dialog offers no "Use it anyway".
+      fit: { error: "This picture is 640×640, which isn't the shape of the map this data was made for (20×12 squares), so it can't be used with it.", hard: true },
     });
     for (const [w, h, ok] of [[640, 386, true], [6000, 3630, true], [100, 61, true], [100, 64, false], [62, 100, false]] as const) {
       const { m } = answer(await run({ t: "check", id: 5, sidecar: bytes, pic: pic32, picW: w, picH: h }));
       expect(m.t === "checked" && "error" in m.fit, `${w}x${h}`).toBe(!ok);
+      expect(m.t === "checked" && "error" in m.fit && m.fit.hard === true, `${w}x${h}`).toBe(!ok);
     }
   });
 });
@@ -770,6 +772,7 @@ describe("checkAttached", () => {
     serve((await packPng(bytes)).blob);
     expect(await A.checkAttached("u", pic, { width: 640, height: 640 })).toEqual({
       error: "This picture is 640×640, which isn't the shape of the map this data was made for (20×12 squares), so it can't be used with it.",
+      hard: true,
     });
     expect(await A.checkAttached("u", new Blob(["?"]), size)).toEqual({ error: A.ATTACH_TEXT.picture });
     FakeWorker.mode = "loadError";

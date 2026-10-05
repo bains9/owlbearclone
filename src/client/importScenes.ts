@@ -9,7 +9,7 @@ import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
 import type { Asset, FogItem, Item, Scene, SceneMapData, TokenItem } from "../shared/types";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
-import type { AttachReport } from "./dd/extract";
+import type { AttachReport, VttMeta } from "./dd/extract";
 import { gridSizeFor, readMapFiles } from "./mapImport";
 import type { MapFile } from "./mapImport";
 import { isOb2File, readOb2 } from "./ob2";
@@ -79,6 +79,13 @@ export interface AttachEntry {
   note: string;
   /** The extractor's remarks, for the GM (e.g. terrain that couldn't be read). */
   warnings: string[];
+  /**
+   * On hold (status "hold" or "level"): the project file and its .dd2vtt's details, still in this
+   * tab, so Check… can open the attach dialog on them, with its level list and preview, instead of
+   * asking for the file again. Never uploaded.
+   */
+  dd?: File;
+  vtt?: VttMeta;
 }
 
 export interface ImportResult {
@@ -173,12 +180,14 @@ async function attachProjectFile(
     status: attachStatus(report),
     report,
   };
-  if (d.map.vtt) {
-    const r = d.map.vtt.resolution;
-    // So a later re-attach needs no second file (2.1 step 5).
-    out.mapRect = [r.map_origin.x, r.map_origin.y, r.map_size.x, r.map_size.y];
-  }
+  if (d.map.vtt) out.mapRect = vttRect(d.map.vtt);
   return out;
+}
+
+/** A .dd2vtt picture's rectangle in its map, in squares [x, y, w, h]. */
+function vttRect(vtt: VttMeta): [number, number, number, number] {
+  const r = vtt.resolution;
+  return [r.map_origin.x, r.map_origin.y, r.map_size.x, r.map_size.y];
 }
 
 /**
@@ -219,14 +228,21 @@ export async function importFiles(
       }
       const fromFile = gridSizeFor(d.map, d.asset.width, d.asset.height, d.source) !== null;
       const scene = sceneFromMap(d.asset, name, order++, opts.covered, d);
-      if (attach) {
-        scene.mapData = attach.mapData;
-        if (attach.mapRect) scene.mapRect = attach.mapRect;
-      }
+      if (attach) scene.mapData = attach.mapData;
+      // The picture's place in its map, from the .dd2vtt, whether or not the data could be attached:
+      // so a later attach (Edit scene › Map, or the project file dropped alone) needs no second file (2.1 step 5).
+      if (d.map.dd && d.map.vtt) scene.mapRect = vttRect(d.map.vtt);
       room.createScene(scene);
       result.scenes.push(scene);
       if (fromFile) result.gridFromFile++;
-      if (attach) result.attach.push({ sceneId: scene.id, status: attach.status, note: attachNote(name, attach), warnings: attach.report.warnings });
+      if (attach) {
+        const entry: AttachEntry = { sceneId: scene.id, status: attach.status, note: attachNote(name, attach), warnings: attach.report.warnings };
+        if ((attach.status === "hold" || attach.status === "level") && d.map.dd) {
+          entry.dd = d.map.dd;
+          if (d.map.vtt) entry.vtt = d.map.vtt;
+        }
+        result.attach.push(entry);
+      }
     }
     // Sidecars no scene uses any more (an undone attach in another tab, say) go, once they're old enough.
     if (attached) void cleanUpSidecars(room, touchedSidecars).catch(() => undefined);

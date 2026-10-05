@@ -4,14 +4,18 @@ import type { Scene, SceneMapData } from "../../shared/types";
 import type { ScenePatch } from "../../shared/protocol";
 import { fileUrl } from "../api";
 import { ATTACH_TEXT, AttachError, checkAttached, cleanUpSidecars, prepareAttach, uploadSidecar } from "../dd/attach";
-import type { AttachReport, FitResult, VttMeta } from "../dd/extract";
+import type { AttachReport, VttMeta } from "../dd/extract";
+import type { CheckResult } from "../dd/messages";
 import { canUnpack, unpackPng } from "../dd/pngBox";
 import { decodeSidecar } from "../dd/sidecar";
 import type { SeasonSidecar } from "../dd/sidecar";
 import { touchedSidecars } from "../importScenes";
 import { isDungeondraftFile, isVttFile, parseUniversalVtt } from "../mapImport";
 import { Modal, cx, useRoom, useRoomState } from "./common";
-import { DD_UI, attachChecks, comparePanels, dialogTitle, fitCheck, gridDiffers, levelWhy, localDataState, needsAnyway, sidecarLabel } from "./ddText";
+import {
+  DD_UI, attachChecks, attachedToast, comparePanels, dialogTitle, drawnDefault, fitCheck, gridDiffers, levelWhy, localDataState, needsAnyway, sidecarLabel,
+  useButton,
+} from "./ddText";
 import type { Check } from "./ddText";
 
 /** What a prepare gives the dialog (attach.ts prepareAttach). */
@@ -23,13 +27,15 @@ type Prepared = Awaited<ReturnType<typeof prepareAttach>>;
  * scene's own asset; the file is read by the GM's dd worker and never uploaded, only the compiled
  * sidecar is. Attaching is one undoable step (the data, the picture's rectangle and the grid).
  */
-export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?: "attach" | "check"; onClose(): void }) {
+export function AttachDungeondraft(props: { scene: Scene; files?: File[]; vtt?: VttMeta; mode?: "attach" | "check"; onClose(): void }) {
   const room = useRoom();
   const s = props.scene;
   const mapAssetId = s.mapAssetId ?? "";
   const asset = useRoomState((st) => (s.mapAssetId ? st.assets[s.mapAssetId] : undefined));
   const dataAsset = useRoomState((st) => (s.mapData ? st.assets[s.mapData.assetId] : undefined));
   const dataState = useRoomState((st) => st.mapDataState[s.id]) ?? localDataState(s);
+  // The attached data's META, for what "Use it" will do (snowy or green).
+  const attachedMeta = useSidecar(room.roomId, s.mapData?.assetId)?.meta;
   const picSize = { width: asset?.width ?? s.width, height: asset?.height ?? s.height };
   const [mode, setMode] = useState<"attach" | "check">(props.mode ?? "attach");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -50,7 +56,7 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
 
   // The files: the project file, and maybe its .dd2vtt (read for its grid and level clues only).
   const [dd, setDd] = useState<File | null>(null);
-  const [vtt, setVtt] = useState<VttMeta | undefined>(undefined);
+  const [vtt, setVtt] = useState<VttMeta | undefined>(props.vtt);
   const takeFiles = async (files: File[]) => {
     let project: File | null = null;
     let meta: VttMeta | undefined;
@@ -121,7 +127,7 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
   }, [mode, dd, picture, vtt, levelKey, shift, compare]);
 
   // Check mode: the attached data against the scene's picture (2.4), by the object-centre fit.
-  const [checked, setChecked] = useState<FitResult | { error: string } | null>(null);
+  const [checked, setChecked] = useState<CheckResult | null>(null);
   useEffect(() => {
     if (mode !== "check" || !s.mapData || !picture) return;
     let live = true;
@@ -169,7 +175,8 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
         patch.grid = { ...s.grid, type: "square", size, offsetX: vtt ? frac(vtt.resolution.map_origin.x) : 0, offsetY: vtt ? frac(vtt.resolution.map_origin.y) : 0 };
       }
       room.changeScene(s.id, patch, {});
-      room.toast(DD_UI.attached);
+      // The GM's "This map is drawn in" (carried over) decides, else the new data's snow.
+      room.toast(attachedToast(md.drawn ?? report.drawn));
       void cleanUpSidecars(room, touchedSidecars).catch(() => undefined);
       props.onClose();
     } catch (e) {
@@ -196,7 +203,7 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
     if (md.packs) next.packs = md.packs;
     touchedSidecars.add(md.assetId);
     room.setMapData(s.id, next);
-    room.toast(DD_UI.attached);
+    room.toast(attachedToast(next.drawn ?? (attachedMeta ? drawnDefault(attachedMeta) : undefined)));
     props.onClose();
   };
 
@@ -217,11 +224,11 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
 
   if (mode === "check") {
     const md = s.mapData;
-    const fit = checked && !("error" in checked) ? checked : null;
     const fitLine: Check | null = checked ? ("error" in checked ? { mark: "warn", text: checked.error } : fitCheck(checked)) : null;
-    const anyway = fit?.verdict === "no" || (checked !== null && "error" in checked);
+    // A picture of another shape can't be used with the data at all (2.8): then only another file, or Remove.
+    const use = useButton(dataState, checked);
     return (
-      <Modal title={dialogTitle(s.name)} onClose={props.onClose} width={520}>
+      <Modal title={dialogTitle(s.name)} onClose={props.onClose} width={520} above>
         <p class="small">
           {dataState === "paused"
             ? "The map picture has changed since this Dungeondraft data was attached, so seasons guess from the picture. Checked against the picture the scene has now:"
@@ -247,9 +254,9 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
           <button class="btn" onClick={props.onClose}>
             {dataState === "paused" || dataState === "hold" ? "Cancel" : "Done"}
           </button>
-          {md && (dataState === "paused" || dataState === "hold") && (
-            <button class="btn btn-primary" disabled={checked === null} onClick={useData}>
-              {dataState === "paused" ? (anyway ? "Use it with this picture anyway" : "Use it with this picture") : anyway ? "Use it anyway" : "Use it"}
+          {md && use && (
+            <button class="btn btn-primary" disabled={!use.ready} onClick={useData}>
+              {use.label}
             </button>
           )}
         </div>
@@ -261,7 +268,7 @@ export function AttachDungeondraft(props: { scene: Scene; files?: File[]; mode?:
   const levels = report?.levels ?? [];
   const chosen = levelKey ?? report?.level;
   return (
-    <Modal title={dialogTitle(s.name)} onClose={props.onClose} width={560}>
+    <Modal title={dialogTitle(s.name)} onClose={props.onClose} width={560} above>
       <p class="small">{DD_UI.intro}</p>
       <div class="row dd-file">
         <button class="btn btn-sm" onClick={pickFile} disabled={saving}>

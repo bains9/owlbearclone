@@ -6,7 +6,8 @@
 
 import { OR, objectRole } from "../dd/roles";
 import type { AttachReport, FitResult, LevelRank } from "../dd/extract";
-import type { SidecarMeta } from "../dd/sidecar";
+import type { CheckResult } from "../dd/messages";
+import type { ObjectTable, SidecarMeta } from "../dd/sidecar";
 import { describeShift } from "../importScenes";
 import type { DungeondraftPairs } from "../mapImport";
 import type { SceneDataState } from "../room/mapData";
@@ -29,11 +30,13 @@ export const DD_UI = {
   compareCaption: "Summer, level 2: with the project file (left) and guessed from the picture (right).",
   compareGreen: "A green map: exact seasons for green maps come in a later update, so this is today's guess from the picture.",
   attached: "Dungeondraft data attached: seasons now use the map's own terrain and trees.",
+  attachedGreen: "Dungeondraft data attached. It's kept for when green maps get exact seasons; for now their seasons are guessed from the picture.",
+  attachedPlain: "Dungeondraft data attached.",
   removed: "Dungeondraft data removed: seasons go back to guessing from the picture. Ctrl+Z puts it back.",
   drawnTitle: "Which season the picture shows. Set from the map's snow; change it if it's wrong.",
   bareTitle: "Dungeondraft's bare trees: on a snowy map they're usually sleeping trees, in a green one dead ones.",
   packsTitle:
-    "Things from asset packs (Tabletop can't tell what they are). Leave as drawn: they look the same in every season. Guess from the picture: seasons treat them as they treat a plain picture, guessing trees and snow from their colours.",
+    "Things placed from asset packs (Tabletop can't tell what they are). Leave as drawn: they look the same in every season. Guess from the picture: the trees and snow the picture shows on them change with the season, judged by their colours. Paths, ground and roofs from asset packs stay as drawn either way.",
   pendingDd: "waiting for its export.",
   pendingPicture: "for exact seasons.",
 } as const;
@@ -155,6 +158,20 @@ export function needsAnyway(checks: readonly Check[]): boolean {
   return checks.some((c) => c.mark === "warn");
 }
 
+/**
+ * Check mode's main button (2.4, 2.8), for data paused (made for another picture) or on hold:
+ * "Use it" (or "Use it with this picture"), "... anyway" after a fit of "no" or a check that
+ * couldn't run, and none at all when the picture is another shape than the data's (the hard
+ * check: it can't be used with it), or when the data is in use already. Not ready while checking.
+ */
+export function useButton(state: SceneDataState, checked: CheckResult | null): { label: string; ready: boolean } | null {
+  if (state !== "paused" && state !== "hold") return null;
+  if (checked && "error" in checked && checked.hard) return null;
+  const anyway = checked !== null && ("error" in checked || checked.verdict === "no");
+  const label = state === "paused" ? (anyway ? "Use it with this picture anyway" : "Use it with this picture") : anyway ? "Use it anyway" : "Use it";
+  return { label, ready: checked !== null };
+}
+
 /** Why the worker ranked a level where it did, in the GM's words (2.2). */
 export function levelWhy(why: LevelRank["why"]): string {
   switch (why) {
@@ -230,7 +247,8 @@ export function dataNote(state: SceneDataState, opts: { hasMap: boolean; olderEx
       if (!opts.hasMap) return ["This scene has no map picture now; its Dungeondraft data is kept for the picture it was attached to. ", LINK.remove];
       return ["The map picture has changed since the Dungeondraft data was attached, so seasons guess from the picture. ", LINK.use, " ", LINK.remove];
     case "hold":
-      return ["The Dungeondraft data didn't seem to line up with this picture, so seasons guess from the picture. ", LINK.check, " ", LINK.remove];
+      // On hold for either reason (the store keeps no reason): it didn't line up, or the level was unclear.
+      return ["The Dungeondraft data isn't used yet: it didn't seem to line up with this picture, or which level the picture shows was unclear. Seasons guess from the picture until then. ", LINK.check, " ", LINK.remove];
     case "retrying":
       return ["The Dungeondraft data couldn't be loaded on this device, so seasons guess from the picture for now."];
     case "missing":
@@ -261,6 +279,14 @@ export function localDataState(scene: { mapAssetId: string | null; mapData?: { f
   return "loading";
 }
 
+/**
+ * The toast after attaching, or after "Use it": exact seasons only for a map drawn in winter (v1),
+ * by the GM's "This map is drawn in" if set, else by the data. Undefined: not known yet.
+ */
+export function attachedToast(drawn: "winter" | "green" | undefined): string {
+  return drawn === "winter" ? DD_UI.attached : drawn === "green" ? DD_UI.attachedGreen : DD_UI.attachedPlain;
+}
+
 /** The season the map is drawn in, when the GM hasn't said (4.2). */
 export function drawnDefault(meta: SidecarMeta): "winter" | "green" {
   return isSnowy(meta) ? "winter" : "green";
@@ -276,9 +302,15 @@ export function hasBareTrees(meta: Pick<SidecarMeta, "names">): boolean {
   return meta.names.some((n) => objectRole(n) === OR.BARE);
 }
 
-/** Whether the data has asset-pack items, so Par's pack control is worth showing. */
-export function hasPackItems(meta: Pick<SidecarMeta, "packItems">): boolean {
-  return meta.packItems > 0;
+/**
+ * Whether Par's pack control would change anything, so it's worth showing: the data has asset-pack
+ * items, and things placed that Tabletop can't tell (OPAQUE: pack objects, which "Guess from the
+ * picture" is for). Pack terrain, materials, patterns, paths and roofs stay as drawn either way.
+ */
+export function hasPackItems(meta: Pick<SidecarMeta, "packItems">, objects: Pick<ObjectTable, "n" | "role">): boolean {
+  if (meta.packItems <= 0) return false;
+  for (let i = 0; i < objects.n; i++) if (objects.role[i] === OR.OPAQUE) return true;
+  return false;
 }
 
 /** Data made by an older extractor than this build's: "Attach the project file again". */

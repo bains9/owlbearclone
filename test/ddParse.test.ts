@@ -10,7 +10,7 @@ import { MAX_SMOOTH_POINTS, pathRibbon, portalSegment, roofPolygon, smoothPolyli
 import {
   fillEllipse, fillPolygons, mapSpec, rasterBitGrid, rasterTiles, rasterWater, sampleTerrainSlot, strokeRibbon, workBudget, type RasterSpec,
 } from "../src/client/dd/ddRaster";
-import { MAX_VTT_COORD, MAX_VTT_POINTS, PointHash, alignDd2vtt, alignPlainImage, matchDd2vttLevel } from "../src/client/dd/align";
+import { MATCH_WORK, MAX_VTT_COORD, MAX_VTT_POINTS, PointHash, alignDd2vtt, alignPlainImage, matchDd2vttLevel } from "../src/client/dd/align";
 import { OR, defaultName, objectRole } from "../src/client/dd/roles";
 
 type FsLike = { readFileSync(path: string | URL, encoding: "utf8"): string; existsSync(path: string | URL): boolean };
@@ -720,6 +720,46 @@ describe("matchDd2vttLevel", () => {
     expect(h.near({ x: -1e300, y: 1e300 })).toBe(false);
     expect(new PointHash(0).near({ x: 1e300, y: 1e300 })).toBe(false);
   });
+
+  it("counts the points its searches read, in one counter for several hashes", () => {
+    const work = { read: 0 };
+    const a = new PointHash(0.05, work), b = new PointHash(0.05, work);
+    for (let i = 0; i < 10; i++) a.add(0, 0);
+    b.add(5, 5);
+    expect(a.near({ x: 0.07, y: 0 })).toBe(false);
+    expect(work.read).toBe(10);
+    expect(b.near({ x: 5, y: 5 })).toBe(true);
+    expect(work.read).toBe(11);
+    expect(new PointHash(0.05).work).toEqual({ read: 0 });
+  });
+
+  it("stops when the searches read too many map points, and the export then tells nothing", () => {
+    // A crafted file: every wall point of a level in one cell, and export points just outside the
+    // tolerance beside it, so each search reads all of them (O(points x queries) without the budget).
+    const n = 200_000;
+    const crowd = new Array<number>(2 * n).fill(0);
+    const map = parseDungeondraftMap(JSON.stringify({ world: { width: 50, height: 35, levels: {
+      "0": { walls: [{ points: pool("PoolVector2Array", crowd) }] },
+      "1": { walls: [{ points: pool("PoolVector2Array", [256, 256, 512, 256]) }] },
+    } } }));
+    expect(map.world.levels[0].walls[0].points.length).toBe(2 * n);
+    const line = Array.from({ length: 20_000 }, (_, i) => (i % 2 ? { x: 0.099, y: 0 } : { x: 0, y: 0 }));
+    const t0 = performance.now();
+    const got = matchDd2vttLevel(map, { line_of_sight: [line] });
+    const ms = performance.now() - t0;
+    expect(got.map((m) => [m.score, m.checked])).toEqual([[0, 0], [0, 0]]);
+    // 20,000 searches of 200,000 points would read 4e9 of them (seconds); the budget stops it near MATCH_WORK.
+    expect(ms).toBeLessThan((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PERF ? 500 : 3000);
+    // Under the budget, the same search gives the brute-force answer: half the line on level 0's walls.
+    const few = parseDungeondraftMap(JSON.stringify({ world: { width: 50, height: 35, levels: {
+      "0": { walls: [{ points: pool("PoolVector2Array", new Array<number>(200).fill(0)) }] },
+      "1": { walls: [{ points: pool("PoolVector2Array", [256, 256, 512, 256]) }] },
+    } } }));
+    expect(matchDd2vttLevel(few, { line_of_sight: [line] }).map((m) => [m.level.key, m.score])).toEqual([["0", 0.5], ["1", 0]]);
+    // The same, with a budget it can't keep: as an export with no clues.
+    expect(matchDd2vttLevel(few, { line_of_sight: [line] }, 0.05, 1000).map((m) => [m.level.key, m.score, m.checked])).toEqual([["0", 0, 0], ["1", 0, 0]]);
+    expect(MATCH_WORK).toBe(50_000_000);
+  }, 30_000);
 });
 
 // ------------------------------------------------------------------ real files

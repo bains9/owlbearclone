@@ -21,17 +21,29 @@ export function cx(...names: (string | false | null | undefined)[]): string {
   return names.filter(Boolean).join(" ");
 }
 
+/** Whether a dialog's backdrop is the one on top (the highest layer, then the last opened). */
+function onTop(backdrop: HTMLElement): boolean {
+  const z = (e: HTMLElement) => Number(getComputedStyle(e).zIndex) || 0;
+  let top: HTMLElement | null = null;
+  for (const e of document.querySelectorAll<HTMLElement>(".modal-backdrop")) if (!top || z(e) >= z(top)) top = e;
+  return !top || top === backdrop;
+}
+
+/** A dialog. above: opened over another dialog (the New scene window, say), which stays open beneath it. */
 export function Modal(props: {
   title: string;
   onClose: () => void;
   children: ComponentChildren;
   width?: number;
+  above?: boolean;
 }) {
   const { onClose } = props;
   const bodyRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // Escape closes only the dialog on top.
+      if (e.key === "Escape" && (!backdropRef.current || onTop(backdropRef.current))) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -51,7 +63,8 @@ export function Modal(props: {
   }, []);
   return (
     <div
-      class="modal-backdrop"
+      ref={backdropRef}
+      class={cx("modal-backdrop", props.above && "above")}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

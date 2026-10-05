@@ -204,7 +204,7 @@ function check(m: Extract<DdWorkerIn, { t: "check" }>, post: Post): void {
   const [x0, y0, x1, y1] = sc.meta.rect;
   const sw = (x1 - x0) / GRID, sh = (y1 - y0) / GRID;
   if (!(sw > 0 && sh > 0 && m.picW > 0 && m.picH > 0) || !sameShape(m.picW, m.picH, sw, sh)) {
-    return post({ t: "checked", id: m.id, fit: { error: DD_TEXT.shape(m.picW, m.picH, round2(sw), round2(sh)) } });
+    return post({ t: "checked", id: m.id, fit: { error: DD_TEXT.shape(m.picW, m.picH, round2(sw), round2(sh)), hard: true } });
   }
   const pic = atMostPerSquare(m.pic, sw, DD_MAX_PX_PER_SQUARE);
   post({ t: "checked", id: m.id, fit: sidecarFit(sc, pic) });

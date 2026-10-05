@@ -109,6 +109,12 @@ type Pt = { x: number; y: number };
 export const MAX_VTT_POINTS = 200_000;
 /** Export points further than this from the origin (squares, per axis) are ignored: no map is that big. */
 export const MAX_VTT_COORD = 1e6;
+/**
+ * Most map points matchDd2vttLevel reads in all its searches (about a tenth of a second). A real
+ * map reads a few per export point; a file with very many points in one place could make every
+ * search read all of them, so past this the export is no help and every level scores 0.
+ */
+export const MATCH_WORK = 50_000_000;
 
 /**
  * Points bucketed in square cells of side `tol`: every point within `tol` (per axis) of a query
@@ -116,15 +122,19 @@ export const MAX_VTT_COORD = 1e6;
  * answer and costs only the few points of 9 cells. Cell indices are floats and can pass 2^53 for
  * far-out coordinates, where `index + 1 === index`: the neighbours are visited by whole-number
  * offsets so the loops always end (such cells may then be visited twice, which is harmless).
+ * That is O(n + m) only while the points are spread out: `work` counts the points the searches
+ * read, so a caller can stop when many of them crowd one cell (pass one counter to several hashes).
  * Exported for tests.
  */
 export class PointHash {
   private readonly cells = new Map<number, Map<number, number[]>>();
   private readonly tol: number;
   private readonly cell: number;
-  constructor(tol: number) {
+  readonly work: { read: number };
+  constructor(tol: number, work: { read: number } = { read: 0 }) {
     this.tol = tol;
     this.cell = tol > 1e-9 ? tol : 1e-9;
+    this.work = work;
   }
   add(x: number, y: number): void {
     const cx = Math.floor(x / this.cell), cy = Math.floor(y / this.cell);
@@ -142,6 +152,7 @@ export class PointHash {
       for (let dj = -1; dj <= 1; dj++) {
         const list = col.get(cy + dj);
         if (!list) continue;
+        this.work.read += list.length >> 1;
         for (let k = 0; k < list.length; k += 2) {
           if (Math.abs(list[k] - q.x) <= this.tol && Math.abs(list[k + 1] - q.y) <= this.tol) return true;
         }
@@ -155,9 +166,11 @@ export class PointHash {
  * Which level a .dd2vtt was exported from. Compares the export's portals, lights and
  * line-of-sight vertices (world squares) with each level's. Levels with no walls/portals/lights
  * cannot be told apart this way (score 0, checked 0): fall back to header.currentLevel or ask the GM.
- * O(n + m): each level's points go into a spatial hash with cell = `tol`.
+ * O(n + m): each level's points go into a spatial hash with cell = `tol`. Searches that read more
+ * than `work` map points in all (MATCH_WORK: points crowded into a few cells) give every level
+ * score 0 and checked 0, as an export with no clues would.
  */
-export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05): LevelMatch[] {
+export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05, work = MATCH_WORK): LevelMatch[] {
   const pts = (v: unknown[], out: Pt[], budget: number): void => {
     for (let i = 0; i < v.length && out.length < budget; i++) {
       const p = v[i];
@@ -177,8 +190,10 @@ export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05): LevelMa
   }
 
   const results: LevelMatch[] = [];
+  const spent = { read: 0 };
+  const noClues = () => map.world.levels.map((level): LevelMatch => ({ level, score: 0, checked: 0 }));
   for (const L of map.world.levels) {
-    const portals = new PointHash(tol), lights = new PointHash(tol), wallPts = new PointHash(tol);
+    const portals = new PointHash(tol, spent), lights = new PointHash(tol, spent), wallPts = new PointHash(tol, spent);
     for (const w of L.walls) for (const p of w.portals) portals.add(p.position.x / GRID, p.position.y / GRID);
     for (const p of L.portals) portals.add(p.position.x / GRID, p.position.y / GRID);
     for (const l of L.lights) lights.add(l.position.x / GRID, l.position.y / GRID);
@@ -191,11 +206,11 @@ export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05): LevelMa
       }
     }
     let hit = 0, checked = 0;
-    for (const q of exPortals) { checked++; if (portals.near(q)) hit++; }
-    for (const q of exLights) { checked++; if (lights.near(q)) hit++; }
+    for (const q of exPortals) { checked++; if (portals.near(q)) hit++; if (spent.read > work) return noClues(); }
+    for (const q of exLights) { checked++; if (lights.near(q)) hit++; if (spent.read > work) return noClues(); }
     // LOS also carries cave outlines and block-light paths, so only count it as supporting evidence.
     let losHit = 0;
-    for (const q of exLos) if (wallPts.near(q)) losHit++;
+    for (const q of exLos) { if (wallPts.near(q)) losHit++; if (spent.read > work) return noClues(); }
     const losScore = exLos.length ? losHit / exLos.length : 0;
     const score = checked ? (hit / checked) * 0.7 + losScore * 0.3 : losScore;
     results.push({ level: L, score, checked: checked + exLos.length });

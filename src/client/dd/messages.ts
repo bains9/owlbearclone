@@ -22,6 +22,16 @@ export type DdWorkerIn =
   /** Fit an attached sidecar against a picture. */
   | { t: "check"; id: number; sidecar: Uint8Array; pic: PictureSample; picW: number; picH: number };
 
+/** Why attached data couldn't be checked against a picture. */
+export interface CheckRefusal {
+  error: string;
+  /** The picture is another shape than the data's (2.8's hard check): it can't be used with it, even "anyway". */
+  hard?: true;
+}
+
+/** A check of attached data against a picture: the fit, or why there is none. */
+export type CheckResult = FitResult | CheckRefusal;
+
 export type DdWorkerOut =
   | {
       t: "prepared";
@@ -33,7 +43,7 @@ export type DdWorkerOut =
       ph: number;
       compare?: { exact: Uint8ClampedArray; guessed: Uint8ClampedArray; w: number; h: number };
     }
-  | { t: "checked"; id: number; fit: FitResult | { error: string } }
+  | { t: "checked"; id: number; fit: CheckResult }
   | { t: "progress"; id: number; text: string }
   | { t: "error"; id: number; message: string };
 

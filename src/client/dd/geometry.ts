@@ -180,16 +180,3 @@ export function objectFootprint(o: MapObject, r: number): Footprint {
     rotation: o.rotation,
   };
 }
-
-/** Ellipse outline as a polygon (for rasterisers that only fill polygons). */
-export function ellipsePolygon(f: Footprint, segments = 24): Float64Array {
-  const out = new Float64Array(segments * 2);
-  const c = Math.cos(f.rotation), s = Math.sin(f.rotation);
-  for (let i = 0; i < segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    const x = Math.cos(a) * f.rx, y = Math.sin(a) * f.ry;
-    out[i * 2] = f.cx + c * x - s * y;
-    out[i * 2 + 1] = f.cy + s * x + c * y;
-  }
-  return out;
-}

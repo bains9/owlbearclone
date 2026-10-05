@@ -15,6 +15,7 @@ import {
   NO_PENDING,
   PACK_WARN_SHARE,
   attachChecks,
+  attachedToast,
   bareDefault,
   comparePanels,
   dataNote,
@@ -34,8 +35,10 @@ import {
   planDrop,
   planSkip,
   sidecarLabel,
+  useButton,
   withoutPending,
 } from "../src/client/ui/ddText";
+import { OR } from "../src/client/dd/roles";
 import type { Pending } from "../src/client/ui/ddText";
 
 /** A source file's text (Node's fs, which the tests' types leave out). */
@@ -283,7 +286,10 @@ describe("the Season box's note, by the data's state on this device (6.1)", () =
     // The picture was removed: nothing to use the data with, so only Remove (the dialog would have nothing to open on).
     expect(text("paused", { hasMap: false })).toBe("This scene has no map picture now; its Dungeondraft data is kept for the picture it was attached to. Remove");
     expect(links("paused", { hasMap: false })).toEqual(["Remove=remove"]);
-    expect(text("hold")).toBe("The Dungeondraft data didn't seem to line up with this picture, so seasons guess from the picture. Check… Remove");
+    // On hold for either reason, a fit of "no" or an unclear level (the scene keeps no reason): the line names both.
+    expect(text("hold")).toBe(
+      "The Dungeondraft data isn't used yet: it didn't seem to line up with this picture, or which level the picture shows was unclear. Seasons guess from the picture until then. Check… Remove",
+    );
     expect(links("hold")).toEqual(["Check…=check", "Remove=remove"]);
     expect(text("retrying")).toBe("The Dungeondraft data couldn't be loaded on this device, so seasons guess from the picture for now.");
     expect(links("retrying")).toEqual([]);
@@ -322,16 +328,55 @@ describe("the Season box's controls", () => {
     expect(hasBareTrees(meta())).toBe(false);
     expect(hasBareTrees(meta({ names: ["vegetation/trees/dead_tree_01", "terrain_grass"] }))).toBe(true);
     expect(hasBareTrees(meta({ names: [] }))).toBe(false);
-    expect(hasPackItems(meta())).toBe(false);
-    expect(hasPackItems(meta({ packItems: 3 }))).toBe(true);
+    const objects = (...roles: number[]) => ({ n: roles.length, role: Uint8Array.from(roles) });
+    expect(hasPackItems(meta(), objects(OR.OPAQUE))).toBe(false);
+    expect(hasPackItems(meta({ packItems: 3 }), objects(OR.EVERGREEN, OR.OPAQUE))).toBe(true);
+    // Pack things that stay as drawn either way (a pack ground texture, a roof, a path): the control would do nothing.
+    expect(hasPackItems(meta({ packItems: 3 }), objects(OR.EVERGREEN, OR.STRUCTURE))).toBe(false);
+    expect(hasPackItems(meta({ packItems: 3 }), objects())).toBe(false);
   });
 
   it("names the pack option as Par asked, and says what it does without jargon", () => {
     expect(DD_UI.packsTitle).toMatch(/Leave as drawn/);
     expect(DD_UI.packsTitle).toMatch(/Guess from the picture/);
     expect(DD_UI.packsTitle).not.toMatch(/sidecar|raster|kernel|mask/i);
+    // What "guess" does (analyseExact: the picture's trees and snow inside pack objects), not what a
+    // plain picture does (it never melts, PIXEL_SNOWY), and what it leaves alone.
+    expect(DD_UI.packsTitle).not.toMatch(/plain picture/);
+    expect(DD_UI.packsTitle).toMatch(/the trees and snow the picture shows on them change with the season/);
+    expect(DD_UI.packsTitle).toMatch(/Paths, ground and roofs from asset packs stay as drawn either way/);
     expect(DD_UI.drawnTitle).toBe("Which season the picture shows. Set from the map's snow; change it if it's wrong.");
     expect(DD_UI.bareTitle).toBe("Dungeondraft's bare trees: on a snowy map they're usually sleeping trees, in a green one dead ones.");
+  });
+});
+
+describe("check mode's button (2.4, 2.8)", () => {
+  const shape = { error: "This picture is 640×640, which isn't the shape of the map this data was made for (20×12 squares), so it can't be used with it.", hard: true as const };
+  it("offers Use it for data paused or on hold, \"anyway\" after a fit of no or a check that couldn't run, and waits for the check", () => {
+    expect(useButton("paused", null)).toEqual({ label: "Use it with this picture", ready: false });
+    expect(useButton("paused", fit("yes"))).toEqual({ label: "Use it with this picture", ready: true });
+    expect(useButton("paused", fit("unsure"))).toEqual({ label: "Use it with this picture", ready: true });
+    expect(useButton("paused", fit("no"))).toEqual({ label: "Use it with this picture anyway", ready: true });
+    expect(useButton("paused", { error: "The Dungeondraft data couldn't be loaded." })).toEqual({ label: "Use it with this picture anyway", ready: true });
+    expect(useButton("hold", fit("yes"))).toEqual({ label: "Use it", ready: true });
+    expect(useButton("hold", fit("no"))).toEqual({ label: "Use it anyway", ready: true });
+    for (const st of ["ok", "loading", "green", "none"] as const) expect(useButton(st, fit("yes"))).toBeNull();
+  });
+
+  it("never lets data be used with a picture of another shape (the hard check), even anyway", () => {
+    expect(useButton("paused", shape)).toBeNull();
+    expect(useButton("hold", shape)).toBeNull();
+  });
+
+  it("the dialog shows the button only as useButton says", async () => {
+    const dialog = await source("../src/client/ui/AttachDungeondraft.tsx");
+    expect(dialog).toContain("const use = useButton(dataState, checked);");
+    expect(dialog).toContain("{md && use && (");
+    expect(dialog).toContain("disabled={!use.ready}");
+    expect(dialog).not.toMatch(/"Use it with this picture anyway"/);
+    // And says what attaching did, by the map's season.
+    expect(dialog).toContain("attachedToast(md.drawn ?? report.drawn)");
+    expect(dialog).not.toContain("room.toast(DD_UI.attached)");
   });
 });
 
@@ -347,6 +392,11 @@ describe("the scene editor's row and the toasts", () => {
 
   it("has 6.1's toasts and the Toolbar's title", () => {
     expect(DD_UI.attached).toBe("Dungeondraft data attached: seasons now use the map's own terrain and trees.");
+    // Exact seasons only for a winter map in v1: a green map's data is kept, and the toast says so.
+    expect(attachedToast("winter")).toBe(DD_UI.attached);
+    expect(attachedToast("green")).toBe("Dungeondraft data attached. It's kept for when green maps get exact seasons; for now their seasons are guessed from the picture.");
+    expect(attachedToast(undefined)).toBe("Dungeondraft data attached.");
+    expect(attachedToast("green")).not.toMatch(/now use/);
     expect(DD_UI.removed).toBe("Dungeondraft data removed: seasons go back to guessing from the picture. Ctrl+Z puts it back.");
     expect(DD_UI.importTitle).toBe(
       "Bring in a map made in Dungeondraft as a new scene: pick its export (.dd2vtt or a PNG) and, for exact seasons, its project file (.dungeondraft_map) too. The picture and grid come across; with the project file, seasons know where the snow, water, buildings and trees are instead of guessing.",
@@ -471,6 +521,25 @@ describe("the components carry the texts and controls the design names", () => {
     expect(panel).toContain("planDrop(pending, files,");
     expect(panel).toContain("planSkip(pending, files[0])");
     expect(panel).toContain("hasPending(plan.pending)");
+    // The other half of a pending pair is picked with no accept filter (iOS greys the project file
+    // out otherwise, as on the Toolbar): both pending rows use that input, which has none.
+    const rows = panel.slice(panel.indexOf('<ul class="dd-pending small">'), panel.indexOf("</ul>", panel.indexOf('<ul class="dd-pending small">')));
+    expect(rows.split("otherHalfRef.current?.click()").length - 1).toBe(2);
+    expect(rows).not.toContain("fileRef.current");
+    const input = panel.slice(panel.indexOf("ref={otherHalfRef}"), panel.indexOf("/>", panel.indexOf("ref={otherHalfRef}")));
+    expect(input).toContain('type="file"');
+    expect(input).not.toMatch(/accept=/);
+    // The report's Check… on data on hold opens the dialog on the project file still in this tab
+    // (its level list and preview), and keeps the window while files wait, as Done does.
+    expect(panel).toContain('attachDD: a.dd ? { sceneId: a.sceneId, files: [a.dd], vtt: a.vtt, mode: "attach" } : { sceneId: a.sceneId, mode: "check" }');
+    expect(panel).toContain("if (hasPending(pending)) setReport(null);");
+    expect(panel).toContain("else props.onCreated(a.sceneId, false);");
+    const dialog = await source("../src/client/ui/AttachDungeondraft.tsx");
+    // ... opened over the window: the dialog's layer is above it.
+    expect(dialog.match(/<Modal [^>]* above>/g)).toHaveLength(2);
+    expect(dialog).toContain("useState<VttMeta | undefined>(props.vtt)");
+    const room = await source("../src/client/ui/RoomPage.tsx");
+    expect(room).toContain("vtt={req.vtt}");
   });
 
   it("SeasonPicker: the notes, the three controls with Par's names, and no grid note with data in use", async () => {
@@ -485,6 +554,11 @@ describe("the components carry the texts and controls the design names", () => {
     expect(picker).toContain("Snow drifts and leaves are sized by the grid: set the grid first if it's off.");
     // The note and its links come from dataNote, which the tests above cover.
     expect(picker).toContain("dataNote(props.state, { hasMap: !!s.mapAssetId");
+    // Green data (not used in v1) gets only "This map is drawn in"; Bare trees and the pack option
+    // only while the data is in use, and the pack option only when it would change something.
+    expect(picker).toContain("const inUse = usesData(props.state);");
+    expect(picker).toContain("{md && meta && inUse && hasBareTrees(meta) && (");
+    expect(picker).toContain("{md && sidecar && inUse && hasPackItems(sidecar.meta, sidecar.objects) && (");
   });
 
   it("the dialog: file row, level question, views, Attach anyway, and the sidecar bookkeeping", async () => {
@@ -519,7 +593,9 @@ describe("the guide (6.2)", () => {
   const seasons = GUIDE.find((s) => s.id === "seasons")!;
 
   it("leads What's new with the exact seasons entry, dated with the intro", () => {
-    expect(whatsNew.parts[0].title).toBe("Exact seasons from Dungeondraft files (4 October 2026)");
+    // "latest": main has two other 4 October entries ("Measure in metres", and "NPC tokens by race and class (..., later)");
+    // this one goes above them, newest first (re-date it if it ships another day).
+    expect(whatsNew.parts[0].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, latest)");
     expect(whatsNew.intro).toContain("4 October 2026");
     expect(whatsNew.parts[1].title).toBe("Dungeondraft project files explained (30 September 2026)");
   });
@@ -538,6 +614,8 @@ describe("the guide (6.2)", () => {
     expect(notes).toMatch(/export it again and attach it again/);
     expect(notes).toMatch(/\*\*Guess from the picture\*\* under \*\*Asset-pack items\*\*/);
     expect(notes).toMatch(/\*\*Leave as drawn\*\* is the default/);
+    expect(notes).not.toMatch(/as they treat a plain picture/);
+    expect(notes).toMatch(/Paths, ground and roofs from asset packs stay as drawn either way/);
     expect(notes).toMatch(/\*\*Bare trees\*\*/);
     expect(notes).toMatch(/\*\*This map is drawn in\*\*/);
     expect(notes).toMatch(/winter maps now; green maps follow/);

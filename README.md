@@ -76,7 +76,7 @@ Not included: lighting and line of sight, audio/video.
 | Worker | `src/worker/index.ts` | Every request: HTTP→HTTPS redirect, JSON API under `/api/`, GM sign-in, image upload and download; everything else goes to the static client |
 | `Room` Durable Object | `src/worker/room.ts` | One per room: scenes, tokens, drawings, fog, chat, initiative in SQLite; all live WebSockets (hibernating) |
 | `Directory` Durable Object | `src/worker/directory.ts` | One in total: the GM's room list, login throttling, the random secret sessions are signed with |
-| R2 bucket `tabletop-files` | binding `FILES` | Uploaded images at `rooms/<roomId>/<assetId>` |
+| R2 bucket `tabletop-files` | binding `FILES` | Uploaded images at `rooms/<roomId>/<assetId>`, and the GM's Dungeondraft data for exact seasons (assets of kind `mapdata`: a PNG made by Tabletop, never the project file) |
 | Client | `src/client/` | Preact UI and a Konva canvas, served as static assets |
 | Shared rules | `src/shared/` | Types, protocol, validation, permissions, dice, grid and template maths, initiative operations |
 
@@ -144,14 +144,27 @@ npm test            # unit tests: dice, grid and hex maths, templates, validatio
                     # select, turn and size objects (angles and sizes, turning groups, moves across
                     # chunks, undo pairs and coalescing, the clipboard, wheel classification),
                     # the guide's and Help & shortcuts' Build notes against what the wheel and keys do,
-                    # seasons (validation, undo, the recolouring and the built-map art)
+                    # seasons (validation, undo, the recolouring and the built-map art),
+                    # exact seasons from Dungeondraft project files (test/dd*, seasonExact, mapData,
+                    # sceneMapData, playerView: parsing, extraction, the sidecar, the attach dialog's
+                    # words, what players are sent, and golden hashes of the exact bakes)
 npm run smoke       # end-to-end: API + WebSocket protocol against a running server
 ```
+
+The Dungeondraft tests run on synthetic maps everywhere. The real sample maps and Vern's exports are
+read from `DD_FIXTURES` and `DD_VERN` (by default the folders under `C:/Users/G/tabletop-work`), and
+the tests that need them skip when they aren't there. A passing test's console output (timings,
+verdicts) is hidden: `VERBOSE=1` shows it, and `PERF=1` also makes the timing checks strict (run
+those files on their own). `scripts/dd/` holds the development scripts for this work (measuring the
+samples, contact sheets, inventories), run with `node --import ./scripts/dd/register.mjs
+scripts/dd/<name>.ts`; nothing there ships.
 
 The smoke test signs in, creates a throwaway room, connects a GM and two players over WebSockets, checks
 permissions, hidden tokens, private rolls, the GM's identity, uploads, initiative, scene switching,
 resending after a reconnect, all-or-nothing fog changes, the map builder (objects with angles and sizes,
-and v2 tabs treated as old code) and deletion, then deletes the room. Against the live site:
+and v2 tabs treated as old code), Dungeondraft data (only the GM uploads it, only as a PNG, and players
+are never told of it; on a scene, players get it only while it's in use) and deletion, then deletes the
+room. Against the live site:
 
 ```bash
 BASE=https://table.parhome.ca GM_PASSWORD=... npm run smoke

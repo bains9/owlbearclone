@@ -211,3 +211,15 @@ describe("SceneMapData (3.2)", () => {
     expect(kinds).toContain("mapdata");
   });
 });
+
+describe("the test run", () => {
+  it("shows a passing test's console output (timings, verdicts) only with VERBOSE=1 or PERF=1, so npm test and a deploy stay quiet", async () => {
+    const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+    const config = fs.readFileSync(new URL("../vitest.config.ts", import.meta.url), "utf8");
+    expect(config).toContain("const verbose = !!(process.env.VERBOSE || process.env.PERF);");
+    expect(config).toContain('silent: verbose ? false : "passed-only",');
+    // And the README says how to run the Dungeondraft tests elsewhere.
+    const readme = fs.readFileSync(new URL("../README.md", import.meta.url), "utf8");
+    for (const word of ["DD_FIXTURES", "DD_VERN", "VERBOSE=1", "PERF=1", "scripts/dd/register.mjs", "mapdata"]) expect(readme).toContain(word);
+  });
+});

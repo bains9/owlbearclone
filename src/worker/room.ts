@@ -46,6 +46,7 @@ import type {
   RoomInfo,
   Scene,
 } from "../shared/types";
+import { canSeeAsset, helloScenes, playerScene, sceneFor } from "./playerView";
 import { kindAllowed } from "./uploads";
 
 /** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
@@ -575,10 +576,7 @@ export class Room extends DurableObject<Env> {
         if (!scene) return refuse("That scene couldn't be saved.");
         this.saveScene(scene);
         this.scenes.set(scene.id, scene);
-        this.broadcast(
-          { t: "scene.upsert", scene, by: conn.connId, seq },
-          (c) => c.role === "gm" || scene.id === this.activeSceneId,
-        );
+        this.broadcastScene(scene, conn.connId, seq);
         return;
       }
 
@@ -641,7 +639,7 @@ export class Room extends DurableObject<Env> {
         if (!gm && asset.owner !== conn.userId) return this.deny(ws);
         this.sql.exec(`DELETE FROM assets WHERE id = ?`, asset.id);
         this.assets.delete(asset.id);
-        this.broadcast({ t: "asset.delete", id: asset.id }, (c) => this.canSeeAsset(asset, c));
+        this.broadcast({ t: "asset.delete", id: asset.id }, (c) => canSeeAsset(asset, c));
         try {
           await this.env.FILES.delete(fileKey(this.info!.id, asset.id));
         } catch (err) {
@@ -992,8 +990,7 @@ export class Room extends DurableObject<Env> {
       const c = target.deserializeAttachment() as Conn | null;
       if (!c) continue;
       const isSender = target === ws;
-      const sceneFor =
-        scene && (c.role === "gm" || scene.id === this.activeSceneId) ? scene : isSender ? sceneCorrection : null;
+      const sceneOut = (scene && sceneFor(scene, c, this.activeSceneId)) ?? (isSender ? sceneCorrection : null);
       const upsert: Item[] = [];
       const patch: ItemPatch[] = [];
       const del: string[] = [];
@@ -1024,13 +1021,13 @@ export class Room extends DurableObject<Env> {
           else del.push(id);
         }
         del.push(...gone);
-      } else if (!upsert.length && !patch.length && !del.length && !sceneFor) {
+      } else if (!upsert.length && !patch.length && !del.length && !sceneOut) {
         continue;
       }
       const out: Extract<ServerMsg, { t: "items" }> = { t: "items", by: conn.connId };
       if (isSender && seq !== undefined) out.seq = seq;
       if (isSender && refused.size) out.refused = [...refused];
-      if (sceneFor) out.scene = sceneFor;
+      if (sceneOut) out.scene = sceneOut;
       if (upsert.length) out.upsert = upsert;
       if (patch.length) out.patch = patch;
       if (del.length) out.delete = del;
@@ -1258,21 +1255,15 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  private canSeeAsset(a: Asset, c: Player): boolean {
-    return c.role === "gm" || (a.owner !== GM_OWNER && a.owner === c.userId);
-  }
-
   private hello(conn: Conn): ServerMsg {
-    const gm = conn.role === "gm";
-    const active = this.activeSceneId ? this.scenes.get(this.activeSceneId) : undefined;
     return {
       t: "hello",
       you: publicPlayer(conn),
       room: this.info!,
-      scenes: gm ? [...this.scenes.values()] : active ? [active] : [],
+      scenes: helloScenes(this.scenes.values(), conn, this.activeSceneId),
       activeSceneId: this.activeSceneId,
       items: [...this.items.values()].filter((i) => this.sees(conn, i)),
-      assets: [...this.assets.values()].filter((a) => this.canSeeAsset(a, conn)),
+      assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn)),
       messages: this.recentMessages(conn),
       initiative: this.initiativeFor(conn),
       players: this.players(),
@@ -1336,7 +1327,9 @@ export class Room extends DurableObject<Env> {
   private broadcastActive(): void {
     // A new live scene: displays show all of it until the GM points them somewhere.
     this.displayView = null;
-    const scene = this.activeSceneId ? (this.scenes.get(this.activeSceneId) ?? null) : null;
+    // Players and displays get the live scene as they may see it (playerView.ts).
+    const live = this.activeSceneId ? this.scenes.get(this.activeSceneId) : undefined;
+    const scene = live ? playerScene(live) : null;
     const items = [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId));
     const forGm = JSON.stringify({ t: "scene.active", id: this.activeSceneId } satisfies ServerMsg);
     const forPlayers = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items } satisfies ServerMsg);
@@ -1365,8 +1358,21 @@ export class Room extends DurableObject<Env> {
     this.broadcastInitiative();
   }
 
+  /** A changed scene: to the GM as stored, to players and displays only when it's live, as they may see it. */
+  private broadcastScene(scene: Scene, by: string, seq: number | undefined): void {
+    const forGm = JSON.stringify({ t: "scene.upsert", scene, by, seq } satisfies ServerMsg);
+    const shown = sceneFor(scene, { role: "player" }, this.activeSceneId);
+    const forPlayers = shown === scene ? forGm : shown ? JSON.stringify({ t: "scene.upsert", scene: shown, by, seq } satisfies ServerMsg) : null;
+    for (const ws of this.ctx.getWebSockets()) {
+      const c = ws.deserializeAttachment() as Player | null;
+      if (!c) continue;
+      if (c.role === "gm") this.sendRaw(ws, forGm);
+      else if (forPlayers) this.sendRaw(ws, forPlayers);
+    }
+  }
+
   private broadcastAsset(asset: Asset): void {
-    this.broadcast({ t: "asset.upsert", asset }, (c) => this.canSeeAsset(asset, c));
+    this.broadcast({ t: "asset.upsert", asset }, (c) => canSeeAsset(asset, c));
   }
 
   private broadcast(msg: ServerMsg, filter?: (c: Player) => boolean): void {

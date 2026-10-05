@@ -12,7 +12,7 @@ const GRID_TYPES: { id: GridType; label: string }[] = [
 ];
 import { fileUrl } from "../api";
 import { importFiles, sceneFromMap, touchedSidecars } from "../importScenes";
-import type { ImportResult } from "../importScenes";
+import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
@@ -152,6 +152,7 @@ export function NewSceneDialog(props: {
   const [blankCovered, setBlankCovered] = useState(false);
   const [rows, setRows] = useState(20);
   const fileRef = useRef<HTMLInputElement>(null);
+  const otherHalfRef = useRef<HTMLInputElement>(null);
   const maps = Object.values(assets)
     .filter((a) => a.kind === "map")
     .sort((a, b) => b.createdAt - a.createdAt);
@@ -237,9 +238,15 @@ export function NewSceneDialog(props: {
   if (report) {
     // With a file still waiting, Done comes back to the window for it.
     const done = () => (hasPending(pending) ? setReport(null) : props.onCreated(report.scenes[0].id, false));
-    const check = (sceneId: string) => {
-      room.store.set({ attachDD: { sceneId, mode: "check" } });
-      props.onCreated(sceneId, false);
+    const check = (a: AttachEntry) => {
+      // Data on hold (an unclear level, or a fit of "no"): the project file is still here, so the
+      // dialog opens on it, with the level list and the preview; otherwise it checks what's attached.
+      room.store.set({
+        attachDD: a.dd ? { sceneId: a.sceneId, files: [a.dd], vtt: a.vtt, mode: "attach" } : { sceneId: a.sceneId, mode: "check" },
+      });
+      // With a file still waiting, the window stays (beneath the dialog) for it, as Done does.
+      if (hasPending(pending)) setReport(null);
+      else props.onCreated(a.sceneId, false);
     };
     return (
       <Modal title="Maps brought in" onClose={done} width={480}>
@@ -263,7 +270,7 @@ export function NewSceneDialog(props: {
                 {a.status !== "ok" && (
                   <>
                     {" "}
-                    <button class="link-btn" onClick={() => check(a.sceneId)}>
+                    <button class="link-btn" onClick={() => check(a)}>
                       Check…
                     </button>
                   </>
@@ -337,7 +344,7 @@ export function NewSceneDialog(props: {
           {pending.dds.map((f) => (
             <li key={f.name + f.size}>
               <strong>{f.name}</strong>: {DD_UI.pendingDd}{" "}
-              <button class="link-btn" onClick={() => fileRef.current?.click()}>
+              <button class="link-btn" onClick={() => otherHalfRef.current?.click()}>
                 Choose the export…
               </button>{" "}
               <button class="link-btn" onClick={() => skipProjectFile(f)}>
@@ -348,7 +355,7 @@ export function NewSceneDialog(props: {
           {pending.pictures.map((f) => (
             <li key={f.name + f.size}>
               <strong>{f.name}</strong>:{" "}
-              <button class="link-btn" onClick={() => fileRef.current?.click()}>
+              <button class="link-btn" onClick={() => otherHalfRef.current?.click()}>
                 Add its project file…
               </button>{" "}
               {DD_UI.pendingPicture}{" "}
@@ -358,6 +365,21 @@ export function NewSceneDialog(props: {
             </li>
           ))}
         </ul>
+      )}
+      {mode === "upload" && (
+        // The other half of a pending pair is picked here, with no type filter: iOS and iPadOS
+        // grey out .dungeondraft_map files in a filtered picker (design 2.1 B).
+        <input
+          ref={otherHalfRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.currentTarget.files ?? [])];
+            e.currentTarget.value = "";
+            void onFiles(files);
+          }}
+        />
       )}
       {mode === "upload" && (
         <div
@@ -534,9 +556,10 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
       width: asset.width,
       height: asset.height,
       grid: sameSize ? g : { ...g, size: guessGridSize(asset.width, asset.height) },
-      // The picture's place in its Dungeondraft map is the old picture's (design 2.8). The
-      // Dungeondraft data stays, paused until "Use it with this picture" in the season box.
-      mapRect: null,
+      // The picture's place in its Dungeondraft map (mapRect) is the old picture's (design 2.8):
+      // changeScene drops it in this same step when the picture changes, and keeps it when the
+      // same picture is chosen again. The Dungeondraft data stays, paused until "Use it with this
+      // picture" in the season box.
     };
     if (sameSize) {
       // Another version of the same map (day and night, say): the fog still lines up.
