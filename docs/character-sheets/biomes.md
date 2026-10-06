@@ -1,8 +1,8 @@
-# Biomes on the character sheets: plan
+# Biomes on the character sheets
 
-Status: designed, not applied yet. The session that designed this had Google Drive (read only) but no
-Google Sheets connector, so it couldn't edit the sheets. Apply it from a session with the Google Sheets
-connector turned on.
+Status: applied on 6 October 2026 to all eight sheets listed below, and checked by reading each one
+back. This file records what was built and why, so later changes can follow it. Editing the sheets
+needs the Google Sheets connector; Google Drive alone can only read them.
 
 The sheets are Google Sheets in the owner's Drive, built from the group's homebrew Player's Handbook
 (27-09-26). Find them with Drive search by title. Apply to every sheet built from the template:
@@ -113,7 +113,7 @@ For row 6, then fill down to row 13 (J6 to J13 point at 'Ref Biomes' rows 2 to 9
 | L6 | `=MAX(0,ARRAYFORMULA(COUNTIF(INDEX('Ref Biomes'!$B$2:$D$9,MATCH($J6,'Ref Biomes'!$A$2:$A$9,0),0),$J$6:$J$13)*$K$6:$K$13))` |
 | M6 | `=IF(L6=0,"",INDEX($J$6:$J$13,MATCH(L6,ARRAYFORMULA(COUNTIF(INDEX('Ref Biomes'!$B$2:$D$9,MATCH($J6,'Ref Biomes'!$A$2:$A$9,0),0),$J$6:$J$13)*$K$6:$K$13),0)))` |
 | N6 | `=MAX(K6,IF(L6>=2,INT(L6/2),0))` |
-| O6 | `=IF(K6>0,"Familiar",IF(N6>0,"Adjacent: half of "&M6&" "&L6,"—"))` |
+| O6 | `=IF(N6=0,"—",IF(K6>=N6,"Familiar","Adjacent: half of "&M6&" "&L6&IF(K6>0," (own "&K6&")","")))` |
 | P6 | `='Ref Biomes'!E2&""` |
 
 J14 shows a warning when a Wilderness Acumen skill has no biome, or has a misspelt one:
@@ -131,8 +131,11 @@ Number format K6:N13 as whole numbers. Use conditional formatting to dim rows wh
 - B67:
 
 ```
-=IFERROR(TEXTJOIN(", ",TRUE,ARRAYFORMULA(FILTER(Skills!$J$6:$J$13&IF(Skills!$P$6:$P$13="",""," (incl. "&LOWER(Skills!$P$6:$P$13)&")")&" "&Skills!$N$6:$N$13&IF(Skills!$K$6:$K$13>0,""," (adjacent)"),Skills!$N$6:$N$13>0))),"—")&IF(Skills!$J$14<>"","  ⚠ "&Skills!$J$14,"")
+=IFERROR(TEXTJOIN(", ",TRUE,ARRAYFORMULA(FILTER(Skills!$J$6:$J$13&IF(Skills!$P$6:$P$13="",""," (incl. "&LOWER(Skills!$P$6:$P$13)&")")&" "&Skills!$N$6:$N$13&IF(Skills!$K$6:$K$13>=Skills!$N$6:$N$13,""," (adjacent)"),Skills!$N$6:$N$13>0))),"—")&IF(Skills!$J$14<>"","  ·  "&Skills!$J$14,"")
 ```
+
+A biome is marked "(adjacent)" whenever its adjacent score beats its own, so a character with their own
+1 next to a 4 reads "2 (adjacent)", and the Skills tab says "Adjacent: half of ... (own 1)".
 
 ### 5. Feature text (Ref Features, row 18, column D)
 
@@ -143,8 +146,9 @@ Replace "See biome_adjacency." with "See Biomes on the Skills tab."
 - **Grimmdark, Skills tab:**
   - Rename A21 "Wilderness Acumen (Northern/Arctic)" to "Wilderness Acumen (Northern)".
   - Rename A23 "Wilderness Acumen (Wam Rainforest)" to "Wilderness Acumen (Warm Rainforest)".
-- **Nancael:** don't guess her two Wilderness Acumen skills (ranks 4 and 3, no biome named). The J14
-  warning will show until the biomes are picked. See question 3.
+- **Nancael** (ranks 4 and 3) and **Aldora Windbrine** (rank 2) have Wilderness Acumen with no biome
+  named. Not guessed: the J14 warning shows on their Skills and Character tabs until the biomes are
+  picked. See question 3.
 
 ## Check after applying
 
@@ -171,10 +175,10 @@ that the Skills!A6:A35 dropdown lists the 8 new names.
 
 ## Open questions for the DM (not built until answered)
 
-1. **Movement.** The general rule lowers a terrain's class by your full WA, or by half for a
-   "non-applicable" WA (any biome, not just adjacent ones). Bushmaster 3rd level lowers it by 1 or your
-   WIS bonus. Do they stack, and does the half rule need adjacency? Movement isn't built into the sheet
-   until this is settled.
+1. **Movement.** The DM Rulings tab on the DM sheet (item 34) already says Bushmaster's reduction
+   stacks on the p96 base reduction. Still open: p96 also lets a "non-applicable" WA (any biome, not
+   just an adjacent one) cut terrain class by half its score. Does that need the biome to be adjacent?
+   Movement isn't built into the sheet.
 2. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
    path's "Hardy Traveller". No such feature exists in the handbook or the sheet. What did it mean?
 3. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
