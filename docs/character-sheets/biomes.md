@@ -49,8 +49,8 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 
 ### DM rulings
 
-- **Mountains and hills count as Northern** (6 October 2026). Northern's WA, own or adjacent, applies
-  in mountains and hills. That covers the Bushmaster example of "heavy mountains" too.
+- **Mountains, hills and tundra count as Northern** (6 October 2026). Northern's WA, own or adjacent,
+  applies there. That covers the Bushmaster example of "heavy mountains" too.
 - **Swamps and bogs count as Temperate Rainforest** (6 October 2026).
 
 ## Changes
@@ -60,7 +60,7 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 | | A | B | C | D | E |
 |---|---|---|---|---|---|
 | 1 | Biome | Adjacent 1 | Adjacent 2 | Adjacent 3 | Also covers |
-| 2 | Northern | Temperate Forest | | | Mountains, hills |
+| 2 | Northern | Temperate Forest | | | Mountains, hills, tundra |
 | 3 | Temperate Forest | Northern | Temperate Rainforest | Plains |
 | 4 | Temperate Rainforest | Temperate Forest | Warm Rainforest | | Swamps, bogs |
 | 5 | Warm Forest | Plains | Warm Rainforest | |
@@ -70,7 +70,7 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 | 9 | Desert | Plains | | |
 
 Column E holds the DM's rulings on terrain that isn't one of the eight biomes. Add any later rulings
-there (for example tundra or coast), and they'll show up on the Skills and Character tabs.
+there (for example coast), and they'll show up on the Skills and Character tabs.
 
 Hide the tab like the other Ref tabs. Add a named range `biome_adjacency` = `'Ref Biomes'!A1:E9`,
 because the Ranger feature text says "See biome_adjacency".
@@ -147,14 +147,14 @@ Grimmdark should come out as follows (Temperate Forest 4, Plains 3 and Warm Fore
 |---|---|---|
 | Temperate Forest | 4 | Familiar |
 | Plains | 3 | Familiar |
-| Northern | 2 | Adjacent: half of Temperate Forest 4. Also covers mountains and hills |
+| Northern | 2 | Adjacent: half of Temperate Forest 4. Also covers mountains, hills and tundra |
 | Temperate Rainforest | 2 | Adjacent: half of Temperate Forest 4. Also covers swamps and bogs |
 | Warm Forest | 1 | Familiar (its own 1 equals half of Plains 3) |
 | Desert | 1 | Adjacent: half of Plains 3 |
 | Warm Rainforest | 0 | Its best neighbour, Warm Forest, is only 1 |
 | Jungle | 0 | Nothing adjacent |
 
-Its Character line should read, in table order: "Northern (incl. mountains, hills) 2 (adjacent),
+Its Character line should read, in table order: "Northern (incl. mountains, hills, tundra) 2 (adjacent),
 Temperate Forest 4, Temperate Rainforest (incl. swamps, bogs) 2 (adjacent), Warm Forest 1, Plains 3, Desert 1 (adjacent)".
 
 Also check that no formula on Skills E6:H35 or Character rows 84 onward has turned into an error, and
@@ -162,10 +162,9 @@ that the Skills!A6:A35 dropdown lists the 8 new names.
 
 ## Open questions for the DM (not built until answered)
 
-1. **Other terrain that isn't a biome.** Settled so far: mountains and hills count as Northern, and
-   swamps and bogs count as Temperate Rainforest. Tundra and coast are still in the terrain difficulty
-   table with no biome. Should they map onto existing biomes (add the ruling to 'Ref Biomes' column E)
-   or become new ones?
+1. **Coast.** Settled so far: mountains, hills and tundra count as Northern, and swamps and bogs count
+   as Temperate Rainforest. Coast is the only terrain left with no biome. Does it count as an existing
+   biome (add the ruling to 'Ref Biomes' column E), or become a new one?
 2. **How adjacency works.** The handbook gives three versions:
    - The Ranger section gives half your score automatically, if your WA is at least 2.
    - The WA skill table says you "will adapt to adjacent terrain" only at rank 3.
