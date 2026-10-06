@@ -59,6 +59,8 @@ That covers every terrain in the handbook's terrain difficulty table that isn't 
 - **Adjacent biomes use the Ranger section's version** (6 October 2026): half your WA, rounded down,
   automatically, if your WA is at least 2. The WA table's "will adapt to adjacent terrain" at rank 3,
   and the skill text's cheaper aptitude for a neighbouring biome, don't change how adjacent scores count.
+- **Own and adjacent scores don't add up** (6 October 2026): a biome counts as the higher of its own
+  WA and its adjacent score.
 
 ## Changes
 
@@ -182,4 +184,3 @@ that the Skills!A6:A35 dropdown lists the 8 new names.
    - The handbook's worked example leaves Temperate Rainforest out of Temperate Forest's neighbours,
      but the chart includes it. The sheet follows the chart.
    - WA ranks 5 and 6 have identical text.
-   - Is "own WA or adjacent, whichever is higher" right?
