@@ -56,6 +56,10 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 
 That covers every terrain in the handbook's terrain difficulty table that isn't a biome.
 
+- **Adjacent biomes use the Ranger section's version** (6 October 2026): half your WA, rounded down,
+  automatically, if your WA is at least 2. The WA table's "will adapt to adjacent terrain" at rank 3,
+  and the skill text's cheaper aptitude for a neighbouring biome, don't change how adjacent scores count.
+
 ## Changes
 
 ### 1. New hidden tab "Ref Biomes"
@@ -138,7 +142,7 @@ Replace "See biome_adjacency." with "See Biomes on the Skills tab."
   - Rename A21 "Wilderness Acumen (Northern/Arctic)" to "Wilderness Acumen (Northern)".
   - Rename A23 "Wilderness Acumen (Wam Rainforest)" to "Wilderness Acumen (Warm Rainforest)".
 - **Nancael:** don't guess her two Wilderness Acumen skills (ranks 4 and 3, no biome named). The J14
-  warning will show until the biomes are picked. See question 4.
+  warning will show until the biomes are picked. See question 3.
 
 ## Check after applying
 
@@ -165,22 +169,16 @@ that the Skills!A6:A35 dropdown lists the 8 new names.
 
 ## Open questions for the DM (not built until answered)
 
-1. **How adjacency works.** The handbook gives three versions:
-   - The Ranger section gives half your score automatically, if your WA is at least 2.
-   - The WA skill table says you "will adapt to adjacent terrain" only at rank 3.
-   - The WA skill text says you can *learn* WA in a neighbouring biome at a cheaper aptitude.
-
-   The sheet uses the first version, rounded down. Which one is right?
-2. **Movement.** The general rule lowers a terrain's class by your full WA, or by half for a
+1. **Movement.** The general rule lowers a terrain's class by your full WA, or by half for a
    "non-applicable" WA (any biome, not just adjacent ones). Bushmaster 3rd level lowers it by 1 or your
    WIS bonus. Do they stack, and does the half rule need adjacency? Movement isn't built into the sheet
    until this is settled.
-3. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
+2. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
    path's "Hardy Traveller". No such feature exists in the handbook or the sheet. What did it mean?
-4. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
+3. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
    and Hills. If "(H)" was Hills, it is now Northern 3. Which forest was "(F)", Temperate or Warm?
    Confirm both before filling them in.
-5. **Small things:**
+4. **Small things:**
    - The handbook's worked example leaves Temperate Rainforest out of Temperate Forest's neighbours,
      but the chart includes it. The sheet follows the chart.
    - WA ranks 5 and 6 have identical text.
