@@ -52,6 +52,9 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 - **Mountains, hills and tundra count as Northern** (6 October 2026). Northern's WA, own or adjacent,
   applies there. That covers the Bushmaster example of "heavy mountains" too.
 - **Swamps and bogs count as Temperate Rainforest** (6 October 2026).
+- **Coast counts as Plains** (6 October 2026).
+
+That covers every terrain in the handbook's terrain difficulty table that isn't a biome.
 
 ## Changes
 
@@ -64,13 +67,13 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 | 3 | Temperate Forest | Northern | Temperate Rainforest | Plains |
 | 4 | Temperate Rainforest | Temperate Forest | Warm Rainforest | | Swamps, bogs |
 | 5 | Warm Forest | Plains | Warm Rainforest | |
-| 6 | Plains | Temperate Forest | Warm Forest | Desert |
+| 6 | Plains | Temperate Forest | Warm Forest | Desert | Coast |
 | 7 | Warm Rainforest | Temperate Rainforest | Warm Forest | Jungle |
 | 8 | Jungle | Warm Rainforest | | |
 | 9 | Desert | Plains | | |
 
 Column E holds the DM's rulings on terrain that isn't one of the eight biomes. Add any later rulings
-there (for example coast), and they'll show up on the Skills and Character tabs.
+there, and they'll show up on the Skills and Character tabs.
 
 Hide the tab like the other Ref tabs. Add a named range `biome_adjacency` = `'Ref Biomes'!A1:E9`,
 because the Ranger feature text says "See biome_adjacency".
@@ -135,7 +138,7 @@ Replace "See biome_adjacency." with "See Biomes on the Skills tab."
   - Rename A21 "Wilderness Acumen (Northern/Arctic)" to "Wilderness Acumen (Northern)".
   - Rename A23 "Wilderness Acumen (Wam Rainforest)" to "Wilderness Acumen (Warm Rainforest)".
 - **Nancael:** don't guess her two Wilderness Acumen skills (ranks 4 and 3, no biome named). The J14
-  warning will show until the biomes are picked. See question 5.
+  warning will show until the biomes are picked. See question 4.
 
 ## Check after applying
 
@@ -146,7 +149,7 @@ Grimmdark should come out as follows (Temperate Forest 4, Plains 3 and Warm Fore
 | Biome | Counts as | Why |
 |---|---|---|
 | Temperate Forest | 4 | Familiar |
-| Plains | 3 | Familiar |
+| Plains | 3 | Familiar. Also covers coast |
 | Northern | 2 | Adjacent: half of Temperate Forest 4. Also covers mountains, hills and tundra |
 | Temperate Rainforest | 2 | Adjacent: half of Temperate Forest 4. Also covers swamps and bogs |
 | Warm Forest | 1 | Familiar (its own 1 equals half of Plains 3) |
@@ -155,32 +158,29 @@ Grimmdark should come out as follows (Temperate Forest 4, Plains 3 and Warm Fore
 | Jungle | 0 | Nothing adjacent |
 
 Its Character line should read, in table order: "Northern (incl. mountains, hills, tundra) 2 (adjacent),
-Temperate Forest 4, Temperate Rainforest (incl. swamps, bogs) 2 (adjacent), Warm Forest 1, Plains 3, Desert 1 (adjacent)".
+Temperate Forest 4, Temperate Rainforest (incl. swamps, bogs) 2 (adjacent), Warm Forest 1, Plains (incl. coast) 3, Desert 1 (adjacent)".
 
 Also check that no formula on Skills E6:H35 or Character rows 84 onward has turned into an error, and
 that the Skills!A6:A35 dropdown lists the 8 new names.
 
 ## Open questions for the DM (not built until answered)
 
-1. **Coast.** Settled so far: mountains, hills and tundra count as Northern, and swamps and bogs count
-   as Temperate Rainforest. Coast is the only terrain left with no biome. Does it count as an existing
-   biome (add the ruling to 'Ref Biomes' column E), or become a new one?
-2. **How adjacency works.** The handbook gives three versions:
+1. **How adjacency works.** The handbook gives three versions:
    - The Ranger section gives half your score automatically, if your WA is at least 2.
    - The WA skill table says you "will adapt to adjacent terrain" only at rank 3.
    - The WA skill text says you can *learn* WA in a neighbouring biome at a cheaper aptitude.
 
    The sheet uses the first version, rounded down. Which one is right?
-3. **Movement.** The general rule lowers a terrain's class by your full WA, or by half for a
+2. **Movement.** The general rule lowers a terrain's class by your full WA, or by half for a
    "non-applicable" WA (any biome, not just adjacent ones). Bushmaster 3rd level lowers it by 1 or your
    WIS bonus. Do they stack, and does the half rule need adjacency? Movement isn't built into the sheet
    until this is settled.
-4. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
+3. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
    path's "Hardy Traveller". No such feature exists in the handbook or the sheet. What did it mean?
-5. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
+4. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
    and Hills. If "(H)" was Hills, it is now Northern 3. Which forest was "(F)", Temperate or Warm?
    Confirm both before filling them in.
-6. **Small things:**
+5. **Small things:**
    - The handbook's worked example leaves Temperate Rainforest out of Temperate Forest's neighbours,
      but the chart includes it. The sheet follows the chart.
    - WA ranks 5 and 6 have identical text.
