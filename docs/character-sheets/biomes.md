@@ -47,14 +47,19 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
   the next biome along adjacent.
 - If a biome has both its own WA and an adjacent score, the higher one counts. They don't add up.
 
+### DM rulings
+
+- **Mountains and hills count as Northern** (6 October 2026). Northern's WA, own or adjacent, applies
+  in mountains and hills. That covers the Bushmaster example of "heavy mountains" too.
+
 ## Changes
 
 ### 1. New hidden tab "Ref Biomes"
 
-| | A | B | C | D |
-|---|---|---|---|---|
-| 1 | Biome | Adjacent 1 | Adjacent 2 | Adjacent 3 |
-| 2 | Northern | Temperate Forest | | |
+| | A | B | C | D | E |
+|---|---|---|---|---|---|
+| 1 | Biome | Adjacent 1 | Adjacent 2 | Adjacent 3 | Also covers |
+| 2 | Northern | Temperate Forest | | | Mountains, hills |
 | 3 | Temperate Forest | Northern | Temperate Rainforest | Plains |
 | 4 | Temperate Rainforest | Temperate Forest | Warm Rainforest | |
 | 5 | Warm Forest | Plains | Warm Rainforest | |
@@ -63,7 +68,10 @@ There are eight biomes. Wilderness Acumen (WA) is a separate skill for each one.
 | 8 | Jungle | Warm Rainforest | | |
 | 9 | Desert | Plains | | |
 
-Hide the tab like the other Ref tabs. Add a named range `biome_adjacency` = `'Ref Biomes'!A1:D9`,
+Column E holds the DM's rulings on terrain that isn't one of the eight biomes. Add any later rulings
+there (for example swamps or tundra), and they'll show up on the Skills and Character tabs.
+
+Hide the tab like the other Ref tabs. Add a named range `biome_adjacency` = `'Ref Biomes'!A1:E9`,
 because the Ranger feature text says "See biome_adjacency".
 
 ### 2. One Wilderness Acumen skill per biome (Ref Skills)
@@ -81,10 +89,10 @@ This makes per-biome names the book skill names. The skill picker offers them, t
 rank" text fills in, and the Character tab stops flagging them as "not a book skill name". Keep the
 generic row for sheets that haven't named a biome yet.
 
-### 3. Biomes block on the Skills tab, J4:O14
+### 3. Biomes block on the Skills tab, J4:P14
 
 - J4: `BIOMES (Wilderness Acumen, p79)`. Style it like A4 ("SKILLS").
-- J5:O5 headers, styled like row 5: `Biome | Your WA | Best adjacent WA | Adjacent to | Counts as | Status`
+- J5:P5 headers, styled like row 5: `Biome | Your WA | Best adjacent WA | Adjacent to | Counts as | Status | Also covers`
 
 For row 6, then fill down to row 13 (J6 to J13 point at 'Ref Biomes' rows 2 to 9):
 
@@ -96,6 +104,7 @@ For row 6, then fill down to row 13 (J6 to J13 point at 'Ref Biomes' rows 2 to 9
 | M6 | `=IF(L6=0,"",INDEX($J$6:$J$13,MATCH(L6,ARRAYFORMULA(COUNTIF(INDEX('Ref Biomes'!$B$2:$D$9,MATCH($J6,'Ref Biomes'!$A$2:$A$9,0),0),$J$6:$J$13)*$K$6:$K$13),0)))` |
 | N6 | `=MAX(K6,IF(L6>=2,INT(L6/2),0))` |
 | O6 | `=IF(K6>0,"Familiar",IF(N6>0,"Adjacent: half of "&M6&" "&L6,"—"))` |
+| P6 | `='Ref Biomes'!E2&""` |
 
 J14 shows a warning when a Wilderness Acumen skill has no biome, or has a misspelt one:
 
@@ -112,7 +121,7 @@ Number format K6:N13 as whole numbers. Use conditional formatting to dim rows wh
 - B67:
 
 ```
-=IFERROR(TEXTJOIN(", ",TRUE,ARRAYFORMULA(FILTER(Skills!$J$6:$J$13&" "&Skills!$N$6:$N$13&IF(Skills!$K$6:$K$13>0,""," (adjacent)"),Skills!$N$6:$N$13>0))),"—")&IF(Skills!$J$14<>"","  ⚠ "&Skills!$J$14,"")
+=IFERROR(TEXTJOIN(", ",TRUE,ARRAYFORMULA(FILTER(Skills!$J$6:$J$13&IF(Skills!$P$6:$P$13="",""," (incl. "&LOWER(Skills!$P$6:$P$13)&")")&" "&Skills!$N$6:$N$13&IF(Skills!$K$6:$K$13>0,""," (adjacent)"),Skills!$N$6:$N$13>0))),"—")&IF(Skills!$J$14<>"","  ⚠ "&Skills!$J$14,"")
 ```
 
 ### 5. Feature text (Ref Features, row 18, column D)
@@ -129,7 +138,7 @@ Replace "See biome_adjacency." with "See Biomes on the Skills tab."
 
 ## Check after applying
 
-Read Skills!J4:O14 and Character!A67:H67 back.
+Read Skills!J4:P14 and Character!A67:H67 back.
 
 Grimmdark should come out as follows (Temperate Forest 4, Plains 3 and Warm Forest 1 of its own):
 
@@ -137,22 +146,24 @@ Grimmdark should come out as follows (Temperate Forest 4, Plains 3 and Warm Fore
 |---|---|---|
 | Temperate Forest | 4 | Familiar |
 | Plains | 3 | Familiar |
-| Northern | 2 | Adjacent: half of Temperate Forest 4 |
+| Northern | 2 | Adjacent: half of Temperate Forest 4. Also covers mountains and hills |
 | Temperate Rainforest | 2 | Adjacent: half of Temperate Forest 4 |
 | Warm Forest | 1 | Familiar (its own 1 equals half of Plains 3) |
 | Desert | 1 | Adjacent: half of Plains 3 |
 | Warm Rainforest | 0 | Its best neighbour, Warm Forest, is only 1 |
 | Jungle | 0 | Nothing adjacent |
 
+Its Character line should read, in table order: "Northern (incl. mountains, hills) 2 (adjacent),
+Temperate Forest 4, Temperate Rainforest 2 (adjacent), Warm Forest 1, Plains 3, Desert 1 (adjacent)".
+
 Also check that no formula on Skills E6:H35 or Character rows 84 onward has turned into an error, and
 that the Skills!A6:A35 dropdown lists the 8 new names.
 
 ## Open questions for the DM (not built until answered)
 
-1. **Terrain that isn't a biome.** Mountains, hills, swamps and bogs, tundra and coast are in the
-   terrain difficulty table (and the Bushmaster example uses "heavy mountains"), but no WA covers them.
-   Should they map onto existing biomes or become new ones? This matters for Dwerv and for Hill Urk
-   country.
+1. **Other terrain that isn't a biome.** Mountains and hills are settled (they count as Northern).
+   Swamps and bogs, tundra and coast are still in the terrain difficulty table with no biome. Should
+   they map onto existing biomes (add the ruling to 'Ref Biomes' column E) or become new ones?
 2. **How adjacency works.** The handbook gives three versions:
    - The Ranger section gives half your score automatically, if your WA is at least 2.
    - The WA skill table says you "will adapt to adjacent terrain" only at rank 3.
@@ -166,7 +177,8 @@ that the Skills!A6:A35 dropdown lists the 8 new names.
 4. **"Hardy Traveller".** Grimmdark's Notes tab says the rank-0 biomes are usable through the Survivor
    path's "Hardy Traveller". No such feature exists in the handbook or the sheet. What did it mean?
 5. **Nancael's biomes.** Her old sheet had Wilderness Acumen "(F)" at 4 and "(H)" at 3, perhaps Forest
-   and Hills. Hills isn't a biome (see question 1). Which two biomes are they now?
+   and Hills. If "(H)" was Hills, it is now Northern 3. Which forest was "(F)", Temperate or Warm?
+   Confirm both before filling them in.
 6. **Small things:**
    - The handbook's worked example leaves Temperate Rainforest out of Temperate Forest's neighbours,
      but the chart includes it. The sheet follows the chart.
