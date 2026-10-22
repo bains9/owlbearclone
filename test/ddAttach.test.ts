@@ -539,12 +539,22 @@ class FakeWorker {
 
 let A: typeof AttachModule;
 
+/** The server as GET /api/build answers it (why a worker didn't start: src/client/updated.ts); nothing else is served. */
+function answering(build: string) {
+  return vi.fn(async (url: string) => {
+    if (url === "/api/build") return Response.json({ build });
+    throw new TypeError(`not served here: ${url}`);
+  });
+}
+
 beforeEach(async () => {
   FakeWorker.all = [];
   FakeWorker.mode = "ok";
   canvases = [];
   blobs.clear();
   vi.stubGlobal("Worker", FakeWorker);
+  // The same build as this page ("dev" in tests), unless a test says otherwise.
+  vi.stubGlobal("fetch", answering("dev"));
   vi.stubGlobal("Image", FakeImage);
   vi.stubGlobal("document", { createElement: fakeCanvas });
   vi.stubGlobal("navigator", { deviceMemory: 8 });
@@ -662,6 +672,73 @@ describe("prepareAttach", () => {
       .rejects.toThrow(B.ATTACH_TEXT.noWorker);
   });
 
+  it("says to reload, not to change browsers, when the worker can't start on a page from before an update", async () => {
+    // The server runs a newer build than this page ("dev" in tests), so the worker's file has gone.
+    vi.stubGlobal("fetch", answering("newer"));
+    const go = () => A.prepareAttach(ddFile(snowy.text), pictureBlob(snowyPic), { width: 800, height: 480 }, {});
+    FakeWorker.mode = "loadError";
+    await expect(go()).rejects.toThrow(A.ATTACH_TEXT.updated);
+    expect(FakeWorker.all[0].terminated).toBe(true);
+    // One that fails after starting still stopped part way, whatever the server runs.
+    FakeWorker.mode = "crash";
+    await expect(go()).rejects.toThrow(A.ATTACH_TEXT.stopped);
+  });
+
+  it("says to check the connection, not to change browsers, when the worker can't start and the server can't be reached", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }));
+    FakeWorker.mode = "loadError";
+    await expect(A.prepareAttach(ddFile(snowy.text), pictureBlob(snowyPic), { width: 800, height: 480 }, {}))
+      .rejects.toThrow(A.ATTACH_TEXT.offline);
+    expect(FakeWorker.all[0].terminated).toBe(true);
+  });
+
+  it("refuses a call that comes while it asks the server, with the same answer, and starts afresh after", async () => {
+    const gates: Array<() => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      url === "/api/build" ? new Promise<Response>((done) => gates.push(() => done(Response.json({ build: "dev" })))) : Promise.reject(new TypeError("no"))));
+    const go = () => A.prepareAttach(ddFile(snowy.text), pictureBlob(snowyPic), { width: 800, height: 480 }, {});
+    FakeWorker.mode = "loadError";
+    const first = go();
+    const firstDone = first.catch((e: Error) => e.message);
+    await vi.waitFor(() => expect(gates.length).toBe(1));
+    const second = go().catch((e: Error) => e.message);
+    // The second reaches the broken worker before the server answers.
+    await vi.waitFor(() => expect(FakeWorker.all[0].posted.length).toBe(2));
+    for (const open of gates.splice(0)) open();
+    await vi.waitFor(() => expect(FakeWorker.all[0].terminated).toBe(true));
+    for (const open of gates.splice(0)) open();
+    expect(await firstDone).toBe(A.ATTACH_TEXT.noWorker);
+    expect(await second).toBe(A.ATTACH_TEXT.noWorker);
+    expect(FakeWorker.all.length).toBe(1);
+    FakeWorker.mode = "ok";
+    vi.stubGlobal("fetch", answering("dev"));
+    await expect(go()).resolves.toMatchObject({ report: { level: snowy.levelKey } });
+    expect(FakeWorker.all.length).toBe(2);
+  });
+
+  it("can be cancelled while it asks the server, and the answer then changes nothing", async () => {
+    const gates: Array<() => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      url === "/api/build" ? new Promise<Response>((done) => gates.push(() => done(Response.json({ build: "newer" })))) : Promise.reject(new TypeError("no"))));
+    const stop = new AbortController();
+    FakeWorker.mode = "loadError";
+    const p = A.prepareAttach(ddFile(snowy.text), pictureBlob(snowyPic), { width: 800, height: 480 }, { signal: stop.signal })
+      .catch((e: Error) => e.name);
+    await vi.waitFor(() => expect(gates.length).toBe(1));
+    stop.abort();
+    expect(await p).toBe("AbortError");
+    expect(FakeWorker.all[0].terminated).toBe(true);
+    gates[0]();
+    // A new worker for the next attach, untouched by the late answer.
+    FakeWorker.mode = "ok";
+    await expect(A.prepareAttach(ddFile(snowy.text), pictureBlob(snowyPic), { width: 800, height: 480 }, {}))
+      .resolves.toMatchObject({ report: { level: snowy.levelKey } });
+    expect(FakeWorker.all.length).toBe(2);
+    expect(FakeWorker.all[1].terminated).toBe(false);
+  });
+
   it("can be cancelled: the worker is stopped when nothing else waits on it", async () => {
     FakeWorker.mode = "hang";
     const pic = pictureBlob(snowyPic);
@@ -709,7 +786,7 @@ describe("checkAttached", () => {
   const pic32 = fakeExportFromMap(snowyParsed, snowy.levelKey, 32);
   const bytes = encodeSidecar(snowy.sidecar);
   const serve = (body: Blob | null, status = 200) =>
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url === "/api/build" ? Response.json({ build: "dev" }) : new Response(body, { status }))));
 
   it("fetches and unpacks the sidecar, and fits it against the picture in the worker", async () => {
     const { blob } = await packPng(bytes);

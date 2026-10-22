@@ -7,6 +7,7 @@ import type { Point } from "../../shared/geometry";
 import type { TokenItem } from "../../shared/types";
 import { loadAddHidden } from "../monsters/place";
 import type { RoomClient } from "../room/client";
+import { pageOutdated, updatedText } from "../updated";
 import { npcArtFile } from "./art";
 import { findClass, findNpcAsset, findRace, npcLabel, npcName, npcSquares } from "./npcs";
 import type { NpcClass, NpcIcons, NpcRace } from "./npcs";
@@ -45,6 +46,9 @@ export function readNpcDrag(data: string | undefined): NpcDrag | null {
 /** What the list, or a drop, says when the icons can't be loaded (the browser's own words for it aren't plain). */
 export const NPCS_LOAD_FAILED = "Couldn't load the NPCs. Check the connection, then try again.";
 
+/** The same on a page from before an update, whose icons file has gone. */
+export const NPCS_UPDATED = updatedText("use the NPCs");
+
 let icons: Promise<NpcIcons> | null = null;
 
 /** The head and emblem icons, loaded the first time they're wanted (they're kept out of the main download). */
@@ -80,7 +84,7 @@ function npcAsset(room: RoomClient, race: NpcRace, cls: NpcClass): Promise<strin
         // A drop from another page of the room can come before this page has the icons.
         const icons = await loadNpcs().catch(() => null);
         if (!icons) {
-          room.toast(NPCS_LOAD_FAILED, "error");
+          room.toast((await pageOutdated()) ? NPCS_UPDATED : NPCS_LOAD_FAILED, "error");
           return null;
         }
         const [asset] = await room.upload([await npcArtFile(race, cls, icons)], "token");

@@ -8,8 +8,10 @@ import { HIDDEN_KEY, loadAddHidden, saveAddHidden } from "../monsters/place";
 import { drawNpcArt, previewPx } from "../npcs/art";
 import { NPC_CLASSES, NPC_RACES, classesByGroup, findClass, findRace, npcDescription, npcName, racesByGroup } from "../npcs/npcs";
 import type { NpcClass, NpcIcons, NpcRace } from "../npcs/npcs";
-import { NPCS_LOAD_FAILED, NPC_DRAG_TYPE, loadNpcs, npcDragData, placeNpc } from "../npcs/place";
-import { cx, useRoom } from "./common";
+import { NPCS_LOAD_FAILED, NPCS_UPDATED, NPC_DRAG_TYPE, loadNpcs, npcDragData, placeNpc } from "../npcs/place";
+import { loadFailure } from "../updated";
+import type { LoadFailure } from "../updated";
+import { LoadFailed, cx, useRoom } from "./common";
 
 /** The preview's size in CSS pixels (.npc-art in styles.css); its canvas gets as many device pixels, so it stays sharp on a dense screen. */
 const PREVIEW_CSS_PX = 96;
@@ -33,7 +35,7 @@ function NpcArt(props: { race: NpcRace; cls: NpcClass; icons: NpcIcons }) {
 export function NpcsSection() {
   const room = useRoom();
   const [icons, setIcons] = useState<NpcIcons | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<LoadFailure | null>(null);
   const [raceId, setRaceId] = useState(NPC_RACES[0].id);
   const [classId, setClassId] = useState(NPC_CLASSES[0].id);
   const [hidden, setHidden] = useState(loadAddHidden);
@@ -41,8 +43,8 @@ export function NpcsSection() {
   const [busy, setBusy] = useState<string[]>([]);
 
   const load = () => {
-    setFailed(false);
-    loadNpcs().then(setIcons, () => setFailed(true));
+    setFailed(null);
+    loadNpcs().then(setIcons, async () => setFailed(await loadFailure()));
   };
   useEffect(load, []);
   // Add hidden changed in another tab (or on the Monsters tab): show it here too, so the box says what a click will do.
@@ -73,10 +75,7 @@ export function NpcsSection() {
   if (failed) {
     return (
       <div class="npcs">
-        <p class="small muted">{NPCS_LOAD_FAILED}</p>
-        <button class="btn btn-sm" onClick={load}>
-          Try again
-        </button>
+        <LoadFailed failure={failed} updated={NPCS_UPDATED} failed={NPCS_LOAD_FAILED} onRetry={load} />
       </div>
     );
   }

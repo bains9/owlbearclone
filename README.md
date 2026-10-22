@@ -144,6 +144,9 @@ Deploy protocol bumps between sessions: tabs open across one lose the built map 
 - Each room has a size budget.
 - Plain HTTP is redirected to HTTPS, with HSTS, and the pages carry a strict Content-Security-Policy
   (`public/_headers`).
+- Built files under `/assets/` are cached for a year as immutable; a missing one is a plain 404 that
+  isn't cached, never the page, so a tab left open across a deploy fails cleanly when it asks for an
+  old chunk (`src/worker/staticFiles.ts`).
 
 ## Running it locally
 

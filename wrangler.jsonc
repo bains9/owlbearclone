@@ -11,7 +11,8 @@
 
   // The client is a single-page app. Every request reaches the Worker first, so it
   // can send plain-HTTP visitors to HTTPS; it answers /api/ itself and passes the
-  // rest to the static files (index.html for a room URL such as /r/abc123).
+  // rest to the static files (index.html for a room URL such as /r/abc123), except that a
+  // missing file under /assets/ is a 404 that isn't cached (src/worker/staticFiles.ts).
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",

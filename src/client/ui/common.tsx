@@ -3,6 +3,7 @@ import type { ComponentChildren } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { X } from "lucide-preact";
 import type { RoomClient, RoomState } from "../room/client";
+import type { LoadFailure } from "../updated";
 import { useStore } from "../store";
 
 export const RoomContext = createContext<RoomClient | null>(null);
@@ -294,4 +295,20 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * What a list that loads when first opened shows when it couldn't load: on a page from before an
+ * update, the reason and a Reload button; otherwise `failed` and Try again.
+ */
+export function LoadFailed(props: { failure: LoadFailure; updated: string; failed: string; onRetry: () => void }) {
+  const updated = props.failure === "updated";
+  return (
+    <>
+      <p class="small muted">{updated ? props.updated : props.failed}</p>
+      <button class="btn btn-sm" onClick={updated ? () => location.reload() : props.onRetry}>
+        {updated ? "Reload" : "Try again"}
+      </button>
+    </>
+  );
 }

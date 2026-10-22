@@ -13,6 +13,7 @@
 import type { Asset } from "../../shared/types";
 import type { RoomClient } from "../room/client";
 import { uploadBlob } from "../api";
+import { pageState, updatedText } from "../updated";
 import type { AttachReport, PictureSample, VttMeta } from "./extract";
 import type { CheckResult, DdWorkerIn, DdWorkerOut } from "./messages";
 import { DEFAULT_LIMITS, GRID } from "./model";
@@ -33,6 +34,10 @@ export const ATTACH_TEXT = {
   unreadable: "The Dungeondraft data couldn't be read.",
   failed: "Something went wrong reading the map. Try again, or attach it from a desktop browser.",
   noWorker: "This browser can't read Dungeondraft files; try a current desktop browser.",
+  /** The worker's file is gone: this page is from before an update. */
+  updated: updatedText("read Dungeondraft files"),
+  /** The worker's file couldn't be fetched, and nor could the server be asked why. */
+  offline: "Couldn't load the part of Tabletop that reads Dungeondraft files. Check the connection, then try again.",
   stopped: "Reading the Dungeondraft file stopped part way (the browser may have run short of memory). Try again, or use a desktop browser.",
   picture: "This picture couldn't be read.",
   noCanvas: "This browser couldn't read the picture's pixels.",
@@ -296,7 +301,17 @@ function ddWorker(): Worker {
   };
   w.onerror = (e: Event) => {
     e.preventDefault?.();
-    if (worker === w) stop(heard ? ATTACH_TEXT.stopped : ATTACH_TEXT.noWorker);
+    if (worker !== w) return;
+    if (heard) {
+      stop(ATTACH_TEXT.stopped);
+      return;
+    }
+    // It never started: on a page from before an update its file is gone; with no server to ask,
+    // the connection dropped; otherwise this browser can't run it.
+    void pageState().then((state) => {
+      if (worker !== w) return;
+      stop(state === "updated" ? ATTACH_TEXT.updated : state === "unreachable" ? ATTACH_TEXT.offline : ATTACH_TEXT.noWorker);
+    });
   };
   worker = w;
   return w;

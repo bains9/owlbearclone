@@ -1,14 +1,16 @@
 // The Worker: every request comes here first. It sends plain-HTTP visitors to
 // HTTPS, serves the JSON API under /api/ (GM sign-in, rooms, the WebSocket entry
 // point, image upload and download backed by R2), and hands everything else to the
-// static client.
+// static client (staticFiles.ts).
 
+import { BUILD_ID } from "../shared/build";
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
+import { staticFile } from "./staticFiles";
 import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { Directory } from "./directory";
@@ -100,7 +102,7 @@ export default {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 308);
     }
-    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    if (!url.pathname.startsWith("/api/")) return staticFile(request, env.ASSETS);
     try {
       return await route(request, env, url);
     } catch (err) {
@@ -125,6 +127,11 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
 
   if (pathname === "/api/me" && method === "GET") {
     return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD), google: googleConfigured(env) });
+  }
+
+  // Which Tabletop this is, for a page whose files have gone (src/client/updated.ts).
+  if (pathname === "/api/build" && method === "GET") {
+    return json({ build: BUILD_ID });
   }
 
   if (pathname === "/api/auth/google" && method === "GET") {

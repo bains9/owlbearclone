@@ -8,6 +8,8 @@ import { CREATURE_TYPES, SIZE_LETTERS, TYPE_COLORS, TYPE_NAMES, filterMonsters, 
 import type { CreatureType, MonsterIcon } from "../monsters/monsters";
 import {
   HIDDEN_KEY,
+  MONSTERS_LOAD_FAILED,
+  MONSTERS_UPDATED,
   MONSTER_DRAG_TYPE,
   loadAddHidden,
   loadMonsters,
@@ -16,7 +18,9 @@ import {
   saveAddHidden,
 } from "../monsters/place";
 import { DND_SIZE_NAMES, sizeOptionLabel } from "../room/tokenSizes";
-import { cx, useRoom } from "./common";
+import { loadFailure } from "../updated";
+import type { LoadFailure } from "../updated";
+import { LoadFailed, cx, useRoom } from "./common";
 
 /** A creature as its token looks (the same parts the browser draws when it's first used). */
 function MonsterArt(props: { m: MonsterIcon }) {
@@ -35,7 +39,7 @@ function MonsterArt(props: { m: MonsterIcon }) {
 export function MonstersSection() {
   const room = useRoom();
   const [icons, setIcons] = useState<readonly MonsterIcon[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<LoadFailure | null>(null);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<CreatureType | "">("");
   const [hidden, setHidden] = useState(loadAddHidden);
@@ -43,8 +47,8 @@ export function MonstersSection() {
   const [busy, setBusy] = useState<string[]>([]);
 
   const load = () => {
-    setFailed(false);
-    loadMonsters().then(setIcons, () => setFailed(true));
+    setFailed(null);
+    loadMonsters().then(setIcons, async () => setFailed(await loadFailure()));
   };
   useEffect(load, []);
   // Add hidden changed in another tab: show it here too, so the box says what a click will do.
@@ -71,10 +75,7 @@ export function MonstersSection() {
   if (failed) {
     return (
       <div class="monsters">
-        <p class="small muted">Couldn't load the monsters. Check the connection, then try again.</p>
-        <button class="btn btn-sm" onClick={load}>
-          Try again
-        </button>
+        <LoadFailed failure={failed} updated={MONSTERS_UPDATED} failed={MONSTERS_LOAD_FAILED} onRetry={load} />
       </div>
     );
   }

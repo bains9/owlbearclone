@@ -15,10 +15,22 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 4 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 5 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
-        "title": "Exact seasons from Dungeondraft files (4 October 2026, latest)",
+        "title": "Clearer messages after an update (5 October 2026)",
+        "steps": [
+          "If something says \"Tabletop has been updated. Reload this page to …\", click **Reload** (or **Update: Reload** in the top bar), or reload the page yourself (F5, or Cmd+R on a Mac)."
+        ],
+        "notes": [
+          "Some parts of Tabletop load only when they're first opened: the **Monsters** and **NPCs** tabs and reading Dungeondraft files. On a page that was already open when Tabletop was updated, they may not load any more. They used to tell you to check the connection or to use another browser; now they say Tabletop has been updated, and the tabs have a **Reload** button.",
+          "When it's the connection that failed, they say to check it (the tabs with **Try again**). Reading Dungeondraft files no longer blames the browser for a dropped connection.",
+          "If the guide itself can't load, it now says why, with a **Reload** button, instead of showing \"Loading…\" for ever.",
+          "GM: dropping a monster on the map when the monsters can't load now says so, as NPCs already did. Before, nothing happened."
+        ]
+      },
+      {
+        "title": "Exact seasons from Dungeondraft files (4 October 2026, evening)",
         "steps": [
           "GM: in Dungeondraft, save the map (the .dungeondraft_map file) and export it (**Universal VTT** or PNG).",
           "Bring both files into Tabletop together: drop them on the map, or click **Import Dungeondraft map** in the Build tool's bar and pick both. If they're in different folders, bring one and then the other: the **New scene** window waits for the second.",
@@ -692,7 +704,8 @@ export const GUIDE: GuideSection[] = [
           "A monster you click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
           "Each monster is a light picture on a dark disc, with a coloured ring for its kind: gold for humanoids, teal for undead, green for beasts, orange for monstrosities, brown for giants, red for dragons, pink for fiends, blue for elementals, grey for constructs, yellow-green for plants and purple for fey.",
           "The first time you use a monster in a room it takes a moment: its picture is made and uploaded, and a monster you clicked is dimmed in the list until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"Monster: \" and the creature's name. If you rename or delete it, the next one you place makes a new picture.",
-          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden.",
+          "The list loads the first time you open the tab. If it can't, it says \"Couldn't load the monsters. Check the connection, then try again.\": check the connection and click **Try again**. If it says \"Tabletop has been updated. Reload this page to use the monsters.\", the page is from before an update: click **Reload**."
         ]
       },
       {
@@ -711,7 +724,8 @@ export const GUIDE: GuideSection[] = [
           "Each comes in at the race's D&D size: Gnome, Goblin and Kobold are Small, every other race Medium, and both are one square. Pointing at the picture or **Place** says so, for example \"Octran Crusader: Medium, 1×1 squares\". To change it, select the token and pick another size from the **Size in squares** list in the bar.",
           "**Add hidden** is the same setting as on the **Monsters** tab, remembered on this device: tick it on either tab and both add hidden, until you untick it. Hidden NPCs work like hidden monsters: see **Add hidden, for ambushes**.",
           "The first time you use a race and class together in a room it takes a moment: its picture is made and uploaded, and the picture is dimmed and **Place** waits until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"NPC: \" and the pair's name. If you rename or delete it, the next one you place makes a new picture.",
-          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden.",
+          "The tab loads its pictures the first time you open it. If it can't, it says \"Couldn't load the NPCs. Check the connection, then try again.\": check the connection and click **Try again**. If it says \"Tabletop has been updated. Reload this page to use the NPCs.\", the page is from before an update: click **Reload**."
         ]
       },
       {
@@ -2928,6 +2942,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "It shows on a page that was already open when Tabletop was updated. That page is still running the old version: it doesn't have the new tools, and it can't show everything on a newer map (a built map, say) until it's reloaded.",
+          "On such a page, the parts that load only when first opened may not load any more: the **Monsters** and **NPCs** tabs and reading Dungeondraft files. They say \"Tabletop has been updated. Reload this page to …\" instead (to use the monsters, to read Dungeondraft files, and so on). Reload the page, as above.",
           "A table display reloads itself when Tabletop is updated. A display opened before this reload notice existed can't, and can't show messages either, so the GM is told instead: \"A table display is running an older version of Tabletop. Reload the display's page.\" Reload the page on the display's screen.",
           "If a GM tool you've read about isn't in your toolbar (the hammer for **Build the map**, say), reload first. If it's still missing, check you're signed in as the GM: see \"I'm the GM, but the room treats me as a player\"."
         ]

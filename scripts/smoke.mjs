@@ -199,6 +199,45 @@ async function googleChecks() {
   }
 }
 
+/**
+ * A missing built file is a 404 that isn't stored, never the page (index.html) cached for a year
+ * as immutable: a tab from before a deploy asking for one of its old chunks gets a clean failure,
+ * and a rollback that brings the file back isn't stuck behind cached HTML. Room links and the
+ * guide still get the page, and the server says which build it runs, so such a tab can tell it
+ * was updated.
+ */
+async function staticChecks() {
+  let r = await fetch(`${BASE}/assets/smoke-missing-${rid()}.js`);
+  const missingType = r.headers.get("content-type") ?? "";
+  const missingCache = r.headers.get("cache-control") ?? "";
+  await r.text();
+  check(
+    r.status === 404 && !missingType.includes("text/html") && !/immutable|max-age=[1-9]/.test(missingCache),
+    `a missing /assets/ file is a 404 that isn't cached (got ${r.status}, ${missingType}, "${missingCache}")`,
+  );
+  for (const path of [`/r/${"a".repeat(12)}`, "/guide"]) {
+    r = await fetch(`${BASE}${path}`);
+    const type = r.headers.get("content-type") ?? "";
+    const page = await r.text();
+    check(r.ok && type.includes("text/html") && page.includes('id="app"'), `${path} still gets the page`);
+  }
+  // A page whose files have gone asks which Tabletop the server runs (src/client/updated.ts).
+  r = await fetch(`${BASE}/api/build`);
+  const build = r.ok ? (await r.json()).build : null;
+  check(typeof build === "string" && build.length > 0 && r.headers.get("cache-control") === "no-store", "the server says which build it runs, uncached");
+  // The page's own bundle (built files only: the dev server serves the source instead).
+  const page = await (await fetch(`${BASE}/`)).text();
+  const bundle = /src="(\/assets\/[^"]+\.js)"/.exec(page)?.[1];
+  if (!bundle) {
+    console.log("  skip  the page's bundle: this server doesn't serve built files");
+    return;
+  }
+  r = await fetch(`${BASE}${bundle}`);
+  const type = r.headers.get("content-type") ?? "";
+  await r.text();
+  check(r.ok && type.includes("javascript") && /immutable/.test(r.headers.get("cache-control") ?? ""), "the page's bundle is served and cached as immutable");
+}
+
 async function main() {
   console.log(`Smoke test against ${BASE}`);
   if (process.env.GOOGLE === "1") {
@@ -211,6 +250,8 @@ async function main() {
 
   r = await fetch(`${BASE}/api/rooms`);
   check(r.status === 401, "room list needs the GM");
+
+  await staticChecks();
 
   r = await fetch(`${BASE}/api/login`, { method: "POST", body: JSON.stringify({ password: "wrong" }) });
   check(r.status === 401, "wrong password is refused");
