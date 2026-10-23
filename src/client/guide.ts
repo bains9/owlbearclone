@@ -15,8 +15,21 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 5 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 22 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "\"Only you can see this scene\" moved to the top bar (22 October 2026)",
+        "steps": [
+          "GM: when you look at a scene the players aren't on, look at the top bar, beside the scene's name. It says **Only you can see this scene.** and has **Show to players**, and **Back to live scene** when the players are on a scene."
+        ],
+        "notes": [
+          "It used to be a banner across the top of the map, which could cover the Build tool's objects and couldn't be moved out of the way. In the top bar it never covers the map or a tool's options.",
+          "On a narrower window it's shorter: a crossed-out eye stands in for the words, and **Back to live scene** is the curved-arrow button beside **Show to players**. Point at it, or tap the eye, to read it all, including which scene the players are on.",
+          "To make room beside it on a narrower window, the coloured circles showing who's in the room stop at four (three, narrower still), the last one counting the rest, and **Update: Reload** says just **Reload** (just its round-arrow icon, narrower still). Point at the circles to see everyone.",
+          "On a narrow screen, such as a phone held upright, where the top bar has no room, it's still a banner near the bottom of the map.",
+          "See **GM: \"Only you can see this scene\"** in **Finding your way around a room**."
+        ]
+      },
       {
         "title": "Clearer messages after an update (5 October 2026)",
         "steps": [
@@ -207,7 +220,7 @@ export const GUIDE: GuideSection[] = [
           "Drag from one corner of a room to the opposite corner. You get a stone room with walls round it.",
           "Pick **Doors**.",
           "Click one of the room's walls. It becomes a door.",
-          "When it's ready, click **Show to players** on the \"Only you can see this scene\" banner."
+          "When it's ready, click **Show to players** beside \"Only you can see this scene\" in the top bar."
         ],
         "notes": [
           "You can now build a battle map right on the grid with the Build tool: click **Build the map** (the hammer) in the toolbar, or press **B**.",
@@ -321,7 +334,7 @@ export const GUIDE: GuideSection[] = [
           "Click one of the buttons at the right-hand end to open a panel."
         ],
         "notes": [
-          "Each circle shows a person's first letter in their colour. After six people, the rest are shown as \"+\" and a number.",
+          "Each circle shows a person's first letter in their colour. After six people, the rest are shown as \"+\" and a number. GM: while \"Only you can see this scene\" is in a narrower top bar, they stop at four (three, narrower still), the last one counting the rest.",
           "The GM's circle has an orange ring around it, and in the list you see when hovering, the GM is marked \"(GM)\". In **Chat & dice**, the GM has a **GM** tag.",
           "Everyone is counted once for each tab or window they have the room open in. If a name shows up twice, that person has the room open twice.",
           "Players see the Tabletop logo where the GM has the house button.",
@@ -426,14 +439,14 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "GM: \"Only you can see this scene\"",
         "steps": [
-          "When you look at a scene the players aren't on, read the banner across the map. It says \"Only you can see this scene.\" and names the scene the players are on.",
+          "When you look at a scene the players aren't on, look at the top bar, beside the scene's name. It says \"Only you can see this scene.\" and, on a wide window, names the scene the players are on.",
           "Click **Show to players** to move everyone to the scene you're looking at.",
           "Or click **Back to live scene** to return to the scene the players can see."
         ],
         "notes": [
           "Players only ever get the scene you've shown them. A scene you're previewing is never sent to them.",
           "In the **Scenes** panel, the players' scene is tagged \"Players see this\" and the one you're looking at is marked \"Previewing\".",
-          "The banner sits at the top of the map (just below a tool's options bar, when one is showing), and near the bottom on a phone."
+          "It sits in the top bar, so it never covers the map or a tool's options. On a narrower window it's shorter: a crossed-out eye stands in for the words, and **Back to live scene** is the curved-arrow button beside **Show to players**. Point at it, or tap the eye, to read it all, including which scene the players are on. On a narrow screen, such as a phone held upright, where the top bar has no room, it's a banner near the bottom of the map instead."
         ]
       },
       {
@@ -1892,8 +1905,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click the **Scenes** button in the top bar.",
           "Click a scene in the list. It opens for you only, and its row says **Previewing**.",
-          "Read the banner on the map. It says **Only you can see this scene.** and names the scene players are on.",
-          "When you're done, click **Back to live scene** in that bar to return to the scene players see."
+          "Look at the top bar: beside the scene's name it says **Only you can see this scene.** (just a crossed-out eye, on a narrower window; on a phone, a banner near the bottom of the map says it).",
+          "When you're done, click **Back to live scene** there (the curved-arrow button beside **Show to players**, on a narrower window) to return to the scene players see."
         ],
         "notes": [
           "The **Scenes** button is an icon, a stack of layers. Hover over it to see the name **Scenes**. Only the GM has it, and the **Room settings** button.",
@@ -1909,7 +1922,7 @@ export const GUIDE: GuideSection[] = [
           "On the scene's row, click the play button (**Show to players**)."
         ],
         "notes": [
-          "While you're previewing a scene you can also click **Show to players** in that banner.",
+          "While you're previewing a scene you can also click **Show to players** in the top bar (in the banner near the bottom of the map, on a phone).",
           "Everyone moves to that scene at once, and its row now says **Players see this**.",
           "The scene players are already on has no play button."
         ]
@@ -2425,7 +2438,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Don't click on the map to test this. The fog tool is still on, so a click draws fog. With the Brush on Reveal, one click uncovers a spot for your players.",
-          "If a banner says **Only you can see this scene.**, your players are on a different scene. Click **Show to players** when you're ready for them to see this one."
+          "If the top bar says **Only you can see this scene.** (or shows a crossed-out eye beside **Show to players**, on a narrower window; a banner near the bottom of the map, on a phone), your players are on a different scene. Click **Show to players** when you're ready for them to see this one."
         ]
       },
       {
@@ -2515,7 +2528,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Show to players** when you're ready."
         ],
         "notes": [
-          "While you're looking at a scene your players aren't on, a banner says **Only you can see this scene.** and names the scene players are on (or says **Players have no scene.**). It has a **Show to players** button. When players are on a scene, it also has **Back to live scene** to take you back to it.",
+          "While you're looking at a scene your players aren't on, the top bar says **Only you can see this scene.** (just a crossed-out eye, on a narrower window) and has a **Show to players** button. When players are on a scene, it also has **Back to live scene** (the curved-arrow button beside **Show to players**, on a narrower window) to take you back to it. On a wide window it names the scene players are on, or says **Players have no scene.**; on a narrower one, point at it or tap its crossed-out eye to read that. On a phone the same notice is a banner near the bottom of the map.",
           "You can also click the play button (**Show to players**) next to a scene in the list."
         ]
       }
@@ -2921,7 +2934,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "GM: select the token, drawing or note and look at the eye button in the selection bar.",
           "If it says **Hidden from players (H)**, click it (or press H) so it says **Visible to players (H)**.",
-          "Look for the \"Only you can see this scene.\" banner. If it's there, you're previewing a scene the players can't see.",
+          "Look for \"Only you can see this scene.\" in the top bar (just a crossed-out eye beside **Show to players**, on a narrower window; a banner near the bottom of the map, on a phone). If it's there, you're previewing a scene the players can't see.",
           "Click **Show to players** to bring everyone to this scene, or **Back to live scene** to see theirs.",
           "For fog, pick **Fog of war** and click **Player view** to see the fog exactly as players do."
         ],
@@ -2938,7 +2951,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "\"Tabletop has been updated. Reload this page to get the new version.\"",
         "steps": [
-          "Click **Update: Reload** in the top bar, or reload the page yourself (F5, or Cmd+R on a Mac)."
+          "Click **Update: Reload** in the top bar (just **Reload**, or its round-arrow icon, on a narrower window), or reload the page yourself (F5, or Cmd+R on a Mac)."
         ],
         "notes": [
           "It shows on a page that was already open when Tabletop was updated. That page is still running the old version: it doesn't have the new tools, and it can't show everything on a newer map (a built map, say) until it's reloaded.",

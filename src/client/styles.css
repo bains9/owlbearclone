@@ -558,6 +558,10 @@ button:disabled {
   border: 2px solid var(--panel);
   margin-left: -6px;
 }
+/* The dots overlap each other, not the button before them. */
+.player-dot:first-child {
+  margin-left: 0;
+}
 .player-dot.gm {
   box-shadow: 0 0 0 2px var(--warn);
 }
@@ -790,6 +794,150 @@ button:disabled {
   border-radius: 12px;
   box-shadow: var(--shadow);
   font-size: 13px;
+}
+
+/* The GM's "Only you can see this scene" in the top bar (PreviewChip), never over the map or a
+   tool's options. It drops words as the window narrows, and makes room beside it, so the top
+   bar's own buttons still fit; a phone gets the banner near the bottom of the map instead. */
+/* A grid whose word columns can shrink to nothing: the chip never gets narrower than its eye and
+   buttons, and when the top bar is short of room (a long room name, page zoom, wide fonts) its
+   words give way with an ellipsis before the room's name does (.topbar.previewing below). */
+.preview-chip {
+  position: relative;
+  flex: 0 3 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content) auto auto;
+  align-items: center;
+  margin: 0 6px;
+  padding: 3px 4px 3px 3px;
+  background: rgba(58, 42, 8, 0.95);
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.preview-chip > * {
+  margin-right: 6px;
+}
+.preview-chip > :last-child {
+  margin-right: 0;
+}
+.preview-chip-text,
+.preview-chip-players {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-chip > .preview-chip-eye {
+  grid-column: 1;
+  /* A 27 px target round the 15 px eye, laid out as the eye alone was (the chip's padding is in it). */
+  margin: 0;
+}
+.preview-chip-text {
+  grid-column: 2;
+}
+.preview-chip-players {
+  grid-column: 3;
+}
+.preview-chip > .btn-primary {
+  grid-column: 4;
+}
+.preview-chip > .preview-chip-back {
+  grid-column: 5;
+}
+.preview-chip-eye {
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--warn);
+  cursor: pointer;
+}
+/* While the chip is there, the room's name keeps a little room of its own. */
+.topbar.previewing .topbar-title {
+  min-width: 56px;
+}
+.preview-chip-eye:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* A scene's name can be 60 characters: it gives way rather than push the top bar's buttons off. */
+.preview-chip-players {
+  max-width: 16em;
+  color: #d9c9a3;
+}
+.preview-chip-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.player-dot.more-3,
+.player-dot.more-2 {
+  display: none;
+}
+@media (max-width: 1599px) {
+  /* Out of sight, but still read out, in the chip's tooltip and in a tap on its eye. */
+  .preview-chip-players {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (max-width: 1199px) {
+  /* The arrow alone; the button keeps its name for screen readers, and its tooltip. */
+  .preview-chip-back-text {
+    display: none;
+  }
+  /* Room beside the chip, so the top bar fits with an update waiting and a full table: three
+     presence dots and the rest counted, and Reload without "Update:". */
+  .topbar.previewing .player-dot.dot-4up,
+  .topbar.previewing .player-dot.more-6,
+  .topbar.previewing .update-btn .hide-narrow {
+    display: none;
+  }
+  .topbar.previewing .player-dot.more-3 {
+    display: inline-flex;
+  }
+}
+@media (max-width: 880px) {
+  .topbar.previewing .player-dot.dot-3up,
+  .topbar.previewing .player-dot.more-3 {
+    display: none;
+  }
+  .topbar.previewing .player-dot.more-2 {
+    display: inline-flex;
+  }
+}
+@media (max-width: 999px) {
+  /* The crossed-out eye beside Show to players; the words are read out and in the tooltip. */
+  .preview-chip-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (min-width: 761px) and (max-width: 880px) {
+  /* The arrow alone, with its name in its label and tooltip. */
+  .topbar.previewing .update-btn .update-word {
+    display: none;
+  }
+}
+/* The phone's banner only where a phone's rules apply (a window 760.5 px wide, zoomed, matches
+   neither 760 nor 761: it gets the chip alone, never the banner at the top of the map). */
+.preview-banner.preview-phone {
+  display: none;
+}
+@media (max-width: 760px) {
+  .preview-chip {
+    display: none;
+  }
+  .preview-banner.preview-phone {
+    display: flex;
+  }
 }
 
 .reconnecting {

@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   CircleQuestionMark,
+  CornerUpLeft,
+  EyeOff,
   House,
   Images,
   Layers,
@@ -26,6 +28,7 @@ import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
 import { MapLoading } from "./MapLoading";
+import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
@@ -219,9 +222,11 @@ function TopBar() {
   const [copied, setCopied] = useState(false);
   const [help, setHelp] = useState(false);
   const [display, setDisplay] = useState(false);
+  // Marks the top bar while "Only you can see this scene" is in it, for the room it makes (CSS).
+  const previewing = usePreview().view !== null;
 
   return (
-    <header class="topbar">
+    <header class={cx("topbar", previewing && "previewing")}>
       {gm ? (
         <a class="icon-btn" href="/" title="All rooms" aria-label="All rooms">
           <House size={18} />
@@ -235,23 +240,33 @@ function TopBar() {
         <span class="room-name">{name}</span>
         {sceneName && <span class="scene-name">{sceneName}</span>}
       </div>
+      <PreviewChip />
       <div class="spacer" />
       {outdated && (
         <button
           class="btn btn-primary btn-sm update-btn"
           title="Tabletop has been updated. Reload this page to get the new version."
+          aria-label="Update: Reload"
           onClick={() => location.reload()}
         >
-          <RotateCw size={14} /> <span class="hide-narrow">Update:</span> Reload
+          <RotateCw size={14} aria-hidden="true" /> <span class="hide-narrow">Update:</span> <span class="update-word">Reload</span>
         </button>
       )}
       <div class="player-dots" title={players.map((p) => p.name + (p.role === "gm" ? " (GM)" : "")).join(", ")}>
-        {players.slice(0, 6).map((p) => (
-          <span key={p.connId} class={cx("player-dot", p.role === "gm" && "gm")} style={{ background: p.color }}>
+        {players.slice(0, 6).map((p, i) => (
+          <span
+            key={p.connId}
+            class={cx("player-dot", p.role === "gm" && "gm", ...dotClasses(i, players.length))}
+            style={{ background: p.color }}
+          >
             {Array.from(p.name)[0]?.toUpperCase()}
           </span>
         ))}
-        {players.length > 6 && <span class="player-dot more">+{players.length - 6}</span>}
+        {presenceCounts(players.length).map((c) => (
+          <span key={c.cls} class={`player-dot more ${c.cls}`}>
+            {c.text}
+          </span>
+        ))}
       </div>
       <button
         class="icon-btn"
@@ -342,39 +357,66 @@ function GridAlignBanner() {
   );
 }
 
-function PreviewBanner() {
-  const room = useRoom();
+/** The GM's "Only you can see this scene": while the GM looks at a scene players aren't on. */
+function usePreview() {
   const gm = useRoomState((s) => s.me?.role === "gm");
   const view = useRoomState((s) => s.viewSceneId);
   const active = useRoomState((s) => s.activeSceneId);
   const activeName = useRoomState((s) => (s.activeSceneId ? (s.scenes[s.activeSceneId]?.name ?? "") : ""));
-  const tool = useRoomState((s) => s.tool);
-  const ref = useRef<HTMLDivElement>(null);
-  const shown = gm && !!view && view !== active;
-  // Below the tool's options bar, whatever its height (the Build tool's can wrap), not over it.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const bar = el.parentElement?.querySelector<HTMLElement>(".tool-options");
-    const narrow = window.matchMedia("(max-width: 760px)");
-    const place = () => {
-      el.style.top = bar?.isConnected && !narrow.matches ? `${bar.offsetTop + bar.offsetHeight + 8}px` : "";
-    };
-    place();
-    const ro = new ResizeObserver(place);
-    if (bar) ro.observe(bar);
-    window.addEventListener("resize", place);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", place);
-    };
-  }, [tool, shown]);
-  if (!shown) return null;
+  return {
+    view: gm && view && view !== active ? view : null,
+    active,
+    players: activeName ? `Players are on “${activeName}”.` : "Players have no scene.",
+  };
+}
+
+/**
+ * GM: "Only you can see this scene" in the top bar, with Show to players and Back to live scene.
+ * Up here it never covers the map or a tool's options (the Build tool's objects, say), whatever
+ * their size. On a phone the top bar has no room for it: PreviewBanner says it there instead.
+ */
+function PreviewChip() {
+  const room = useRoom();
+  const { view, active, players } = usePreview();
+  if (!view) return null;
   return (
-    <div class="preview-banner" ref={ref}>
-      <span>
-        Only you can see this scene.{activeName ? ` Players are on “${activeName}”.` : " Players have no scene."}
-      </span>
+    <div class="preview-chip" title={`Only you can see this scene. ${players}`}>
+      {/* A touch screen has no tooltip: a tap on the eye says it all. */}
+      <button
+        class="preview-chip-eye"
+        aria-label="Read the whole notice"
+        onClick={() => room.toast(`Only you can see this scene. ${players}${active ? " The arrow takes you back to them." : ""}`)}
+      >
+        <EyeOff size={15} aria-hidden="true" />
+      </button>
+      <span class="preview-chip-text">Only you can see this scene.</span>
+      <span class="preview-chip-players">{players}</span>
+      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
+        Show to players
+      </button>
+      {active && (
+        <button
+          class="btn btn-sm preview-chip-back"
+          title="Back to live scene"
+          aria-label="Back to live scene"
+          onClick={() => room.viewSceneLocally(active)}
+        >
+          <CornerUpLeft size={14} aria-hidden="true" />
+          <span class="preview-chip-back-text">Back to live scene</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** The same, on a phone: a banner near the bottom of the map, clear of the tools' bars at the top. */
+function PreviewBanner() {
+  const room = useRoom();
+  const { view, active, players } = usePreview();
+  if (!view) return null;
+  return (
+    <div class="preview-banner preview-phone">
+      <span>Only you can see this scene. {players}</span>
       <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
         Show to players
       </button>
