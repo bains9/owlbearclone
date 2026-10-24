@@ -1389,9 +1389,9 @@ button:disabled {
     transform: scaleY(1);
   }
 }
+/* A slide only, never a fade: if a browser holds animations back, the chip still shows. */
 @keyframes speaking-in {
   from {
-    opacity: 0;
     transform: translateX(8px);
   }
 }
