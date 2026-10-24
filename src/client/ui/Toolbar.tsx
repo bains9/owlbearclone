@@ -72,6 +72,7 @@ import {
 } from "../room/buildInput";
 import type { BuildAction, BuildOptions as BuildOpts, ToolId } from "../room/client";
 import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
+import { VoiceMicButton } from "./VoicePanel";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
   { id: "select", label: "Move & select", key: "V", icon: MousePointer2 },
@@ -916,6 +917,7 @@ export function ZoomControls() {
   const zoom = useRoomState((s) => s.zoom);
   return (
     <div class="zoom">
+      <VoiceMicButton />
       <button class="tool" title="Zoom out (−)" aria-label="Zoom out" onClick={() => room.board?.zoomBy(0.8)}>
         <Minus size={18} />
       </button>

@@ -3,6 +3,7 @@ import { Dices, EyeOff, Send, UserPen } from "lucide-preact";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
+import { VoiceSection } from "./VoicePanel";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
 
@@ -57,6 +58,8 @@ export function ChatPanel() {
           <UserPen size={16} />
         </button>
       </div>
+
+      <VoiceSection />
 
       <div
         class="chat-log"

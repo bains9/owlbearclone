@@ -15,8 +15,21 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 22 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 24 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Voice chat (24 October 2026)",
+        "steps": [
+          "Open **Chat & dice** and click **Join voice** at the top of the panel. When your browser asks to use your microphone, allow it.",
+          "Players use push to talk: hold **Left Shift** while you speak, or press and hold the **Hold to talk** button. The GM's microphone is open: click **Mute** to stop the others hearing you.",
+          "Whoever is talking shows at the top right of the map, with their name and moving bars."
+        ],
+        "notes": [
+          "It's all in the browser: nothing to install, and nobody needs an account. Up to 8 people can be in voice chat at once, and the GM can always join.",
+          "Wear headphones if you can, so the others don't hear themselves through your speakers.",
+          "See **Voice chat** to change the push-to-talk key, switch between push to talk and an open microphone, or turn one person up or down."
+        ]
+      },
       {
         "title": "\"Only you can see this scene\" moved to the top bar (22 October 2026)",
         "steps": [
@@ -1059,6 +1072,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The row at the top of the panel shows who is in the room. The GM is marked **GM**.",
           "If the GM has a table display connected, it also shows up in that row as **Table display**.",
+          "Under that row is **Voice chat**: see **Voice chat** to talk to each other.",
           "While the panel is closed, a number on the **Chat & dice** button counts new messages. Past 99 it shows 99+. Opening the panel clears the count."
         ]
       },
@@ -1180,6 +1194,76 @@ export const GUIDE: GuideSection[] = [
           "Everyone's player list updates straight away.",
           "This browser remembers your new name and colour for next time.",
           "Messages you've already sent keep your old name, and initiative entries keep the colour they had when they were added."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "voice",
+    "title": "Voice chat",
+    "audience": "everyone",
+    "intro": "Talk to each other while you play, right in Tabletop: no other app, and nobody needs an account. Voice chat is near the top of the **Chat & dice** panel. Up to 8 people can be in it at once (each browser tab in it counts), and the GM can always join.",
+    "parts": [
+      {
+        "title": "Join and leave voice chat",
+        "steps": [
+          "Click **Chat & dice** in the top bar.",
+          "Under the row of names at the top of the panel, beside **Voice chat**, click **Join voice**.",
+          "If your browser asks to use your microphone, allow it.",
+          "To leave, click **Leave**. Closing the page leaves too."
+        ],
+        "notes": [
+          "The list under **Voice chat** shows who's in it, even before you join. A crossed-out microphone means that person's microphone is off right now, and a green ring means they're talking.",
+          "When you arrive while people are in voice chat, or someone starts it while you're not in it, a message says so.",
+          "Wear headphones if you can. Your browser cancels echo, but headphones stop the others hearing themselves through your speakers.",
+          "If a message says Tabletop isn't allowed to use your microphone, allow it for this site: click the icon at the left of the address bar, turn on the microphone, then click **Join voice** again.",
+          "If you lose your connection for a moment, Tabletop puts you back in voice chat when it comes back.",
+          "A table display doesn't join voice chat."
+        ]
+      },
+      {
+        "title": "Push to talk (players)",
+        "steps": [
+          "Hold **Left Shift** while you talk, and let go when you're done.",
+          "Or press and hold the **Hold to talk** button in the panel (it names your key, such as **Hold to talk (Left Shift)**), or the microphone button beside the zoom buttons. That's the way on a phone or tablet."
+        ],
+        "notes": [
+          "Players start with push to talk, so nobody hears everything going on in everyone's room. Your microphone is on only while you hold the key or the button, and the others see a crossed-out microphone beside your name the rest of the time.",
+          "Typing in a box, such as the chat, never talks, so **Shift** still types capital letters there.",
+          "To use another key: while you're in voice chat, click **Change** beside **Key:**, then press the key you want (**Esc** keeps the old one). It's remembered in this browser. A letter or another ordinary key then only talks, even if the map uses it as a shortcut; Shift, Ctrl, Alt and Cmd keep their usual jobs too.",
+          "While you hold **Left Shift** to talk, the map takes your clicks and drags as plain ones, so you can move tokens and the map as you talk. To select several things with Shift+click, untick **Push to talk** or choose another key."
+        ]
+      },
+      {
+        "title": "An open microphone (the GM)",
+        "steps": [
+          "The GM starts with an open microphone: the others hear you whenever you talk.",
+          "Click **Mute** to turn your microphone off, and **Unmute** to turn it back on. The microphone button beside the zoom buttons does the same."
+        ],
+        "notes": [
+          "Anyone can switch: while you're in voice chat, untick **Push to talk** for an open microphone, or tick it for push to talk. The choice is remembered in this browser."
+        ]
+      },
+      {
+        "title": "See who's talking",
+        "steps": [
+          "While you're in voice chat, look at the top right of the map: whoever is talking shows there, with their name and moving bars."
+        ],
+        "notes": [
+          "You show there too, as **You**, so you can tell your microphone is picking you up.",
+          "It never gets in the way of a click on the map, and it moves down out of the way of a tool's options.",
+          "On a narrow screen, such as a phone held upright, it's just their coloured circles, at the top right of the map.",
+          "In the list under **Voice chat**, whoever is talking has a green ring."
+        ]
+      },
+      {
+        "title": "Turn one person up or down",
+        "steps": [
+          "While you're in voice chat, drag the slider beside their name in the list under **Voice chat**."
+        ],
+        "notes": [
+          "It changes how loud they are for you only, and it's remembered in this browser.",
+          "An iPhone or iPad has no sliders, because those devices set the volume themselves: use the device's volume buttons."
         ]
       }
     ]
@@ -2852,6 +2936,19 @@ export const GUIDE: GuideSection[] = [
     "audience": "everyone",
     "intro": "Quick fixes for the problems people run into most often.",
     "parts": [
+      {
+        "title": "Voice chat: you can't hear someone, or they can't hear you",
+        "steps": [
+          "Check you're both in voice chat: both names are in the list under **Voice chat**.",
+          "If their name has a crossed-out microphone, they're muted, or not holding their push-to-talk key.",
+          "If it says **can't connect** beside their name, both of you click **Leave**, then **Join voice** again.",
+          "If a message in the panel says your browser held back the sound, click it."
+        ],
+        "notes": [
+          "Check the slider beside their name, and your device's volume.",
+          "Calls go straight from browser to browser. Some networks (some workplaces, some mobile data) block that, and voice chat then can't connect: try another network, such as home Wi-Fi."
+        ]
+      },
       {
         "title": "The GM can't sign in",
         "steps": [

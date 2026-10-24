@@ -2134,7 +2134,7 @@ export class Board implements BoardApi {
     }
     switch (s.tool) {
       case "select":
-        this.selectDown(e.pointerId, pos, world, e.shiftKey);
+        this.selectDown(e.pointerId, pos, world, this.shiftHeld(e));
         return;
       case "draw":
         this.drawDown(e.pointerId, world);
@@ -2515,7 +2515,7 @@ export class Board implements BoardApi {
           pointerId,
           start: pos,
           startWorld: world,
-          shift: mouse && e.shiftKey,
+          shift: mouse && this.shiftHeld(e),
           mouse,
           grab: under.some((h) => this.buildSel.objects.some((r) => sameRef(r, h))),
         };
@@ -3886,7 +3886,7 @@ export class Board implements BoardApi {
       case "build-box":
         // Where the pointer let go, in case its last move wasn't sent on its own.
         g.end = world;
-        this.dropBox(g, g.additive || e.shiftKey);
+        this.dropBox(g, g.additive || this.shiftHeld(e));
         return;
       case "build-move-sel":
         this.moveSelTo(g, world);
@@ -4268,6 +4268,11 @@ export class Board implements BoardApi {
     }
     if (sorted.maps.length) this.room.store.set({ mapImport: sorted.maps });
     if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at);
+  }
+
+  /** Shift held for a click or drag, unless it's held to talk (voice chat), when tokens and the map still move. */
+  private shiftHeld(e: { shiftKey: boolean }): boolean {
+    return e.shiftKey && !this.room.voice.shiftTalks();
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {

@@ -30,6 +30,7 @@ import { Logo } from "./Logo";
 import { MapLoading } from "./MapLoading";
 import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
+import { SpeakingOverlay } from "./VoicePanel";
 import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
@@ -111,8 +112,12 @@ function RoomView(props: { roomId: string; profile: Profile }) {
   const room = useMemo(() => new RoomClient(props.roomId, props.profile), [props.roomId]);
   useEffect(() => {
     room.connect();
-    // Development builds only: lets you inspect the room from the browser console.
-    if (import.meta.env.DEV) (window as unknown as { __room: RoomClient }).__room = room;
+    // Development builds only: lets you inspect the room from the browser console, and test
+    // voice chat in two tabs without a microphone (?fakemic).
+    if (import.meta.env.DEV) {
+      (window as unknown as { __room: RoomClient }).__room = room;
+      room.voice.allowFakeMic = true;
+    }
     return () => room.dispose();
   }, [room]);
   return (
@@ -168,6 +173,7 @@ function RoomShell() {
           <SelectionBar />
           <BuildSelectionBar />
           <ZoomControls />
+          <SpeakingOverlay />
           <Toasts />
           <NoteDialog />
           <MapImportDialog />

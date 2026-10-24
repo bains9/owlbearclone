@@ -15,6 +15,7 @@ import type {
   SceneMapData,
   SceneSeason,
 } from "./types";
+import type { IceServer, RtcSignal, VoicePeer } from "./voice";
 
 /**
  * The protocol version this build's browser code speaks (sent as v=). 3: objects turned to
@@ -78,7 +79,17 @@ export type ClientAction =
  * after a reconnect the tab resends only what the server never got, and a change
  * that arrives twice (once late on the old connection, once resent) applies once.
  */
-export type ClientMsg = (ClientAction & { seq: number }) | { t: "eph"; e: Ephemeral };
+export type ClientMsg = (ClientAction & { seq: number }) | { t: "eph"; e: Ephemeral } | VoiceMsg;
+
+/**
+ * Voice chat (voice.ts), without a seq: a tab that reconnects joins again, and a signal
+ * that's lost is sent again by the browser or no longer matters.
+ */
+export type VoiceMsg =
+  /** Joins voice chat (on), leaves it, or says whether this tab's microphone is muted. */
+  | { t: "voice"; on: boolean; muted?: boolean }
+  /** To another tab in voice, about the call between the two. */
+  | { t: "rtc"; to: string; d: RtcSignal };
 
 export type ServerMsg =
   | {
@@ -116,6 +127,14 @@ export type ServerMsg =
   | { t: "chat"; message: ChatMessage }
   | { t: "players"; players: Player[] }
   | { t: "eph"; from: string; e: Ephemeral }
+  /** Who's in voice chat: to everyone whenever it changes, and to a tab as it connects. */
+  | { t: "voice"; peers: VoicePeer[] }
+  /** To a tab joining voice chat: the servers its browser uses to reach the others. */
+  | { t: "ice"; servers: IceServer[] }
+  /** To a tab joining voice chat that can't, and why. */
+  | { t: "voice.refused"; message: string }
+  /** From another tab in voice, about the call between the two. */
+  | { t: "rtc"; from: string; d: RtcSignal }
   /** The change with this seq (and every one before it) has been handled. */
   | { t: "ack"; seq: number }
   | { t: "error"; message: string }

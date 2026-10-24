@@ -1163,6 +1163,245 @@ button:disabled {
   color: var(--warn);
   letter-spacing: 0.04em;
 }
+/* Voice chat, at the top of the Chat & dice panel. */
+.voice {
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.voice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.voice.on .voice-head {
+  color: var(--ok);
+}
+.voice-title {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.voice-count {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.voice-controls .check {
+  margin: 0;
+  gap: 6px;
+}
+.voice-talk {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.voice-talk.talking,
+.voice-mute:not(.muted) {
+  background: rgba(91, 216, 143, 0.16);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.voice-mute.muted {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.voice-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.voice-blocked {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: rgba(243, 167, 18, 0.12);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.voice-people {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.voice-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.voice-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 2px transparent;
+  transition: box-shadow 0.12s;
+}
+.voice-person.speaking .voice-avatar {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ok);
+}
+.voice-name {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-you {
+  color: var(--muted);
+}
+.voice-muted {
+  display: inline-flex;
+  color: var(--muted);
+}
+.voice-link {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.voice-link.failed {
+  color: var(--danger);
+}
+.voice-volume {
+  flex: none;
+  width: 64px;
+  accent-color: var(--accent);
+}
+
+/* The mic in the zoom box, while in voice chat. */
+.zoom .voice-mic {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.zoom .voice-mic.talking,
+.zoom .voice-mic.live {
+  color: var(--ok);
+  background: rgba(91, 216, 143, 0.16);
+}
+.zoom .voice-mic.muted {
+  color: var(--danger);
+}
+
+/* Over the map: who's talking. It never takes a click, and moves down clear of a tool's bar
+   (useClearOfBars); if it ever meets one anyway, the bar is on top. */
+.speaking-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.speaking-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 10px 4px 4px;
+  background: rgba(26, 29, 36, 0.92);
+  border: 2px solid var(--ok);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+  animation: speaking-in 0.12s ease-out;
+}
+.speaking-chip .voice-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.speaking-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.speaking-bars {
+  flex: none;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.speaking-bars i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ok);
+  transform-origin: bottom;
+  animation: speaking-bar 0.7s ease-in-out infinite;
+}
+.speaking-bars i:nth-child(2) {
+  animation-delay: -0.45s;
+}
+.speaking-bars i:nth-child(3) {
+  animation-delay: -0.2s;
+}
+@keyframes speaking-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes speaking-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .speaking-chip,
+  .speaking-bars i {
+    animation: none;
+  }
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;
@@ -2122,6 +2361,20 @@ kbd {
     top: 10px;
   }
   .zoom .zoom-level {
+    display: none;
+  }
+  .speaking-overlay {
+    right: 60px;
+  }
+  /* The zoom buttons go down to the bottom corner while a tool's bar is open. */
+  .tool-options ~ .speaking-overlay {
+    right: 10px;
+  }
+  .speaking-chip {
+    padding: 3px;
+  }
+  .speaking-chip .speaking-name,
+  .speaking-chip .speaking-bars {
     display: none;
   }
   .tool-options ~ .zoom {

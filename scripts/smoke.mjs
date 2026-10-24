@@ -6,8 +6,8 @@
 //                                                   standing in for Google on port 5239)
 //
 // It signs in as the GM, creates a throwaway room, connects a GM and two players
-// over WebSockets, exercises permissions, hidden tokens, dice, uploads and scene
-// switching, then deletes the room again.
+// over WebSockets, exercises permissions, hidden tokens, dice, uploads, scene
+// switching and voice chat's signalling, then deletes the room again.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -1050,6 +1050,57 @@ async function main() {
     "a late joiner sees only the live scene and public chat",
   );
   alice2.ws.close();
+
+  // voice chat: the server says who's in it and passes calls' signals between them
+  const vGm = connect(room.id, { cookie, uid: "vgm" + rid(), name: "Voice GM" });
+  const vAl = connect(room.id, { uid: "val" + rid(), name: "Voice Al" });
+  const vOut = connect(room.id, { uid: "vout" + rid(), name: "Not in voice" });
+  const [vGmHello, vAlHello, vOutHello] = await Promise.all([vGm, vAl, vOut].map((c) => c.waitFor((m) => m.t === "hello")));
+  vGm.send({ t: "voice", on: true });
+  const ice = await vGm.waitFor((m) => m.t === "ice");
+  check(Array.isArray(ice?.servers) && ice.servers.some((s) => s.urls.some((u) => u.startsWith("stun:"))), "joining voice hands out the STUN (and TURN) servers");
+  check(ice?.servers.every((s) => s.urls.every((u) => !/:53(\?|$)/.test(u))) ?? false, "no server on port 53, which browsers block");
+  const outSees = await vOut.waitFor((m) => m.t === "voice" && m.peers.length === 1);
+  check(outSees?.peers[0].connId === vGmHello.you.connId && outSees.peers[0].muted === false, "everyone hears who's in voice, muted or not");
+  vAl.send({ t: "voice", on: true, muted: true });
+  const both = await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 2);
+  check(both?.peers.some((p) => p.connId === vAlHello.you.connId && p.muted), "a second person joins, muted");
+  vGm.clear();
+  vAl.clear();
+  const offer = { type: "offer", sdp: "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n", extra: "dropped" };
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { sdp: offer } });
+  const got = await vAl.waitFor((m) => m.t === "rtc");
+  check(got?.from === vGmHello.you.connId && got.d.sdp.type === "offer" && got.d.sdp.extra === undefined, "an offer reaches the other person in voice, cleaned");
+  vGm.send({ t: "rtc", to: vOutHello.you.connId, d: { sdp: offer } });
+  vOut.send({ t: "rtc", to: vGmHello.you.connId, d: { sdp: offer } });
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { sdp: { type: "rollback", sdp: "x" } } });
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { ice: { candidate: "candidate:1 1 udp 1 10.0.0.1 5000 typ host", sdpMid: "0", sdpMLineIndex: 0 } } });
+  const cand = await vAl.waitFor((m) => m.t === "rtc" && m.d.ice);
+  check(Boolean(cand) && vAl.msgs.filter((m) => m.t === "rtc").length === 2, "a route arrives too; nothing malformed does");
+  check(!(await vOut.waitFor((m) => m.t === "rtc", 300)) && !vGm.msgs.some((m) => m.t === "rtc"), "signals only pass between two people in voice");
+  vAl.send({ t: "voice", on: true, muted: false });
+  const unmuted = await vGm.waitFor((m) => m.t === "voice" && m.peers.every((p) => !p.muted));
+  check(Boolean(unmuted), "unmuting tells everyone");
+  vAl.ws.close();
+  const alGone = await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 1 && m.peers[0].connId === vGmHello.you.connId);
+  check(Boolean(alGone), "closing the page leaves voice chat");
+  const vLate = connect(room.id, { uid: "vlate" + rid(), name: "Late" });
+  await vLate.waitFor((m) => m.t === "hello");
+  const lateSees = await vLate.waitFor((m) => m.t === "voice");
+  check(lateSees?.peers.length === 1, "someone joining the room hears who's in voice");
+  // Eight at a time: the ninth is told it's full.
+  const crowd = Array.from({ length: 8 }, (_, i) => connect(room.id, { uid: "vc" + i + rid(), name: "Crowd " + i }));
+  await Promise.all(crowd.map((c) => c.waitFor((m) => m.t === "hello")));
+  for (const c of crowd.slice(0, 7)) c.send({ t: "voice", on: true });
+  await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 8);
+  crowd[7].send({ t: "voice", on: true });
+  const full = await crowd[7].waitFor((m) => m.t === "voice.refused");
+  check(Boolean(full) && !crowd[7].msgs.some((m) => m.t === "ice"), "voice chat takes eight at a time");
+  vGm.clear();
+  vGm.send({ t: "voice", on: false });
+  const gmLeft = await vOut.waitFor((m) => m.t === "voice" && m.peers.length === 7 && !m.peers.some((p) => p.connId === vGmHello.you.connId));
+  check(Boolean(gmLeft), "leaving voice tells everyone");
+  for (const c of [vGm, vOut, vLate, ...crowd]) c.ws.close();
 
   // deletion
   r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });
