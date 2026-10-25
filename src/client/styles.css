@@ -1580,6 +1580,103 @@ button:disabled {
 .die-btn.wide {
   flex: 2;
 }
+.die-btn {
+  position: relative;
+}
+.die-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.die-btn.picked {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* How many of this die are picked. */
+.die-count {
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+}
+/* As tall as a row of picked dice, so the dice below never move when the first is picked. */
+.dice-hint {
+  margin: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* The picked dice, each with fewer and more, and ×2, Roll and put back. */
+.dice-pool {
+  gap: 6px;
+}
+.pool-die {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.pool-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pool-step:hover:not(:disabled) {
+  color: var(--text);
+}
+.pool-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pool-count {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pool-bonus {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pool-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+.pool-actions .die-btn {
+  flex: none;
+  padding: 0 10px;
+}
+.pool-roll {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.pool-roll:hover {
+  background: var(--accent-strong);
+}
 .mod-input {
   width: 52px;
   flex: none;

@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { Dices, EyeOff, Send, UserPen } from "lucide-preact";
+import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
 import { VoiceSection } from "./VoicePanel";
+import { canAdd, canDouble, changeDie, doubled, poolExpr, poolSize } from "./dicePool";
+import type { Pool } from "./dicePool";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
 
@@ -16,6 +18,14 @@ export function ChatPanel() {
   const [text, setText] = useState("");
   const [secret, setSecret] = useState(false);
   const [modifier, setModifier] = useState("");
+  /** The dice picked to roll together. */
+  const [pool, setPool] = useState<Pool>({});
+  const firstDie = useRef<HTMLButtonElement>(null);
+  /** Empties the pool; the focus, on a button that goes with it, moves to the first die. */
+  const putBack = () => {
+    setPool({});
+    firstDie.current?.focus();
+  };
   const [editProfile, setEditProfile] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -34,6 +44,7 @@ export function ChatPanel() {
     ? (modifier.trim().startsWith("-") || modifier.trim().startsWith("+") ? modifier.trim() : `+${modifier.trim()}`)
     : "";
   const roll = (expr: string) => room.roll(expr + (mod === "+0" ? "" : mod), { private: secret });
+  const bonus = mod === "+0" ? "" : mod;
 
   const send = (e: Event) => {
     e.preventDefault();
@@ -78,10 +89,69 @@ export function ChatPanel() {
       </div>
 
       <div class="dice-tray">
+        {/* Above the dice, so picking one never moves the button under the pointer. */}
+        {poolSize(pool) === 0 ? (
+          <p class="dice-hint">Click dice to pick them, then roll them together.</p>
+        ) : (
+          <div class="dice-row dice-pool" role="group" aria-label="Dice to roll">
+            {DICE.filter((d) => pool[d]).map((d) => (
+              <span key={d} class="pool-die">
+                <button class="pool-step" title={`One d${d} fewer`} aria-label={`One d${d} fewer`} onClick={() => setPool((p) => changeDie(p, d, -1))}>
+                  −
+                </button>
+                <span class="pool-count">
+                  {pool[d]}d{d}
+                </span>
+                <button
+                  class="pool-step"
+                  title={`One more d${d}`}
+                  aria-label={`One more d${d}`}
+                  disabled={!canAdd(pool, d)}
+                  onClick={() => setPool((p) => changeDie(p, d, 1))}
+                >
+                  +
+                </button>
+              </span>
+            ))}
+            {bonus && <span class="pool-bonus">{bonus}</span>}
+            <span class="pool-actions">
+              <button
+                class="die-btn pool-double"
+                disabled={!canDouble(pool)}
+                title="Twice as many of every die (a critical hit)"
+                onClick={() => setPool((p) => doubled(p))}
+              >
+                ×2
+              </button>
+              <button
+                class="die-btn pool-roll"
+                title={`Roll ${poolExpr(pool)}${bonus}`}
+                onClick={() => {
+                  roll(poolExpr(pool));
+                  putBack();
+                }}
+              >
+                Roll
+              </button>
+              <button class="icon-btn pool-clear" title="Put the picked dice back" aria-label="Put the picked dice back" onClick={putBack}>
+                <X size={16} />
+              </button>
+            </span>
+          </div>
+        )}
         <div class="dice-row">
-          {DICE.map((d) => (
-            <button key={d} class="die-btn" onClick={() => roll(`1d${d}`)} title={`Roll 1d${d}${mod}`}>
+          {DICE.map((d, i) => (
+            <button
+              key={d}
+              ref={i === 0 ? firstDie : undefined}
+              class={cx("die-btn", Boolean(pool[d]) && "picked")}
+              disabled={!canAdd(pool, d)}
+              onClick={() => setPool((p) => changeDie(p, d, 1))}
+              title={`Pick a d${d} to roll`}
+              aria-label={pool[d] ? `d${d}, ${pool[d]} picked` : undefined}
+            >
               d{d}
+              {pool[d] ? <span class="die-count">{pool[d]}</span> : null}
             </button>
           ))}
         </div>
@@ -98,7 +168,7 @@ export function ChatPanel() {
             placeholder="+0"
             maxLength={5}
             inputMode="numeric"
-            title="Modifier added to the quick rolls"
+            title="Bonus added to Roll, Advantage and Disadvantage"
             aria-label="Modifier"
             onInput={(e) => setModifier(e.currentTarget.value)}
           />

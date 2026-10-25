@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Roll several dice at once (25 October 2026)",
+        "steps": [
+          "In **Chat & dice**, click the dice you want: each click picks one more, so three clicks on **d6** picks 3d6. Then click **Roll**.",
+          "Change how many with **−** and **+**, or click **×2** to double every die for a critical hit."
+        ],
+        "notes": [
+          "You can mix dice, such as 1d8 and 2d6 for a smite, and your bonus from the **+0** box is added once.",
+          "A die button no longer rolls on its own: a single d20 is **d20**, then **Roll**. **Advantage** and **Disadvantage** still roll at once.",
+          "See **Roll dice from the dice tray** in **Dice and chat**."
+        ]
+      },
       {
         "title": "Voice chat: the microphone works now (25 October 2026)",
         "steps": [
@@ -1101,17 +1113,20 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
-        "title": "Quick rolls from the dice tray",
+        "title": "Roll dice from the dice tray",
         "steps": [
           "If you have a bonus, type it in the small box that shows **+0**, for example `5` or `-1`.",
-          "Click a die button: **d4**, **d6**, **d8**, **d10**, **d12**, **d20** or **d100**.",
-          "Read the result in the chat."
+          "Click the dice you want to roll: **d4**, **d6**, **d8**, **d10**, **d12**, **d20** or **d100**. Each click picks one more, so three clicks on **d6** picks 3d6, and a number on the button shows how many.",
+          "To change how many, click **−** or **+** beside a picked die, or click **×2** to double every die (for a critical hit).",
+          "Click **Roll**. The dice and your bonus roll together, and the result shows in the chat."
         ],
         "notes": [
-          "The bonus is added only to the quick rolls: the die buttons, **Advantage** and **Disadvantage**. It isn't added to rolls you type.",
-          "Hover over a die button to see exactly what it will roll, for example \"Roll 1d20+5\".",
+          "You can mix dice, such as 1d8 and 2d6 for a smite: up to 100 of one die, and 200 in all.",
+          "To put the picked dice back without rolling, click the X beside **Roll** (**Put the picked dice back**).",
+          "The bonus is added once to the whole roll, and to **Advantage** and **Disadvantage**, which roll at once. It isn't added to rolls you type.",
+          "Hover over **Roll** to see exactly what it will roll, for example \"Roll 2d6+1d8+5\".",
           "The box takes a whole number of up to four digits, with or without a + or - in front. If you type anything else, the app ignores it and rolls with no bonus.",
-          "The bonus stays in the box while the **Chat & dice** panel is open. If you close the panel or open a different panel, the box empties, so type your bonus again next time."
+          "The bonus stays in the box while the **Chat & dice** panel is open. If you close the panel or open a different panel, the box empties, so type your bonus again next time. Any dice you've picked are put back too."
         ]
       },
       {
@@ -1128,7 +1143,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Private rolls",
         "steps": [
           "Tick **To GM** in the dice tray. If you're the GM, this box is called **Hidden** instead.",
-          "Make your roll as usual: a die button, **Advantage**, **Disadvantage**, or a roll you type.",
+          "Make your roll as usual: **Roll**, **Advantage**, **Disadvantage**, or a roll you type.",
           "When you want everyone to see your rolls again, untick the box."
         ],
         "notes": [

@@ -610,12 +610,11 @@ describe("the guide", () => {
   const voice = GUIDE.find((s) => s.id === "voice")!;
   const all = (parts: { steps: string[]; notes: string[] }[]) => parts.flatMap((p) => [...p.steps, ...p.notes]).join("\n");
 
-  it("leads What's new with the microphone fix, then voice chat, dated with the intro", () => {
-    expect(news.parts[0].title).toBe("Voice chat: the microphone works now (25 October 2026)");
-    expect(news.intro).toContain("The latest update came out on 25 October 2026.");
-    expect(all([news.parts[0]])).toContain("**Voice chat: Tabletop can't use your microphone**");
-    expect(news.parts[1].title).toBe("Voice chat (24 October 2026)");
-    const entry = all([news.parts[1]]);
+  it("has the microphone fix second in What's new, under the dice, then voice chat", () => {
+    expect(news.parts[1].title).toBe("Voice chat: the microphone works now (25 October 2026)");
+    expect(all([news.parts[1]])).toContain("**Voice chat: Tabletop can't use your microphone**");
+    expect(news.parts[2].title).toBe("Voice chat (24 October 2026)");
+    const entry = all([news.parts[2]]);
     for (const what of ["**Join voice**", "**Left Shift**", "**Hold to talk**", "**Mute**", "top right of the map", "8 people", "headphones", "See **Voice chat**"]) {
       expect(entry).toContain(what);
     }
@@ -624,7 +623,7 @@ describe("the guide", () => {
   it("names only labels the panel really shows, and the default key by its name", async () => {
     const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
     const panel = await readFile(new URL("../src/client/ui/VoicePanel.tsx", import.meta.url), "utf8");
-    const words = `${all(news.parts.slice(0, 2))}\n${all(voice.parts)}`;
+    const words = `${all(news.parts.slice(1, 3))}\n${all(voice.parts)}`;
     const labels = [...new Set(words.match(/\*\*[^*]+\*\*/g) ?? [])].map((b) => b.slice(2, -2));
     expect(labels.length).toBeGreaterThan(10);
     // Keys, the panel itself, and labels built from the key or the name: checked below.
