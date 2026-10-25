@@ -47,8 +47,7 @@ import type { SelectReturn, WheelPref } from "./buildInput";
 import type { SceneDataState } from "./mapData";
 import { NO_MAP_LOAD } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
-import { Voice, voiceInitial } from "./voice";
-import type { VoiceState } from "./voice";
+import { voiceLink } from "./voiceLink";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
 
@@ -196,7 +195,6 @@ export interface RoomState {
   zoom: number;
   toasts: Toast[];
   uploading: number;
-  voice: VoiceState;
 }
 
 /** The buttons of Build › Select's bars. */
@@ -401,8 +399,8 @@ export class RoomClient {
 
   /** A table display: shows the live scene as players see it, and never changes anything. */
   readonly display: boolean;
-  /** Voice chat (never on a table display). */
-  readonly voice: Voice;
+  /** The GM sent everyone to another room (RoomPage goes there). */
+  onGoto: ((room: { id: string; name: string }) => void) | null = null;
 
   constructor(
     readonly roomId: string,
@@ -463,15 +461,6 @@ export class RoomClient {
       zoom: 1,
       toasts: [],
       uploading: 0,
-      voice: voiceInitial(),
-    });
-    this.voice = new Voice({
-      get: () => this.state.voice,
-      set: (patch) => this.store.set((s) => ({ voice: { ...s.voice, ...patch } })),
-      myId: () => this.state.me?.connId ?? null,
-      isGm: () => this.state.me?.role === "gm",
-      send: (msg) => this.sendNow(msg),
-      toast: (text) => this.toast(text),
     });
   }
 
@@ -626,7 +615,6 @@ export class RoomClient {
     if (this.heartbeat) clearInterval(this.heartbeat);
     document.removeEventListener("visibilitychange", this.onVisibility);
     window.removeEventListener("online", this.onVisibility);
-    this.voice.dispose();
     this.ws?.close();
     this.ws = null;
   }
@@ -715,13 +703,6 @@ export class RoomClient {
     return true;
   }
 
-  /** Sends something that isn't kept for the next connection (voice chat): false when not connected. */
-  private sendNow(msg: ClientMsg): boolean {
-    if (this.display || !this.ready || this.ws?.readyState !== WebSocket.OPEN) return false;
-    this.ws.send(JSON.stringify(msg));
-    return true;
-  }
-
   sendEph(e: Ephemeral): void {
     if (this.display) return;
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "eph", e }));
@@ -771,7 +752,6 @@ export class RoomClient {
         this.ready = true;
         for (const u of replay) this.submit(u.action, u.seq);
         this.refreshUndoFlags();
-        this.voice.onHello();
         return;
       }
 
@@ -872,20 +852,8 @@ export class RoomClient {
         for (const fn of this.ephListeners) fn(msg.from, msg.e);
         return;
 
-      case "voice":
-        this.voice.onPeers(msg.peers);
-        return;
-
-      case "ice":
-        this.voice.onIce(msg.servers);
-        return;
-
-      case "rtc":
-        this.voice.onSignal(msg.from, msg.d);
-        return;
-
-      case "voice.refused":
-        this.voice.onRefused(msg.message);
+      case "goto":
+        this.onGoto?.(msg.room);
         return;
 
       case "error":
@@ -1525,12 +1493,23 @@ export class RoomClient {
     this.submit({ t: "asset.delete", id });
   }
 
+  /** GM: sends everyone in this room to another of the GM's rooms; voice chat carries on. */
+  sendEveryoneTo(roomId: string): void {
+    // Not kept for the next connection: moving everyone minutes later would surprise them.
+    if (!this.ready) {
+      this.toast("Tabletop isn't connected right now. Try again in a moment.", "error");
+      return;
+    }
+    this.submit({ t: "room.goto", to: roomId });
+  }
+
   setProfile(name: string, color: string): void {
     this.profile = { ...this.profile, name, color };
     saveProfile(this.profile);
     const me = this.state.me;
     if (me) this.store.set({ me: { ...me, name, color } });
     this.submit({ t: "profile", name, color });
+    voiceLink.setProfile(name, color);
   }
 
   get profileInfo(): Profile {

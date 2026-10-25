@@ -5,9 +5,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import { Headphones, Mic, MicOff, PhoneOff, VolumeX } from "lucide-preact";
 import type { VoicePeer } from "../../shared/voice";
-import type { RoomClient } from "../room/client";
 import { keyName, usableTalkKey, voiceMode } from "../room/voice";
-import { cx, useRoom, useRoomState } from "./common";
+import type { VoiceState } from "../room/voice";
+import { voiceLink } from "../room/voiceLink";
+import { useStore } from "../store";
+import { cx } from "./common";
+
+/** A slice of the table's voice chat state; re-renders when it changes. */
+function useVoice<T>(select: (v: VoiceState) => T): T {
+  return useStore(voiceLink.store, select);
+}
+const voice = voiceLink.voice;
 
 /** Whether this browser lets a page set a sound's volume (an iPhone or iPad doesn't). */
 let volumeWorks: boolean | null = null;
@@ -30,14 +38,14 @@ function initial(name: string): string {
 }
 
 /** Press-and-hold for push to talk, with a mouse, a finger, or Space or Enter on the focused button. */
-function holdToTalk(room: RoomClient): JSX.HTMLAttributes<HTMLButtonElement> {
-  const stop = () => room.voice.setTalking(false);
+function holdToTalk(): JSX.HTMLAttributes<HTMLButtonElement> {
+  const stop = () => voice.setTalking(false);
   return {
     onPointerDown: (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      room.voice.setTalking(true);
+      voice.setTalking(true);
     },
     onPointerUp: stop,
     onPointerCancel: stop,
@@ -46,7 +54,7 @@ function holdToTalk(room: RoomClient): JSX.HTMLAttributes<HTMLButtonElement> {
     onKeyDown: (e) => {
       if (e.key !== " " && e.key !== "Enter") return;
       e.preventDefault();
-      if (!e.repeat) room.voice.setTalking(true);
+      if (!e.repeat) voice.setTalking(true);
     },
     onKeyUp: (e) => {
       if (e.key === " " || e.key === "Enter") stop();
@@ -57,10 +65,9 @@ function holdToTalk(room: RoomClient): JSX.HTMLAttributes<HTMLButtonElement> {
 
 /** Voice chat at the top of the Chat & dice panel. */
 export function VoiceSection() {
-  const room = useRoom();
-  const v = useRoomState((s) => s.voice);
-  const me = useRoomState((s) => s.me);
-  const gm = me?.role === "gm";
+  const v = useVoice((s) => s);
+  const me = v.self;
+  const gm = v.role === "gm";
   const mode = voiceMode(v, gm);
   const on = v.status === "on";
   const n = v.peers.length;
@@ -71,17 +78,17 @@ export function VoiceSection() {
         <span class="voice-title">Voice chat</span>
         <span class="voice-count">{n === 0 ? "nobody in it" : n === 1 ? "1 person" : `${n} people`}</span>
         {v.status === "off" && (
-          <button class="btn btn-primary btn-sm voice-join" onClick={() => void room.voice.join()}>
+          <button class="btn btn-primary btn-sm voice-join" onClick={() => void voice.join()}>
             <Mic size={14} /> Join voice
           </button>
         )}
         {v.status === "starting" && (
-          <button class="btn btn-sm voice-leave" onClick={() => room.voice.leave()}>
+          <button class="btn btn-sm voice-leave" onClick={() => voice.leave()}>
             Cancel
           </button>
         )}
         {on && (
-          <button class="btn btn-sm voice-leave" onClick={() => room.voice.leave()}>
+          <button class="btn btn-sm voice-leave" onClick={() => voice.leave()}>
             <PhoneOff size={14} /> Leave
           </button>
         )}
@@ -93,7 +100,7 @@ export function VoiceSection() {
             <input
               type="checkbox"
               checked={mode === "ptt"}
-              onChange={(e) => room.voice.setMode(e.currentTarget.checked ? "ptt" : "open")}
+              onChange={(e) => voice.setMode(e.currentTarget.checked ? "ptt" : "open")}
             />
             Push to talk
           </label>
@@ -101,14 +108,14 @@ export function VoiceSection() {
           {mode === "ptt" ? (
             <TalkButton />
           ) : (
-            <button class={cx("btn btn-sm voice-mute", v.muted && "muted")} onClick={() => room.voice.setMuted(!v.muted)}>
+            <button class={cx("btn btn-sm voice-mute", v.muted && "muted")} onClick={() => voice.setMuted(!v.muted)}>
               {v.muted ? <MicOff size={14} /> : <Mic size={14} />} {v.muted ? "Unmute" : "Mute"}
             </button>
           )}
         </div>
       )}
       {on && v.blocked && (
-        <button class="voice-blocked" onClick={() => room.voice.unblock()}>
+        <button class="voice-blocked" onClick={() => voice.unblock()}>
           Your browser is holding back the others' sound. Click here, or anywhere, to hear them.
         </button>
       )}
@@ -124,11 +131,10 @@ export function VoiceSection() {
 }
 
 function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
-  const room = useRoom();
   const { peer, me, on } = props;
-  const speaking = useRoomState((s) => s.voice.speaking.includes(peer.connId));
-  const link = useRoomState((s) => s.voice.links[peer.connId]);
-  const volume = useRoomState((s) => s.voice.volumes[peer.userId] ?? 1);
+  const speaking = useVoice((s) => s.speaking.includes(peer.connId));
+  const link = useVoice((s) => s.links[peer.connId]);
+  const volume = useVoice((s) => s.volumes[peer.userId] ?? 1);
   return (
     <li class={cx("voice-person", speaking && "speaking")}>
       <span class="voice-avatar" style={{ background: peer.color }}>
@@ -160,7 +166,7 @@ function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
           value={Math.round(volume * 100)}
           aria-label={`${peer.name}'s volume`}
           title={`${peer.name}'s volume: ${Math.round(volume * 100)}%`}
-          onInput={(e) => room.voice.setVolume(peer.userId, Number(e.currentTarget.value) / 100)}
+          onInput={(e) => voice.setVolume(peer.userId, Number(e.currentTarget.value) / 100)}
         />
       )}
     </li>
@@ -169,11 +175,10 @@ function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
 
 /** Push to talk's button: talks while it's held. */
 function TalkButton() {
-  const room = useRoom();
-  const talking = useRoomState((s) => s.voice.talking);
-  const key = useRoomState((s) => keyName(s.voice.talkKey));
+  const talking = useVoice((s) => s.talking);
+  const key = useVoice((s) => keyName(s.talkKey));
   return (
-    <button class={cx("btn btn-sm voice-talk", talking && "talking")} {...holdToTalk(room)}>
+    <button class={cx("btn btn-sm voice-talk", talking && "talking")} {...holdToTalk()}>
       {talking ? <Mic size={14} /> : <MicOff size={14} />} {talking ? "Talking" : `Hold to talk (${key})`}
     </button>
   );
@@ -181,8 +186,7 @@ function TalkButton() {
 
 /** Push to talk's key, and a button to choose another: the next key pressed (Esc keeps the old one). */
 function KeyPicker() {
-  const room = useRoom();
-  const key = useRoomState((s) => keyName(s.voice.talkKey));
+  const key = useVoice((s) => keyName(s.talkKey));
   const [picking, setPicking] = useState(false);
   useEffect(() => {
     if (!picking) return;
@@ -191,7 +195,7 @@ function KeyPicker() {
       e.stopImmediatePropagation();
       // Caps Lock (on and off on some computers) isn't taken: keep waiting for another key.
       if (e.code !== "Escape" && !usableTalkKey(e.code)) return;
-      if (e.code !== "Escape") room.voice.setTalkKey(e.code);
+      if (e.code !== "Escape") voice.setTalkKey(e.code);
       setPicking(false);
     };
     window.addEventListener("keydown", onKey, true);
@@ -211,12 +215,11 @@ function KeyPicker() {
 
 /** In the zoom box while in voice chat: push to talk's button, or the mute button. */
 export function VoiceMicButton() {
-  const room = useRoom();
-  const on = useRoomState((s) => s.voice.status === "on");
-  const mode = useRoomState((s) => voiceMode(s.voice, s.me?.role === "gm"));
-  const muted = useRoomState((s) => s.voice.muted);
-  const talking = useRoomState((s) => s.voice.talking);
-  const key = useRoomState((s) => keyName(s.voice.talkKey));
+  const on = useVoice((s) => s.status === "on");
+  const mode = useVoice((s) => voiceMode(s, s.role === "gm"));
+  const muted = useVoice((s) => s.muted);
+  const talking = useVoice((s) => s.talking);
+  const key = useVoice((s) => keyName(s.talkKey));
   if (!on) return null;
   if (mode === "ptt") {
     return (
@@ -225,7 +228,7 @@ export function VoiceMicButton() {
         title={`Hold to talk (or hold ${key})`}
         aria-label="Hold to talk"
         aria-pressed={talking}
-        {...holdToTalk(room)}
+        {...holdToTalk()}
       >
         {talking ? <Mic size={18} /> : <MicOff size={18} />}
       </button>
@@ -236,7 +239,7 @@ export function VoiceMicButton() {
       class={cx("tool voice-mic", muted ? "muted" : "live")}
       title={muted ? "Unmute your microphone" : "Mute your microphone"}
       aria-label={muted ? "Unmute" : "Mute"}
-      onClick={() => room.voice.setMuted(!muted)}
+      onClick={() => voice.setMuted(!muted)}
     >
       {muted ? <MicOff size={18} /> : <Mic size={18} />}
     </button>
@@ -245,11 +248,10 @@ export function VoiceMicButton() {
 
 /** Over the map while the browser holds back the others' sound: any click on the page plays it. */
 export function VoiceHeldNotice() {
-  const room = useRoom();
-  const held = useRoomState((s) => s.voice.status === "on" && s.voice.blocked);
+  const held = useVoice((s) => s.status === "on" && s.blocked);
   if (!held) return null;
   return (
-    <button class="voice-held" onClick={() => room.voice.unblock()}>
+    <button class="voice-held" onClick={() => voice.unblock()}>
       <VolumeX size={16} /> Your browser is holding back voice chat's sound. Click here, or anywhere, to hear it.
     </button>
   );
@@ -287,10 +289,10 @@ function useClearOfBars(ref: { current: HTMLDivElement | null }, shown: boolean)
 
 /** Over the map, while in voice chat: whoever is talking right now, in the order they joined. */
 export function SpeakingOverlay() {
-  const on = useRoomState((s) => s.voice.status === "on");
-  const speaking = useRoomState((s) => s.voice.speaking);
-  const peers = useRoomState((s) => s.voice.peers);
-  const myId = useRoomState((s) => s.me?.connId);
+  const on = useVoice((s) => s.status === "on");
+  const speaking = useVoice((s) => s.speaking);
+  const peers = useVoice((s) => s.peers);
+  const myId = useVoice((s) => s.self?.connId);
   const ref = useRef<HTMLDivElement>(null);
   const list = on ? peers.filter((p) => speaking.includes(p.connId)) : [];
   useClearOfBars(ref, list.length > 0);

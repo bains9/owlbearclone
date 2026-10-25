@@ -43,6 +43,30 @@ export type RtcSignal =
   | { sdp: { type: "offer" | "answer"; sdp: string } }
   | { ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null; usernameFragment?: string | null } };
 
+/** What a tab sends the table's voice chat (worker/voiceHub.ts). */
+export type VoiceClientMsg =
+  /** Joins voice chat (on), leaves it, or says whether this tab's microphone is muted. */
+  | { t: "voice"; on: boolean; muted?: boolean }
+  /** To another tab in voice, about the call between the two. */
+  | { t: "rtc"; to: string; d: RtcSignal }
+  /** This person's new name or colour. */
+  | { t: "profile"; name: string; color: string }
+  /** The room this tab is in now (the GM moved the game): deleting it takes the tab out of voice. */
+  | { t: "room"; id: string };
+
+/** What the table's voice chat sends a tab. */
+export type VoiceServerMsg =
+  /** As the tab connects: its connId here, and whether the server took it for the GM. */
+  | { t: "voice.hello"; you: { connId: string; role: Role } }
+  /** Who's in voice chat: as the tab connects, and whenever it changes. */
+  | { t: "voice"; peers: VoicePeer[] }
+  /** To a tab joining voice chat: the servers its browser uses to reach the others. */
+  | { t: "ice"; servers: IceServer[] }
+  /** To a tab joining voice chat that can't, and why. */
+  | { t: "voice.refused"; message: string }
+  /** From another tab in voice, about the call between the two. */
+  | { t: "rtc"; from: string; d: RtcSignal };
+
 /** Cloudflare's STUN server: free, and enough for most home networks. */
 export const STUN_ONLY: IceServer[] = [{ urls: ["stun:stun.cloudflare.com:3478"] }];
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   CircleQuestionMark,
   CornerUpLeft,
@@ -31,6 +31,8 @@ import { MapLoading } from "./MapLoading";
 import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
+import { voiceLink } from "../room/voiceLink";
+import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
@@ -108,21 +110,99 @@ function ProfileForm(props: {
   );
 }
 
+/** How each open room is let go of again (its voice chat messages, its connection). */
+const closers = new WeakMap<RoomClient, () => void>();
+
+/** Where each room shows the table's voice chat messages (one function per room, so detaching matches it). */
+const toasters = new WeakMap<RoomClient, (text: string) => void>();
+
+/** The table's voice chat, pointed at this room: its messages show here, and it's let in with this room. */
+function attachVoice(room: RoomClient): () => void {
+  let toast = toasters.get(room);
+  if (!toast) {
+    toast = (text: string) => room.toast(text);
+    toasters.set(room, toast);
+  }
+  return voiceLink.attach(room.roomId, loadProfile(), toast);
+}
+
+/** Connects to a room, with the table's voice chat showing its messages there. */
+function openRoom(roomId: string, profile: Profile): RoomClient {
+  const room = new RoomClient(roomId, profile);
+  room.connect();
+  // The table's voice chat stays connected from room to room; its messages show here.
+  const detach = attachVoice(room);
+  room.onGoto = (to) => {
+    // Already there (or on the way): nothing to do.
+    if (to.id === room.roomId || location.pathname === `/r/${to.id}`) return;
+    noteArrival(`The GM moved the game to “${to.name}”.`);
+    navigate(`/r/${to.id}`);
+  };
+  // A room that's gone takes this page off voice chat, as it takes it out of the room.
+  const unwatch = room.store.subscribe(() => {
+    const st = room.state.status;
+    if (st === "deleted" || st === "notfound") voiceLink.stop(roomId);
+  });
+  // Development builds only: lets you inspect the room from the browser console, and test
+  // voice chat in two tabs without a microphone (?fakemic).
+  if (import.meta.env.DEV) {
+    (window as unknown as { __room: RoomClient }).__room = room;
+    voiceLink.voice.allowFakeMic = true;
+    (window as unknown as { __voice: typeof voiceLink }).__voice = voiceLink;
+  }
+  closers.set(room, () => {
+    unwatch();
+    detach();
+    room.dispose();
+  });
+  return room;
+}
+
+/** A room now on screen: the "moved the game" message, if the GM's move brought it. */
+function arrived(room: RoomClient): void {
+  const note = takeArrival();
+  if (note) room.toast(note);
+}
+
+function closeRoom(room: RoomClient): void {
+  closers.get(room)?.();
+  closers.delete(room);
+}
+
 function RoomView(props: { roomId: string; profile: Profile }) {
-  const room = useMemo(() => new RoomClient(props.roomId, props.profile), [props.roomId]);
+  // The room on screen. When the GM moves the game to another room, that one connects behind
+  // it and takes over once it's ready, so the map on screen stays until then: no loading page.
+  const [shown, setShown] = useState<RoomClient>(() => openRoom(props.roomId, props.profile));
   useEffect(() => {
-    room.connect();
-    // Development builds only: lets you inspect the room from the browser console, and test
-    // voice chat in two tabs without a microphone (?fakemic).
-    if (import.meta.env.DEV) {
-      (window as unknown as { __room: RoomClient }).__room = room;
-      room.voice.allowFakeMic = true;
+    if (shown.roomId === props.roomId) {
+      // Back to the room on screen before the next was ready: voice chat points here again.
+      attachVoice(shown);
+      return;
     }
-    return () => room.dispose();
-  }, [room]);
+    // The profile as saved now: a name changed in the last room carries over.
+    const next = openRoom(props.roomId, loadProfile());
+    let ready = false;
+    const check = () => {
+      const st = next.state.status;
+      if (ready || (st !== "open" && st !== "notfound" && st !== "deleted")) return;
+      ready = true;
+      unsubscribe();
+      setShown(next);
+      arrived(next);
+    };
+    const unsubscribe = next.store.subscribe(check);
+    check();
+    return () => {
+      unsubscribe();
+      // Moved on again before it was ready.
+      if (!ready) closeRoom(next);
+    };
+  }, [props.roomId]);
+  // The room that was on screen goes once another takes its place (or the page closes).
+  useEffect(() => () => closeRoom(shown), [shown]);
   return (
-    <RoomContext.Provider value={room}>
-      <RoomShell />
+    <RoomContext.Provider value={shown}>
+      <RoomShell key={shown.roomId} />
     </RoomContext.Provider>
   );
 }

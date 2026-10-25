@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Voice chat follows the group to other rooms (25 October 2026)",
+        "steps": [
+          "GM: to move the game to another of your rooms, open **Room settings**, choose the room under **Move the group**, and click **Send everyone**."
+        ],
+        "notes": [
+          "Everyone's page switches to that room, and voice chat carries on without a break: it now belongs to the whole table, not a room, so whoever is in it stays in it, whichever of your rooms they're in.",
+          "Table displays stay where they are: open the new room's display link on them.",
+          "See **Move everyone to another room** in **Room settings and backups**."
+        ]
+      },
+      {
         "title": "Roll several dice at once (25 October 2026)",
         "steps": [
           "In **Chat & dice**, click the dice you want: each click picks one more, so three clicks on **d6** picks 3d6. Then click **Roll**.",
@@ -1228,7 +1239,7 @@ export const GUIDE: GuideSection[] = [
     "id": "voice",
     "title": "Voice chat",
     "audience": "everyone",
-    "intro": "Talk to each other while you play, right in Tabletop: no other app, and nobody needs an account. Voice chat is near the top of the **Chat & dice** panel. Up to 8 people can be in it at once (each browser tab in it counts), and the GM can always join.",
+    "intro": "Talk to each other while you play, right in Tabletop: no other app, and nobody needs an account. Voice chat is near the top of the **Chat & dice** panel. It's one voice chat for the whole table, not each room, so it carries on when the GM moves the game to another room. Up to 8 people can be in it at once (each browser tab in it counts), and the GM can always join.",
     "parts": [
       {
         "title": "Join and leave voice chat",
@@ -1244,7 +1255,8 @@ export const GUIDE: GuideSection[] = [
           "Wear headphones if you can. Your browser cancels echo, but headphones stop the others hearing themselves through your speakers.",
           "If a message says Tabletop isn't allowed to use your microphone, allow it for this site: click the icon at the left of the address bar, turn on the microphone, then click **Join voice** again.",
           "If you lose your connection for a moment, Tabletop puts you back in voice chat when it comes back.",
-          "A table display doesn't join voice chat."
+          "A table display doesn't join voice chat.",
+          "It's one voice chat for all the GM's rooms: anyone with a link to any of them can see who's in it and join. When the GM deletes a room, the people who came in through it are taken off voice chat too."
         ]
       },
       {
@@ -2790,6 +2802,20 @@ export const GUIDE: GuideSection[] = [
           "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",
           "A message says how many scenes were switched, for example \"Switched 3 scenes to metres. Undo (Ctrl+Z) switches them back.\" If no scene needs switching, the box just changes, with no window.",
           "Everyone's rulers and spell areas follow straight away. Each scene can still have its own distance under **Distance** in **Edit scene**."
+        ]
+      },
+      {
+        "title": "Move everyone to another room",
+        "steps": [
+          "Open **Room settings**.",
+          "Under **Move the group**, choose the room in the list.",
+          "Click **Send everyone**, then **Send everyone** again to confirm."
+        ],
+        "notes": [
+          "Everyone in this room, you too, goes there. Their pages switch to it without reloading, so voice chat carries on.",
+          "Each person sees \"The GM moved the game to\" and the room's name.",
+          "Table displays stay where they are: open the new room's display link on them.",
+          "The list shows your other rooms. If there aren't any, make one on the start page first."
         ]
       },
       {

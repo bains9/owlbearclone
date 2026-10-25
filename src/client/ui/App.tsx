@@ -8,7 +8,13 @@ import { useEffect, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 
 export function App() {
-  const path = location.pathname;
+  // The page can switch rooms in place (nav.ts), so the voice chat connection carries on.
+  const [path, setPath] = useState(location.pathname);
+  useEffect(() => {
+    const onPop = () => setPath(location.pathname);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const m = path.match(/^\/r\/([^/]*)\/?$/);
   if (m && isRoomId(m[1])) {
     const displayKey = new URLSearchParams(location.search).get("display");

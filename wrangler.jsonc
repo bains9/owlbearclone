@@ -25,10 +25,15 @@
       { "name": "ROOMS", "class_name": "Room" },
       // One object in total: the GM's room list, login throttling, and the
       // random key sessions are signed with.
-      { "name": "DIRECTORY", "class_name": "Directory" }
+      { "name": "DIRECTORY", "class_name": "Directory" },
+      // One object in total: the table's voice chat, shared by every room.
+      { "name": "VOICE", "class_name": "VoiceHub" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Directory"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Room", "Directory"] },
+    { "tag": "v2", "new_sqlite_classes": ["VoiceHub"] }
+  ],
 
   // Uploaded map and token images. Keys are rooms/<roomId>/<assetId>.
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "tabletop-files" }],

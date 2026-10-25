@@ -15,6 +15,7 @@ import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { Directory } from "./directory";
 export { Room } from "./room";
+export { VoiceHub } from "./voiceHub";
 
 const MAX_JSON_BYTES = 16 * 1024;
 /** Room ids are always 12 random characters (see POST /api/rooms). */
@@ -178,6 +179,18 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     return fail(405, "Method not allowed.");
   }
 
+  // The table's voice chat, for any tab with the id of a room that exists (voiceHub.ts).
+  if (pathname === "/api/voice/ws" && method === "GET") {
+    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return fail(426, "Expected a WebSocket upgrade.");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await env.DIRECTORY.getByName("main").listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Room not found.");
+    const headers = new Headers(request.headers);
+    // Always overwritten here, so a browser can't claim to be the GM by sending it.
+    headers.set("X-Tabletop-Role", (await isGm(request, env)) ? "gm" : "player");
+    return env.VOICE.getByName("table").fetch(new Request(request, { headers }));
+  }
+
   // Anything that isn't shaped like one of our room ids is turned away here,
   // before a Durable Object is ever involved.
   const roomMatch = pathname.match(new RegExp(`^/api/rooms/(${ROOM_ID})(/[a-z]+)?$`));
@@ -191,6 +204,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
       await stub.destroy(roomId);
       await env.DIRECTORY.getByName("main").removeRoom(roomId);
+      // Its people are taken off the table's voice chat too.
+      await env.VOICE.getByName("table").roomDeleted(roomId);
       return json({ deleted: roomId });
     }
 

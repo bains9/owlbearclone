@@ -51,6 +51,7 @@ import {
 import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
+import { voiceLink } from "./voiceLink";
 import {
   BuildEdit,
   BuildRenderer,
@@ -4272,7 +4273,7 @@ export class Board implements BoardApi {
 
   /** Shift held for a click or drag, unless it's held to talk (voice chat), when tokens and the map still move. */
   private shiftHeld(e: { shiftKey: boolean }): boolean {
-    return e.shiftKey && !this.room.voice.shiftTalks();
+    return e.shiftKey && !voiceLink.voice.shiftTalks();
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {

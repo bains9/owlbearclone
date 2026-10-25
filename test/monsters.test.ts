@@ -579,9 +579,9 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("keeps the monsters in What's new, ninth, after the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons, the NPCs and metres, with the compass and loading entries", () => {
+  it("keeps the monsters in What's new, tenth, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons, the NPCs and metres, with the compass and loading entries", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[8]).toBe("Monsters ready to use (3 October 2026, later)");
+    expect(news[9]).toBe("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("A compass for any map (3 October 2026)");
     expect(news).toContain("Maps say when they're loading (3 October 2026)");
   });

@@ -1,8 +1,9 @@
-import { useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { Copy, Download, Trash, Upload } from "lucide-preact";
 import { isMetric, switchUnits } from "../../shared/units";
 import { api, roomUrl } from "../api";
 import { exportRoom, importBackup } from "../backup";
+import type { RoomSummary } from "../../shared/types";
 import { CommitInput, ConfirmDialog, Modal, copyText, useRoom, useRoomState } from "./common";
 
 export function SettingsPanel() {
@@ -111,6 +112,12 @@ export function SettingsPanel() {
         Edit scene.
       </p>
 
+      <h3>Move the group</h3>
+      <p class="small muted">
+        Send everyone in this room to another of your rooms. Their pages switch to it, and voice chat carries on.
+      </p>
+      <SendEveryone />
+
       <h3>Backup</h3>
       <p class="small muted">
         One file with every scene, token, drawing, note, the fog, and all uploaded images. Restoring adds the backup's
@@ -207,6 +214,56 @@ export function SettingsPanel() {
             }
           }}
           onClose={() => setDeleting(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** GM: sends everyone in this room (the GM too) to another room, after asking. */
+function SendEveryone() {
+  const room = useRoom();
+  const here = useRoomState((s) => s.room?.id);
+  const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
+  const [to, setTo] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    api.listRooms().then(
+      (list) => setRooms(list.filter((r) => r.id !== here)),
+      () => setRooms([]),
+    );
+  }, [here]);
+  if (!rooms) return <p class="small muted">Loading your rooms…</p>;
+  if (!rooms.length) return <p class="small muted">Make another room on the start page first.</p>;
+  const target = rooms.find((r) => r.id === to);
+  return (
+    <div class="row">
+      <select class="send-room" value={to} aria-label="Room to send everyone to" onChange={(e) => setTo(e.currentTarget.value)}>
+        <option value="">Choose a room…</option>
+        {rooms.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      <button class="btn btn-sm" disabled={!target} onClick={() => setConfirming(true)}>
+        Send everyone
+      </button>
+      {confirming && target && (
+        <ConfirmDialog
+          title="Send everyone to another room?"
+          message={
+            <>
+              Everyone here, you too, goes to <strong>{target.name}</strong>. Their pages switch to it, and voice chat
+              carries on. Table displays stay where they are: open the new room's display link on them.
+            </>
+          }
+          confirmLabel="Send everyone"
+          onConfirm={() => {
+            room.sendEveryoneTo(target.id);
+            setConfirming(false);
+          }}
+          onClose={() => setConfirming(false)}
         />
       )}
     </div>

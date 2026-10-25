@@ -1,13 +1,13 @@
-// Voice chat: what the Room passes on and to whom, TURN passwords, cleaning signals, and the
-// browser side's push to talk and open microphone. The Room runs here without the Workers
-// runtime (a bare object with its fields set and fake sockets), and the browser side with a
-// pretend microphone, window and server.
+// Voice chat: what the table's voice chat (VoiceHub) passes on and to whom, TURN passwords,
+// cleaning signals, the Room sending everyone to another room, and the browser side's push to
+// talk and open microphone. The server pieces run here without the Workers runtime (bare
+// objects with their fields set and fake sockets), and the browser side with a pretend
+// microphone, window and server.
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/sanitize";
 import type { Player } from "../src/shared/types";
-import type { ClientMsg } from "../src/shared/protocol";
 import { MAX_SDP, MAX_VOICE, RTC_BURST, STUN_ONLY, VOICE_BURST, cleanSignal, usableIceServers } from "../src/shared/voice";
-import type { IceServer, VoicePeer } from "../src/shared/voice";
+import type { IceServer, VoiceClientMsg, VoicePeer } from "../src/shared/voice";
 import { DEFAULT_TALK_KEY, Voice, keyName, micError, voiceInitial, voiceMode } from "../src/client/room/voice";
 import type { VoiceState } from "../src/client/room/voice";
 import { GUIDE } from "../src/client/guide";
@@ -43,11 +43,14 @@ interface RoomInside {
 }
 
 let RoomClass: { prototype: object };
+let HubClass: { prototype: object };
 
 beforeAll(async () => {
   // Imported by a path tsc doesn't follow: the tests' types leave out the Workers runtime.
   const mod = (await import(/* @vite-ignore */ "../src/worker/" + "room")) as { Room: { prototype: object } };
   RoomClass = mod.Room;
+  const hubMod = (await import(/* @vite-ignore */ "../src/worker/" + "voiceHub")) as { VoiceHub: { prototype: object } };
+  HubClass = hubMod.VoiceHub;
 });
 
 afterEach(() => {
@@ -73,14 +76,12 @@ function sock(over: Partial<Conn> = {}): Sock {
   return s;
 }
 
+/** The table's voice chat with these sockets connected. */
 function room(socks: Sock[], env: Record<string, string> = {}): RoomInside {
-  const r = Object.create(RoomClass.prototype) as RoomInside;
+  const r = Object.create(HubClass.prototype) as RoomInside;
   Object.assign(r, {
-    sql: { exec: () => ({ toArray: () => [] }) },
-    ctx: { storage: { transactionSync: (f: () => void) => f() }, getWebSockets: () => socks },
+    ctx: { getWebSockets: () => socks },
     env,
-    info: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
-    sessionSeqs: new Map(),
     limits: new Map(),
     joining: new Set(),
     ice: null,
@@ -89,23 +90,54 @@ function room(socks: Sock[], env: Record<string, string> = {}): RoomInside {
   return r;
 }
 
+/** A Room (not voice chat) whose GM's room list holds these rooms. */
+function realRoom(socks: Sock[], rooms: { id: string; name: string }[]): RoomInside {
+  const r = Object.create(RoomClass.prototype) as RoomInside;
+  Object.assign(r, {
+    sql: { exec: () => ({ toArray: () => [] }) },
+    ctx: { storage: { transactionSync: (f: () => void) => f() }, getWebSockets: () => socks },
+    env: { DIRECTORY: { getByName: () => ({ listRooms: async () => rooms }) } },
+    info: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
+    sessionSeqs: new Map(),
+  });
+  return r;
+}
+
 const say = (r: RoomInside, s: Sock, msg: object) => r.webSocketMessage(s, JSON.stringify(msg));
 const lastVoice = (s: Sock) => [...s.sent].reverse().find((m) => m.t === "voice");
 const offer = { sdp: { type: "offer", sdp: "v=0\r\n" } };
 
-describe("the Room and voice chat", () => {
-  it("hands a joining tab the STUN server, and tells everyone but table displays who's in voice", async () => {
-    const [a, b, display] = [sock(), sock(), sock({ display: true })];
-    const r = room([a, b, display]);
+describe("sending everyone to another room", () => {
+  const crypt = { id: "Crypt0000001", name: "Crypt" };
+
+  it("GM: every tab but table displays is sent there, with the room's name", async () => {
+    const [gm, a, display] = [sock({ role: "gm" }), sock(), sock({ display: true })];
+    const r = realRoom([gm, a, display], [crypt]);
+    await say(r, gm, { t: "room.goto", to: crypt.id, seq: 1 });
+    for (const s of [gm, a]) expect(s.sent.find((m) => m.t === "goto")).toEqual({ t: "goto", room: crypt });
+    expect(display.sent.some((m) => m.t === "goto")).toBe(false);
+  });
+
+  it("only the GM, and only to another room that exists", async () => {
+    const [gm, a] = [sock({ role: "gm" }), sock()];
+    const r = realRoom([gm, a], [crypt]);
+    await say(r, a, { t: "room.goto", to: crypt.id, seq: 1 });
+    expect(a.sent.find((m) => m.t === "error")?.message).toBe("Only the GM can do that.");
+    await say(r, gm, { t: "room.goto", to: "Gone00000001", seq: 1 });
+    await say(r, gm, { t: "room.goto", to: "AbCdEf123456", seq: 2 });
+    expect(gm.sent.filter((m) => m.t === "error").map((m) => m.message)).toEqual(["That room isn't there any more.", "That room isn't there any more."]);
+    expect([...gm.sent, ...a.sent].some((m) => m.t === "goto")).toBe(false);
+  });
+});
+
+describe("the table's voice chat", () => {
+  it("hands a joining tab the STUN server, and tells everyone connected who's in voice", async () => {
+    const [a, b] = [sock(), sock()];
+    const r = room([a, b]);
     await say(r, a, { t: "voice", on: true });
     expect(a.sent.find((m) => m.t === "ice")?.servers).toEqual(STUN_ONLY);
     expect(a.conn.voice).toEqual({ muted: false });
     expect(lastVoice(b)?.peers).toEqual([{ connId: a.conn.connId, userId: a.conn.userId, name: a.conn.name, color: a.conn.color, role: "player", muted: false }]);
-    expect(display.sent).toEqual([]);
-    // A table display only watches: it can't join.
-    await say(r, display, { t: "voice", on: true });
-    expect(display.conn.voice).toBeUndefined();
-    expect(display.sent).toEqual([]);
   });
 
   it("says when someone mutes, not when nothing changed, and when they leave", async () => {
@@ -181,7 +213,7 @@ describe("the Room and voice chat", () => {
     const [a, b] = [sock(), sock()];
     const r = room([a, b]);
     await say(r, a, { t: "voice", on: true });
-    await say(r, a, { t: "profile", name: "Renamed", color: "#ff0000", seq: 1 });
+    await say(r, a, { t: "profile", name: "Renamed", color: "#ff0000" });
     expect(lastVoice(b)?.peers?.[0]).toMatchObject({ name: "Renamed", color: "#ff0000" });
   });
 
@@ -227,13 +259,13 @@ describe("the Room and voice chat", () => {
     expect(lastVoice(other)?.peers?.map((p) => p.connId)).toEqual([fresh.conn.connId]);
   });
 
-  it("takes no seq from a voice message, so nothing is acked or skipped as a repeat", async () => {
-    const a = sock();
-    const r = room([a]);
-    await say(r, a, { t: "voice", on: true, seq: 5 });
-    await say(r, a, { t: "voice", on: false, seq: 5 });
-    expect(a.sent.some((m) => m.t === "ack")).toBe(false);
-    expect(a.conn.voice).toBeUndefined();
+  it("does nothing with what isn't one of its messages", async () => {
+    const [a, b] = [sock(), sock()];
+    const r = room([a, b]);
+    await say(r, a, { t: "items", seq: 1, upsert: [] });
+    await say(r, a, { t: "chat", text: "hi" });
+    await r.webSocketMessage(a, "not json");
+    expect([...a.sent, ...b.sent]).toEqual([]);
   });
 
   describe("TURN", () => {
@@ -414,7 +446,7 @@ describe("the browser side", () => {
     vi.stubGlobal("document", target);
     vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: async () => mic } });
     let state: VoiceState = voiceInitial();
-    const sent: ClientMsg[] = [];
+    const sent: VoiceClientMsg[] = [];
     const toasts: string[] = [];
     const voice = new Voice({
       get: () => state,
@@ -607,14 +639,23 @@ describe("the site's headers", () => {
 
 describe("the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
+
+  it("leads What's new with voice chat following the group, and says how to move it", () => {
+    expect(news.parts[0].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
+    const entry = [...news.parts[0].steps, ...news.parts[0].notes].join("\n");
+    for (const what of ["**Room settings**", "**Move the group**", "**Send everyone**", "carries on", "Table displays stay"]) expect(entry).toContain(what);
+    const part = GUIDE.find((s) => s.id === "room-settings")?.parts.find((p) => p.title === "Move everyone to another room") ??
+      GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Move everyone to another room");
+    expect(part?.steps.join(" ")).toContain("**Send everyone**");
+  });
   const voice = GUIDE.find((s) => s.id === "voice")!;
   const all = (parts: { steps: string[]; notes: string[] }[]) => parts.flatMap((p) => [...p.steps, ...p.notes]).join("\n");
 
-  it("has the microphone fix second in What's new, under the dice, then voice chat", () => {
-    expect(news.parts[1].title).toBe("Voice chat: the microphone works now (25 October 2026)");
-    expect(all([news.parts[1]])).toContain("**Voice chat: Tabletop can't use your microphone**");
-    expect(news.parts[2].title).toBe("Voice chat (24 October 2026)");
-    const entry = all([news.parts[2]]);
+  it("has the microphone fix third in What's new, under the rooms and the dice, then voice chat", () => {
+    expect(news.parts[2].title).toBe("Voice chat: the microphone works now (25 October 2026)");
+    expect(all([news.parts[2]])).toContain("**Voice chat: Tabletop can't use your microphone**");
+    expect(news.parts[3].title).toBe("Voice chat (24 October 2026)");
+    const entry = all([news.parts[3]]);
     for (const what of ["**Join voice**", "**Left Shift**", "**Hold to talk**", "**Mute**", "top right of the map", "8 people", "headphones", "See **Voice chat**"]) {
       expect(entry).toContain(what);
     }
@@ -623,7 +664,7 @@ describe("the guide", () => {
   it("names only labels the panel really shows, and the default key by its name", async () => {
     const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
     const panel = await readFile(new URL("../src/client/ui/VoicePanel.tsx", import.meta.url), "utf8");
-    const words = `${all(news.parts.slice(1, 3))}\n${all(voice.parts)}`;
+    const words = `${all(news.parts.slice(2, 4))}\n${all(voice.parts)}`;
     const labels = [...new Set(words.match(/\*\*[^*]+\*\*/g) ?? [])].map((b) => b.slice(2, -2));
     expect(labels.length).toBeGreaterThan(10);
     // Keys, the panel itself, and labels built from the key or the name: checked below.

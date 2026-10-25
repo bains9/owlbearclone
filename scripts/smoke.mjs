@@ -40,7 +40,11 @@ const rid = () => Math.random().toString(36).slice(2, 12);
  */
 function connect(roomId, { cookie, uid, name, sid, display, v, b }) {
   const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}${display !== undefined ? `&display=${encodeURIComponent(display)}` : ""}${v ? `&v=${v}` : ""}${b ? `&b=${b}` : ""}`;
-  const ws = new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined);
+  return wrap(new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined));
+}
+
+/** A pretend tab: keeps what it is sent, with helpers to send and wait. */
+function wrap(ws) {
   const c = { ws, msgs: [], closeCode: null, seq: 0 };
   ws.onmessage = (e) => {
     if (e.data === "pong") return;
@@ -64,6 +68,13 @@ function connect(roomId, { cookie, uid, name, sid, display, v, b }) {
     c.msgs.length = 0;
   };
   return c;
+}
+
+/** A pretend tab on the table's voice chat, let in with a room id. */
+function voiceConnect(roomId, { cookie, uid, name, headers }) {
+  const url = `${WS_BASE}/api/voice/ws?room=${roomId}&uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde&sid=${rid()}0000`;
+  const all = { ...(headers ?? {}), ...(cookie ? { Cookie: cookie } : {}) };
+  return wrap(new WebSocket(url, Object.keys(all).length ? { headers: all } : undefined));
 }
 
 const TINY_PNG = Buffer.from(
@@ -1051,11 +1062,16 @@ async function main() {
   );
   alice2.ws.close();
 
-  // voice chat: the server says who's in it and passes calls' signals between them
-  const vGm = connect(room.id, { cookie, uid: "vgm" + rid(), name: "Voice GM" });
-  const vAl = connect(room.id, { uid: "val" + rid(), name: "Voice Al" });
-  const vOut = connect(room.id, { uid: "vout" + rid(), name: "Not in voice" });
-  const [vGmHello, vAlHello, vOutHello] = await Promise.all([vGm, vAl, vOut].map((c) => c.waitFor((m) => m.t === "hello")));
+  // The table's voice chat is shared by every room: against the live site these checks would
+  // join the real voice chat (and fill it), so they run on a local server only.
+  const local = /localhost|127.0.0.1/.test(BASE);
+  if (!local) console.log("  skip  voice chat: the live table's voice chat is shared by every room");
+  else {
+  // voice chat (the table's, shared by every room): the server says who's in it and passes calls' signals between them
+  const vGm = voiceConnect(room.id, { cookie, uid: "vgm" + rid(), name: "Voice GM" });
+  const vAl = voiceConnect(room.id, { uid: "val" + rid(), name: "Voice Al" });
+  const vOut = voiceConnect(room.id, { uid: "vout" + rid(), name: "Not in voice" });
+  const [vGmHello, vAlHello, vOutHello] = await Promise.all([vGm, vAl, vOut].map((c) => c.waitFor((m) => m.t === "voice.hello")));
   vGm.send({ t: "voice", on: true });
   const ice = await vGm.waitFor((m) => m.t === "ice");
   check(Array.isArray(ice?.servers) && ice.servers.some((s) => s.urls.some((u) => u.startsWith("stun:"))), "joining voice hands out the STUN (and TURN) servers");
@@ -1084,13 +1100,13 @@ async function main() {
   vAl.ws.close();
   const alGone = await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 1 && m.peers[0].connId === vGmHello.you.connId);
   check(Boolean(alGone), "closing the page leaves voice chat");
-  const vLate = connect(room.id, { uid: "vlate" + rid(), name: "Late" });
-  await vLate.waitFor((m) => m.t === "hello");
+  const vLate = voiceConnect(room.id, { uid: "vlate" + rid(), name: "Late" });
+  await vLate.waitFor((m) => m.t === "voice.hello");
   const lateSees = await vLate.waitFor((m) => m.t === "voice");
   check(lateSees?.peers.length === 1, "someone joining the room hears who's in voice");
   // Eight at a time: the ninth is told it's full.
-  const crowd = Array.from({ length: 8 }, (_, i) => connect(room.id, { uid: "vc" + i + rid(), name: "Crowd " + i }));
-  await Promise.all(crowd.map((c) => c.waitFor((m) => m.t === "hello")));
+  const crowd = Array.from({ length: 8 }, (_, i) => voiceConnect(room.id, { uid: "vc" + i + rid(), name: "Crowd " + i }));
+  await Promise.all(crowd.map((c) => c.waitFor((m) => m.t === "voice.hello")));
   for (const c of crowd.slice(0, 7)) c.send({ t: "voice", on: true });
   await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 8);
   crowd[7].send({ t: "voice", on: true });
@@ -1101,6 +1117,49 @@ async function main() {
   const gmLeft = await vOut.waitFor((m) => m.t === "voice" && m.peers.length === 7 && !m.peers.some((p) => p.connId === vGmHello.you.connId));
   check(Boolean(gmLeft), "leaving voice tells everyone");
   for (const c of [vGm, vOut, vLate, ...crowd]) c.ws.close();
+  }
+
+  // sending everyone to another room: every tab there is told where, the GM only
+  r = await fetch(`${BASE}/api/rooms`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ name: "Smoke test room 2" }) });
+  const room2 = await r.json();
+  const gGm = connect(room.id, { cookie, uid: "ggm" + rid(), name: "Goto GM" });
+  const gPl = connect(room.id, { uid: "gpl" + rid(), name: "Goto player" });
+  await Promise.all([gGm, gPl].map((c) => c.waitFor((m) => m.t === "hello")));
+  gPl.send({ t: "room.goto", to: room2.id, seq: 1 });
+  check(Boolean(await gPl.waitFor((m) => m.t === "error" && /Only the GM/.test(m.message))), "only the GM can send everyone to another room");
+  gGm.send({ t: "room.goto", to: room2.id, seq: 1 });
+  const told = await gPl.waitFor((m) => m.t === "goto");
+  check(told?.room.id === room2.id && told.room.name === "Smoke test room 2", "the GM sends everyone to another room, by name");
+  const strange = voiceConnect("Nope00000000", { uid: "nope" + rid(), name: "Nope" });
+  await sleep(500);
+  check(!strange.msgs.some((m) => m.t === "voice.hello"), "voice chat needs the id of a room that exists");
+  for (const c of [gGm, gPl, strange]) c.ws.close();
+  let viaRoom2 = null;
+  let watcher = null;
+  if (local) {
+    const gmVoice = voiceConnect(room2.id, { cookie, uid: "gv" + rid(), name: "GM voice" });
+    const forged = voiceConnect(room2.id, { uid: "fv" + rid(), name: "Forged", headers: { "X-Tabletop-Role": "gm" } });
+    const [gmHi, forgedHi] = await Promise.all([gmVoice, forged].map((c) => c.waitFor((m) => m.t === "voice.hello")));
+    check(gmHi?.you.role === "gm" && forgedHi?.you.role === "player", "voice chat knows the GM by the cookie, not by a header the browser sends");
+    gmVoice.ws.close();
+    forged.ws.close();
+    viaRoom2 = voiceConnect(room2.id, { uid: "v2" + rid(), name: "Via room 2" });
+    watcher = voiceConnect(room.id, { uid: "vw" + rid(), name: "Watcher" });
+    await Promise.all([viaRoom2, watcher].map((c) => c.waitFor((m) => m.t === "voice.hello")));
+    viaRoom2.send({ t: "voice", on: true });
+    await watcher.waitFor((m) => m.t === "voice" && m.peers.some((p) => p.name === "Via room 2"));
+  }
+  r = await fetch(`${BASE}/api/rooms/${room2.id}`, { method: "DELETE", headers: { Cookie: cookie } });
+  check(r.ok, "the second room is deleted again");
+  if (local) {
+    const gone = await watcher.waitFor((m) => m.t === "voice" && !m.peers.some((p) => p.name === "Via room 2"));
+    await sleep(300);
+    check(Boolean(gone) && viaRoom2.closeCode === 4410, "deleting a room takes its people off voice chat and disconnects them");
+    const late2 = voiceConnect(room2.id, { uid: "l2" + rid(), name: "Late" });
+    await sleep(500);
+    check(!late2.msgs.some((m) => m.t === "voice.hello"), "a deleted room's link no longer gets into voice chat");
+    for (const c of [watcher, late2]) c.ws.close();
+  }
 
   // deletion
   r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });

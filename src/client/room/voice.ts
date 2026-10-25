@@ -5,9 +5,9 @@
 // their call as soon as they see each other in voice, and "perfect negotiation" settles it
 // when their offers cross: the tab with the higher connId is the polite one, which gives way.
 
-import type { ClientMsg } from "../../shared/protocol";
+import type { Role } from "../../shared/types";
 import { STUN_ONLY } from "../../shared/voice";
-import type { IceServer, RtcSignal, VoicePeer } from "../../shared/voice";
+import type { IceServer, RtcSignal, VoiceClientMsg, VoicePeer } from "../../shared/voice";
 
 export type VoiceStatus = "off" | "starting" | "on";
 export type LinkState = "connecting" | "connected" | "failed";
@@ -15,6 +15,10 @@ export type LinkState = "connecting" | "connected" | "failed";
 export type VoiceMode = "open" | "ptt";
 
 export interface VoiceState {
+  /** This tab as the table's voice chat knows it (its connId there), once connected. */
+  self: { connId: string; role: Role } | null;
+  /** GM or player, as the voice chat server last said (kept while reconnecting). */
+  role: Role | null;
   /** off; starting: the browser is asking for the microphone; on: in voice chat. */
   status: VoiceStatus;
   /** Chosen in this browser, or null for the default: an open microphone for the GM, push to talk for players. */
@@ -45,7 +49,7 @@ export interface VoiceHost {
   myId(): string | null;
   isGm(): boolean;
   /** Sends at once, or returns false when not connected. */
-  send(msg: ClientMsg): boolean;
+  send(msg: VoiceClientMsg): boolean;
   toast(text: string): void;
 }
 
@@ -66,6 +70,8 @@ const MODE_KEY = "tabletop.voiceMode";
 
 export function voiceInitial(): VoiceState {
   return {
+    self: null,
+    role: null,
     status: "off",
     mode: loadMode(),
     muted: false,
