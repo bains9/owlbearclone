@@ -24,7 +24,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "On 24 October, browsers wouldn't let Tabletop use a microphone at all, whatever you allowed: the site itself was still telling them not to. That's fixed.",
-          "If your browser still won't, see **Voice chat: Tabletop can't use your microphone** in **Troubleshooting**."
+          "If your browser still won't, see **Voice chat: Tabletop can't use your microphone** in **Troubleshooting**.",
+          "Also new: if your browser holds back the others' sound (Brave can), a notice says so at the top of the map. Click it, or anywhere on the page, to hear them."
         ]
       },
       {
@@ -2964,10 +2965,11 @@ export const GUIDE: GuideSection[] = [
           "Check you're both in voice chat: both names are in the list under **Voice chat**.",
           "If their name has a crossed-out microphone, they're muted, or not holding their push-to-talk key.",
           "If it says **can't connect** beside their name, both of you click **Leave**, then **Join voice** again.",
-          "If a message in the panel says your browser held back the sound, click it."
+          "If a message says your browser is holding back voice chat's sound, click it, or anywhere on the page."
         ],
         "notes": [
           "Check the slider beside their name, and your device's volume.",
+          "In Brave, if you still hear nobody: click the icon at the left of the address bar, open **Site settings**, and allow **Sound** and **Autoplay** for this site, then reload.",
           "Calls go straight from browser to browser. Some networks (some workplaces, some mobile data) block that, and voice chat then can't connect: try another network, such as home Wi-Fi."
         ]
       },

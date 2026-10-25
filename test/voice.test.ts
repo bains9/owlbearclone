@@ -538,6 +538,19 @@ describe("the browser side", () => {
     expect(t.sent).toEqual([{ t: "voice", on: false }]);
   });
 
+  it("held-back sound waits for the next click or key press anywhere, then tries again", async () => {
+    const t = setup(false);
+    await t.voice.join();
+    (t.voice as unknown as { setHeld(h: boolean): void }).setHeld(true);
+    expect(t.state.blocked).toBe(true);
+    expect(t.listeners.get("pointerdown")?.size).toBe(1);
+    for (const fn of t.listeners.get("pointerdown") ?? []) fn({});
+    await new Promise((r) => setTimeout(r, 0));
+    expect(t.state.blocked).toBe(false);
+    expect(t.listeners.get("pointerdown")?.size).toBe(0);
+    expect(t.listeners.get("keydown")?.size).toBe(1); // push to talk's own
+  });
+
   it("a refusal (voice chat full) turns it all off and says why", async () => {
     const t = setup(false);
     await t.voice.join();

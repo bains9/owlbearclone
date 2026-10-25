@@ -3,7 +3,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
-import { Headphones, Mic, MicOff, PhoneOff } from "lucide-preact";
+import { Headphones, Mic, MicOff, PhoneOff, VolumeX } from "lucide-preact";
 import type { VoicePeer } from "../../shared/voice";
 import type { RoomClient } from "../room/client";
 import { keyName, usableTalkKey, voiceMode } from "../room/voice";
@@ -109,7 +109,7 @@ export function VoiceSection() {
       )}
       {on && v.blocked && (
         <button class="voice-blocked" onClick={() => room.voice.unblock()}>
-          Your browser held back the sound. Click here to hear the others.
+          Your browser is holding back the others' sound. Click here, or anywhere, to hear them.
         </button>
       )}
       {n > 0 && (
@@ -239,6 +239,18 @@ export function VoiceMicButton() {
       onClick={() => room.voice.setMuted(!muted)}
     >
       {muted ? <MicOff size={18} /> : <Mic size={18} />}
+    </button>
+  );
+}
+
+/** Over the map while the browser holds back the others' sound: any click on the page plays it. */
+export function VoiceHeldNotice() {
+  const room = useRoom();
+  const held = useRoomState((s) => s.voice.status === "on" && s.voice.blocked);
+  if (!held) return null;
+  return (
+    <button class="voice-held" onClick={() => room.voice.unblock()}>
+      <VolumeX size={16} /> Your browser is holding back voice chat's sound. Click here, or anywhere, to hear it.
     </button>
   );
 }

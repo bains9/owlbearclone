@@ -261,12 +261,29 @@ export class Voice {
     for (const link of this.links.values()) if (link.userId === userId) link.audio.volume = v;
   }
 
-  /** Plays the others' sound after the browser held it back until the page was clicked. */
+  /**
+   * Plays the others' sound after the browser held it back (Brave does, until the page is
+   * clicked). Called from a click or key press: if the browser still says no, it stays held.
+   */
   unblock(): void {
     void this.audio?.resume().catch(() => {});
-    for (const link of this.links.values()) void link.audio.play().catch(() => {});
-    this.host.set({ blocked: false });
+    const plays = [...this.links.values()].filter((l) => l.audio.srcObject).map((l) => l.audio.play());
+    void Promise.allSettled(plays).then((done) => this.setHeld(done.some((p) => p.status === "rejected")));
   }
+
+  /** Whether the others' sound is held back; while it is, the next click or key press anywhere tries again. */
+  private setHeld(held: boolean): void {
+    if (this.host.get().blocked !== held) this.host.set({ blocked: held });
+    if (held && this.host.get().status === "on") {
+      document.addEventListener("pointerdown", this.onGesture, true);
+      document.addEventListener("keydown", this.onGesture, true);
+    } else {
+      document.removeEventListener("pointerdown", this.onGesture, true);
+      document.removeEventListener("keydown", this.onGesture, true);
+    }
+  }
+
+  private onGesture = (): void => this.unblock();
 
   // ------------------------------------------------------------ from the server
 
@@ -398,7 +415,7 @@ export class Voice {
       const stream = e.streams[0] ?? new MediaStream([e.track]);
       audio.srcObject = stream;
       audio.play().catch(() => {
-        if (this.links.get(id) === link) this.host.set({ blocked: true });
+        if (this.links.get(id) === link) this.setHeld(true);
       });
       this.meter(id, stream);
     };
@@ -483,6 +500,7 @@ export class Voice {
 
   private shutdown(): void {
     this.told = null;
+    this.setHeld(false);
     window.removeEventListener("keydown", this.onKey, true);
     window.removeEventListener("keyup", this.onKey, true);
     window.removeEventListener("blur", this.letGo);
@@ -576,6 +594,9 @@ export class Voice {
 
   private listen(): void {
     const now = performance.now();
+    // A browser can hold the sound back without play() saying so: an audio element with a call
+    // in it that isn't playing is held.
+    if (!this.host.get().blocked && [...this.links.values()].some((l) => l.audio.srcObject && l.audio.paused)) this.setHeld(true);
     const v = this.host.get();
     const me = this.host.myId();
     const speaking: string[] = [];

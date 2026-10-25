@@ -1321,6 +1321,29 @@ button:disabled {
   color: var(--danger);
 }
 
+/* Over the map while the browser holds back voice chat's sound. */
+.voice-held {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 140px);
+  padding: 8px 14px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  background: #3a2c0d;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
 /* Over the map: who's talking. It never takes a click, and moves down clear of a tool's bar
    (useClearOfBars); if it ever meets one anyway, the bar is on top. */
 .speaking-overlay {

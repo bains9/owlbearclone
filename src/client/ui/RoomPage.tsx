@@ -30,7 +30,7 @@ import { Logo } from "./Logo";
 import { MapLoading } from "./MapLoading";
 import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
-import { SpeakingOverlay } from "./VoicePanel";
+import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
 import { SeasonButton } from "./SeasonPicker";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
@@ -174,6 +174,7 @@ function RoomShell() {
           <BuildSelectionBar />
           <ZoomControls />
           <SpeakingOverlay />
+          <VoiceHeldNotice />
           <Toasts />
           <NoteDialog />
           <MapImportDialog />
