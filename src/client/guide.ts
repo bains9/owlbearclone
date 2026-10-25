@@ -15,8 +15,18 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 24 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest update came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Voice chat: the microphone works now (25 October 2026)",
+        "steps": [
+          "Reload any Tabletop page that was open, then click **Join voice** again. When your browser asks to use your microphone, allow it."
+        ],
+        "notes": [
+          "On 24 October, browsers wouldn't let Tabletop use a microphone at all, whatever you allowed: the site itself was still telling them not to. That's fixed.",
+          "If your browser still won't, see **Voice chat: Tabletop can't use your microphone** in **Troubleshooting**."
+        ]
+      },
       {
         "title": "Voice chat (24 October 2026)",
         "steps": [
@@ -2936,6 +2946,18 @@ export const GUIDE: GuideSection[] = [
     "audience": "everyone",
     "intro": "Quick fixes for the problems people run into most often.",
     "parts": [
+      {
+        "title": "Voice chat: Tabletop can't use your microphone",
+        "steps": [
+          "Reload the page, click **Join voice**, and allow the microphone when your browser asks.",
+          "If it doesn't ask, click the icon at the left of the address bar, set the microphone to allow for this site, reload, and click **Join voice** again.",
+          "Check your computer lets the browser use the microphone: on Windows, Settings › Privacy & security › Microphone; on a Mac, System Settings › Privacy & Security › Microphone; on Ubuntu, Settings › Privacy › Microphone."
+        ],
+        "notes": [
+          "On Ubuntu, Firefox and Chromium usually come from the Snap Store, and a snap needs permission to record sound. In a terminal, run `sudo snap connect firefox:audio-record` (or `chromium:audio-record`), then close the browser completely and open it again. It does no harm if it's already allowed.",
+          "To check the microphone itself works, speak and watch its level move in your computer's sound settings (on Ubuntu, Settings › Sound › Input)."
+        ]
+      },
       {
         "title": "Voice chat: you can't hear someone, or they can't hear you",
         "steps": [
