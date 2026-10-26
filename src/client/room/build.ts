@@ -34,6 +34,7 @@ import type { FloorId, Stamp, StampId } from "../../shared/terrain";
 import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
+import { changesWithoutSnow, makesOutdoors } from "./dungeonSeasons";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
 import type { Placed } from "./stampGeom";
 
@@ -1271,7 +1272,7 @@ export class Exposure {
 
 /**
  * Works out which cells are outdoors: a search out from every grass cell and every cell
- * under a tree or bush, up to EXPOSURE_REACH squares, crossing only open edges (walls,
+ * under a tree, bush or other plant (makesOutdoors), up to EXPOSURE_REACH squares, crossing only open edges (walls,
  * doors and secret doors stop it; secret doors are walls to everyone, so the GM and the
  * players get the same answer) into cells with a floor that isn't lava. Walled room floors
  * (s, w, d) are always indoors, whatever is next to them. Water is outdoors only when
@@ -1296,7 +1297,7 @@ export function computeExposure(m: BuildModel): Exposure {
         if (ch.cells[i] === "g") grass.push(cellKey(ch.cx * CHUNK + (i % CHUNK), ch.cy * CHUNK + Math.floor(i / CHUNK)));
       }
       for (const [id, sc, sr, , size] of ch.stamps) {
-        if (id !== "tree" && id !== "bush") continue;
+        if (!makesOutdoors(id)) continue;
         const ax = ch.cx * CHUNK + sc;
         const ay = ch.cy * CHUNK + sr;
         // The squares it stands on, however big it's drawn.
@@ -1562,11 +1563,11 @@ export class BuildRenderer {
     const s = this.season;
     const e = this.exposure;
     if (!s || !hasSeasonalArt(id, s.look)) return null;
-    const plant = id === "tree" || id === "bush";
+    const plant = makesOutdoors(id);
     let dist = SHELTERED;
     for (let dy = 0; dy < n; dy++) {
       for (let dx = 0; dx < n; dx++) {
-        // A tree or bush makes its own squares outdoors, as computeExposure has it: so the
+        // A plant makes its own squares outdoors, as computeExposure has it: so the
         // preview of one not placed yet (or being moved) looks as it will once it's there.
         const cell = plant ? this.model.storedCell(col + dx, row + dy) : "";
         if (plant && !isWalledFloor(cell) && cell !== "l" && cell !== "a") dist = 0;
@@ -1575,7 +1576,7 @@ export class BuildRenderer {
     }
     if (dist > EXPOSURE_REACH) return null;
     const cover = s.look === "winter" ? winterCover(dist, s.level) : 0;
-    if (!cover && id !== "tree" && id !== "bush") return null;
+    if (!cover && !changesWithoutSnow(id)) return null;
     return { look: s.look, level: s.level, hash: stampHash(col, row, this.seasonSeed), cover };
   }
 

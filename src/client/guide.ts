@@ -26,6 +26,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
           "Rugs, flowers, trapdoors and the like always lie under what stands on them, and treetops, tents and chandeliers are over everything, whatever order you put them down in.",
+          "Outdoors they change with **Seasons**: snow on everything in winter, and the trees and plants turning all year (pines stay green). See **What changes, and what doesn't** under **Seasons**.",
           "The last few objects you picked stay in the bar beside it, one click away.",
           "Everyone needs the new version to see them: a page left open from before today is asked to reload.",
           "See **Place objects** in **Building a map: floors, walls, doors and objects**."
@@ -2284,6 +2285,7 @@ export const GUIDE: GuideSection[] = [
           "Ink lines, walls, lava, fires, red roofs, rugs and labels never change. Small roofs and props on grass get snow on top; wide roofs, streets and paved squares keep their colour.",
           "Snow drifts and leaves are sized by the grid, so line the grid up with the map first (see **The scene editor: grid and map**). With Dungeondraft data, sizes come from the map itself.",
           "On a map you built: grass, trees, bushes, and ponds, lakes and rivers that touch grass change, and paths near grass get snow or leaves. In winter, rocks, rubble and wells near grass get frost or snow on top (a well freezes over in **Deep snow**), and the snow melts round a campfire. Rooms with walls stay as they are inside, and walls, doors and lava never change.",
+          "Dungeon's objects on a built map change too, outdoors only. In winter every one of them gets frost or snow on top, kept to its own shape, never over its outlines or a flame. Its trees, bushes, flowers, grass, reeds and crops change all year, as Tabletop's own tree does: fresher in spring, with blossom on some trees and bushes (a few cherry pink); dry in a **Drought**; red, orange and yellow in autumn, with some leaves gone by **Late autumn**, while pines and firs stay green; and in **Deep snow** most broadleaf trees are bare. Like Tabletop's tree, a Dungeon plant makes the squares it stands on outdoors.",
           "The table display always shows the season, like any player's screen, even when it's opened on a computer where seasons are turned off."
         ]
       },
