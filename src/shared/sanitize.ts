@@ -376,8 +376,10 @@ export function sanitizeMapData(v: unknown): SceneMapData | null | undefined {
   const bare = r.bare === "leaf" || r.bare === "dead" ? r.bare : undefined;
   const drawn = r.drawn === "winter" || r.drawn === "green" ? r.drawn : undefined;
   const packs = r.packs === "guess" ? r.packs : undefined;
+  const from = r.from === "dungeon" ? r.from : undefined;
   if ((r.bare !== undefined && !bare) || (r.drawn !== undefined && !drawn)) return undefined;
   if ((r.hold !== undefined && r.hold !== true) || (r.packs !== undefined && !packs)) return undefined;
+  if (r.from !== undefined && !from) return undefined;
   return {
     assetId: r.assetId,
     forAssetId: r.forAssetId,
@@ -385,6 +387,7 @@ export function sanitizeMapData(v: unknown): SceneMapData | null | undefined {
     ...(drawn ? { drawn } : {}),
     ...(r.hold === true ? { hold: true as const } : {}),
     ...(packs ? { packs } : {}),
+    ...(from ? { from } : {}),
   };
 }
 

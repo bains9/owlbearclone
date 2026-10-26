@@ -33,6 +33,7 @@ export const DD_UI = {
   attachedGreen: "Dungeondraft data attached. It's kept for when green maps get exact seasons; for now their seasons are guessed from the picture.",
   attachedPlain: "Dungeondraft data attached.",
   removed: "Dungeondraft data removed: seasons go back to guessing from the picture. Ctrl+Z puts it back.",
+  removedDungeon: "The map's data from Dungeon removed: seasons go back to guessing from the picture. Ctrl+Z puts it back.",
   drawnTitle: "Which season the picture shows. Set from the map's snow; change it if it's wrong.",
   bareTitle: "Dungeondraft's bare trees: on a snowy map they're usually sleeping trees, in a green one dead ones.",
   packsTitle:
@@ -231,7 +232,32 @@ const LINK = {
  * (no map picture to attach to). hasMap: whether the scene has a picture now; data without one
  * is paused and can only be removed.
  */
-export function dataNote(state: SceneDataState, opts: { hasMap: boolean; olderExtractor?: boolean }): NotePart[] | null {
+export function dataNote(state: SceneDataState, opts: { hasMap: boolean; olderExtractor?: boolean; fromDungeon?: boolean }): NotePart[] | null {
+  // Data from a Dungeon export (scene.mapData.from): named as such, and brought in again by
+  // exporting again, since there's no project file to attach.
+  if (opts.fromDungeon) {
+    switch (state) {
+      case "ok":
+      case "loading":
+        return opts.olderExtractor
+          ? ["Exact seasons from the map's data from Dungeon. Export it from Dungeon and bring it in again to use the latest improvements. ", LINK.remove]
+          : ["Exact seasons from the map's data from Dungeon. ", LINK.remove];
+      case "green":
+        return ["The map's data from Dungeon is attached. Exact seasons for green maps come in a later update; for now they're guessed from the picture. ", LINK.remove];
+      case "paused":
+        if (!opts.hasMap) return ["This scene has no map picture now; its data from Dungeon is kept for the picture it was attached to. ", LINK.remove];
+        return ["The map picture has changed since the data from Dungeon was attached, so seasons guess from the picture. ", LINK.use, " ", LINK.remove];
+      case "retrying":
+        return ["The map's data from Dungeon couldn't be loaded on this device, so seasons guess from the picture for now."];
+      case "missing":
+      case "unreadable":
+        return ["The map's data from Dungeon couldn't be read on this device, so seasons guess from the picture. Bring the export in again for exact seasons. ", LINK.remove];
+      case "newer":
+        return ["This scene's data from Dungeon is newer than this copy of Tabletop: reload to use it."];
+      default:
+        break;
+    }
+  }
   switch (state) {
     case "none":
       return opts.hasMap ? ["Made in Dungeondraft? ", LINK.attach, " for exact seasons."] : null;

@@ -130,6 +130,12 @@ export function describeShift([x, y]: readonly [number, number]): string {
 /** The import report's line for an attachment (design 6.1), by its status. */
 export function attachNote(sceneName: string, a: Pick<Attached, "status" | "report">): string {
   const { report, status } = a;
+  // A map from Dungeon: its data came with the picture, so it always lines up.
+  if (report.placed && (status === "ok" || status === "unsure")) {
+    return report.drawn === "winter"
+      ? `${sceneName}: map data from Dungeon attached: seasons use its own ground, water and trees.`
+      : `${sceneName}: map data from Dungeon attached. It's kept for when green maps get exact seasons; for now their seasons are guessed from the picture.`;
+  }
   switch (status) {
     case "ok": {
       const label = report.levels.find((l) => l.key === report.level)?.label;
@@ -151,6 +157,7 @@ export function attachNote(sceneName: string, a: Pick<Attached, "status" | "repo
 function attachStatus(report: AttachReport): Attached["status"] {
   if (report.hold === "level") return "level";
   if (report.hold) return "hold";
+  if (report.placed) return "ok";
   if (report.shifted) return "shifted";
   return report.fit.verdict === "yes" ? "ok" : "unsure";
 }
@@ -176,12 +183,17 @@ async function attachProjectFile(
     delete d.map.cols;
     delete d.map.rows;
   }
-  onProgress?.("Saving the Dungeondraft data…");
+  onProgress?.(d.map.ddFrom === "dungeon" ? "Saving the map data from Dungeon…" : "Saving the Dungeondraft data…");
   const label = report.levels.find((l) => l.key === report.level)?.label;
   const side = await uploadSidecar(room, sidecar, report.levels.length > 1 && label ? `${d.map.name} · ${label}` : d.map.name);
   touchedSidecars.add(side.id);
   const out: Attached = {
-    mapData: { assetId: side.id, forAssetId: d.asset.id, ...(report.hold ? { hold: true } : {}) },
+    mapData: {
+      assetId: side.id,
+      forAssetId: d.asset.id,
+      ...(report.hold ? { hold: true } : {}),
+      ...(d.map.ddFrom === "dungeon" ? { from: "dungeon" as const } : {}),
+    },
     status: attachStatus(report),
     report,
   };
@@ -216,7 +228,8 @@ export async function importFiles(
     opts.onProgress?.("Uploading maps…");
     const done = await room.uploadMaps(maps);
     // A typed name only makes sense for a single map (with its project file, two files); several use their own names.
-    const single = done.length === 1 && files.length === (done[0].map.dd ? 2 : 1);
+    // (A map from Dungeon carries its data inside the one file.)
+    const single = done.length === 1 && files.length === (done[0].map.dd && !done[0].map.ddFrom ? 2 : 1);
     let attached = 0;
     for (const d of done) {
       const name = single ? opts.name || d.map.name : d.map.name;
@@ -229,7 +242,12 @@ export async function importFiles(
           attach = await attachProjectFile(room, d, d.map.dd, opts.onProgress);
           attached++;
         } catch (err) {
-          const message = err instanceof AttachError ? err.message : `The Dungeondraft data couldn't be saved (${(err as Error).message}). Attach it again with Edit scene › Map.`;
+          const message =
+            err instanceof AttachError
+              ? err.message
+              : d.map.ddFrom === "dungeon"
+                ? `The map data from Dungeon couldn't be saved (${(err as Error).message}). Bring the export in again for exact seasons.`
+                : `The Dungeondraft data couldn't be saved (${(err as Error).message}). Attach it again with Edit scene › Map.`;
           result.notes.push(message.startsWith(d.map.dd.name) ? message : `${name}: ${message[0].toLowerCase()}${message.slice(1)}`);
         }
       }

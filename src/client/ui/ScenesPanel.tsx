@@ -507,17 +507,23 @@ function DungeondraftRow(props: { scene: Scene }) {
     if (!md) return;
     touchedSidecars.add(md.assetId);
     room.setMapData(s.id, null);
-    room.toast(DD_UI.removed);
+    room.toast(md.from === "dungeon" ? DD_UI.removedDungeon : DD_UI.removed);
   };
+  // Data from a Dungeon export came inside the picture's file: there's no project file to change it for.
+  const fromDungeon = md?.from === "dungeon";
   return (
     <p class="small dd-row">
-      <span class="muted">Dungeondraft data:</span>{" "}
+      <span class="muted">{fromDungeon ? "Map data from Dungeon:" : "Dungeondraft data:"}</span>{" "}
       {md ? (
         <>
           {dataRow(asset?.name, sidecar?.objects.n, state)}{" "}
-          <button class="link-btn" onClick={open}>
-            Change…
-          </button>{" "}
+          {!fromDungeon && (
+            <>
+              <button class="link-btn" onClick={open}>
+                Change…
+              </button>{" "}
+            </>
+          )}
           <button class="link-btn" onClick={remove}>
             Remove
           </button>
