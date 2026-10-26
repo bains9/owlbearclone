@@ -15,8 +15,21 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "All of Dungeon's objects in the Build tool (26 October 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker at dungeon.parhome.ca.",
+          "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match."
+        ],
+        "notes": [
+          "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
+          "The last few objects you picked stay in the bar beside it, one click away.",
+          "Everyone needs the new version to see them: a page left open from before today is asked to reload.",
+          "See **Place objects** in **Building a map: floors, walls, doors and objects**."
+        ]
+      },
       {
         "title": "Voice chat follows the group to other rooms (25 October 2026)",
         "steps": [
@@ -1968,7 +1981,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Place objects",
         "steps": [
           "Pick **Objects**.",
-          "Pick an object from the row of pictures: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire or rubble.",
+          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 151. Type in **Search 151 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon and Light. **Enter** picks the first match; **Esc** or a click outside closes it.",
           "Set its **Size** (½ to 3 squares) and **Turn** in the bar. With a mouse you can instead scroll the wheel to turn it 15° a notch (hold **Z** for 5°), hold **Alt** and scroll to change its size, or right-click to turn it 90°, as in Dungeondraft.",
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],
@@ -1977,6 +1990,7 @@ export const GUIDE: GuideSection[] = [
           "While you place objects, the mouse wheel turns them: zoom with **Ctrl** and the wheel, or pinch on a trackpad. Two fingers on a trackpad still move the map.",
           "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
           "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them.",
+          "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
           "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
           "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
         ]

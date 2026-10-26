@@ -47,19 +47,21 @@ import type { MeasureShape } from "../../shared/protocol";
 import {
   FLOORS,
   STAMP_DEG_STEP,
-  STAMP_IDS,
-  STAMP_NAMES,
   STAMP_SIZE_MAX,
   STAMP_SIZE_MIN,
   STAMP_SIZE_STEP,
+  isDungeonStamp,
+  naturalStampSize,
   snapDeg,
   snapSize,
 } from "../../shared/terrain";
 import type { FloorId, StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
+import { StampPicker } from "./StampPicker";
+import { loadRecent, saveRecent, withRecent } from "./recentObjects";
 import type { DrawShape } from "../../shared/types";
 import { buildUndo, wallsFor } from "../room/build";
-import { drawStamp, floorPattern } from "../room/buildArt";
+import { floorPattern } from "../room/buildArt";
 import {
   BUILD_MODE_LABELS,
   TOUCH_HINTS,
@@ -328,21 +330,6 @@ function Slider(props: { min: number; max: number; step: number; value: number; 
     />
   );
 }
-/** A small picture of an object, for the palette. */
-function StampIcon(props: { id: StampId }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const px = 26 * (window.devicePixelRatio || 1);
-    canvas.width = px;
-    canvas.height = px;
-    ctx.setTransform(px, 0, 0, px, px / 2, px / 2);
-    drawStamp(ctx, props.id);
-  }, [props.id]);
-  return <canvas ref={ref} class="stamp-icon" aria-hidden="true" />;
-}
 
 /** A swatch of a floor's texture. */
 function FloorIcon(props: { id: FloorId }) {
@@ -395,6 +382,7 @@ function BuildOptions() {
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
   const live = useRoomState((s) => !!s.viewSceneId && s.viewSceneId === s.activeSceneId);
   const [confirm, setConfirm] = useState(false);
+  const [recentObjects, setRecentObjects] = useState<StampId[]>(loadRecent);
   if (!scene) {
     return (
       <div class="tool-options build-options">
@@ -587,20 +575,20 @@ function BuildOptions() {
               Remove
             </button>
           </div>
-          <div class="stamp-palette" role="group" aria-label="Objects">
-            {STAMP_IDS.map((id) => (
-              <button
-                key={id}
-                class={cx("stamp-btn", o.stamp === id && o.stampMode === "place" && "active")}
-                title={STAMP_NAMES[id]}
-                aria-label={STAMP_NAMES[id]}
-                aria-pressed={o.stamp === id && o.stampMode === "place"}
-                onClick={() => set({ stamp: id, stampMode: "place" })}
-              >
-                <StampIcon id={id} />
-              </button>
-            ))}
-          </div>
+          <StampPicker
+            value={o.stamp}
+            placing={o.stampMode === "place"}
+            recent={recentObjects}
+            onPick={(id) => {
+              // A Dungeon object starts at its natural size; switching between the first sixteen
+              // keeps the size the GM set, unless the last one was a Dungeon object.
+              const stampSize = isDungeonStamp(id) ? naturalStampSize(id) : isDungeonStamp(o.stamp) ? 1 : o.stampSize;
+              set({ stamp: id, stampMode: "place", stampSize });
+              const next = withRecent(recentObjects, id);
+              setRecentObjects(next);
+              saveRecent(next);
+            }}
+          />
           <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
             <span class="seg-label build-group-label">Size</span>
             <button

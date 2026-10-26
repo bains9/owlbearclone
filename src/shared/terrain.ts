@@ -3,6 +3,7 @@
 // of grid cells (a chunk), so an edit only rewrites the chunks it touches.
 
 import type { GridSettings, TerrainItem } from "./types";
+import { DUNGEON_PROPS, type DungeonPropInfo } from "./dungeonCatalog";
 
 /** Cells along each side of a chunk. */
 export const CHUNK = 16;
@@ -66,8 +67,42 @@ export const STAMP_IDS = [
   "campfire",
   "rubble",
 ] as const;
-export type StampId = (typeof STAMP_IDS)[number];
-export const STAMP_NAMES: Record<StampId, string> = {
+/** The first sixteen objects, drawn by Tabletop itself (with seasonal drawings for some). */
+export type BaseStampId = (typeof STAMP_IDS)[number];
+/** One of Dungeon's built-in objects (dungeon.parhome.ca), by its Dungeon id: "d:oak-tree". */
+export type DungeonStampId = `d:${string}`;
+export type StampId = BaseStampId | DungeonStampId;
+
+const DUNGEON_STAMP = new Map(DUNGEON_PROPS.map((p) => [`d:${p.id}` as DungeonStampId, p]));
+
+export function isDungeonStamp(id: string): id is DungeonStampId {
+  return DUNGEON_STAMP.has(id as DungeonStampId);
+}
+
+/** An object id Tabletop can draw: one of the sixteen, or one of Dungeon's. */
+export function isStampId(id: unknown): id is StampId {
+  return typeof id === "string" && ((STAMP_IDS as readonly string[]).includes(id) || isDungeonStamp(id));
+}
+
+/** What Dungeon says about one of its objects: name, group, natural size, layer. */
+export function dungeonStampInfo(id: DungeonStampId): DungeonPropInfo | undefined {
+  return DUNGEON_STAMP.get(id);
+}
+
+export function stampName(id: StampId): string {
+  return isDungeonStamp(id) ? (DUNGEON_STAMP.get(id)?.name ?? id) : STAMP_NAMES[id as BaseStampId];
+}
+
+/**
+ * The size an object is first placed at: a Dungeon object's natural size (its longer side,
+ * a 2-square table at 2), within half a square and 3 squares; one of the sixteen at 1.
+ */
+export function naturalStampSize(id: StampId): number {
+  const info = isDungeonStamp(id) ? DUNGEON_STAMP.get(id) : undefined;
+  return info ? snapSize(Math.max(info.w, info.h)) : 1;
+}
+
+export const STAMP_NAMES: Record<BaseStampId, string> = {
   table: "Table",
   chair: "Chair",
   bed: "Bed",
@@ -231,7 +266,7 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
   for (const s of v) {
     if (!Array.isArray(s) || (s.length !== 5 && s.length !== 6)) return undefined;
     const [id, col, row, turns, size, fine] = s as unknown[];
-    const kind = STAMP_IDS.find((k) => k === id);
+    const kind = isStampId(id) ? id : undefined;
     const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n < CHUNK;
     if (!kind || !cell(col) || !cell(row)) return undefined;
     if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 0 || turns > 3) return undefined;

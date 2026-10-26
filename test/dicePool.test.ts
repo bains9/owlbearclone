@@ -58,9 +58,9 @@ describe("the guide", () => {
   const text = (p: { steps: string[]; notes: string[] }) => [...p.steps, ...p.notes].join("\n");
 
   it("has rolling several dice second in What's new, dated with the intro", () => {
-    expect(news.parts[1].title).toBe("Roll several dice at once (25 October 2026)");
-    expect(news.intro).toContain("The latest updates came out on 25 October 2026.");
-    const entry = text(news.parts[1]);
+    expect(news.parts[2].title).toBe("Roll several dice at once (25 October 2026)");
+    expect(news.intro).toContain("The latest updates came out on 26 October 2026.");
+    const entry = text(news.parts[2]);
     for (const what of ["**Roll**", "**−**", "**+**", "**×2**", "critical hit", "**d20**, then **Roll**", "See **Roll dice from the dice tray**"]) expect(entry).toContain(what);
   });
 

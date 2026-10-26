@@ -962,6 +962,40 @@ async function main() {
     if (!answer?.refused?.includes(chunk.id) || JSON.stringify(corrected?.stamps) !== JSON.stringify(fine)) allRefused = false;
   }
   check(allRefused, "malformed objects are refused and corrected");
+  // Dungeon's objects ("d:<id>", protocol 5), in a chunk of their own: tabs on code from
+  // before them (Carol on 3, Fran on 4) aren't sent the chunk and are asked to reload; an id
+  // Dungeon doesn't have is refused.
+  const gm5 = connect(room.id, { cookie, uid: "gm5" + rid(), name: "GM tab", v: 5 });
+  const erin = connect(room.id, { uid: "erin" + rid(), name: "Erin", v: 5 });
+  // On this build (b) but protocol 4, so nothing has made her reload yet.
+  const fran = connect(room.id, { uid: "fran" + rid(), name: "Fran", v: 4, b: gmHello.build });
+  await gm5.waitFor((m) => m.t === "hello");
+  await erin.waitFor((m) => m.t === "hello");
+  await fran.waitFor((m) => m.t === "hello");
+  carol.clear();
+  fran.clear();
+  const dungeonChunk = { ...chunk, id: tid(2, 0, scene2.id), cx: 2, cells: noCells, edges: noEdges, stamps: [["d:oak-tree", 3, 3, 0, 3], ["d:dining-table", 8, 8, 1, 2.5, 15]] };
+  gm5.items({ upsert: [dungeonChunk] });
+  const dEcho = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  const dGot = await erin.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === dungeonChunk.id));
+  check(
+    dEcho && !dEcho.refused && JSON.stringify(dGot?.upsert.find((i) => i.id === dungeonChunk.id)?.stamps) === JSON.stringify(dungeonChunk.stamps),
+    "the GM places Dungeon's objects, and a player on new code gets them as placed",
+  );
+  await sleep(300);
+  const seenOld = (t) => t.msgs.some((m) => JSON.stringify(m).includes("d:oak-tree"));
+  const toldOld = (t) => t.msgs.some((m) => m.t === "error" && /Reload/.test(m.message));
+  // Carol was told to reload when she joined (the compass was already too new for her), and
+  // a tab is told once; Fran, on 4, had nothing withheld until now.
+  check(!seenOld(carol) && !seenOld(fran) && toldOld(fran), "tabs on code from before Dungeon's objects aren't sent them, and are asked to reload");
+  gm5.items({ patch: [{ id: dungeonChunk.id, set: { stamps: [["d:no-such-thing", 0, 0, 0, 1]] } }] });
+  const unknown = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(unknown?.refused?.includes(dungeonChunk.id), "an object Dungeon doesn't have is refused");
+  gm5.items({ delete: [dungeonChunk.id] });
+  await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  gm5.ws.close();
+  erin.ws.close();
+  fran.ws.close();
   // Chunk ids can be worked out: a player asking about one learns nothing either way.
   carol.clear();
   const built = tid(0, 0, sceneId);

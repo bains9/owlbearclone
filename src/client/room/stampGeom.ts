@@ -10,12 +10,12 @@
 import {
   CHUNK,
   STAMP_DEG_STEP,
-  STAMP_IDS,
   STAMP_SIZE_MAX,
   STAMP_SIZE_MIN,
   STAMP_SIZE_STEP,
   chunkOf,
   inChunk,
+  isStampId,
   makeStamp,
   snapDeg,
   snapSize,
@@ -301,7 +301,7 @@ export function decodeObjects(text: string): Placed[] | null {
     // Anything after the size is left for later versions.
     if (!Array.isArray(o) || o.length < 5) return null;
     const [id, col, row, deg, size] = o as unknown[];
-    const kind = STAMP_IDS.find((k) => k === id);
+    const kind = isStampId(id) ? id : undefined;
     if (!kind || !whole(col, CLIP_SPAN) || !whole(row, CLIP_SPAN) || !whole(deg, 360 - STAMP_DEG_STEP) || deg % STAMP_DEG_STEP) return null;
     if (typeof size !== "number" || !Number.isInteger(size / STAMP_SIZE_STEP) || size < STAMP_SIZE_MIN || size > STAMP_SIZE_MAX) return null;
     out.push({ id: kind, col, row, deg, size });

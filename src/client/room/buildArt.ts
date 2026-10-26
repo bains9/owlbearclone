@@ -10,8 +10,10 @@
 // and a seasonal tree or bush is one of a few dozen varieties, each made into paths once
 // (see drawVariety).
 
-import type { FloorId, StampId } from "../../shared/terrain";
+import type { BaseStampId, FloorId, StampId } from "../../shared/terrain";
+import { isDungeonStamp } from "../../shared/terrain";
 import type { SeasonLook } from "../../shared/types";
+import { drawDungeonStamp, dungeonHasSeasonalArt } from "./dungeonStamps";
 
 /** Texture pixels per grid cell. */
 export const TEXTURE_CELL_PX = 96;
@@ -957,7 +959,7 @@ function leafyBush(c: CanvasRenderingContext2D, base: string, clumps: string[]):
   });
 }
 
-const STAMPS: Record<StampId, (c: CanvasRenderingContext2D) => void> = {
+const STAMPS: Record<BaseStampId, (c: CanvasRenderingContext2D) => void> = {
   table(c) {
     shadow(c, () => roundRect(c, -0.42, -0.3, 0.84, 0.6, 0.06));
     roundRect(c, -0.42, -0.3, 0.84, 0.6, 0.06);
@@ -1232,6 +1234,7 @@ export interface StampLook {
 
 /** Whether an object looks different in a season (only these need a StampLook). */
 export function hasSeasonalArt(id: StampId, look: SeasonLook): boolean {
+  if (isDungeonStamp(id)) return dungeonHasSeasonalArt(id, look);
   if (id === "tree" || id === "bush") return true;
   return look === "winter" && (id === "rock" || id === "rubble" || id === "well" || id === "campfire");
 }
@@ -1865,7 +1868,7 @@ function winterCampfire(c: CanvasRenderingContext2D, s: StampLook): void {
 /** A seasonal drawing: `lit` is the way to the light inside the object (see litFor). */
 type SeasonalDrawing = (c: CanvasRenderingContext2D, s: StampLook, lit: [number, number]) => void;
 
-const SEASONAL_STAMPS: Partial<Record<StampId, SeasonalDrawing>> = {
+const SEASONAL_STAMPS: Partial<Record<BaseStampId, SeasonalDrawing>> = {
   tree: seasonalTree,
   bush: seasonalBush,
   rock: (c, s, lit) => (s.look === "winter" ? winterRock(c, s, lit) : STAMPS.rock(c)),
@@ -2054,6 +2057,10 @@ function drawVariety(c: CanvasRenderingContext2D, id: "tree" | "bush", s: StampL
  * of every object.
  */
 export function drawStamp(c: CanvasRenderingContext2D, id: StampId, look?: StampLook | null, turns = 0, fine = 0): void {
+  if (isDungeonStamp(id)) {
+    drawDungeonStamp(c, id, look ?? null, turns, fine);
+    return;
+  }
   c.save();
   c.lineJoin = "round";
   const seasonal = look ? SEASONAL_STAMPS[id] : undefined;
