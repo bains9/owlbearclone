@@ -83,6 +83,9 @@ export type BuildShape = "rect" | "circle" | "brush";
  * modes are named after Dungeondraft's tools, which the GM knows: Building, Wall,
  * Portal (doors), Terrain, Object and Select.
  */
+/** One of Dungeon's textures, by id ("t:meadow"; see dungeonTextures.ts). */
+export type TextureFloor = `t:${string}`;
+
 export interface BuildOptions {
   mode: "building" | "walls" | "doors" | "terrain" | "stamps" | "select";
   shape: { building: BuildShape; terrain: BuildShape };
@@ -90,7 +93,7 @@ export interface BuildOptions {
    * What each paints: a room's floor (stone, wood or dirt), or grass, water or lava; or
    * "erase" (which takes the walls, doors and objects on those squares too).
    */
-  floor: { building: Extract<FloorId, "s" | "w" | "d"> | "erase"; terrain: Extract<FloorId, "g" | "a" | "l"> | "erase" };
+  floor: { building: Extract<FloorId, "s" | "w" | "d"> | "erase" | TextureFloor; terrain: Extract<FloorId, "g" | "a" | "l"> | "erase" | TextureFloor };
   /** Floor brush size in squares (1-5). */
   brush: number;
   /**
@@ -304,12 +307,14 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
     season?: Scene["season"] | null;
     mapData?: Scene["mapData"] | null;
     mapRect?: Scene["mapRect"] | null;
+    wallTexture?: Scene["wallTexture"] | null;
   };
   // A season of null means "turned off": the scene simply has none. The same for the
   // Dungeondraft data and the picture's rectangle: null removes them.
   if (next.season === null) delete next.season;
   if (next.mapData === null) delete next.mapData;
   if (next.mapRect === null) delete next.mapRect;
+  if (next.wallTexture === null) delete next.wallTexture;
   // As on the server: a new picture (or none) drops the old one's rectangle unless the
   // change brings its own.
   if (cur && set.mapAssetId !== undefined && set.mapAssetId !== cur.mapAssetId && set.mapRect === undefined) {

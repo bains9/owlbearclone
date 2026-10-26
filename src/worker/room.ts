@@ -81,15 +81,17 @@ const TERRAIN_VERSION = 3;
  */
 const COMPASS_VERSION = 4;
 /**
- * Dungeon's objects in built maps ("d:oak-tree") need code from 26 October 2026 (5). Older
- * code has no drawing for them and, worse, couldn't read the chunk at all (its check knows
- * only the sixteen first objects), so it would stop drawing that part of the map. Such tabs
- * don't get chunks holding one, can't change them, and are asked to reload, as with terrain.
+ * Dungeon's objects and textures in built maps ("d:oak-tree"; tex and pal) need code from
+ * 26 October 2026 (5). Older code has no drawing for them and, worse, couldn't read a chunk
+ * with an object (its check knows only the sixteen first objects), so it would stop drawing
+ * that part of the map; textures it would leave out, and then write the chunk back without
+ * them. Such tabs don't get chunks holding either, can't change them, and are asked to
+ * reload, as with terrain.
  */
-const DUNGEON_OBJECTS_VERSION = 5;
+const DUNGEON_VERSION = 5;
 /** The oldest protocol version whose code can show this item. */
 function versionFor(item: Item): number {
-  if (item.kind === "terrain") return item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_OBJECTS_VERSION : TERRAIN_VERSION;
+  if (item.kind === "terrain") return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
   return isCompass(item) ? COMPASS_VERSION : 1;
 }
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cleanStamps, isDungeonStamp, isStampId, makeStamp, naturalStampSize, STAMP_IDS, stampLayer, stampName, type StampId } from "../src/shared/terrain";
 import { DUNGEON_PROPS } from "../src/shared/dungeonCatalog";
 import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
-import { RECENT_MAX, withRecent } from "../src/client/ui/recentObjects";
+import { RECENT_MAX, withRecent } from "../src/client/ui/recentPicks";
 
 // Dungeon's objects in the Build tool: ids "d:<dungeon id>", accepted by the server's check,
 // sized and named from Dungeon's catalogue, and found in the picker by group or search.

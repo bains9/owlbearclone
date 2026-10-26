@@ -991,7 +991,21 @@ async function main() {
   gm5.items({ patch: [{ id: dungeonChunk.id, set: { stamps: [["d:no-such-thing", 0, 0, 0, 1]] } }] });
   const unknown = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
   check(unknown?.refused?.includes(dungeonChunk.id), "an object Dungeon doesn't have is refused");
-  gm5.items({ delete: [dungeonChunk.id] });
+  // Dungeon's textures: an index a cell into the chunk's palette, gated the same way.
+  const texChunk = { ...chunk, id: tid(3, 0, scene2.id), cx: 3, cells: "gs" + noCells.slice(2), edges: noEdges, stamps: [], tex: "01" + noCells.slice(2), pal: ["meadow", "flagstone"] };
+  gm5.items({ upsert: [texChunk] });
+  const tEcho = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  const tGot = await erin.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === texChunk.id));
+  check(
+    tEcho && !tEcho.refused && tGot?.upsert.find((i) => i.id === texChunk.id)?.pal?.join() === "meadow,flagstone",
+    "the GM paints with Dungeon's textures, and a player on new code gets them",
+  );
+  await sleep(300);
+  check(!fran.msgs.some((m) => JSON.stringify(m).includes(texChunk.id)), "a tab on code from before Dungeon's textures isn't sent them");
+  gm5.items({ patch: [{ id: texChunk.id, set: { tex: "02" + noCells.slice(2), pal: ["meadow", "flagstone"] } }] });
+  const badTex = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(badTex?.refused?.includes(texChunk.id), "textures that don't match their palette are refused");
+  gm5.items({ delete: [dungeonChunk.id, texChunk.id] });
   await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
   gm5.ws.close();
   erin.ws.close();

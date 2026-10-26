@@ -2641,16 +2641,16 @@ kbd {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(79, 209, 255, 0.35);
 }
-/* The object picker: the chosen object and the last few on the bar, everything else in a
-   popover under it (search, folding groups), so the bar is no wider than it was with 16. */
-.stamp-picker {
+/* The Build tool's pickers (objects, floors): the chosen one and the last few on the bar,
+   everything else in a popover under it (search, folding groups), so the bar stays short. */
+.lib-picker {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
-.stamp-current {
+.lib-current {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2664,26 +2664,32 @@ kbd {
   font-size: 13px;
   cursor: pointer;
 }
-.stamp-current .stamp-icon {
+.lib-current .stamp-icon {
   flex: none;
   padding: 1px;
   border-radius: 5px;
   background: #d9d3c6;
 }
-.stamp-current.active,
-.stamp-current.open {
+.lib-current .floor-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+}
+.lib-current.active,
+.lib-current.open {
   border-color: var(--accent);
 }
-.stamp-current-name {
+.lib-current-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.stamp-recent {
+.lib-recent {
   display: flex;
   gap: 3px;
 }
-.stamp-popover {
+.lib-popover {
   position: fixed;
   top: 0;
   left: 0;
@@ -2697,7 +2703,7 @@ kbd {
   border-radius: 10px;
   box-shadow: var(--shadow);
 }
-.stamp-search {
+.lib-search {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2708,7 +2714,7 @@ kbd {
   background: var(--bg-2);
   color: var(--muted);
 }
-.stamp-search input {
+.lib-search input {
   flex: 1;
   min-width: 0;
   height: 30px;
@@ -2719,7 +2725,7 @@ kbd {
   font-size: 13px;
   outline: none;
 }
-.stamp-group-head {
+.lib-group-head {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2733,26 +2739,26 @@ kbd {
   text-align: left;
   cursor: pointer;
 }
-.stamp-group-head:hover {
+.lib-group-head:hover {
   color: var(--accent);
 }
-.stamp-group-count {
+.lib-group-count {
   margin-left: auto;
   color: var(--muted);
   font-weight: 400;
 }
-.stamp-grid {
+.lib-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 34px);
   gap: 4px;
   padding: 2px 2px 8px;
 }
-.stamp-none {
+.lib-none {
   margin: 8px 4px;
   color: var(--muted);
   font-size: 13px;
 }
-.stamp-btn {
+.lib-btn {
   flex: none;
   width: 34px;
   height: 34px;
@@ -2763,8 +2769,17 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
-.stamp-btn.active {
+.lib-btn.floor {
+  padding: 0;
+  background: var(--bg-2);
+}
+.lib-btn.floor .floor-icon {
+  width: 32px;
+  height: 32px;
+}
+.lib-btn.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
 }
@@ -2796,9 +2811,9 @@ kbd {
   .build-options > * {
     flex: none;
   }
-  /* Phones: the chosen object's picture alone on the bar; its name is in the popover's search. */
-  .build-options .stamp-current-name,
-  .build-options .stamp-recent {
+  /* Phones: the chosen object's or floor's picture alone on the bar. */
+  .build-options .lib-current-name,
+  .build-options .lib-recent {
     display: none;
   }
   .build-options .build-live {

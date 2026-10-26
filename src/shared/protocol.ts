@@ -19,7 +19,7 @@ import type {
 /**
  * The protocol version this build's browser code speaks (sent as v=). 3: objects turned to
  * any 5 degrees and sized in quarter squares. 4: compass roses (tokens with art "compass").
- * 5: Dungeon's objects in built maps (stamps "d:<id>").
+ * 5: Dungeon's objects and textures in built maps (stamps "d:<id>"; a chunk's tex and pal).
  */
 export const PROTOCOL_VERSION = 5;
 
@@ -50,11 +50,12 @@ export interface ItemOps {
  * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
  * a mapData or mapRect of null removes it).
  */
-export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect">> & {
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture">> & {
   id: string;
   season?: SceneSeason | null;
   mapData?: SceneMapData | null;
   mapRect?: [number, number, number, number] | null;
+  wallTexture?: string | null;
 };
 
 /** Everything a browser can ask the server to change. */

@@ -18,15 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
-        "title": "All of Dungeon's objects in the Build tool (26 October 2026)",
+        "title": "All of Dungeon's objects and textures in the Build tool (26 October 2026)",
         "steps": [
           "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker at dungeon.parhome.ca.",
-          "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match."
+          "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match.",
+          "Floors work the same way: in **Building** and **Terrain**, click the floor shown in the bar to choose from Tabletop's own and Dungeon's textures: marble, mosaics, carpets and parquet for rooms; meadows, moss, heather, sand, gravel, snow, ice, caves, water and lava for the ground.",
+          "In **Walls**, the walls' look for the whole scene: plain, or one of Dungeon's 16, from brick and logs to marble and ice."
         ],
         "notes": [
           "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
           "Rugs, flowers, trapdoors and the like always lie under what stands on them, and treetops, tents and chandeliers are over everything, whatever order you put them down in.",
           "Outdoors they change with **Seasons**: snow on everything in winter, and the trees and plants turning all year (pines stay green). See **What changes, and what doesn't** under **Seasons**.",
+          "Ground painted with one of Dungeon's textures keeps it in every season, with the season over it: frost and snow in winter, fallen leaves in autumn, dust in a drought. Water still freezes over.",
           "The last few objects you picked stay in the bar beside it, one click away.",
           "Everyone needs the new version to see them: a page left open from before today is asked to reload.",
           "See **Place objects** in **Building a map: floors, walls, doors and objects**."
@@ -1914,7 +1917,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Building: rooms",
         "steps": [
           "Pick **Building**.",
-          "Pick a floor: stone, wood or dirt (the textured squares).",
+          "Pick a floor: click the one shown in the bar to choose Tabletop's stone, wood or dirt, or one of Dungeon's textures (marble, tiles, cobbles, carpets, planks, cave floors and more), in groups or by typing its name. The last few you picked stay beside it.",
           "Pick a shape: **Rectangle** (the square) or **Oval** (the circle), then drag from one corner of the room to the opposite corner.",
           "Or pick **Brush** (the paintbrush), pick its size (1 to 5 squares, or press **[** and **]**), and drag to paint square by square."
         ],
@@ -1922,7 +1925,9 @@ export const GUIDE: GuideSection[] = [
           "Rooms get walls automatically wherever they meet empty space, grass, water or lava. Rooms painted next to each other join up with no wall between them.",
           "Pick **No wall** (the X) to paint rooms without walls from then on, for example to patch an uploaded map; **Wall** (the bricks) turns walls on again for rooms you paint after that. (Rooms already painted keep what they had: paint them again to change it.) On a scene with an uploaded map it starts on **No wall**. Your choice is kept for each scene until you reload the page.",
           "Dirt with the brush makes caves, like Dungeondraft's Cave brush.",
-          "Paint one floor over another to change it."
+          "Paint one floor over another to change it.",
+          "Each of Dungeon's textures is a stone, wooden or earth floor underneath, which decides how its room behaves, as Tabletop's own do: carpets and planks are wooden floors, marble and cobbles stone, cave floors and sand earth.",
+          "A texture shows its colour for a moment the first time anyone uses it on a map, while Tabletop makes it."
         ]
       },
       {
@@ -1941,13 +1946,14 @@ export const GUIDE: GuideSection[] = [
         "title": "Terrain: grass, water and lava",
         "steps": [
           "Pick **Terrain**.",
-          "Pick grass, water or lava, and a shape (it starts on **Brush**).",
+          "Pick grass, water or lava, or one of Dungeon's ground textures (click the floor shown in the bar), and a shape (it starts on **Brush**).",
           "Drag to paint."
         ],
         "notes": [
           "Terrain goes under buildings, as in Dungeondraft: painting it never covers a room's floor, so you can paint the outdoors right up to your rooms. Each square holds one floor, though: painting a room over terrain replaces the terrain there, and cutting the room out later leaves empty squares, which you can paint with terrain again.",
           "Terrain never gets walls of its own, but rooms get walls where they meet it.",
-          "Hold **Alt** while you drag to take terrain away."
+          "Hold **Alt** while you drag to take terrain away.",
+          "Dungeon's ground textures are terrain like grass (water and lava are water and lava): they go under buildings, are outdoors for **Seasons**, and the eraser takes them."
         ]
       },
       {
@@ -1962,7 +1968,8 @@ export const GUIDE: GuideSection[] = [
           "While you're placing corners, **Backspace** takes the last one back and **Escape** cancels.",
           "Hold **Alt** to remove walls instead of adding them.",
           "**Remove** also opens up a wall that was drawn automatically: an archway, or an opening into a cave.",
-          "On a touch screen, drag along the lines, or tap a single grid line."
+          "On a touch screen, drag along the lines, or tap a single grid line.",
+          "The walls' look: click **Plain walls** in the bar to give every wall in the scene one of Dungeon's 16 wall textures (brick, stone, logs, plaster, marble, iron, ice and more), or plain again. It's for the whole scene, everyone sees it at once, and **Undo** puts it back."
         ]
       },
       {

@@ -19,9 +19,12 @@ import {
   CHUNK_CELLS,
   EMPTY,
   MAX_STAMPS_PER_CHUNK,
+  MAX_TEXTURES_PER_CHUNK,
   chunkOf,
+  decodeTextures,
   emptyCells,
   emptyEdges,
+  encodeTextures,
   inChunk,
   isBuildingFloor,
   isWalledFloor,
@@ -35,6 +38,7 @@ import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, Ter
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
 import { changesWithoutSnow, makesOutdoors } from "./dungeonSeasons";
+import { overlayRuleFor, texturePattern } from "./dungeonTextures";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
 import type { Placed } from "./stampGeom";
 
@@ -82,6 +86,35 @@ function across(col: number, row: number, side: Side): [number, number] {
 
 const EMPTY_CELLS = emptyCells();
 const EMPTY_EDGES = emptyEdges();
+/** A chunk with no textures: "" for every cell. */
+const NO_TEXTURES: readonly string[] = Array<string>(CHUNK_CELLS).fill("");
+
+const decoded = new WeakMap<TerrainItem, readonly string[]>();
+
+/** A chunk's texture for each cell ("" none), worked out once per item. */
+function texturesOf(t: TerrainItem | undefined): readonly string[] {
+  if (!t?.tex) return NO_TEXTURES;
+  let out = decoded.get(t);
+  if (!out) decoded.set(t, (out = decodeTextures(t) ?? NO_TEXTURES));
+  return out;
+}
+
+/** The same textures? (Missing and empty are the same: none.) */
+function sameTextures(a: TerrainItem | undefined, b: TerrainItem | undefined): boolean {
+  return (a?.tex ?? "") === (b?.tex ?? "") && (a?.pal ?? []).join() === (b?.pal ?? []).join();
+}
+
+/**
+ * A chunk's textures as its tex and pal fields. One that would need more textures than a
+ * chunk can hold keeps the first ones it has and leaves the rest of its cells plain.
+ */
+function encodeFitting(cells: readonly string[]): { tex: string; pal: string[] } {
+  const enc = encodeTextures(cells);
+  if (enc) return enc;
+  const kept: string[] = [];
+  for (const id of cells) if (id && !kept.includes(id) && kept.length < MAX_TEXTURES_PER_CHUNK) kept.push(id);
+  return encodeTextures(cells.map((id) => (kept.includes(id) ? id : "")))!;
+}
 
 // ---------------------------------------------------------------- the index
 
@@ -200,7 +233,10 @@ export function resolveRefs(
 
 /** What the Build tool is painting before it's committed: shown at once, sent when you let go. */
 export interface BuildDraft {
-  /** Cell -> the floor being painted, or "." to erase. */
+  /**
+   * Cell -> the floor being painted, or "." to erase. One of Dungeon's textures comes after
+   * the floor's character: "g:meadow" (see paintCode).
+   */
   cells: Map<number, string>;
   /** Edge -> a wall being drawn, or one being taken away. */
   walls: Map<number, "add" | "remove">;
@@ -230,7 +266,18 @@ export class BuildModel {
   }
 
   cell(col: number, row: number): string {
-    return this.draft?.cells.get(cellKey(col, row)) ?? this.storedCell(col, row);
+    const v = this.draft?.cells.get(cellKey(col, row));
+    return v === undefined ? this.storedCell(col, row) : v[0];
+  }
+
+  storedTexture(col: number, row: number): string {
+    return texturesOf(this.index.chunks.get(ckey(chunkOf(col), chunkOf(row))))[idx(col, row)];
+  }
+
+  /** The cell's texture ("" for Tabletop's own floor), with the draft on top. */
+  texture(col: number, row: number): string {
+    const v = this.draft?.cells.get(cellKey(col, row));
+    return v === undefined ? this.storedTexture(col, row) : v.slice(2);
   }
 
   edge(col: number, row: number, side: Side): string {
@@ -391,6 +438,8 @@ interface WorkChunk {
   cx: number;
   cy: number;
   cells: string[];
+  /** Each cell's texture, "" for none. */
+  tex: string[];
   edges: string[];
   stamps: Stamp[];
   stampsChanged: boolean;
@@ -433,6 +482,7 @@ export class BuildEdit {
         cx,
         cy,
         cells: [...(orig?.cells ?? EMPTY_CELLS)],
+        tex: [...texturesOf(orig)],
         edges: [...(orig?.edges ?? EMPTY_EDGES)],
         stamps: orig ? orig.stamps.slice() : [],
         stampsChanged: false,
@@ -463,9 +513,20 @@ export class BuildEdit {
     return this.peek(col, row)?.cells[idx(col, row)] ?? EMPTY;
   }
 
-  setCell(col: number, row: number, ch: string): void {
-    if (this.cell(col, row) === ch) return;
-    this.chunk(col, row).cells[idx(col, row)] = ch;
+  /** The cell's texture so far ("" for none). */
+  texture(col: number, row: number): string {
+    const k = ckey(chunkOf(col), chunkOf(row));
+    const w = this.work.get(k);
+    return w ? w.tex[idx(col, row)] : texturesOf(this.index.chunks.get(k))[idx(col, row)];
+  }
+
+  /** Paints a cell: its floor's character, and one of Dungeon's textures on it or "" for Tabletop's own. */
+  setCell(col: number, row: number, ch: string, texture = ""): void {
+    const tex = ch === EMPTY ? "" : texture;
+    if (this.cell(col, row) === ch && this.texture(col, row) === tex) return;
+    const w = this.chunk(col, row);
+    w.cells[idx(col, row)] = ch;
+    w.tex[idx(col, row)] = tex;
   }
 
   edge(col: number, row: number, side: Side): string {
@@ -566,8 +627,12 @@ export class BuildEdit {
    */
   mergeChunk(cx: number, cy: number, from: ChunkData, to: ChunkData): void {
     const w = this.chunk(cx * CHUNK, cy * CHUNK);
+    // A cell's floor and its texture go together: one painted since in either way is left alone.
     for (let i = 0; i < CHUNK_CELLS; i++) {
-      if (from.cells[i] !== to.cells[i] && w.cells[i] === from.cells[i]) w.cells[i] = to.cells[i];
+      if ((from.cells[i] !== to.cells[i] || from.tex[i] !== to.tex[i]) && w.cells[i] === from.cells[i] && w.tex[i] === from.tex[i]) {
+        w.cells[i] = to.cells[i];
+        w.tex[i] = to.tex[i];
+      }
     }
     for (let i = 0; i < CHUNK_CELLS * 2; i++) {
       if (from.edges[i] !== to.edges[i] && w.edges[i] === from.edges[i]) w.edges[i] = to.edges[i];
@@ -912,6 +977,7 @@ export class BuildEdit {
     for (const w of this.work.values()) {
       const cells = w.cells.join("");
       const edges = w.edges.join("");
+      const textures = encodeFitting(w.tex);
       const empty = cells === EMPTY_CELLS && edges === EMPTY_EDGES && !w.stamps.length;
       if (w.orig) {
         // An empty chunk is deleted, so it doesn't take up room in the scene forever.
@@ -923,6 +989,11 @@ export class BuildEdit {
         if (cells !== w.orig.cells) set.cells = cells;
         if (edges !== w.orig.edges) set.edges = edges;
         if (w.stampsChanged && !sameStamps(w.stamps, w.orig.stamps)) set.stamps = w.stamps;
+        // Always the pair, as the server wants them.
+        if (textures.tex !== (w.orig.tex ?? "") || textures.pal.join() !== (w.orig.pal ?? []).join()) {
+          set.tex = textures.tex;
+          set.pal = textures.pal;
+        }
         if (Object.keys(set).length) patch.push({ id: w.orig.id, set });
       } else if (!empty) {
         upsert.push({
@@ -936,6 +1007,7 @@ export class BuildEdit {
           cells,
           edges,
           stamps: w.stamps,
+          ...(textures.tex ? textures : {}),
         });
       }
     }
@@ -1002,9 +1074,11 @@ export interface ChunkData {
   cells: string;
   edges: string;
   stamps: Stamp[];
+  /** Each cell's texture, "" for none. */
+  tex: readonly string[];
 }
 
-const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [] };
+const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [], tex: NO_TEXTURES };
 
 /** A scene's secret doors in one chunk, from all the hidden chunks there. */
 function secretsIn(items: ItemMap, sceneId: string, cx: number, cy: number): string {
@@ -1038,7 +1112,7 @@ export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps, pairs: 
   const secrets = new Map<number, { cx: number; cy: number; before: string; after: string }>();
   const data = (map: ItemMap, id: string): ChunkData => {
     const t = map[id];
-    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps } : EMPTY_CHUNK;
+    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps, tex: texturesOf(t) } : EMPTY_CHUNK;
   };
   for (const id of ids) {
     const t = items[id] ?? after[id];
@@ -1133,6 +1207,10 @@ export function opsBetween(now: ItemMap, final: ItemMap, ids: Iterable<string>):
       if (a.cells !== b.cells) set.cells = b.cells;
       if (a.edges !== b.edges) set.edges = b.edges;
       if (!sameStamps(a.stamps, b.stamps)) set.stamps = b.stamps;
+      if (!sameTextures(a, b)) {
+        set.tex = b.tex ?? "";
+        set.pal = b.pal ?? [];
+      }
       if (Object.keys(set).length) patch.push({ id, set });
     }
   }
@@ -1204,6 +1282,11 @@ export function wallsFor(scene: Scene, choices: Record<string, boolean>): boolea
 /** The character a floor is painted with. */
 export function floorChar(floor: FloorId, walls: boolean): string {
   return isWalledFloor(floor) && !walls ? floor.toUpperCase() : floor;
+}
+
+/** What a stroke paints a cell with (BuildDraft.cells): a floor's character, and after it any texture of Dungeon's, "g:meadow". */
+export function paintCode(ch: string, texture: string): string {
+  return texture && ch !== EMPTY ? `${ch}:${texture}` : ch;
 }
 
 // ---------------------------------------------------------------- seasons
@@ -1624,7 +1707,7 @@ export class BuildRenderer {
         this.cellsChanged(k);
       }
       if ((a?.edges ?? EMPTY_EDGES) !== (b?.edges ?? EMPTY_EDGES)) this.geomDirty.add(k);
-      if (!sameStamps(a?.stamps ?? [], b?.stamps ?? [])) this.paintDirty.add(k);
+      if (!sameStamps(a?.stamps ?? [], b?.stamps ?? []) || !sameTextures(a, b)) this.paintDirty.add(k);
     }
     const skeys = new Set([...prev.secrets.keys(), ...next.secrets.keys()]);
     for (const k of skeys) {
@@ -1658,7 +1741,7 @@ export class BuildRenderer {
     this.model.draft = { cells: new Map(), walls: new Map() };
   }
 
-  /** Paints (or with ".", erases) a cell in the draft. */
+  /** Paints (or with ".", erases) a cell in the draft: a floor's character, with a texture after it (see paintCode). */
   draftCell(col: number, row: number, ch: string): void {
     const d = this.model.draft;
     if (!d || d.cells.get(cellKey(col, row)) === ch) return;
@@ -1927,7 +2010,9 @@ export class BuildRenderer {
       let over: OverlayId | "" = "";
       for (let col = c0; col <= c1 + 1; col++) {
         const ch = col <= c1 ? m.cell(col, row) : EMPTY;
-        let floor = ch === EMPTY ? "" : ch.toLowerCase();
+        // One of Dungeon's textures is "t:<id>" (see dungeonTextures.ts).
+        const tex = ch === EMPTY ? "" : m.texture(col, row);
+        let floor = ch === EMPTY ? "" : tex ? `t:${tex}` : ch.toLowerCase();
         if (s && e) {
           let o: OverlayId | "" = "";
           if (floor) {
@@ -1935,8 +2020,11 @@ export class BuildRenderer {
             // Grass is always outdoors (new grass too, before it's committed); water and bare earth when found so.
             const hash = ch === "a" || ch === "D" ? stampHash(col, row, this.seasonSeed) : 0;
             const v = groundVariant(ch, dist, e.openWater(col, row), s.look, s.level, hash);
-            if (v) floor = `${floor}:${v}`;
-            o = overlayFor(ch, dist, e.nearTree(col, row), s.look, s.level);
+            // A texture stays in every season, with the season's overlay on it; only water
+            // freezes over just as Tabletop's own does.
+            if (v && (!tex || ch === "a")) floor = `${ch.toLowerCase()}:${v}`;
+            const rule = tex ? overlayRuleFor(ch, tex, s.look) : ch;
+            o = rule ? overlayFor(rule, dist, e.nearTree(col, row), s.look, s.level) : "";
           }
           if (o !== over) {
             if (over) add(overlays, over, overStart, col, row);
@@ -1951,8 +2039,11 @@ export class BuildRenderer {
       }
     }
     for (const [key, p] of paths) {
-      // "g" or "g:winter2".
-      c.fillStyle = floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
+      // "g", "g:winter2", or one of Dungeon's textures, "t:meadow".
+      c.fillStyle =
+        key[0] === "t" && key[1] === ":"
+          ? texturePattern(c, key.slice(2), size, g.offsetX, g.offsetY)
+          : floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
       c.fill(p);
     }
     for (const [id, p] of overlays) {
@@ -2055,13 +2146,29 @@ export class BuildRenderer {
     const lw = Math.max(size * 0.13, 1.5 / scale);
     c.lineCap = "square";
     c.lineJoin = "miter";
-    // A soft shadow along the walls, then the walls.
-    c.strokeStyle = "rgba(0, 0, 0, 0.2)";
-    c.lineWidth = lw * 2.4;
-    c.stroke(walls);
-    c.strokeStyle = WALL_COLOR;
-    c.lineWidth = lw;
-    c.stroke(walls);
+    if (scene.wallTexture) {
+      // One of Dungeon's wall textures: a wider band of it, edged in the walls' own dark, over
+      // the same soft shadow.
+      const band = Math.max(size * 0.22, 3 / scale);
+      const edge = Math.max(size * 0.02, 1 / scale);
+      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      c.lineWidth = band * 1.8;
+      c.stroke(walls);
+      c.strokeStyle = WALL_COLOR;
+      c.lineWidth = band + edge * 2;
+      c.stroke(walls);
+      c.strokeStyle = texturePattern(c, scene.wallTexture, size, g.offsetX, g.offsetY);
+      c.lineWidth = band;
+      c.stroke(walls);
+    } else {
+      // A soft shadow along the walls, then the walls.
+      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      c.lineWidth = lw * 2.4;
+      c.stroke(walls);
+      c.strokeStyle = WALL_COLOR;
+      c.lineWidth = lw;
+      c.stroke(walls);
+    }
 
     const t = size * 0.09;
     for (let i = 0; i < doors.length; i += 3) {

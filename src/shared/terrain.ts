@@ -3,7 +3,7 @@
 // of grid cells (a chunk), so an edit only rewrites the chunks it touches.
 
 import type { GridSettings, TerrainItem } from "./types";
-import { DUNGEON_PROPS, type DungeonPropInfo } from "./dungeonCatalog";
+import { DUNGEON_MATERIALS, DUNGEON_PROPS, type DungeonPropInfo } from "./dungeonCatalog";
 
 /** Cells along each side of a chunk. */
 export const CHUNK = 16;
@@ -295,14 +295,104 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
 }
 
 /** Whether a set of terrain fields is right for a public chunk, or for a hidden (secret door) one. */
-export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: string; stamps?: Stamp[] }): boolean {
+export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: string; stamps?: Stamp[]; tex?: string; pal?: string[] }): boolean {
+  // Textures come as a pair, always: an index means nothing without its palette.
+  if ((f.tex === undefined) !== (f.pal === undefined)) return false;
+  if (f.tex !== undefined && !texturesOk(f.tex, f.pal!)) return false;
   if (hidden) {
     if (f.cells !== undefined && f.cells !== EMPTY_CELLS) return false;
     if (f.edges !== undefined && !SECRET_EDGES_RE.test(f.edges)) return false;
     if (f.stamps !== undefined && f.stamps.length) return false;
+    if (f.tex) return false;
     return true;
   }
   return f.edges === undefined || EDGES_RE.test(f.edges);
+}
+
+// ---------------------------------------------------------------- textures
+
+/**
+ * Dungeon's floor and ground textures (dungeon.parhome.ca), by id: what a cell can be painted
+ * with besides Tabletop's own floors. The cell's character still says what it is (a room's
+ * floor, grass, water), so walls, doors, outdoors and Seasons work as they always have; the
+ * texture only changes how it looks. Wall textures aren't floors.
+ */
+const TEXTURE_IDS = new Set(DUNGEON_MATERIALS.filter((m) => m.group !== "wall").map((m) => m.id));
+
+export function isTextureId(id: unknown): id is string {
+  return typeof id === "string" && TEXTURE_IDS.has(id);
+}
+
+const WALL_TEXTURE_IDS = new Set(DUNGEON_MATERIALS.filter((m) => m.group === "wall").map((m) => m.id));
+
+/** One of Dungeon's wall textures, for a scene's built walls (Scene.wallTexture). */
+export function isWallTexture(id: unknown): id is string {
+  return typeof id === "string" && WALL_TEXTURE_IDS.has(id);
+}
+
+/** A chunk's textures: tex one character a cell ("." none, else an index into pal), pal the textures it uses. */
+const TEX_DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+/** Textures one chunk can use. */
+export const MAX_TEXTURES_PER_CHUNK = TEX_DIGITS.length;
+const TEX_RE = /^[.0-9A-Za-z]{256}$/;
+
+/** A chunk's texture for each cell ("" for none), or null when it has none at all. */
+export function decodeTextures(t: { tex?: string; pal?: string[] }): string[] | null {
+  if (!t.tex || !t.pal?.length) return null;
+  const out = Array<string>(CHUNK_CELLS);
+  for (let i = 0; i < CHUNK_CELLS; i++) {
+    const ch = t.tex[i];
+    out[i] = ch === EMPTY ? "" : (t.pal[TEX_DIGITS.indexOf(ch)] ?? "");
+  }
+  return out;
+}
+
+/**
+ * The tex and pal fields for a texture per cell ("" none): the palette in the order each
+ * texture first comes, so the same textures always encode the same way. Empty strings and
+ * an empty palette when there are none (how a patch takes them away); null if a chunk would
+ * need more textures than it can hold.
+ */
+export function encodeTextures(cells: readonly string[]): { tex: string; pal: string[] } | null {
+  const pal: string[] = [];
+  let tex = "";
+  for (let i = 0; i < CHUNK_CELLS; i++) {
+    const id = cells[i] ?? "";
+    if (!id) {
+      tex += EMPTY;
+      continue;
+    }
+    let n = pal.indexOf(id);
+    if (n < 0) {
+      if (pal.length === MAX_TEXTURES_PER_CHUNK) return null;
+      n = pal.push(id) - 1;
+    }
+    tex += TEX_DIGITS[n];
+  }
+  return pal.length ? { tex, pal } : { tex: "", pal: [] };
+}
+
+export function cleanTex(v: unknown): string | undefined {
+  return typeof v === "string" && (v === "" || TEX_RE.test(v)) ? v : undefined;
+}
+
+export function cleanPal(v: unknown): string[] | undefined {
+  if (!Array.isArray(v) || v.length > MAX_TEXTURES_PER_CHUNK || !v.every(isTextureId) || new Set(v).size !== v.length) return undefined;
+  return v.slice();
+}
+
+/**
+ * Whether tex and pal belong together: both empty, or every cell's index in the palette and
+ * the palette exactly what encodeTextures makes of it (each texture used, in order of first
+ * use), so every screen holds the chunk the same way.
+ */
+export function texturesOk(tex: string, pal: readonly string[]): boolean {
+  if (!tex || !pal.length) return !tex && !pal.length;
+  const cells = decodeTextures({ tex, pal: [...pal] });
+  if (!cells) return false;
+  for (let i = 0; i < CHUNK_CELLS; i++) if (tex[i] !== EMPTY && !cells[i]) return false;
+  const again = encodeTextures(cells);
+  return !!again && again.tex === tex && again.pal.join() === pal.join();
 }
 
 /** Validates a terrain item. The owner is always the GM: only the GM builds. */
@@ -317,7 +407,12 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
   const edges = cleanEdges(r.edges);
   const stamps = cleanStamps(r.stamps ?? []);
   if (cells === undefined || edges === undefined || stamps === undefined) return null;
-  if (!terrainFieldsOk(hidden, { cells, edges, stamps })) return null;
+  // Textures are optional: a chunk without any is stored without the fields, as it always was.
+  const textured = r.tex !== undefined || r.pal !== undefined;
+  const tex = textured ? cleanTex(r.tex) : undefined;
+  const pal = textured ? cleanPal(r.pal) : undefined;
+  if (textured && (tex === undefined || pal === undefined)) return null;
+  if (!terrainFieldsOk(hidden, { cells, edges, stamps, tex, pal })) return null;
   return {
     id,
     sceneId,
@@ -329,6 +424,7 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
     cells,
     edges,
     stamps,
+    ...(tex ? { tex, pal } : {}),
     ...(hidden ? { hidden: true } : {}),
   };
 }

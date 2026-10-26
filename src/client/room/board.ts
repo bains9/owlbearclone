@@ -60,6 +60,7 @@ import {
   drawStampAt,
   edgeOf,
   floorChar,
+  paintCode,
   keyCol,
   keyRow,
   refOf,
@@ -86,10 +87,12 @@ import {
   turnGroup,
 } from "./stampGeom";
 import type { Placed } from "./stampGeom";
+import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
+import { textureChoice, textureFloor } from "./dungeonTextures";
 import type { SeasonJob, SeasonJobData } from "./seasons";
 import { SeasonPlanner, SidecarCache } from "./mapData";
 import type { SceneDataState } from "./mapData";
@@ -2565,7 +2568,10 @@ export class Board implements BoardApi {
     const mode = this.paintMode();
     const floor = o.floor[mode];
     if (erase || floor === "erase") return EMPTY;
-    return mode === "terrain" ? floor : floorChar(floor, wallsFor(this.renderedScene!, o.walls));
+    const walls = wallsFor(this.renderedScene!, o.walls);
+    const texture = textureChoice(floor);
+    if (texture) return paintCode(textureFloor(texture, mode, walls), texture);
+    return mode === "terrain" ? floor : floorChar(floor as FloorId, walls);
   }
 
   /**
@@ -2820,9 +2826,9 @@ export class Board implements BoardApi {
       return;
     }
     const edit = new BuildEdit(this.room.state.items, scene.id);
-    for (const [k, ch] of d.cells) {
-      if (ch === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
-      else edit.setCell(keyCol(k), keyRow(k), ch);
+    for (const [k, code] of d.cells) {
+      if (code === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
+      else edit.setCell(keyCol(k), keyRow(k), code[0], code.slice(2));
     }
     for (const [k, mode] of d.walls) {
       const { col, row, side } = edgeOf(k);

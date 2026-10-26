@@ -4,11 +4,9 @@
 import { STAMP_IDS, stampName, type StampId } from "../../shared/terrain";
 import { DUNGEON_PROPS } from "../../shared/dungeonCatalog";
 import { PROP_CATEGORIES } from "../dungeonLib/propkit";
+import { libraryCount, libraryGroupOf, searchLibrary, type LibraryGroup } from "./library";
 
-export interface ObjectGroup {
-  name: string;
-  ids: StampId[];
-}
+export type ObjectGroup = LibraryGroup<StampId>;
 
 /** Tabletop's own sixteen first (they have seasonal drawings), then Dungeon's groups in its order. */
 export const OBJECT_GROUPS: ObjectGroup[] = [
@@ -16,22 +14,13 @@ export const OBJECT_GROUPS: ObjectGroup[] = [
   ...PROP_CATEGORIES.map((cat) => ({ name: cat, ids: DUNGEON_PROPS.filter((p) => p.category === cat).map((p) => `d:${p.id}` as StampId) })),
 ];
 
-export const OBJECT_COUNT = OBJECT_GROUPS.reduce((n, g) => n + g.ids.length, 0);
+export const OBJECT_COUNT = libraryCount(OBJECT_GROUPS);
 
 /** The objects whose name (or group) has every word of the search in it, in the groups' order. */
 export function searchObjects(query: string): StampId[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  const out: StampId[] = [];
-  for (const g of OBJECT_GROUPS) {
-    for (const id of g.ids) {
-      const text = `${stampName(id)} ${g.name}`.toLowerCase();
-      if (words.every((w) => text.includes(w))) out.push(id);
-    }
-  }
-  return out;
+  return searchLibrary(OBJECT_GROUPS, stampName, query);
 }
 
 export function groupOf(id: StampId): string {
-  return OBJECT_GROUPS.find((g) => g.ids.includes(id))?.name ?? OBJECT_GROUPS[0].name;
+  return libraryGroupOf(OBJECT_GROUPS, id);
 }

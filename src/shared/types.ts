@@ -62,6 +62,8 @@ export interface Scene {
    * Cleared when the picture changes.
    */
   mapRect?: [number, number, number, number];
+  /** Dungeon's texture for the walls of the scene's built map (a wall texture's id). Missing: Tabletop's plain dark walls. */
+  wallTexture?: string;
 }
 
 /** A Dungeondraft map's exact data for Seasons, compiled from its .dungeondraft_map (no picture in it). */
@@ -209,6 +211,13 @@ export interface TerrainItem extends ItemBase {
   edges: string;
   /** Objects whose top-left cell is in this block. */
   stamps: Stamp[];
+  /**
+   * Dungeon's textures on its cells, if any (terrain.ts, encodeTextures): 256 characters,
+   * "." for none or an index into pal, the texture ids. Both or neither; "" and [] when a
+   * patch takes them all away.
+   */
+  tex?: string;
+  pal?: string[];
   hidden?: boolean;
 }
 
@@ -238,6 +247,8 @@ export interface MutableFields {
   cells: string;
   edges: string;
   stamps: Stamp[];
+  tex: string;
+  pal: string[];
 }
 
 export interface ItemPatch {

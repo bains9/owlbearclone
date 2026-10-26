@@ -17,7 +17,7 @@ import type {
   SceneSeason,
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
-import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
+import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 
 export const LIMITS = {
   coord: 1_000_000,
@@ -165,6 +165,8 @@ const TERRAIN_FIELDS: Record<string, Validator> = {
   cells: cleanCells,
   edges: cleanEdges,
   stamps: cleanStamps,
+  tex: cleanTex,
+  pal: cleanPal,
 };
 
 const FIELDS_BY_KIND = { token: TOKEN_FIELDS, drawing: DRAWING_FIELDS, fog: FOG_FIELDS, terrain: TERRAIN_FIELDS } as const;
@@ -426,6 +428,8 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const rv = sanitizeMapRect(r.mapRect);
   const newPicture = !!existing && mapAssetId !== existing.mapAssetId;
   const mapRect = rv === null ? undefined : (rv ?? (newPicture ? undefined : existing?.mapRect));
+  // The walls' texture: null goes back to plain walls, one Dungeon doesn't have keeps the scene's.
+  const wallTexture = r.wallTexture === null ? undefined : isWallTexture(r.wallTexture) ? r.wallTexture : existing?.wallTexture;
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -440,6 +444,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(season ? { season } : {}),
     ...(mapData ? { mapData } : {}),
     ...(mapRect ? { mapRect } : {}),
+    ...(wallTexture ? { wallTexture } : {}),
   };
 }
 

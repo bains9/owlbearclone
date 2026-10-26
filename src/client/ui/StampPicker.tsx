@@ -1,12 +1,10 @@
-// The Build tool's object picker: the chosen object and the last few picked stay on the bar;
-// everything else (Tabletop's sixteen and Dungeon's 135, in folding groups, with a search)
-// opens from the chosen object, so the bar is no wider than it was with sixteen.
+// The Build tool's object picker (LibraryPicker): Tabletop's sixteen and Dungeon's 135.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { ChevronDown, ChevronRight, Search } from "lucide-preact";
+import { useEffect, useRef } from "preact/hooks";
 import { stampName, type StampId } from "../../shared/terrain";
 import { drawStamp } from "../room/buildArt";
-import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "./objectGroups";
+import { LibraryPicker } from "./LibraryPicker";
+import { OBJECT_GROUPS } from "./objectGroups";
 
 /** A small picture of an object. */
 export function StampIcon(props: { id: StampId; px?: number }) {
@@ -25,140 +23,20 @@ export function StampIcon(props: { id: StampId; px?: number }) {
   return <canvas ref={ref} class="stamp-icon" style={{ width: `${size}px`, height: `${size}px` }} aria-hidden="true" />;
 }
 
-function ObjectButton(props: { id: StampId; active: boolean; onPick: (id: StampId) => void }) {
-  const name = stampName(props.id);
-  return (
-    <button class={`stamp-btn${props.active ? " active" : ""}`} title={name} aria-label={name} aria-pressed={props.active} onClick={() => props.onPick(props.id)}>
-      <StampIcon id={props.id} />
-    </button>
-  );
-}
+const icon = (id: StampId) => <StampIcon id={id} />;
 
 export function StampPicker(props: { value: StampId; placing: boolean; recent: StampId[]; onPick: (id: StampId) => void }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState(() => groupOf(props.value));
-  const root = useRef<HTMLDivElement>(null);
-  const pop = useRef<HTMLDivElement>(null);
-  const search = useRef<HTMLInputElement>(null);
-  const found = useMemo(() => searchObjects(query), [query]);
-
-  // The popover is placed on screen from the button rather than hung under it, so the Build bar
-  // (which scrolls sideways on phones, and so clips what hangs out of it) can't cut it off; and
-  // moved left when the button is near the right edge. Set before it's first painted.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const p = pop.current;
-      if (!root.current || !p) return;
-      const at = root.current.getBoundingClientRect();
-      p.style.top = `${at.bottom + 8}px`;
-      p.style.left = `${Math.max(16, Math.min(at.left, window.innerWidth - p.getBoundingClientRect().width - 16))}px`;
-    };
-    place();
-    // A turned phone, a resized window, or a keyboard that resizes the page.
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    setGroup(groupOf(props.value));
-    // Not on a touch screen, where the keyboard would come up over the groups.
-    if (!window.matchMedia("(pointer: coarse)").matches) search.current?.focus();
-    const away = (e: PointerEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", away, true);
-    document.addEventListener("keydown", key, true);
-    return () => {
-      document.removeEventListener("pointerdown", away, true);
-      document.removeEventListener("keydown", key, true);
-    };
-  }, [open]);
-
-  const pick = (id: StampId) => {
-    props.onPick(id);
-    setOpen(false);
-    setQuery("");
-  };
-  const active = (id: StampId) => props.placing && props.value === id;
-  const recent = props.recent.filter((id) => id !== props.value);
-
   return (
-    <div class="stamp-picker" ref={root}>
-      <button
-        class={`stamp-current${props.placing ? " active" : ""}${open ? " open" : ""}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title={`${stampName(props.value)}: choose from all ${OBJECT_COUNT} objects`}
-        onClick={() => setOpen(!open)}
-      >
-        <StampIcon id={props.value} />
-        <span class="stamp-current-name">{stampName(props.value)}</span>
-        <ChevronDown size={14} />
-      </button>
-      {recent.length > 0 && (
-        <div class="stamp-recent" role="group" aria-label="Recent objects">
-          {recent.map((id) => (
-            <ObjectButton key={id} id={id} active={active(id)} onPick={pick} />
-          ))}
-        </div>
-      )}
-      {open && (
-        <div class="stamp-popover" role="dialog" aria-label="Objects" ref={pop}>
-          <label class="stamp-search">
-            <Search size={14} />
-            <input
-              ref={search}
-              type="search"
-              placeholder={`Search ${OBJECT_COUNT} objects`}
-              value={query}
-              onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && found.length) pick(found[0]);
-              }}
-            />
-          </label>
-          {query.trim() ? (
-            found.length ? (
-              <div class="stamp-grid" role="group" aria-label="Objects found">
-                {found.map((id) => (
-                  <ObjectButton key={id} id={id} active={active(id)} onPick={pick} />
-                ))}
-              </div>
-            ) : (
-              <p class="stamp-none">No object is called that.</p>
-            )
-          ) : (
-            OBJECT_GROUPS.map((g) => {
-              const isOpen = g.name === group;
-              return (
-                <section key={g.name} class="stamp-group">
-                  <button class="stamp-group-head" aria-expanded={isOpen} onClick={() => setGroup(isOpen ? "" : g.name)}>
-                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span>{g.name}</span>
-                    <span class="stamp-group-count">{g.ids.length}</span>
-                  </button>
-                  {isOpen && (
-                    <div class="stamp-grid" role="group" aria-label={g.name}>
-                      {g.ids.map((id) => (
-                        <ObjectButton key={id} id={id} active={active(id)} onPick={pick} />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
+    <LibraryPicker
+      noun="objects"
+      groups={OBJECT_GROUPS}
+      value={props.value}
+      active={props.placing}
+      recent={props.recent}
+      name={stampName}
+      icon={icon}
+      itemClass="object"
+      onPick={props.onPick}
+    />
   );
 }

@@ -45,23 +45,24 @@ import {
 import { formatDistance, isHex } from "../../shared/geometry";
 import type { MeasureShape } from "../../shared/protocol";
 import {
-  FLOORS,
   STAMP_DEG_STEP,
   STAMP_SIZE_MAX,
   STAMP_SIZE_MIN,
   STAMP_SIZE_STEP,
   isDungeonStamp,
+  isStampId,
   naturalStampSize,
   snapDeg,
   snapSize,
 } from "../../shared/terrain";
-import type { FloorId, StampId } from "../../shared/terrain";
+import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
-import { loadRecent, saveRecent, withRecent } from "./recentObjects";
+import { FloorPicker, WallPicker } from "./FloorPicker";
+import { isFloorFor, type FloorChoice } from "./floorGroups";
+import { RECENT_OBJECTS, loadRecent, recentFloorsKey, saveRecent, withRecent } from "./recentPicks";
 import type { DrawShape } from "../../shared/types";
 import { buildUndo, wallsFor } from "../room/build";
-import { floorPattern } from "../room/buildArt";
 import {
   BUILD_MODE_LABELS,
   TOUCH_HINTS,
@@ -303,9 +304,6 @@ const BUILD_MODES: { id: BuildOpts["mode"]; label: string; title: string; icon: 
   },
 ];
 
-const BUILDING_FLOORS = FLOORS.filter((f) => f.walls);
-const TERRAIN_FLOORS = FLOORS.filter((f) => !f.walls);
-
 /** Whether this is a Mac, where the zoom key is ⌘. */
 const MAC = typeof navigator !== "undefined" && isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? "");
 
@@ -329,22 +327,6 @@ function Slider(props: { min: number; max: number; step: number; value: number; 
       onChange={blur}
     />
   );
-}
-
-/** A swatch of a floor's texture. */
-function FloorIcon(props: { id: FloorId }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const px = 22 * (window.devicePixelRatio || 1);
-    canvas.width = px;
-    canvas.height = px;
-    ctx.fillStyle = floorPattern(ctx, props.id, px, 0, 0);
-    ctx.fillRect(0, 0, px, px);
-  }, [props.id]);
-  return <canvas ref={ref} class="floor-icon" aria-hidden="true" />;
 }
 
 /**
@@ -382,7 +364,11 @@ function BuildOptions() {
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
   const live = useRoomState((s) => !!s.viewSceneId && s.viewSceneId === s.activeSceneId);
   const [confirm, setConfirm] = useState(false);
-  const [recentObjects, setRecentObjects] = useState<StampId[]>(loadRecent);
+  const [recentObjects, setRecentObjects] = useState<StampId[]>(() => loadRecent(RECENT_OBJECTS, isStampId));
+  const [recentFloors, setRecentFloors] = useState(() => ({
+    building: loadRecent(recentFloorsKey("building"), (id): id is FloorChoice => isFloorFor("building", id)),
+    terrain: loadRecent(recentFloorsKey("terrain"), (id): id is FloorChoice => isFloorFor("terrain", id)),
+  }));
   if (!scene) {
     return (
       <div class="tool-options build-options">
@@ -454,18 +440,19 @@ function BuildOptions() {
             ))}
           </div>
           <div class="floor-swatches" role="group" aria-label="Floor">
-            {(paint === "building" ? BUILDING_FLOORS : TERRAIN_FLOORS).map((f) => (
-              <button
-                key={f.id}
-                class={cx("floor-swatch", o.floor[paint] === f.id && "active")}
-                title={f.name}
-                aria-label={f.name}
-                aria-pressed={o.floor[paint] === f.id}
-                onClick={() => set({ floor: { ...o.floor, [paint]: f.id } })}
-              >
-                <FloorIcon id={f.id} />
-              </button>
-            ))}
+            <FloorPicker
+              tool={paint}
+              // While erasing, the picker shows the floor painting goes back to.
+              value={o.floor[paint] === "erase" ? (recentFloors[paint][0] ?? (paint === "building" ? "s" : "g")) : (o.floor[paint] as FloorChoice)}
+              painting={o.floor[paint] !== "erase"}
+              recent={recentFloors[paint]}
+              onPick={(id) => {
+                set({ floor: { ...o.floor, [paint]: id } });
+                const next = withRecent(recentFloors[paint], id);
+                setRecentFloors({ ...recentFloors, [paint]: next });
+                saveRecent(recentFloorsKey(paint), next);
+              }}
+            />
             <button
               class={cx("floor-swatch erase", o.floor[paint] === "erase" && "active")}
               title={
@@ -525,14 +512,20 @@ function BuildOptions() {
         </>
       )}
       {o.mode === "walls" && (
-        <div class="seg">
-          <button class={cx("seg-btn wide", o.wallMode === "add" && "active")} onClick={() => set({ wallMode: "add" })}>
-            Add
-          </button>
-          <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
-            Remove
-          </button>
-        </div>
+        <>
+          <div class="seg">
+            <button class={cx("seg-btn wide", o.wallMode === "add" && "active")} onClick={() => set({ wallMode: "add" })}>
+              Add
+            </button>
+            <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
+              Remove
+            </button>
+          </div>
+          <WallPicker
+            value={scene.wallTexture ? `t:${scene.wallTexture}` : "plain"}
+            onPick={(id) => room.changeScene(scene.id, { wallTexture: id === "plain" ? null : id.slice(2) }, {})}
+          />
+        </>
       )}
       {o.mode === "doors" && (
         <div class="seg" role="group" aria-label="Style">
@@ -586,7 +579,7 @@ function BuildOptions() {
               set({ stamp: id, stampMode: "place", stampSize });
               const next = withRecent(recentObjects, id);
               setRecentObjects(next);
-              saveRecent(next);
+              saveRecent(RECENT_OBJECTS, next);
             }}
           />
           <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
