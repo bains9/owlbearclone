@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Maps from Dungeon get exact seasons (26 October 2026)",
+        "steps": [
+          "In Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**.",
+          "GM: bring the file into Tabletop as you would any map: **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "There's nothing to pair: the map's own data comes inside the file, so the scene gets exact seasons straight away, as a Dungeondraft map does with its project file. The report says \"map data from Dungeon attached\".",
+          "As with Dungeondraft maps, exact seasons work on maps drawn in winter for now; a green map's data is kept until green maps get exact seasons.",
+          "A map exported from Dungeon before this update doesn't carry the data: export it again.",
+          "See **Exact seasons for maps from Dungeon** under **Seasons**."
+        ]
+      },
+      {
         "title": "Dungeon signs in with Tabletop (26 October 2026)",
         "steps": [
           "GM: click **Dungeon** on your list of rooms, or the castle button (**Dungeon**) in a room's top bar. Dungeon, the map maker, opens in its own tab.",
@@ -1831,7 +1844,8 @@ export const GUIDE: GuideSection[] = [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
           "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not (with a Dungeondraft project file, they only help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
-          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**."
+          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**.",
+          "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**."
         ]
       },
       {
@@ -2355,6 +2369,21 @@ export const GUIDE: GuideSection[] = [
           "The project file itself is never uploaded, only what seasons need from the one level: players can't see other levels, secret doors, notes or the file's name.",
           "Changing the scene's picture keeps the data but pauses it, since it was lined up with the old picture: the season box offers **Use it with this picture** (for a day and night version of the same map, say) or **Remove**. **Remove** (there, or under **Map** in the scene editor) takes the data off and seasons go back to guessing; Undo puts it back.",
           "A project file brought in on its own, with no picture, can't make a scene: Tabletop says so, and tells you to bring the export in with it, or to attach it to a scene."
+        ]
+      },
+      {
+        "title": "Exact seasons for maps from Dungeon",
+        "steps": [
+          "In Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**.",
+          "In Tabletop, bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
+        ],
+        "notes": [
+          "That's all. The map's data is inside the file, lined up with the picture by Dungeon itself, so there's no project file to add, no level to pick and nothing to check. The **Maps brought in** report says \"map data from Dungeon attached\".",
+          "Seasons then know exactly where Dungeon put the ground, water, rooms, caves, paths and trees: snow melts on the open ground, never on a room's floor, and pines stay green in autumn.",
+          "Man-made things (furniture, wells, statues and the like) stay as drawn in every season, as they do on Dungeondraft maps. So do pictures you imported into Dungeon, since Tabletop can't tell what they are.",
+          "Exact seasons work on maps drawn in winter now; green maps follow in a later update. A green map's data is kept, and its seasons are guessed from the picture until then.",
+          "If you change the map in Dungeon, export it again and bring it in as a new scene: there's no project file to attach to a scene you already have. **Remove** in the season box, or under **Map** in the scene editor, takes the data off.",
+          "Only what seasons need from the map is uploaded, never the file's own data."
         ]
       },
       {

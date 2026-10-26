@@ -595,9 +595,9 @@ describe("the guide (6.2)", () => {
   it("has the exact seasons entry ninth in What's new, under the 25, 24, 22 and 5 October ones, above the NPCs", () => {
     // "evening": two other 4 October entries ("Measure in metres", and "NPC tokens by race and class (..., later)")
     // come after it, newest first.
-    expect(whatsNew.parts[7].title).toBe("Clearer messages after an update (5 October 2026)");
-    expect(whatsNew.parts[8].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(whatsNew.parts[9].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(whatsNew.parts[8].title).toBe("Clearer messages after an update (5 October 2026)");
+    expect(whatsNew.parts[9].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(whatsNew.parts[10].title).toBe("NPC tokens by race and class (4 October 2026, later)");
     expect(whatsNew.parts.map((p) => p.title)).toContain("Dungeondraft project files explained (30 September 2026)");
   });
 
@@ -636,11 +636,12 @@ describe("the guide (6.2)", () => {
     expect(part("Coming from Dungeondraft").notes.join("\n")).toMatch(/Keep the \.dungeondraft_map file/);
   });
 
-  it("never claims a plain picture melts: melting is a campfire's, or Dungeondraft data's", () => {
+  it("never claims a plain picture melts: melting is a campfire's, or exact data's (Dungeondraft's or Dungeon's)", () => {
     for (const p of parts) {
       for (const text of [...p.steps, ...p.notes]) {
         if (!/melt/.test(text)) continue;
-        expect([p.title, text]).toSatisfy(([, t]: [string, string]) => /campfire|Dungeondraft|project file/.test(t));
+        // "Dungeon" covers "Dungeondraft" too, and the data that comes inside a Dungeon export.
+        expect([p.title, text]).toSatisfy(([title, t]: [string, string]) => /campfire|Dungeon|project file/.test(t) || /from Dungeon/.test(title));
       }
     }
   });

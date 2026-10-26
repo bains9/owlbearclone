@@ -98,9 +98,10 @@ export function terrainRole(name: string | null): TerrainRole {
   if (has(w, "ice", "icy", "frost", "frosty", "frozen")) return TR.ICE;
   if (has(w, "lava", "magma", "water", "acid")) return TR.KEEP;
   if (has(w, "cobble", "cobblestone", "brick", "tile", "tileset", "paving", "flagstone")) return TR.PAVED;
-  if (has(w, "grass", "grassy", "meadow", "lawn", "field", "moss", "mossy", "leaves", "leaf") ||
+  if (has(w, "grass", "grassy", "meadow", "lawn", "field", "moss", "mossy", "leaves", "leaf", "heather", "heath", "moor", "moorland") ||
       w.words.join("_").includes("forest_floor")) return TR.GRASS;
-  if (has(w, "dirt", "soil", "earth", "mud", "muddy", "swamp", "bog", "cracked")) return TR.EARTH;
+  // Ash (volcanic or burnt ground) takes snow and melts like bare earth.
+  if (has(w, "dirt", "soil", "earth", "mud", "muddy", "swamp", "bog", "cracked", "ash", "cinder")) return TR.EARTH;
   if (has(w, "sand", "sandy", "beach", "desert")) return TR.SAND;
   if (has(w, "rock", "rocky", "stone", "stony", "gravel", "pebble", "cliff", "granite", "slate", "basalt", "marble",
     "limestone", "sandstone")) return TR.ROCK;

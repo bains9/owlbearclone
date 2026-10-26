@@ -19,6 +19,7 @@ import { bake } from "../src/client/room/seasonPixels";
 import { sanitizeMapData } from "../src/shared/sanitize";
 import { attachNote } from "../src/client/importScenes";
 import { dataNote } from "../src/client/ui/ddText";
+import { GUIDE } from "../src/client/guide";
 import { fakeExportFromMap } from "./fixtures/fakeExport";
 
 type Fs = { readFileSync(path: string | URL, encoding: "utf8"): string };
@@ -107,6 +108,17 @@ describe("reading Dungeon's map as Dungeondraft's", () => {
     expect(roles.get("dungeon/table")).toBe(OR.STRUCTURE);
     expect(L.paths.map((p) => pathRole(defaultName(p.texture)))).toEqual([AR.PATH_EARTH]);
     expect(sizes["dungeon/tree"].r).toBe(Math.round(1.3 * GRID));
+  });
+
+  it("gives Dungeon's outdoor grounds a season role; caves, lava and water stay as drawn", () => {
+    const role = (id: string) => terrainRole(`dungeon/${id}`);
+    expect(role("heather")).toBe(TR.GRASS);
+    expect(role("ash")).toBe(TR.EARTH);
+    expect(role("grass-dry")).toBe(TR.GRASS);
+    expect(role("snow-packed")).toBe(TR.SNOW);
+    for (const id of ["cave", "cave-brown", "lava", "water"]) expect(role(id), id).toBe(TR.KEEP);
+    // Words inside other words don't count: "ashlar" (cut stone) isn't ash.
+    expect(role("ashlar")).not.toBe(TR.EARTH);
   });
 
   it("puts objects on Dungeondraft's layers: on the floor 100, standing 200, overhead 700", () => {
@@ -259,6 +271,16 @@ describe("where the data came from", () => {
     }
     // Without fromDungeon, the Dungeondraft wording as before.
     expect(JSON.stringify(dataNote("ok", { hasMap: true }))).toContain("Dungeondraft data");
+  });
+
+  it("is in the guide: on top of What's new, and under Seasons", () => {
+    const news = GUIDE.find((s) => s.id === "whats-new")!;
+    expect(news.parts[0].title).toBe("Maps from Dungeon get exact seasons (26 October 2026)");
+    const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Exact seasons for maps from Dungeon")!;
+    const words = [...part.steps, ...part.notes].join("\n");
+    expect(words).toContain("no project file to add");
+    expect(words).toContain("map data from Dungeon attached");
+    expect(words).toContain("green maps follow in a later update");
   });
 
   it("is what the import report says", () => {
