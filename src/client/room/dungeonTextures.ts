@@ -6,8 +6,9 @@
 // sand and cave floors earth; in the Terrain tool everything but water and lava is ground.
 //
 // Dungeon makes each texture pixel by pixel, 512 pixels for 2 by 2 squares, in 30 to 100 ms.
-// The map makes each the first time it's needed and keeps a half-size copy the GPU can hold
-// (1 MB, where Dungeon keeps 5), drawn 2 by 2 so Chrome puts it on the GPU at all.
+// So each is made when first needed, one at a time between frames (whenTextureMade), showing
+// its flat colour until then, and kept as a half-size copy the GPU can hold (1 MB, where Dungeon
+// keeps 5), drawn 2 by 2 so Chrome puts it on the GPU at all.
 
 import { DUNGEON_MATERIALS, type DungeonMaterialInfo } from "../../shared/dungeonCatalog";
 import { isTextureId } from "../../shared/terrain";
@@ -111,14 +112,18 @@ export function overlayRuleFor(ch: string, id: string, look: SeasonLook): string
 
 /** Texture pixels per square in the copy the map draws from (Dungeon's own are 256). */
 const COPY_PX = TILE_PX / 2 / 2;
-const tiles = new Map<string, HTMLCanvasElement>();
+/** Each texture made so far; null where one can't be (no DOM). */
+const tiles = new Map<string, HTMLCanvasElement | null>();
 const patterns = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasPattern | null>>();
 
 /** The copy the map draws a texture from, made the first time; null without a DOM. */
 function tileFor(id: string): HTMLCanvasElement | null {
   let tile = tiles.get(id);
-  if (tile) return tile;
-  if (typeof document === "undefined") return null;
+  if (tile !== undefined) return tile;
+  if (typeof document === "undefined") {
+    tiles.set(id, null);
+    return null;
+  }
   // Made at Dungeon's size, read pixel by pixel while it's made (which keeps it off the GPU),
   // then copied at half size, 2 by 2, onto a canvas nothing reads back.
   const made = document.createElement("canvas");
@@ -138,14 +143,49 @@ function tileFor(id: string): HTMLCanvasElement | null {
   return tile;
 }
 
-/** Whether a texture has been made yet (the picker shows its swatch until then). */
+/** Whether a texture has been made yet (or found it can't be): until then, it shows its swatch. */
 export function textureMade(id: string): boolean {
   return tiles.has(id);
 }
 
-/** Makes a texture now, if it isn't made yet. */
-export function makeTexture(id: string): void {
+/** Textures waiting to be made, and what to do when each is. */
+const waiting = new Map<string, Set<() => void>>();
+let scheduled = false;
+
+function makeNext(): void {
+  scheduled = false;
+  const next = waiting.entries().next();
+  if (next.done) return;
+  const [id, done] = next.value;
+  waiting.delete(id);
   tileFor(id);
+  for (const f of done) f();
+  if (waiting.size) schedule();
+}
+
+function schedule(): void {
+  if (scheduled) return;
+  scheduled = true;
+  setTimeout(makeNext, 0);
+}
+
+/**
+ * Calls `then` once a texture is made, making it soon (one texture a task, so the page keeps
+ * responding) if it isn't yet. Returns a way to stop waiting.
+ */
+export function whenTextureMade(id: string, then: () => void): () => void {
+  if (textureMade(id)) {
+    then();
+    return () => {};
+  }
+  let list = waiting.get(id);
+  if (!list) waiting.set(id, (list = new Set()));
+  list.add(then);
+  schedule();
+  return () => {
+    list.delete(then);
+    if (!list.size) waiting.delete(id);
+  };
 }
 
 /**

@@ -1,51 +1,14 @@
-// The Build tool's floor picker (LibraryPicker): Tabletop's own floors and Dungeon's textures
-// for the tool in use. A texture takes Dungeon 30 to 100 ms to make, so each picture shows its
-// flat colour first and is made in turn, one at a time, between frames.
+// The Build tool's floor and wall pickers (LibraryPicker): Tabletop's own floors and Dungeon's
+// textures for the tool in use, and the scene's walls. A texture takes Dungeon 30 to 100 ms to
+// make, so each picture shows its flat colour until it's made (whenTextureMade).
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { FloorId } from "../../shared/terrain";
 import { floorPattern } from "../room/buildArt";
-import { WALL_TEXTURES, makeTexture, textureChoice, textureMade, textureName, texturePattern, textureSwatch } from "../room/dungeonTextures";
+import { WALL_TEXTURES, textureChoice, textureMade, textureName, texturePattern, textureSwatch, whenTextureMade } from "../room/dungeonTextures";
 import { FLOOR_GROUPS, floorName, type FloorChoice, type FloorTool } from "./floorGroups";
 import type { LibraryGroup } from "./library";
 import { LibraryPicker } from "./LibraryPicker";
-
-/** Textures waiting to be made for the picker, and the pictures to draw when each is. */
-const waiting = new Map<string, Set<() => void>>();
-let scheduled = false;
-
-function makeNext(): void {
-  scheduled = false;
-  const next = waiting.entries().next();
-  if (next.done) return;
-  const [id, done] = next.value;
-  waiting.delete(id);
-  makeTexture(id);
-  for (const f of done) f();
-  if (waiting.size) schedule();
-}
-
-function schedule(): void {
-  if (scheduled) return;
-  scheduled = true;
-  setTimeout(makeNext, 0);
-}
-
-/** Calls `then` once a texture is made, making it soon if it isn't yet; returns a way to stop waiting. */
-function whenMade(id: string, then: () => void): () => void {
-  if (textureMade(id)) {
-    then();
-    return () => {};
-  }
-  let list = waiting.get(id);
-  if (!list) waiting.set(id, (list = new Set()));
-  list.add(then);
-  schedule();
-  return () => {
-    list.delete(then);
-    if (!list.size) waiting.delete(id);
-  };
-}
 
 /**
  * A swatch of a floor or wall: one of Dungeon's textures (`texture`, its colour until it's
@@ -55,7 +18,7 @@ function Swatch(props: { texture: string | null; plain: (ctx: CanvasRenderingCon
   const ref = useRef<HTMLCanvasElement>(null);
   const [made, setMade] = useState(0);
   const texture = props.texture;
-  useEffect(() => (texture ? whenMade(texture, () => setMade((n) => n + 1)) : undefined), [texture]);
+  useEffect(() => (texture ? whenTextureMade(texture, () => setMade((n) => n + 1)) : undefined), [texture]);
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");

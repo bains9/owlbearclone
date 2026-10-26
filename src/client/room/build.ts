@@ -38,7 +38,7 @@ import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, Ter
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
 import { changesWithoutSnow, makesOutdoors } from "./dungeonSeasons";
-import { overlayRuleFor, texturePattern } from "./dungeonTextures";
+import { overlayRuleFor, textureMade, texturePattern, textureSwatch, whenTextureMade } from "./dungeonTextures";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
 import type { Placed } from "./stampGeom";
 
@@ -1590,6 +1590,13 @@ export class BuildRenderer {
   private cacheK = 1;
   private paintDirty = new Set<number>();
   private paintAll = true;
+  /**
+   * Called when something drawn as a stand-in is ready to be drawn properly (one of Dungeon's
+   * textures, made after it was first needed): the board draws again.
+   */
+  onReady: (() => void) | null = null;
+  /** Dungeon's textures being made for this map. */
+  private awaited = new Set<string>();
   /** Chunks the current draft has touched, to redraw when it goes. */
   private draftChunks = new Set<number>();
   /** The scene's season, if any, and its part of the cached image's key ("" with none). */
@@ -2042,7 +2049,7 @@ export class BuildRenderer {
       // "g", "g:winter2", or one of Dungeon's textures, "t:meadow".
       c.fillStyle =
         key[0] === "t" && key[1] === ":"
-          ? texturePattern(c, key.slice(2), size, g.offsetX, g.offsetY)
+          ? this.texture(c, key.slice(2), size, g.offsetX, g.offsetY)
           : floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
       c.fill(p);
     }
@@ -2052,6 +2059,23 @@ export class BuildRenderer {
       c.fillStyle = pattern;
       c.fill(p);
     }
+  }
+
+  /**
+   * One of Dungeon's textures as drawFloors and drawWalls fill with it: its swatch until it's
+   * made, which happens between frames, after which the whole cached image is painted again.
+   */
+  private texture(c: CanvasRenderingContext2D, id: string, size: number, offX: number, offY: number): CanvasPattern | string {
+    if (textureMade(id)) return texturePattern(c, id, size, offX, offY);
+    if (!this.awaited.has(id)) {
+      this.awaited.add(id);
+      whenTextureMade(id, () => {
+        this.awaited.delete(id);
+        this.paintAll = true;
+        this.onReady?.();
+      });
+    }
+    return textureSwatch(id);
   }
 
   private drawStamps(c: CanvasRenderingContext2D, scene: Scene, c0: number, r0: number, c1: number, r1: number): void {
@@ -2157,7 +2181,7 @@ export class BuildRenderer {
       c.strokeStyle = WALL_COLOR;
       c.lineWidth = band + edge * 2;
       c.stroke(walls);
-      c.strokeStyle = texturePattern(c, scene.wallTexture, size, g.offsetX, g.offsetY);
+      c.strokeStyle = this.texture(c, scene.wallTexture, size, g.offsetX, g.offsetY);
       c.lineWidth = band;
       c.stroke(walls);
     } else {

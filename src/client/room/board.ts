@@ -483,6 +483,8 @@ export class Board implements BoardApi {
     private room: RoomClient,
   ) {
     this.stage = new Konva.Stage({ container: el, width: el.clientWidth || 1, height: el.clientHeight || 1 });
+    // One of Dungeon's textures made after it was first needed: draw it properly now.
+    this.build.onReady = () => this.bgLayer.batchDraw();
 
     this.gridNode = new Konva.Shape({
       listening: false,
