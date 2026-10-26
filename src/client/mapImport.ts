@@ -57,6 +57,9 @@ const VTT_EXT = /\.(dd2vtt|df2vtt|uvtt|json)$/i;
 const DD_EXT = /\.dungeondraft_map$/i;
 const OWLBEAR_EXT = /\.(ob2|owlbear)$/i;
 
+/** The type of the File holding a Dungeon export's map data (MapFile.dd), so the attach worker knows it without sniffing. */
+export const DUNGEON_MIME = "application/x-dungeon-map+json";
+
 export function isVttFile(f: File): boolean {
   return VTT_EXT.test(f.name);
 }
@@ -514,7 +517,7 @@ export function parseUniversalVtt(text: string, fileName: string): MapFile {
   return {
     ...(fromDungeon
       ? // Named as the export, so anything said about it names the file the GM brought in.
-        { dd: new File([JSON.stringify(dungeon)], fileName, { type: "application/json" }), ddFrom: "dungeon" as const }
+        { dd: new File([JSON.stringify(dungeon)], fileName, { type: DUNGEON_MIME }), ddFrom: "dungeon" as const }
       : {}),
     name,
     image,

@@ -31,8 +31,9 @@ import {
   type Wall, type WaterNode,
 } from "./model";
 import { DDParseError, checkJsonShape } from "./parse";
+import { ExtractError } from "./extract";
 import type { SpriteSizes } from "./measure";
-import { REACH_DIRS } from "./raster";
+import { ellipse } from "./spriteSizes";
 
 export const DUNGEON_FORMAT = "dungeon-map";
 /** Payload versions this reads. 2 added the shapes as Dungeon draws them, which it needs. */
@@ -43,6 +44,8 @@ const MAX_SIDE = DEFAULT_LIMITS.maxSide;
 /** Paint samples a cell in Dungeon's rasters (caves, water, terrain). */
 const RES = 4;
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+/** Most water edges a map may have (each is compared with every other to nest them). */
+const MAX_WATER_RINGS = 4000;
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -358,7 +361,9 @@ class Builder {
       if (ring) rings.push(ring);
     }
     if (!rings.length) return null;
-    if (rings.length > DEFAULT_LIMITS.maxWaterNodes) throw new DDParseError("too much water");
+    // Nesting compares every ring with every other: past this many, the map is refused rather
+    // than the worker spending minutes on it (a painted map has a few dozen).
+    if (rings.length > MAX_WATER_RINGS) throw new ExtractError("This map is too big for exact seasons.");
     const area = rings.map((r) => Math.abs(signedArea(r)));
     // Each ring's parent: the smallest ring holding its first point.
     const parent = rings.map((r, i) => {
@@ -373,15 +378,15 @@ class Builder {
     });
     const root = node(new Float64Array(0), 0);
     const nodes = rings.map((r) => node(r, 0));
+    const kids: number[][] = rings.map(() => []);
+    parent.forEach((p, j) => p >= 0 && kids[p].push(j));
     const place = (i: number, depth: number): void => {
       if (depth > DEFAULT_LIMITS.maxWaterDepth) return;
       nodes[i].depth = depth;
-      rings.forEach((_, j) => {
-        if (parent[j] === i) {
-          nodes[i].children.push(nodes[j]);
-          place(j, depth + 1);
-        }
-      });
+      for (const j of kids[i]) {
+        nodes[i].children.push(nodes[j]);
+        place(j, depth + 1);
+      }
     };
     rings.forEach((_, i) => {
       if (parent[i] < 0) {
@@ -436,7 +441,8 @@ class Builder {
           ? this.ref("objects", asset.slice(2))
           : { path: `dungeon://image/${asset.slice(0, 64)}`, source: "embedded", segments: [] },
         mirror: false,
-        layer: LAYER[typeof o.layer === "string" ? o.layer : ""] ?? 200,
+        // Own keys only: a payload's "constructor" mustn't reach Object.prototype.
+        layer: typeof o.layer === "string" && Object.hasOwn(LAYER, o.layer) ? LAYER[o.layer] : 200,
         shadow: o.shadow === true,
         blockLight: false,
         customColor: null,
@@ -552,14 +558,4 @@ export function withHoles(outer: Float64Array, holes: Float64Array[]): Float64Ar
     ring = [...ring.slice(0, 2 * vi + 2), ...loop, ring[2 * vi], ring[2 * vi + 1], ...ring.slice(2 * vi + 2)];
   }
   return Float64Array.from(ring);
-}
-
-/** An ellipse's reach profile (spriteSizes.ts's shape): half-axes a along the sprite's x, b across. */
-function ellipse(a: number, b: number): { r: number; reach: number[] } {
-  const reach: number[] = [];
-  for (let k = 0; k < REACH_DIRS.length / 2; k++) {
-    const dx = REACH_DIRS[k * 2], dy = REACH_DIRS[k * 2 + 1];
-    reach.push(Math.round(1 / Math.sqrt((dx / a) * (dx / a) + (dy / b) * (dy / b))));
-  }
-  return { r: Math.max(...reach), reach };
 }

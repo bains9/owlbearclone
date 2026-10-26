@@ -5,7 +5,7 @@
 // tests draw pictures from the data, as the Dungeondraft tests do).
 
 import { describe, expect, it } from "vitest";
-import { parseUniversalVtt } from "../src/client/mapImport";
+import { DUNGEON_MIME, parseUniversalVtt, readMapFiles } from "../src/client/mapImport";
 import { DungeonVersionError, looksLikeDungeon, parseDungeonPayload, signedArea, withHoles } from "../src/client/dd/fromDungeon";
 import { DDParseError } from "../src/client/dd/parse";
 import { GRID, type DDMap } from "../src/client/dd/model";
@@ -46,6 +46,18 @@ describe("a Dungeon export brought into Table", () => {
     expect([map.cols, map.rows, map.pxPerCell]).toEqual([36, 24, 128]);
     expect(map.vtt?.resolution.map_size).toEqual({ x: 36, y: 24 });
     expect(map.vtt?.portals).toHaveLength(8);
+  });
+
+  it("lets a Dungeondraft project file from the same batch win over the data inside", async () => {
+    const vtt = new File([FIXTURE], "Old Keep.dd2vtt", { type: "application/json" });
+    const project = new File([JSON.stringify({ header: { creation_build: "1.1" }, world: { width: 36, height: 24 } })], "Old Keep.dungeondraft_map");
+    const { maps } = await readMapFiles([vtt, project]);
+    expect(maps).toHaveLength(1);
+    expect(maps[0].dd?.name).toBe("Old Keep.dungeondraft_map");
+    expect(maps[0].ddFrom).toBeUndefined();
+    const alone = await readMapFiles([vtt]);
+    expect(alone.maps[0].ddFrom).toBe("dungeon");
+    expect(alone.maps[0].dd?.type).toBe(DUNGEON_MIME);
   });
 
   it("leaves other Universal VTT files as they were", () => {

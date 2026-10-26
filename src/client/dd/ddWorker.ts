@@ -20,6 +20,7 @@ import { SidecarError, decodeSidecar, encodeSidecar, type SeasonSidecar } from "
 import { SPRITE_SIZES } from "./spriteSizes";
 import type { SpriteSizes } from "./measure";
 import { DungeonVersionError, looksLikeDungeon, parseDungeonPayload } from "./fromDungeon";
+import { DUNGEON_MIME } from "../mapImport";
 import type { DdWorkerIn, DdWorkerOut } from "./messages";
 import { analyse, bake, type SeasonAnalysis } from "../room/seasonPixels";
 import { analyseExact } from "../room/seasonExact";
@@ -143,7 +144,9 @@ async function prepareAnew(m: Extract<DdWorkerIn, { t: "prepare" }>, key: string
     const text = await m.file.text();
     progress("Reading the map…");
     const name = m.file.name || "That file";
-    if (looksLikeDungeon(text.slice(0, 256))) {
+    // mapImport.ts marks the File it makes from a Dungeon export; sniffing the start covers a
+    // Dungeon payload or .dmap saved on its own.
+    if (m.file.type === DUNGEON_MIME || looksLikeDungeon(text.slice(0, 256))) {
       try {
         const d = parseDungeonPayload(text);
         map = d.map;
