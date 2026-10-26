@@ -178,10 +178,10 @@ describe("the guide", () => {
   const all = GUIDE.flatMap((s) => s.parts);
   const text = (p: { steps: string[]; notes: string[] }) => [...p.steps, ...p.notes].join("\n");
 
-  it("has Dungeon's sign-in first in What's new, pointing to the how-to", () => {
-    expect(news.parts[0].title).toBe("Dungeon signs in with Tabletop (26 October 2026)");
-    expect(news.parts[1].title).toBe("Extend a map past its edges (26 October 2026)");
-    const entry = text(news.parts[0]);
+  it("has Dungeon's sign-in second in What's new, under maps from Dungeon, pointing to the how-to", () => {
+    expect(news.parts[1].title).toBe("Dungeon signs in with Tabletop (26 October 2026)");
+    expect(news.parts[2].title).toBe("Extend a map past its edges (26 October 2026)");
+    const entry = text(news.parts[1]);
     for (const what of ["**Dungeon**", "**Table**", "castle button", "See **Open Dungeon, the map maker**"]) expect(entry).toContain(what);
     expect(all.some((p) => p.title === "Open Dungeon, the map maker")).toBe(true);
     expect(all.some((p) => p.title === "Dungeon uses this sign-in")).toBe(true);

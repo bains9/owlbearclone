@@ -642,7 +642,7 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("has the NPCs tenth in What's new, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
+  it("has the NPCs eleventh in What's new, after maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.parts[8].title).toBe("Clearer messages after an update (5 October 2026)");
     expect(news.parts[9].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
