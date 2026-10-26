@@ -480,16 +480,51 @@ function vttMetaOf(data: Record<string, unknown>, origin: { x: number; y: number
   return { resolution: { map_origin: origin, map_size: size, pixels_per_grid: ppg }, portals, lights, line_of_sight };
 }
 
-/** Reads a Universal VTT file (.dd2vtt, .df2vtt, .uvtt). */
-export function parseUniversalVtt(text: string, fileName: string): MapFile {
-  let data: Record<string, unknown>;
+/** The most levels taken from one file: as many as Dungeon lets a map have. */
+export const MAX_FILE_LEVELS = 20;
+
+function vttJson(text: string): Record<string, unknown> {
   try {
     // Real files vary: CRLF line ends, a byte-order mark, format 0.2, 0.3 or 1.0 (or a
     // "version" string instead). None of that matters here, so none of it is checked.
-    data = JSON.parse(text.replace(/^﻿/, "")) as Record<string, unknown>;
+    return JSON.parse(text.replace(/^﻿/, "")) as Record<string, unknown>;
   } catch {
     throw new Error("isn't a map file this app can read.");
   }
+}
+
+/** Dungeondraft 1.2 names an export "waterfall.vtt.dd2vtt": the ".vtt" is part of the extension, not the name. */
+const vttName = (fileName: string) => nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
+
+/** Reads a Universal VTT file (.dd2vtt, .df2vtt, .uvtt): its first level, for a file with several. */
+export function parseUniversalVtt(text: string, fileName: string): MapFile {
+  return vttMap(vttJson(text), fileName);
+}
+
+/**
+ * Reads a Universal VTT file into its maps: one, or for a map from Dungeon with levels, one per
+ * level in order. Dungeon puts the first level where every tabletop looks, and each further
+ * level as a file of its own in a list under "dungeon_levels"; each level's payload names it
+ * ("levelName"). Those scenes are named after the map and the level ("Old Keep: Cellar").
+ */
+export function parseUniversalVttLevels(text: string, fileName: string): MapFile[] {
+  const data = vttJson(text);
+  const more = Array.isArray(data?.dungeon_levels) ? (data.dungeon_levels as unknown[]) : [];
+  if (!more.length) return [vttMap(data, fileName)];
+  return [data, ...more].slice(0, MAX_FILE_LEVELS).map((level, i) => {
+    if (typeof level !== "object" || level === null || Array.isArray(level)) throw new Error(`has a level (${i + 1}) that isn't a map.`);
+    const named = (level as { dungeon?: { levelName?: unknown } }).dungeon?.levelName;
+    const levelName = typeof named === "string" && named.trim() ? named.trim().slice(0, 60) : `Level ${i + 1}`;
+    try {
+      return vttMap(level as Record<string, unknown>, fileName, `${vttName(fileName)}: ${levelName}`);
+    } catch (err) {
+      throw new Error(`(level ${i + 1}, ${levelName}) ${(err as Error).message}`);
+    }
+  });
+}
+
+/** One map from a Universal VTT file's data; `name` names it instead of the file. */
+function vttMap(data: Record<string, unknown>, fileName: string, name = vttName(fileName)): MapFile {
   const res = data?.resolution as { map_origin?: { x?: unknown; y?: unknown }; map_size?: { x?: unknown; y?: unknown }; pixels_per_grid?: unknown } | undefined;
   if (typeof data?.image !== "string" || !res) throw new Error("isn't a Universal VTT map (no image or grid in it).");
   let bytes: Uint8Array;
@@ -505,8 +540,6 @@ export function parseUniversalVtt(text: string, fileName: string): MapFile {
   const rows = finite(res.map_size?.y) && res.map_size.y > 0 ? res.map_size.y : undefined;
   const originX = finite(res.map_origin?.x) ? res.map_origin.x : 0;
   const originY = finite(res.map_origin?.y) ? res.map_origin.y : 0;
-  // Dungeondraft 1.2 names an export "waterfall.vtt.dd2vtt": the ".vtt" is part of the extension, not the name.
-  const name = nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
   const ext = type.split("/")[1];
   const image = new File([bytes as BlobPart], `${name}.${ext === "jpeg" ? "jpg" : ext}`, { type });
   // A map from Dungeon carries its whole map under "dungeon": it goes on as the picture's project
@@ -559,10 +592,12 @@ export async function readMapFiles(files: File[]): Promise<{ maps: MapFile[]; er
       if (projectFiles.has(f)) {
         if (lone.includes(f)) errors.push(loneProjectFileNote(f.name));
       } else if (isVttFile(f)) {
-        const map = parseUniversalVtt(await readText(f, texts), f.name);
-        // A project file paired from the batch wins over data the export carries.
+        const levels = parseUniversalVttLevels(await readText(f, texts), f.name);
+        // A project file paired from the batch wins over data the export carries (a file with
+        // levels comes from Dungeon, which has no project file to pair).
         const dd = ddOf.get(f);
-        maps.push(dd ? { ...map, dd, ddFrom: undefined } : map);
+        if (dd && levels.length === 1) maps.push({ ...levels[0], dd, ddFrom: undefined });
+        else maps.push(...levels);
       } else if (/\.owlbear$/i.test(f.name)) {
         // Owlbear Rodeo 1's own format. Owlbear's converter turns it into a 2.0 backup, which comes in here.
         errors.push(

@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Maps with levels from Dungeon (26 October 2026)",
+        "steps": [
+          "GM: in Dungeon, export a map with levels as Universal VTT, with \"Every level in one file\" chosen.",
+          "Bring the file in with **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "You get a scene for each level, in order, named after the map and the level, such as \"Old Keep: Cellar\".",
+          "Each scene gets its grid, and exact seasons, from its own level.",
+          "Change levels the way you change scenes: **Show to players** on the next level's scene. Tokens and fog belong to each scene, so move the party's tokens across yourself."
+        ]
+      },
+      {
         "title": "All of Dungeon's objects and textures in the Build tool (26 October 2026)",
         "steps": [
           "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker at dungeon.parhome.ca.",
@@ -1631,7 +1643,7 @@ export const GUIDE: GuideSection[] = [
           "You don't sign in to Dungeon separately: it uses this sign-in (see \"Dungeon uses this sign-in\").",
           "With both open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so you keep your place in the room and stay in voice chat.",
           "If your browser won't switch tabs for a page, the other one loads again in its tab instead. Dungeon opens your map where it was saved.",
-          "To use a Dungeon map in a room, export it from Dungeon as Universal VTT (a .dd2vtt file) and bring it in as you would a Dungeondraft one: **Import Dungeondraft map**, **New scene**, or drop it on the map."
+          "To use a Dungeon map in a room, export it from Dungeon as Universal VTT (a .dd2vtt file) and bring it in as you would a Dungeondraft one: **Import Dungeondraft map**, **New scene**, or drop it on the map. A map with levels makes a scene for each level, in order."
         ]
       },
       {
@@ -1863,7 +1875,8 @@ export const GUIDE: GuideSection[] = [
           "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not (with a Dungeondraft project file, they only help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
           "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**.",
-          "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**."
+          "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**.",
+          "A map from Dungeon with levels, exported with every level in one file, makes a scene for each level, in order, named after the map and the level (\"Old Keep: Cellar\")."
         ]
       },
       {
