@@ -1,13 +1,16 @@
 import { useEffect, useState } from "preact/hooks";
-import { Copy, LogOut, Plus, Trash } from "lucide-preact";
+import { Castle, Copy, LogOut, Plus, Trash } from "lucide-preact";
 import type { RoomSummary } from "../../shared/types";
 import { api, roomUrl } from "../api";
+import { DUNGEON_URL, continueToDungeon, dungeonNext, openDungeon } from "../dungeonLink";
 import { ConfirmDialog, copyText, timeAgo } from "./common";
 import { Logo } from "./Logo";
 
 export function Home() {
   const [me, setMe] = useState<{ gm: boolean; configured: boolean; google: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Dungeon sent this browser here to sign in: where to take it back to once signed in.
+  const [toDungeon] = useState(dungeonNext);
   useEffect(() => {
     document.title = "Tabletop";
     api
@@ -15,6 +18,9 @@ export function Home() {
       .then(setMe)
       .catch((e: Error) => setError(e.message));
   }, []);
+  useEffect(() => {
+    if (me?.gm && toDungeon !== null) continueToDungeon(toDungeon);
+  }, [me?.gm]);
   if (error) {
     return (
       <div class="center-page">
@@ -28,8 +34,16 @@ export function Home() {
     );
   }
   if (!me) return <div class="center-page muted">Loading…</div>;
+  if (me.gm && toDungeon !== null) return <div class="center-page muted">Opening Dungeon…</div>;
   if (me.gm) return <GmHome onSignedOut={() => setMe({ ...me, gm: false })} />;
-  return <Welcome configured={me.configured} google={me.google} onSignedIn={() => setMe({ ...me, gm: true })} />;
+  return (
+    <Welcome
+      configured={me.configured}
+      google={me.google}
+      toDungeon={toDungeon !== null}
+      onSignedIn={() => setMe({ ...me, gm: true })}
+    />
+  );
 }
 
 /** Why Google sign-in sent someone back here without signing them in. */
@@ -59,7 +73,7 @@ function roomIdFrom(text: string): string | null {
   return m ? m[1] : null;
 }
 
-function Welcome(props: { configured: boolean; google: boolean; onSignedIn: () => void }) {
+function Welcome(props: { configured: boolean; google: boolean; toDungeon: boolean; onSignedIn: () => void }) {
   const [link, setLink] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -118,6 +132,7 @@ function Welcome(props: { configured: boolean; google: boolean; onSignedIn: () =
 
         <form class="card" onSubmit={login}>
           <h2>GM sign in</h2>
+          {props.toDungeon && <p class="muted small">Sign in as the GM to open Dungeon, the map maker.</p>}
           {!props.configured && !props.google && (
             <p class="error-text small">GM sign-in hasn't been set up on the server yet.</p>
           )}
@@ -203,6 +218,17 @@ function GmHome(props: { onSignedOut: () => void }) {
               Signed in as the GM. <a href="/guide">How to use Tabletop</a>
             </p>
           </div>
+          <a
+            class="btn"
+            href={DUNGEON_URL}
+            target="dungeon"
+            title="Dungeon, the map maker (opens in its own tab)"
+            onClick={(e) => {
+              if (openDungeon()) e.preventDefault();
+            }}
+          >
+            <Castle size={16} /> Dungeon
+          </a>
           <button
             class="btn"
             onClick={async () => {

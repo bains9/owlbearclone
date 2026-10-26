@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Dungeon signs in with Tabletop (26 October 2026)",
+        "steps": [
+          "GM: click **Dungeon** on your list of rooms, or the castle button (**Dungeon**) in a room's top bar. Dungeon, the map maker, opens in its own tab.",
+          "In Dungeon, click **Table** to come back."
+        ],
+        "notes": [
+          "Dungeon is for the GM now, and uses this sign-in: signed in here, you go straight in. If you aren't, you sign in here first and carry on to Dungeon.",
+          "Once both are open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so the room, voice chat and your map stay as they were.",
+          "See **Open Dungeon, the map maker** in **Your rooms: the GM's start page**."
+        ]
+      },
+      {
         "title": "Extend a map past its edges (26 October 2026)",
         "steps": [
           "GM: open **Scenes** and click the pencil on the scene (**Edit scene and grid**).",
@@ -398,7 +410,8 @@ export const GUIDE: GuideSection[] = [
           "Everyone is counted once for each tab or window they have the room open in. If a name shows up twice, that person has the room open twice.",
           "Players see the Tabletop logo where the GM has the house button.",
           "If your browser won't let the page copy, a message pops up showing the invite link so you can copy it yourself.",
-          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\")."
+          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\").",
+          "The castle button (GM only, **Dungeon**) opens Dungeon, the map maker, in its own tab (see \"Open Dungeon, the map maker\")."
         ]
       },
       {
@@ -1521,6 +1534,21 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Dungeon uses this sign-in",
+        "steps": [
+          "Go to dungeon.parhome.ca, or click **Dungeon** on your list of rooms.",
+          "If you're signed in here, Dungeon opens. If you aren't, you come to the start page: sign in as the GM, and Dungeon opens once you have."
+        ],
+        "notes": [
+          "While Dungeon is waiting for you, the **GM sign in** box says \"Sign in as the GM to open Dungeon, the map maker.\"",
+          "Google sign-in works too: after Google, you carry on to Dungeon. Sign in within 10 minutes, or you stay on your list of rooms instead (click **Dungeon** there).",
+          "Dungeon checks your sign-in with Tabletop again after 12 hours. While you're still signed in here, you won't notice.",
+          "Changing the GM password, or taking a Google account off the GM list, signs Dungeon out too.",
+          "Signing out here doesn't close a Dungeon tab that's already open.",
+          "Anyone who isn't the GM can't open Dungeon: they're asked to sign in as the GM."
+        ]
+      },
+      {
         "title": "What the sign-in messages mean",
         "steps": [
           "Read the message that appears under the sign-in buttons.",
@@ -1559,6 +1587,20 @@ export const GUIDE: GuideSection[] = [
           "New rooms start with players allowed to add tokens, move any unlocked token, and draw on the map. To change that, open **Room settings** and untick the boxes under **What players can do**.",
           "New rooms measure in metres: \"Scene 1\" and every new scene start with one square being 1.5 m. To use feet instead, untick **Measure in metres (1.5 m a square)** in **Room settings**.",
           "Until you make your first room, the list says \"No rooms yet. Create one above.\""
+        ]
+      },
+      {
+        "title": "Open Dungeon, the map maker",
+        "steps": [
+          "Click **Dungeon** next to **Sign out**. In a room, click the castle button (**Dungeon**) in the top bar instead.",
+          "Dungeon opens in a tab of its own. Draw your map there; Dungeon saves it in this browser as you go.",
+          "To come back, click **Table** in Dungeon's top bar."
+        ],
+        "notes": [
+          "You don't sign in to Dungeon separately: it uses this sign-in (see \"Dungeon uses this sign-in\").",
+          "With both open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so you keep your place in the room and stay in voice chat.",
+          "If your browser won't switch tabs for a page, the other one loads again in its tab instead. Dungeon opens your map where it was saved.",
+          "To use a Dungeon map in a room, export it from Dungeon as Universal VTT (a .dd2vtt file) and bring it in as you would a Dungeondraft one: **Import Dungeondraft map**, **New scene**, or drop it on the map."
         ]
       },
       {

@@ -291,6 +291,16 @@ async function main() {
   }
   check(!anyAccepted, "no other spelling of the signature is accepted");
 
+  // Dungeon's sign-in hop (src/worker/dungeon.ts): a code for the GM, the sign-in page for anyone else.
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2Fguide`, { redirect: "manual" });
+  check(r.status === 303 && r.headers.get("location") === "/?then=dungeon&to=%2Fguide", "Dungeon's hop sends a stranger to sign in");
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2F%2Fevil.example`, { headers: { Cookie: cookie }, redirect: "manual" });
+  const hopTo = new URL(r.headers.get("location") ?? "", "http://x.invalid");
+  check(
+    r.status === 303 && hopTo.pathname === "/auth/table" && /^h1\.\d+\.\w{16}\.p\.[\w-]+$/.test(hopTo.searchParams.get("code") ?? "") && !hopTo.searchParams.has("to"),
+    "Dungeon's hop gives the GM a code, and only goes back to a path on Dungeon",
+  );
+
   r = await fetch(`${BASE}/api/rooms`, {
     method: "POST",
     headers: { Cookie: cookie, Origin: "https://evil.example" },

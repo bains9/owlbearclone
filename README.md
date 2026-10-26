@@ -135,6 +135,11 @@ Deploy protocol bumps between sessions: tabs open across one lose the built map 
 - Or one GM password (the `GM_PASSWORD` secret). Either way, signing in sets an HttpOnly, Secure,
   SameSite=Lax cookie signed with a key derived from a random server-side secret; for password sessions the
   key also mixes in the password, so changing it signs those sessions out.
+- Dungeon (dungeon.parhome.ca, the map maker) uses the same sign-in without the cookie leaving this site:
+  Dungeon sends the browser to `/api/dungeon/hop`, which hands the signed-in GM back with a one-time code
+  (signed, a minute long, spent on first use), and Dungeon's Worker trades it for a 12-hour session of its
+  own through the `DungeonGate` entrypoint, a service binding. Those sessions are signed for Dungeon alone
+  and end when the password changes or the account leaves `GM_EMAILS` (`src/worker/dungeon.ts`).
 - Login attempts are counted before the password is checked: 10 wrong guesses per address (an IPv6 /64
   counts as one) and 60 overall per 15 minutes.
 - The GM is a role, not a browser id, so no player can claim the GM's rolls or images.
