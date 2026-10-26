@@ -1845,7 +1845,9 @@ export class BuildRenderer {
   private updateCache(scene: Scene, k: number): void {
     const g = scene.grid;
     const area = sceneBounds(scene);
-    const key = `${scene.id}|${area.x0}|${area.y0}|${area.x1}|${area.y1}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
+    // The same key as ever for a scene that starts at (0, 0); an extended one adds its origin.
+    const origin = area.x0 || area.y0 ? `|@${area.x0},${area.y0}` : "";
+    const key = `${scene.id}|${area.x1 - area.x0}|${area.y1 - area.y0}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${origin}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
     const canvas = (this.cache ??= document.createElement("canvas"));
     if (key !== this.cacheKey) {
       this.cacheKey = key;
@@ -1896,7 +1898,8 @@ export class BuildRenderer {
     ctx.rect(px0, py0, px1 - px0, py1 - py0);
     ctx.clip();
     ctx.clearRect(px0, py0, px1 - px0, py1 - py0);
-    ctx.setTransform(k, 0, 0, k, -ox * k, -oy * k);
+    // (No -0 when the scene starts at 0: drawing must stay exactly as before.)
+    ctx.setTransform(k, 0, 0, k, ox ? -ox * k : 0, oy ? -oy * k : 0);
     // The cells those pixels cover, which can be a little more than asked for.
     const cc0 = Math.floor((px0 / k + ox - g.offsetX) / g.size);
     const cr0 = Math.floor((py0 / k + oy - g.offsetY) / g.size);

@@ -548,12 +548,12 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("has metres ninth in What's new, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons and the NPCs, keeping the entries before it", () => {
+  it("has metres tenth in What's new, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons and the NPCs, keeping the entries before it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[5]).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news[6]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news[7]).toBe("NPC tokens by race and class (4 October 2026, later)");
-    expect(news[8]).toBe("Measure in metres (4 October 2026)");
+    expect(news[6]).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news[7]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news[8]).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(news[9]).toBe("Measure in metres (4 October 2026)");
     expect(news).toContain("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("Pointing on the table display (29 September 2026, later)");
   });

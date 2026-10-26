@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 25 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Extend a map past its edges (26 October 2026)",
+        "steps": [
+          "GM: open **Scenes** and click the pencil on the scene (**Edit scene and grid**).",
+          "Under **Extend the map**, type how many squares to add in **Left**, **Top**, **Right** or **Bottom**, and press Enter."
+        ],
+        "notes": [
+          "The new area has the scene's **Background** colour. Build on it, put tokens there and fog it like the rest; players see the bigger map straight away.",
+          "Nothing already on the map moves, so tokens, drawings, fog and built squares stay put.",
+          "See **Extend the map past its edges** in **The scene editor: grid and map**."
+        ]
+      },
       {
         "title": "Voice chat follows the group to other rooms (25 October 2026)",
         "steps": [
@@ -2115,6 +2127,20 @@ export const GUIDE: GuideSection[] = [
           "The editor also opens by itself after you make a new scene with **New scene** in the **Scenes** panel. When you drop or paste a map onto the map, the **Scenes** list opens instead.",
           "Changes in the number boxes take effect when you press Enter or click somewhere else.",
           "Undo doesn't cover the grid settings, the **Name** or the map's **Remove** button. Only a map change (**Choose uploaded** or **Upload new**), attaching or removing **Dungeondraft data**, and **Cover all** / **Clear all** can be undone. If you change a grid setting by mistake, set it back by hand."
+        ]
+      },
+      {
+        "title": "Extend the map past its edges",
+        "steps": [
+          "Under **Extend the map**, type how many squares (or hexes) to add on each side in **Left**, **Top**, **Right** and **Bottom**, and press Enter.",
+          "To go back to the map's own size, click **Back to the picture's size** (**Back to the map's size** on a scene without a picture)."
+        ],
+        "notes": [
+          "The extra room has the scene's **Background** colour. Build on it with **Build**, put tokens there, and fog it like the rest of the map; **Cover all** covers it too.",
+          "Nothing already on the map moves when you extend it, so tokens, drawings, fog and built squares stay where they are.",
+          "Up to 200 squares on each side.",
+          "Going back hides anything out there, but doesn't delete it: extend again to see it.",
+          "Undo doesn't cover these boxes: type the old numbers back, or click **Back to the picture's size**."
         ]
       },
       {

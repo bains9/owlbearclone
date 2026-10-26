@@ -582,7 +582,7 @@ function ExtendRow(props: { scene: Scene }) {
       {s.bounds && (
         <>
           <button class="btn btn-sm" onClick={() => room.updateScene(s.id, { bounds: null })}>
-            Back to the {s.mapAssetId ? "picture's" : "map's"} size
+            {s.mapAssetId ? "Back to the picture's size" : "Back to the map's size"}
           </button>
           <p class="small muted">Anything built or placed out there stays, but can't be seen until you extend the map again.</p>
         </>
