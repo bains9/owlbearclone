@@ -401,6 +401,28 @@ export function sanitizeMapRect(v: unknown): [number, number, number, number] | 
   return w > 0 && h > 0 ? [x, y, w, h] : undefined;
 }
 
+/** A scene's bounds as sent: null to go back to the picture's rectangle; undefined when unusable. */
+export function sanitizeBounds(v: unknown): [number, number, number, number] | null | undefined {
+  if (v === null) return null;
+  if (!Array.isArray(v) || v.length !== 4) return undefined;
+  if (!v.every((n) => typeof n === "number" && Number.isFinite(n))) return undefined;
+  const [l, t, r, b] = v as number[];
+  return r > l && b > t ? [l, t, r, b] : undefined;
+}
+
+/**
+ * Bounds made to hold the picture ([0, 0, width, height]) and to reach at most
+ * LIMITS.sceneSizeMax past it on each side; undefined when that leaves just the picture.
+ */
+export function fitBounds(b: readonly number[], width: number, height: number): [number, number, number, number] | undefined {
+  const m = LIMITS.sceneSizeMax;
+  const l = Math.max(-m, Math.min(0, b[0]));
+  const t = Math.max(-m, Math.min(0, b[1]));
+  const r = Math.min(width + m, Math.max(width, b[2]));
+  const btm = Math.min(height + m, Math.max(height, b[3]));
+  return l === 0 && t === 0 && r === width && btm === height ? undefined : [l, t, r, btm];
+}
+
 /**
  * A whole scene, or with `existing`, a change to one. `grid` fills in whatever grid settings
  * a new scene leaves out (the room's own defaults: feet or metres).
@@ -426,6 +448,11 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const rv = sanitizeMapRect(r.mapRect);
   const newPicture = !!existing && mapAssetId !== existing.mapAssetId;
   const mapRect = rv === null ? undefined : (rv ?? (newPicture ? undefined : existing?.mapRect));
+  // The scene's area: a change may set it (null: back to the picture's own). It always keeps
+  // the picture inside, so a new picture of another size still fits.
+  const bv = sanitizeBounds(r.bounds);
+  const asked = bv === null ? undefined : (bv ?? existing?.bounds);
+  const bounds = asked && fitBounds(asked, width, height);
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -440,6 +467,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(season ? { season } : {}),
     ...(mapData ? { mapData } : {}),
     ...(mapRect ? { mapRect } : {}),
+    ...(bounds ? { bounds } : {}),
   };
 }
 

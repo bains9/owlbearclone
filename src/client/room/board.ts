@@ -31,14 +31,14 @@ import {
   cellAt,
   isBuildingFloor,
   isTerrainFloor,
-  sceneCells,
+  sceneAreaCells,
   snapDeg,
   snapSize,
   stampBlock,
 } from "../../shared/terrain";
 import type { CellBounds } from "../../shared/terrain";
 import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
-import { isCompass } from "../../shared/types";
+import { isCompass, sceneBounds } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
   deleteSelection,
@@ -663,8 +663,12 @@ export class Board implements BoardApi {
     const left = this.room.display ? 0 : 64;
     const availW = Math.max(40, w - left - pad);
     const availH = Math.max(40, h - pad * 2);
-    const scale = clampScale(Math.min(availW / scene.width, availH / scene.height));
-    this.setCam(left + (availW - scene.width * scale) / 2, (h - scene.height * scale) / 2, scale);
+    // The scene's whole area, which reaches past the picture when the GM has extended it.
+    const area = sceneBounds(scene);
+    const sw = area.x1 - area.x0;
+    const sh = area.y1 - area.y0;
+    const scale = clampScale(Math.min(availW / sw, availH / sh));
+    this.setCam(left + (availW - sw * scale) / 2 - area.x0 * scale, (h - sh * scale) / 2 - area.y0 * scale, scale);
     this.needsFit = false;
   }
 
@@ -796,7 +800,9 @@ export class Board implements BoardApi {
       this.renderedScene = scene;
       this.renderedSeasonsOff = s.seasonsOff;
       if (scene) {
-        this.bgRect.size({ width: scene.width, height: scene.height });
+        const area = sceneBounds(scene);
+        this.bgRect.position({ x: area.x0, y: area.y0 });
+        this.bgRect.size({ width: area.x1 - area.x0, height: area.y1 - area.y0 });
         this.bgRect.fill(scene.background);
         this.updateMap(scene);
         if (!prev || prev.grid.size !== scene.grid.size) force = true;
@@ -1290,10 +1296,11 @@ export class Board implements BoardApi {
     // Only the part of the grid that's on screen.
     const tl = this.toWorld({ x: 0, y: 0 });
     const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
-    const minX = Math.max(0, tl.x);
-    const maxX = Math.min(scene.width, br.x);
-    const minY = Math.max(0, tl.y);
-    const maxY = Math.min(scene.height, br.y);
+    const area = sceneBounds(scene);
+    const minX = Math.max(area.x0, tl.x);
+    const maxX = Math.min(area.x1, br.x);
+    const minY = Math.max(area.y0, tl.y);
+    const maxY = Math.min(area.y1, br.y);
     if (minX >= maxX || minY >= maxY) return;
     if (isHex(g)) {
       if (size * scale < 10) return;
@@ -1389,7 +1396,8 @@ export class Board implements BoardApi {
     // Nothing is built off the scene, so nothing is outlined there either.
     const m = Math.max(size * 0.12, 5 / scale);
     c.beginPath();
-    c.rect(-m, -m, scene.width + 2 * m, scene.height + 2 * m);
+    const area = sceneBounds(scene);
+    c.rect(area.x0 - m, area.y0 - m, area.x1 - area.x0 + 2 * m, area.y1 - area.y0 + 2 * m);
     c.clip();
     c.strokeStyle = SELECT_COLOR;
     c.lineWidth = 2 / scale;
@@ -1437,7 +1445,7 @@ export class Board implements BoardApi {
     } else if (o.mode === "building" || o.mode === "terrain") {
       const n = o.shape[o.mode] === "brush" ? this.brushCells() : 1;
       const at = this.brushAt(p, n);
-      const all = sceneCells(scene.width, scene.height, g);
+      const all = sceneAreaCells(scene, g);
       if (at.col <= all.c1 && at.row <= all.r1 && at.col + n - 1 >= all.c0 && at.row + n - 1 >= all.r0) {
         dashed();
         c.strokeStyle = alt || o.floor[o.mode] === "erase" ? REMOVE_COLOR : SELECT_COLOR;
@@ -1468,7 +1476,7 @@ export class Board implements BoardApi {
       } else {
         // The corner a click (or a drag) starts from.
         const v = this.nearestVertex(p);
-        const all = sceneCells(scene.width, scene.height, g);
+        const all = sceneAreaCells(scene, g);
         if (v.c >= all.c0 && v.c <= all.c1 + 1 && v.r >= all.r0 && v.r <= all.r1 + 1) {
           c.fillStyle = alt || o.wallMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
           c.beginPath();
@@ -1562,7 +1570,8 @@ export class Board implements BoardApi {
   private selectHit(world: Point, mouse: boolean): { obj: StampHit | null; door: DoorHit | null; under: StampHit[] } {
     const scene = this.renderedScene!;
     const none = { obj: null, door: null, under: [] };
-    if (world.x < 0 || world.y < 0 || world.x > scene.width || world.y > scene.height) return none;
+    const area = sceneBounds(scene);
+    if (world.x < area.x0 || world.y < area.y0 || world.x > area.x1 || world.y > area.y1) return none;
     const { u, v } = this.cellsAt(world);
     // Screen pixels to a square.
     const px = this.cam.scale * scene.grid.size;
@@ -1651,7 +1660,8 @@ export class Board implements BoardApi {
     const reach = g.size;
     c.save();
     c.beginPath();
-    c.rect(0, 0, scene.width, scene.height);
+    const area = sceneBounds(scene);
+    c.rect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.clip();
     c.beginPath();
     for (let r = rMin; r <= rMax; r++) {
@@ -1678,7 +1688,9 @@ export class Board implements BoardApi {
     c.save();
     c.globalAlpha = 1;
     c.imageSmoothingEnabled = true;
-    c.drawImage(this.fogCanvas!, 0, 0, scene.width, scene.height);
+    // The fog image covers the scene's whole area, from its top-left corner (below 0 when extended).
+    const area = sceneBounds(scene);
+    c.drawImage(this.fogCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.restore();
   }
 
@@ -1724,10 +1736,11 @@ export class Board implements BoardApi {
 
   /** Composites every fog shape into the cached fog image. */
   private renderFogImage(scene: Scene): void {
-    const k = Math.min(1, FOG_CACHE_MAX / Math.max(scene.width, scene.height));
+    const area = sceneBounds(scene);
+    const k = Math.min(1, FOG_CACHE_MAX / Math.max(area.x1 - area.x0, area.y1 - area.y0));
     const canvas = (this.fogCanvas ??= document.createElement("canvas"));
-    const w = Math.max(1, Math.ceil(scene.width * k));
-    const h = Math.max(1, Math.ceil(scene.height * k));
+    const w = Math.max(1, Math.ceil((area.x1 - area.x0) * k));
+    const h = Math.max(1, Math.ceil((area.y1 - area.y0) * k));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
@@ -1736,11 +1749,11 @@ export class Board implements BoardApi {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = "source-over";
     c.clearRect(0, 0, w, h);
-    c.setTransform(k, 0, 0, k, 0, 0);
+    c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
     this.fogDirty = false;
     c.save();
     c.fillStyle = FOG_COLOR;
-    if (scene.fogCover) c.fillRect(0, 0, scene.width, scene.height);
+    if (scene.fogCover) c.fillRect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     for (const f of this.fogItems) {
       c.globalCompositeOperation = f.mode === "reveal" ? "destination-out" : "source-over";
       c.beginPath();
@@ -2545,7 +2558,7 @@ export class Board implements BoardApi {
   private stampAnchor(p: Point, n: number): Cell {
     const scene = this.renderedScene!;
     const g = scene.grid;
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
     const col = Math.round((p.x - g.offsetX) / g.size - n / 2);
     const row = Math.round((p.y - g.offsetY) / g.size - n / 2);
     return {
@@ -2556,7 +2569,7 @@ export class Board implements BoardApi {
 
   /** The cells a scene covers: objects are kept within them. */
   private sceneBounds(scene: Scene): CellBounds {
-    return sceneCells(scene.width, scene.height, scene.grid);
+    return sceneAreaCells(scene, scene.grid);
   }
 
   /** What the brush and shapes paint in the current mode: a floor, or "." to erase. */
@@ -2582,7 +2595,7 @@ export class Board implements BoardApi {
   private paintBrush(from: Point, to: Point, erase: boolean): void {
     const scene = this.renderedScene!;
     const g = scene.grid;
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
     const ch = this.paintChar(erase);
     const n = this.brushCells();
     const steps = Math.max(1, Math.ceil((Math.hypot(to.x - from.x, to.y - from.y) / g.size) * 2));
@@ -2602,7 +2615,7 @@ export class Board implements BoardApi {
   /** A rectangle from one cell to another, or the oval inside it. */
   private paintArea(a: Cell, b: Cell, erase: boolean, circle: boolean): void {
     const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const all = sceneAreaCells(scene, scene.grid);
     const ch = this.paintChar(erase);
     this.build.clearDraftCells();
     const c0 = Math.min(a.col, b.col);
@@ -2668,7 +2681,7 @@ export class Board implements BoardApi {
   /** Whether an edge is on the scene: inside it, or along its border. */
   private edgeOnScene(col: number, row: number, side: Side): boolean {
     const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const all = sceneAreaCells(scene, scene.grid);
     return side === "t"
       ? col >= all.c0 && col <= all.c1 && row >= all.r0 && row <= all.r1 + 1
       : row >= all.r0 && row <= all.r1 && col >= all.c0 && col <= all.c1 + 1;

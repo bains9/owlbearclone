@@ -25,12 +25,13 @@ import {
   inChunk,
   isBuildingFloor,
   isWalledFloor,
-  sceneCells,
+  sceneAreaCells,
   stampBlock,
   terrainId,
 } from "../../shared/terrain";
 import type { FloorId, Stamp, StampId } from "../../shared/terrain";
 import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
+import { sceneBounds } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
@@ -1498,6 +1499,9 @@ export class BuildRenderer {
   private cache: HTMLCanvasElement | null = null;
   private cacheKey = "";
   private cacheK = 1;
+  /** The scene point the cache's top-left pixel shows: (0, 0), or below it for an extended scene. */
+  private cacheOX = 0;
+  private cacheOY = 0;
   private paintDirty = new Set<number>();
   private paintAll = true;
   /** Chunks the current draft has touched, to redraw when it goes. */
@@ -1803,7 +1807,8 @@ export class BuildRenderer {
     if (this.empty && !this.geoms.size) return;
     const g = scene.grid;
     const size = g.size;
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
+    const area = sceneBounds(scene);
     const c0 = Math.max(all.c0, Math.floor((view.x0 - g.offsetX) / size) - 1);
     const r0 = Math.max(all.r0, Math.floor((view.y0 - g.offsetY) / size) - 1);
     const c1 = Math.min(all.c1 + 1, Math.floor((view.x1 - g.offsetX) / size) + 1);
@@ -1813,14 +1818,15 @@ export class BuildRenderer {
     if (this.season) this.updateExposure();
     c.save();
     c.beginPath();
-    c.rect(0, 0, scene.width, scene.height);
+    c.rect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.clip();
 
-    const k = Math.min(1, CACHE_MAX / Math.max(scene.width, scene.height), CACHE_CELL_PX / size);
+    const k = Math.min(1, CACHE_MAX / Math.max(area.x1 - area.x0, area.y1 - area.y0), CACHE_CELL_PX / size);
     if (px <= k * 1.25 || (c1 - c0 + 1) * (r1 - r0 + 1) > DIRECT_MAX_CELLS) {
       this.updateCache(scene, k);
       c.imageSmoothingEnabled = true;
-      c.drawImage(this.cache!, 0, 0, this.cache!.width / k, this.cache!.height / k);
+      // The cache starts at the scene's top-left corner, which is below 0 when it's been extended.
+      c.drawImage(this.cache!, this.cacheOX, this.cacheOY, this.cache!.width / k, this.cache!.height / k);
     } else {
       this.drawFloors(c, scene, c0, r0, c1, r1);
       this.drawStamps(c, scene, c0, r0, c1, r1);
@@ -1830,7 +1836,7 @@ export class BuildRenderer {
     const m = Math.max(size * 0.13, 1.5 / scale) * 1.2;
     c.save();
     c.beginPath();
-    c.rect(-m, -m, scene.width + 2 * m, scene.height + 2 * m);
+    c.rect(area.x0 - m, area.y0 - m, area.x1 - area.x0 + 2 * m, area.y1 - area.y0 + 2 * m);
     c.clip();
     this.drawWalls(c, scene, c0, r0, c1, r1, scale, gmView);
     c.restore();
@@ -1838,16 +1844,19 @@ export class BuildRenderer {
 
   private updateCache(scene: Scene, k: number): void {
     const g = scene.grid;
-    const key = `${scene.id}|${scene.width}|${scene.height}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
+    const area = sceneBounds(scene);
+    const key = `${scene.id}|${area.x0}|${area.y0}|${area.x1}|${area.y1}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
     const canvas = (this.cache ??= document.createElement("canvas"));
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.cacheK = k;
-      canvas.width = Math.max(1, Math.ceil(scene.width * k));
-      canvas.height = Math.max(1, Math.ceil(scene.height * k));
+      this.cacheOX = area.x0;
+      this.cacheOY = area.y0;
+      canvas.width = Math.max(1, Math.ceil((area.x1 - area.x0) * k));
+      canvas.height = Math.max(1, Math.ceil((area.y1 - area.y0) * k));
       this.paintAll = true;
     }
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
     if (this.paintAll || this.paintDirty.size > 24) {
       this.paintRegion(scene, all.c0, all.r0, all.c1, all.r1);
     } else {
@@ -1872,11 +1881,14 @@ export class BuildRenderer {
     const ctx = canvas.getContext("2d")!;
     const g = scene.grid;
     const k = this.cacheK;
+    // The cache's pixel (0, 0) is the scene's top-left corner (ox, oy), below 0 when extended.
+    const ox = this.cacheOX;
+    const oy = this.cacheOY;
     // Whole pixels, so repainting never blends into what's already there.
-    const px0 = Math.max(0, Math.floor((g.offsetX + c0 * g.size) * k));
-    const py0 = Math.max(0, Math.floor((g.offsetY + r0 * g.size) * k));
-    const px1 = Math.min(canvas.width, Math.ceil((g.offsetX + (c1 + 1) * g.size) * k));
-    const py1 = Math.min(canvas.height, Math.ceil((g.offsetY + (r1 + 1) * g.size) * k));
+    const px0 = Math.max(0, Math.floor((g.offsetX + c0 * g.size - ox) * k));
+    const py0 = Math.max(0, Math.floor((g.offsetY + r0 * g.size - oy) * k));
+    const px1 = Math.min(canvas.width, Math.ceil((g.offsetX + (c1 + 1) * g.size - ox) * k));
+    const py1 = Math.min(canvas.height, Math.ceil((g.offsetY + (r1 + 1) * g.size - oy) * k));
     if (px1 <= px0 || py1 <= py0) return;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1884,12 +1896,12 @@ export class BuildRenderer {
     ctx.rect(px0, py0, px1 - px0, py1 - py0);
     ctx.clip();
     ctx.clearRect(px0, py0, px1 - px0, py1 - py0);
-    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.setTransform(k, 0, 0, k, -ox * k, -oy * k);
     // The cells those pixels cover, which can be a little more than asked for.
-    const cc0 = Math.floor((px0 / k - g.offsetX) / g.size);
-    const cr0 = Math.floor((py0 / k - g.offsetY) / g.size);
-    const cc1 = Math.floor((px1 / k - g.offsetX) / g.size);
-    const cr1 = Math.floor((py1 / k - g.offsetY) / g.size);
+    const cc0 = Math.floor((px0 / k + ox - g.offsetX) / g.size);
+    const cr0 = Math.floor((py0 / k + oy - g.offsetY) / g.size);
+    const cc1 = Math.floor((px1 / k + ox - g.offsetX) / g.size);
+    const cr1 = Math.floor((py1 / k + oy - g.offsetY) / g.size);
     this.drawFloors(ctx, scene, cc0, cr0, cc1, cr1);
     // Objects are drawn from a cell before too: a tree's shadow falls a little past the
     // square it's drawn on, so one just above or left of these cells can reach into them

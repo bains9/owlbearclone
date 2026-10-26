@@ -2,7 +2,7 @@
 // grid with the Build tool. They're stored as "terrain" items, one per 16 x 16 block
 // of grid cells (a chunk), so an edit only rewrites the chunks it touches.
 
-import type { GridSettings, TerrainItem } from "./types";
+import { sceneBounds, type GridSettings, type Scene, type SceneArea, type TerrainItem } from "./types";
 
 /** Cells along each side of a chunk. */
 export const CHUNK = 16;
@@ -197,13 +197,23 @@ export function cellAt(x: number, y: number, grid: GridSettings): { col: number;
 
 /** The range of cells that overlap a scene of this size: [c0, c1] x [r0, r1], inclusive. */
 export function sceneCells(width: number, height: number, grid: GridSettings): CellBounds {
+  return areaCells({ x0: 0, y0: 0, x1: width, y1: height }, grid);
+}
+
+/** The range of cells that overlap an area (an extended scene's reaches below 0). */
+export function areaCells(a: SceneArea, grid: GridSettings): CellBounds {
   return {
     // (|| 0: no -0.)
-    c0: Math.floor(-grid.offsetX / grid.size) || 0,
-    r0: Math.floor(-grid.offsetY / grid.size) || 0,
-    c1: Math.ceil((width - grid.offsetX) / grid.size) - 1,
-    r1: Math.ceil((height - grid.offsetY) / grid.size) - 1,
+    c0: Math.floor((a.x0 - grid.offsetX) / grid.size) || 0,
+    r0: Math.floor((a.y0 - grid.offsetY) / grid.size) || 0,
+    c1: Math.ceil((a.x1 - grid.offsetX) / grid.size) - 1,
+    r1: Math.ceil((a.y1 - grid.offsetY) / grid.size) - 1,
   };
+}
+
+/** The cells a scene covers: its whole area, extended or not. */
+export function sceneAreaCells(scene: Pick<Scene, "width" | "height" | "bounds">, grid: GridSettings): CellBounds {
+  return areaCells(sceneBounds(scene), grid);
 }
 
 // ---------------------------------------------------------------- validation
