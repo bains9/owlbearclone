@@ -50,12 +50,14 @@ export interface ItemOps {
  * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
  * a mapData or mapRect of null removes it).
  */
-export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture">> & {
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds">> & {
   id: string;
   season?: SceneSeason | null;
   mapData?: SceneMapData | null;
   mapRect?: [number, number, number, number] | null;
   wallTexture?: string | null;
+  /** null: back to the picture's own rectangle. */
+  bounds?: [number, number, number, number] | null;
 };
 
 /** Everything a browser can ask the server to change. */

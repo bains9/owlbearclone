@@ -36,6 +36,30 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Dungeon signs in with Tabletop (26 October 2026)",
+        "steps": [
+          "GM: click **Dungeon** on your list of rooms, or the castle button (**Dungeon**) in a room's top bar. Dungeon, the map maker, opens in its own tab.",
+          "In Dungeon, click **Table** to come back."
+        ],
+        "notes": [
+          "Dungeon is for the GM now, and uses this sign-in: signed in here, you go straight in. If you aren't, you sign in here first and carry on to Dungeon.",
+          "Once both are open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so the room, voice chat and your map stay as they were.",
+          "See **Open Dungeon, the map maker** in **Your rooms: the GM's start page**."
+        ]
+      },
+      {
+        "title": "Extend a map past its edges (26 October 2026)",
+        "steps": [
+          "GM: open **Scenes** and click the pencil on the scene (**Edit scene and grid**).",
+          "Under **Extend the map**, type how many squares to add in **Left**, **Top**, **Right** or **Bottom**, and press Enter."
+        ],
+        "notes": [
+          "The new area has the scene's **Background** colour. Build on it, put tokens there and fog it like the rest; players see the bigger map straight away.",
+          "Nothing already on the map moves, so tokens, drawings, fog and built squares stay put.",
+          "See **Extend the map past its edges** in **The scene editor: grid and map**."
+        ]
+      },
+      {
         "title": "Voice chat follows the group to other rooms (25 October 2026)",
         "steps": [
           "GM: to move the game to another of your rooms, open **Room settings**, choose the room under **Move the group**, and click **Send everyone**."
@@ -404,7 +428,8 @@ export const GUIDE: GuideSection[] = [
           "Everyone is counted once for each tab or window they have the room open in. If a name shows up twice, that person has the room open twice.",
           "Players see the Tabletop logo where the GM has the house button.",
           "If your browser won't let the page copy, a message pops up showing the invite link so you can copy it yourself.",
-          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\")."
+          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\").",
+          "The castle button (GM only, **Dungeon**) opens Dungeon, the map maker, in its own tab (see \"Open Dungeon, the map maker\")."
         ]
       },
       {
@@ -1527,6 +1552,21 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Dungeon uses this sign-in",
+        "steps": [
+          "Go to dungeon.parhome.ca, or click **Dungeon** on your list of rooms.",
+          "If you're signed in here, Dungeon opens. If you aren't, you come to the start page: sign in as the GM, and Dungeon opens once you have."
+        ],
+        "notes": [
+          "While Dungeon is waiting for you, the **GM sign in** box says \"Sign in as the GM to open Dungeon, the map maker.\"",
+          "Google sign-in works too: after Google, you carry on to Dungeon. Sign in within 10 minutes, or you stay on your list of rooms instead (click **Dungeon** there).",
+          "Dungeon checks your sign-in with Tabletop again after 12 hours. While you're still signed in here, you won't notice.",
+          "Changing the GM password, or taking a Google account off the GM list, signs Dungeon out too.",
+          "Signing out here doesn't close a Dungeon tab that's already open.",
+          "Anyone who isn't the GM can't open Dungeon: they're asked to sign in as the GM."
+        ]
+      },
+      {
         "title": "What the sign-in messages mean",
         "steps": [
           "Read the message that appears under the sign-in buttons.",
@@ -1565,6 +1605,20 @@ export const GUIDE: GuideSection[] = [
           "New rooms start with players allowed to add tokens, move any unlocked token, and draw on the map. To change that, open **Room settings** and untick the boxes under **What players can do**.",
           "New rooms measure in metres: \"Scene 1\" and every new scene start with one square being 1.5 m. To use feet instead, untick **Measure in metres (1.5 m a square)** in **Room settings**.",
           "Until you make your first room, the list says \"No rooms yet. Create one above.\""
+        ]
+      },
+      {
+        "title": "Open Dungeon, the map maker",
+        "steps": [
+          "Click **Dungeon** next to **Sign out**. In a room, click the castle button (**Dungeon**) in the top bar instead.",
+          "Dungeon opens in a tab of its own. Draw your map there; Dungeon saves it in this browser as you go.",
+          "To come back, click **Table** in Dungeon's top bar."
+        ],
+        "notes": [
+          "You don't sign in to Dungeon separately: it uses this sign-in (see \"Dungeon uses this sign-in\").",
+          "With both open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so you keep your place in the room and stay in voice chat.",
+          "If your browser won't switch tabs for a page, the other one loads again in its tab instead. Dungeon opens your map where it was saved.",
+          "To use a Dungeon map in a room, export it from Dungeon as Universal VTT (a .dd2vtt file) and bring it in as you would a Dungeondraft one: **Import Dungeondraft map**, **New scene**, or drop it on the map."
         ]
       },
       {
@@ -2139,6 +2193,20 @@ export const GUIDE: GuideSection[] = [
           "The editor also opens by itself after you make a new scene with **New scene** in the **Scenes** panel. When you drop or paste a map onto the map, the **Scenes** list opens instead.",
           "Changes in the number boxes take effect when you press Enter or click somewhere else.",
           "Undo doesn't cover the grid settings, the **Name** or the map's **Remove** button. Only a map change (**Choose uploaded** or **Upload new**), attaching or removing **Dungeondraft data**, and **Cover all** / **Clear all** can be undone. If you change a grid setting by mistake, set it back by hand."
+        ]
+      },
+      {
+        "title": "Extend the map past its edges",
+        "steps": [
+          "Under **Extend the map**, type how many squares (or hexes) to add on each side in **Left**, **Top**, **Right** and **Bottom**, and press Enter.",
+          "To go back to the map's own size, click **Back to the picture's size** (**Back to the map's size** on a scene without a picture)."
+        ],
+        "notes": [
+          "The extra room has the scene's **Background** colour. Build on it with **Build**, put tokens there, and fog it like the rest of the map; **Cover all** covers it too.",
+          "Nothing already on the map moves when you extend it, so tokens, drawings, fog and built squares stay where they are.",
+          "Up to 200 squares on each side.",
+          "Going back hides anything out there, but doesn't delete it: extend again to see it.",
+          "Undo doesn't cover these boxes: type the old numbers back, or click **Back to the picture's size**."
         ]
       },
       {

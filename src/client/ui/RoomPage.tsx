@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  Castle,
   CircleQuestionMark,
   CornerUpLeft,
   EyeOff,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-preact";
 import { roomUrl } from "../api";
+import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Board } from "../room/board";
@@ -381,6 +383,20 @@ function TopBar() {
           <Monitor size={18} />
           {displays > 0 && <span class="live-dot" />}
         </button>
+      )}
+      {gm && (
+        <a
+          class="icon-btn hide-narrow"
+          href={DUNGEON_URL}
+          target="dungeon"
+          title="Dungeon, the map maker (opens in its own tab)"
+          aria-label="Dungeon"
+          onClick={(e) => {
+            if (openDungeon()) e.preventDefault();
+          }}
+        >
+          <Castle size={18} />
+        </a>
       )}
       <button class="icon-btn hide-narrow" title="Help & shortcuts" aria-label="Help and shortcuts" onClick={() => setHelp(true)}>
         <CircleQuestionMark size={18} />

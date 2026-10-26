@@ -3,6 +3,7 @@ import { Check, ImagePlus, Play, Plus, SquarePen, Trash } from "lucide-preact";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
+import { sceneBounds } from "../../shared/types";
 import { defaultGrid, isMetric, newSceneUnits } from "../../shared/units";
 
 const GRID_TYPES: { id: GridType; label: string }[] = [
@@ -533,6 +534,63 @@ function DungeondraftRow(props: { scene: Scene }) {
   );
 }
 
+/** The most squares (or hexes) a scene can be extended by on one side, in this box. */
+const EXTEND_MAX = 200;
+const SIDES = [
+  ["left", "Left"],
+  ["top", "Top"],
+  ["right", "Right"],
+  ["bottom", "Bottom"],
+] as const;
+
+/**
+ * Room past the map's edges: how many squares the scene reaches beyond its picture on each
+ * side. Only the scene's area grows (Scene.bounds); nothing on it moves.
+ */
+function ExtendRow(props: { scene: Scene }) {
+  const room = useRoom();
+  const s = props.scene;
+  const g = s.grid;
+  const unit = cellSpacing({ ...g, size: 1 });
+  const stepX = g.size * unit.x;
+  const stepY = g.size * unit.y;
+  const area = sceneBounds(s);
+  const now = {
+    left: Math.round(-area.x0 / stepX),
+    top: Math.round(-area.y0 / stepY),
+    right: Math.round((area.x1 - s.width) / stepX),
+    bottom: Math.round((area.y1 - s.height) / stepY),
+  };
+  const set = (side: (typeof SIDES)[number][0], n: number) => {
+    const v = { ...now, [side]: Math.max(0, Math.min(EXTEND_MAX, Math.round(n))) };
+    room.updateScene(s.id, { bounds: [-v.left * stepX, -v.top * stepY, s.width + v.right * stepX, s.height + v.bottom * stepY] });
+  };
+  const cells = isHex(g) ? "hexes" : "squares";
+  return (
+    <>
+      <p class="small muted">
+        Add room past the {s.mapAssetId ? "picture's" : "map's"} edges, in {cells}, to build on or explore. Nothing already on the map moves.
+      </p>
+      <div class="row extend-row">
+        {SIDES.map(([side, label]) => (
+          <label class="field" key={side}>
+            <span>{label}</span>
+            <CommitInput type="number" value={String(now[side])} onCommit={(v) => set(side, num(v, now[side]))} />
+          </label>
+        ))}
+      </div>
+      {s.bounds && (
+        <>
+          <button class="btn btn-sm" onClick={() => room.updateScene(s.id, { bounds: null })}>
+            {s.mapAssetId ? "Back to the picture's size" : "Back to the map's size"}
+          </button>
+          <p class="small muted">Anything built or placed out there stays, but can't be seen until you extend the map again.</p>
+        </>
+      )}
+    </>
+  );
+}
+
 function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const room = useRoom();
   const s = props.scene;
@@ -627,6 +685,9 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <span>Background</span>
         <input type="color" value={s.background} onChange={(e) => update({ background: e.currentTarget.value })} />
       </label>
+
+      <h3>Extend the map</h3>
+      <ExtendRow scene={s} />
 
       <h3>Season</h3>
       <SeasonPicker scene={s} />

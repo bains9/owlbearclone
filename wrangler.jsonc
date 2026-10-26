@@ -38,5 +38,8 @@
   // Uploaded map and token images. Keys are rooms/<roomId>/<assetId>.
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "tabletop-files" }],
 
+  // Where a signed-in GM is sent back to after Dungeon's sign-in hop (src/worker/dungeon.ts).
+  "vars": { "DUNGEON_URL": "https://dungeon.parhome.ca" },
+
   "observability": { "enabled": true }
 }

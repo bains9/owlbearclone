@@ -642,12 +642,12 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("has the NPCs eighth in What's new, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
+  it("has the NPCs tenth in What's new, after the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[6].title).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news.parts[7].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news.parts[8].title).toBe("NPC tokens by race and class (4 October 2026, later)");
-    const entry = text(news.parts[8].title);
+    expect(news.parts[8].title).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news.parts[9].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news.parts[10].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    const entry = text(news.parts[10].title);
     expect(entry).toContain("**NPCs** tab");
     expect(entry).toContain("campaign handbook");
     expect(entry).toContain("See **NPC tokens by race and class**.");

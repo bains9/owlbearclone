@@ -1,19 +1,22 @@
 // The Worker: every request comes here first. It sends plain-HTTP visitors to
 // HTTPS, serves the JSON API under /api/ (GM sign-in, rooms, the WebSocket entry
 // point, image upload and download backed by R2), and hands everything else to the
-// static client (staticFiles.ts).
+// static client (staticFiles.ts). Dungeon's Worker signs the GM in through it too
+// (dungeon.ts).
 
 import { BUILD_ID } from "../shared/build";
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
+import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
 import { staticFile } from "./staticFiles";
 import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { Directory } from "./directory";
+export { DungeonGate } from "./dungeonGate";
 export { Room } from "./room";
 export { VoiceHub } from "./voiceHub";
 
@@ -158,6 +161,11 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     if (!(await passwordMatches(password, env))) return fail(401, "Wrong password.");
     await directory.loginSucceeded(key);
     return json({ gm: true }, 200, { "Set-Cookie": await sessionCookie(env, secure) });
+  }
+
+  // Dungeon's sign-in passes through here, and comes back with a one-time code (dungeon.ts).
+  if (pathname === "/api/dungeon/hop" && method === "GET") {
+    return dungeonHop(request, env, url);
   }
 
   if (pathname === "/api/logout" && method === "POST") {

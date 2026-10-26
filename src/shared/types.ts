@@ -64,6 +64,33 @@ export interface Scene {
   mapRect?: [number, number, number, number];
   /** Dungeon's texture for the walls of the scene's built map (a wall texture's id). Missing: Tabletop's plain dark walls. */
   wallTexture?: string;
+  /**
+   * The scene's area in world units, [left, top, right, bottom], when the GM has extended it
+   * past its picture. It always holds the picture, [0, 0, width, height]; left and top may be
+   * below 0, so extending never moves anything already on the scene. Missing: the picture's
+   * own rectangle.
+   */
+  bounds?: [number, number, number, number];
+}
+
+/** A rectangle in world units, from (x0, y0) to (x1, y1). */
+export interface SceneArea {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** A scene's area: its bounds when it's been extended, else its picture's rectangle. */
+export function sceneBounds(scene: Pick<Scene, "width" | "height" | "bounds">): SceneArea {
+  const b = scene.bounds;
+  return b ? { x0: b[0], y0: b[1], x1: b[2], y1: b[3] } : { x0: 0, y0: 0, x1: scene.width, y1: scene.height };
+}
+
+/** The middle of a scene's area. */
+export function sceneMiddle(scene: Pick<Scene, "width" | "height" | "bounds">): { x: number; y: number } {
+  const a = sceneBounds(scene);
+  return { x: (a.x0 + a.x1) / 2, y: (a.y0 + a.y1) / 2 };
 }
 
 /** A Dungeondraft map's exact data for Seasons, compiled from its .dungeondraft_map (no picture in it). */

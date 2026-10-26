@@ -291,6 +291,16 @@ async function main() {
   }
   check(!anyAccepted, "no other spelling of the signature is accepted");
 
+  // Dungeon's sign-in hop (src/worker/dungeon.ts): a code for the GM, the sign-in page for anyone else.
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2Fguide`, { redirect: "manual" });
+  check(r.status === 303 && r.headers.get("location") === "/?then=dungeon&to=%2Fguide", "Dungeon's hop sends a stranger to sign in");
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2F%2Fevil.example`, { headers: { Cookie: cookie }, redirect: "manual" });
+  const hopTo = new URL(r.headers.get("location") ?? "", "http://x.invalid");
+  check(
+    r.status === 303 && hopTo.pathname === "/auth/table" && /^h1\.\d+\.\w{16}\.p\.[\w-]+$/.test(hopTo.searchParams.get("code") ?? "") && !hopTo.searchParams.has("to"),
+    "Dungeon's hop gives the GM a code, and only goes back to a path on Dungeon",
+  );
+
   r = await fetch(`${BASE}/api/rooms`, {
     method: "POST",
     headers: { Cookie: cookie, Origin: "https://evil.example" },
@@ -774,6 +784,21 @@ async function main() {
   tab2.send({ t: "items", seq: 15, scene: { id: scene2.id, mapAssetId: picture, mapData: null, mapRect: null } });
   const detached = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
   check(Boolean(detached) && !("mapData" in detached.scene) && !("mapRect" in detached.scene), "null removes the Dungeondraft data, for players too");
+
+  // Extending the map: the scene's area grows past its picture (left and up below 0), players
+  // see it, the picture always stays inside, the reach is capped, and null goes back.
+  const { width: sw, height: sh } = detached.scene;
+  alice.clear();
+  tab2.send({ t: "scene.upsert", seq: 16, scene: { id: scene2.id, bounds: [-200, -100, sw + 300, sh + 50] } });
+  const extended = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 16);
+  check(extended?.scene.bounds?.join() === [-200, -100, sw + 300, sh + 50].join() && extended.scene.width === sw, "the GM extends a map past its picture, and players see the bigger area");
+  tab2.send({ t: "scene.upsert", seq: 17, scene: { id: scene2.id, bounds: [-1e9, 5, 1e9, 1e9] } });
+  const cappedArea = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 17);
+  check(cappedArea?.scene.bounds?.join() === [-40000, 0, sw + 40000, sh + 40000].join(), "an extension keeps the picture inside and reaches no further than the limit");
+  alice.clear();
+  tab2.send({ t: "scene.upsert", seq: 18, scene: { id: scene2.id, bounds: null } });
+  const unextended = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 18);
+  check(Boolean(unextended) && !("bounds" in unextended.scene), "Back to the picture's size: the scene's area is the picture again, for players too");
   tab2.ws.close();
 
   // Table displays: only the GM can get the link; a display sees what players see and changes nothing.

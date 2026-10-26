@@ -43,6 +43,7 @@ export class Directory extends DurableObject<Env> {
       )`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value TEXT NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS trusted_logins (ip TEXT PRIMARY KEY, last_ok INTEGER NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS spent_hops (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)`);
     });
   }
 
@@ -52,6 +53,17 @@ export class Directory extends DurableObject<Env> {
     const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
     this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('session', ?)`, value);
     return value;
+  }
+
+  /**
+   * Spends one of Dungeon's one-time sign-in codes (dungeon.ts): false if it was spent
+   * already. A code lasts a minute, so its row only has to outlive that.
+   */
+  spendHop(nonce: string, exp: number): boolean {
+    this.sql.exec(`DELETE FROM spent_hops WHERE exp < ?`, Date.now());
+    if (this.sql.exec(`SELECT 1 FROM spent_hops WHERE nonce = ?`, nonce).toArray().length) return false;
+    this.sql.exec(`INSERT INTO spent_hops (nonce, exp) VALUES (?, ?)`, nonce, exp);
+    return true;
   }
 
   listRooms(): RoomSummary[] {

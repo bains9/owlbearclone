@@ -27,7 +27,7 @@ import type {
   SceneMapData,
   TokenItem,
 } from "../../shared/types";
-import { compassesOn, isCompass } from "../../shared/types";
+import { compassesOn, isCompass, sceneBounds, sceneMiddle } from "../../shared/types";
 import { LIMITS } from "../../shared/sanitize";
 import { switchUnits } from "../../shared/units";
 import type { GridUnits } from "../../shared/units";
@@ -1226,7 +1226,7 @@ export class RoomClient {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !this.isGm || !this.compassesFit(scene.id, 1)) return null;
-    const raw = this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
+    const raw = this.board?.viewCenter() ?? sceneMiddle(scene);
     const pos = scene.grid.snap ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
     const compass: TokenItem = {
       id: randomId(12),
@@ -1271,7 +1271,7 @@ export class RoomClient {
       return null;
     }
     const size = opts.size ?? 1;
-    const raw = at ?? this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
+    const raw = at ?? this.board?.viewCenter() ?? sceneMiddle(scene);
     let pos = scene.grid.snap ? snapTokenCenter(raw, size, scene.grid) : raw;
     if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
@@ -1317,6 +1317,7 @@ export class RoomClient {
           ? Math.hypot(t.x - q.x, t.y - q.y) >= apart(t)
           : Math.max(Math.abs(t.x - q.x), Math.abs(t.y - q.y)) >= apart(t),
       );
+    const area = sceneBounds(scene);
     for (let ring = 0; ring <= 8; ring++) {
       const candidates: [number, number][] = [];
       for (let dy = -ring; dy <= ring; dy++) {
@@ -1330,7 +1331,7 @@ export class RoomClient {
       for (const [dx, dy] of candidates) {
         const raw = { x: p.x + dx * step.x, y: p.y + dy * step.y };
         const q = hex ? snapTokenCenter(raw, 1, scene.grid) : raw;
-        if (q.x < 0 || q.y < 0 || q.x > scene.width || q.y > scene.height) continue;
+        if (q.x < area.x0 || q.y < area.y0 || q.x > area.x1 || q.y > area.y1) continue;
         if (free(q)) return q;
       }
     }
