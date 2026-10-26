@@ -129,6 +129,8 @@ export interface AttachReport {
   shifted?: [number, number];
   /** Attach on hold: it didn't line up, or the level was unclear. */
   hold: null | "fit" | "level";
+  /** The data came with the picture, its place known exactly (a map from Dungeon): never held for the fit. */
+  placed?: true;
   /** Picture pixels a square, from the data (the scene's grid can be set from it). */
   gridPxPerSquare: number;
   snowShare: number;
@@ -358,6 +360,12 @@ export interface ExtractOptions {
   shift?: [number, number];
   /** On "no" with a whole-square best (16 objects or more), try that shift and keep it when it scores "yes", presence included. Default true. */
   autoShift?: boolean;
+  /**
+   * Where the map lies in the picture is known exactly, because both came in one file (a map from
+   * Dungeon): no automatic shift, and the attach is never held for the fit (the fit is still
+   * measured and reported).
+   */
+  placed?: boolean;
   /** The scene's grid in `pic`'s pixels, for masking a baked grid (measure.ts); null or absent: none. */
   grid?: { pxPerSquare: number; offsetX: number; offsetY: number } | null;
   /** The picture's full size, when `pic` is scaled down (for gridPxPerSquare). */
@@ -418,7 +426,7 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
   // best of many, so on a wrong map its fit alone often says "yes". (A wrong map of nothing but
   // things never tested, such as tufts on grass, can still pass: a known limit.)
   let meas: ReturnType<typeof measureAt> | null = null;
-  if (!opts.shift && opts.autoShift !== false && fit.verdict === "no" && fit.shiftSq && fit.objects >= EXTRACT.shiftObjects) {
+  if (!opts.shift && !opts.placed && opts.autoShift !== false && fit.verdict === "no" && fit.shiftSq && fit.objects >= EXTRACT.shiftObjects) {
     const r2 = moved(rect.rect, fit.shiftSq);
     const f2 = objectFit(centres, { rect: r2 }, pic, radii);
     if (f2.verdict === "yes") {
@@ -625,7 +633,8 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     levels: opts.levels ?? rankLevels(map, pic, rect),
     level: L.key,
     fit,
-    hold: opts.holdLevel ? "level" : fit.verdict === "no" ? "fit" : null,
+    hold: opts.holdLevel ? "level" : fit.verdict === "no" && !opts.placed ? "fit" : null,
+    ...(opts.placed ? { placed: true as const } : {}),
     gridPxPerSquare: round3(fullW / sqW),
     snowShare: sc.meta.snowShare,
     drawn: snowy ? "winter" : "green",

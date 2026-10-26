@@ -33,8 +33,13 @@ export interface MapFile {
   offsetY?: number;
   /** Square unless the file says otherwise. */
   gridType?: GridType;
-  /** The Dungeondraft project file this picture was exported from, when it came in the same batch. */
+  /**
+   * The Dungeondraft project file this picture was exported from, when it came in the same batch;
+   * or, for a map from Dungeon, the map data its export carries (ddFrom "dungeon").
+   */
   dd?: File;
+  /** "dungeon": `dd` is the map data inside a Dungeon export (dungeon.parhome.ca), not a second file. */
+  ddFrom?: "dungeon";
   /** For a Universal VTT file: where its picture lies in the map and which level it shows (for `dd`). */
   vtt?: VttMeta;
   /** What one cell is, when the file says (an Owlbear Rodeo scale such as 5 ft). */
@@ -51,6 +56,9 @@ export const VTT_META_POINTS = 20_000;
 const VTT_EXT = /\.(dd2vtt|df2vtt|uvtt|json)$/i;
 const DD_EXT = /\.dungeondraft_map$/i;
 const OWLBEAR_EXT = /\.(ob2|owlbear)$/i;
+
+/** The type of the File holding a Dungeon export's map data (MapFile.dd), so the attach worker knows it without sniffing. */
+export const DUNGEON_MIME = "application/x-dungeon-map+json";
 
 export function isVttFile(f: File): boolean {
   return VTT_EXT.test(f.name);
@@ -501,7 +509,16 @@ export function parseUniversalVtt(text: string, fileName: string): MapFile {
   const name = nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
   const ext = type.split("/")[1];
   const image = new File([bytes as BlobPart], `${name}.${ext === "jpeg" ? "jpg" : ext}`, { type });
+  // A map from Dungeon carries its whole map under "dungeon": it goes on as the picture's project
+  // file, read by the attach worker (dd/fromDungeon.ts), so the scene gets exact seasons with no
+  // second file to pair. The worker checks it; here it's only recognised.
+  const dungeon = data.dungeon as { format?: unknown } | undefined;
+  const fromDungeon = typeof dungeon === "object" && dungeon !== null && !Array.isArray(dungeon) && dungeon.format === "dungeon-map";
   return {
+    ...(fromDungeon
+      ? // Named as the export, so anything said about it names the file the GM brought in.
+        { dd: new File([JSON.stringify(dungeon)], fileName, { type: DUNGEON_MIME }), ddFrom: "dungeon" as const }
+      : {}),
     name,
     image,
     cols,
@@ -543,8 +560,9 @@ export async function readMapFiles(files: File[]): Promise<{ maps: MapFile[]; er
         if (lone.includes(f)) errors.push(loneProjectFileNote(f.name));
       } else if (isVttFile(f)) {
         const map = parseUniversalVtt(await readText(f, texts), f.name);
+        // A project file paired from the batch wins over data the export carries.
         const dd = ddOf.get(f);
-        maps.push(dd ? { ...map, dd } : map);
+        maps.push(dd ? { ...map, dd, ddFrom: undefined } : map);
       } else if (/\.owlbear$/i.test(f.name)) {
         // Owlbear Rodeo 1's own format. Owlbear's converter turns it into a 2.0 backup, which comes in here.
         errors.push(

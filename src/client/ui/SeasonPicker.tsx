@@ -191,7 +191,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
   const md = s.mapData;
   const sidecar = useSidecar(room.roomId, md?.assetId);
   const meta = sidecar?.meta;
-  const note = dataNote(props.state, { hasMap: !!s.mapAssetId, olderExtractor: meta ? olderExtractor(meta) : false });
+  const note = dataNote(props.state, { hasMap: !!s.mapAssetId, olderExtractor: meta ? olderExtractor(meta) : false, fromDungeon: md?.from === "dungeon" });
   const open = (mode: "attach" | "check") => room.store.set({ attachDD: { sceneId: s.id, mode } });
   const act = (a: NoteAction) => {
     switch (a) {
@@ -205,7 +205,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
         if (!md) return;
         touchedSidecars.add(md.assetId);
         room.setMapData(s.id, null);
-        room.toast(DD_UI.removed);
+        room.toast(md.from === "dungeon" ? DD_UI.removedDungeon : DD_UI.removed);
     }
   };
   const setData = (next: SceneMapData) => room.setMapData(s.id, next);
