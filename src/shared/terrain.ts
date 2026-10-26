@@ -102,6 +102,17 @@ export function naturalStampSize(id: StampId): number {
   return info ? snapSize(Math.max(info.w, info.h)) : 1;
 }
 
+/**
+ * Which of Dungeon's three layers an object is drawn in: 0 on the floor (rugs, flowers, a
+ * trapdoor), 1 standing on it, 2 over everything (treetops, a chandelier). Within a layer the
+ * one placed last is on top. Tabletop's sixteen are all 1, so maps built before Dungeon's
+ * objects draw just as they did.
+ */
+export function stampLayer(id: StampId): 0 | 1 | 2 {
+  const layer = isDungeonStamp(id) ? DUNGEON_STAMP.get(id)?.layer : undefined;
+  return layer === "floor" ? 0 : layer === "canopy" ? 2 : 1;
+}
+
 export const STAMP_NAMES: Record<BaseStampId, string> = {
   table: "Table",
   chair: "Chair",

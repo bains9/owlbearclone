@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanStamps, isDungeonStamp, isStampId, makeStamp, naturalStampSize, STAMP_IDS, stampName, type StampId } from "../src/shared/terrain";
+import { cleanStamps, isDungeonStamp, isStampId, makeStamp, naturalStampSize, STAMP_IDS, stampLayer, stampName, type StampId } from "../src/shared/terrain";
 import { DUNGEON_PROPS } from "../src/shared/dungeonCatalog";
 import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
 import { RECENT_MAX, withRecent } from "../src/client/ui/recentObjects";
@@ -47,6 +47,15 @@ describe("the object picker", () => {
     for (const g of OBJECT_GROUPS) expect(g.ids.length, g.name).toBeGreaterThan(0);
     expect(groupOf("d:oak-tree")).toBe("Nature");
     expect(groupOf("campfire")).toBe("Tabletop");
+  });
+
+  it("are drawn in Dungeon's layers, and the sixteen all stand on the floor as before", () => {
+    expect(stampLayer("d:rug")).toBe(0);
+    expect(stampLayer("d:trapdoor")).toBe(0);
+    expect(stampLayer("d:dining-table")).toBe(1);
+    expect(stampLayer("d:oak-tree")).toBe(2);
+    expect(stampLayer("d:chandelier")).toBe(2);
+    for (const id of STAMP_IDS) expect(stampLayer(id), id).toBe(1);
   });
 
   it("finds objects by every word typed, in name or group", () => {

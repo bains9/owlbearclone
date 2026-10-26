@@ -27,6 +27,7 @@ import {
   isWalledFloor,
   sceneCells,
   stampBlock,
+  stampLayer,
   terrainId,
 } from "../../shared/terrain";
 import type { FloorId, Stamp, StampId } from "../../shared/terrain";
@@ -297,7 +298,7 @@ export class BuildModel {
         });
       }
     }
-    return out.reverse();
+    return inDrawingOrder(out).reverse();
   }
 
   /** The object drawn on top under a point (see stampsAtPoint), if any. */
@@ -323,7 +324,7 @@ export class BuildModel {
         });
       }
     }
-    return out;
+    return inDrawingOrder(out);
   }
 
   /** Objects picked out earlier, as they are now (see resolveRefs). */
@@ -375,7 +376,12 @@ function stampsCovering(chunks: Map<number, { cx: number; cy: number; stamps: St
       });
     }
   }
-  return out;
+  return inDrawingOrder(out);
+}
+
+/** Objects found in chunk order, put in the order they're drawn: by layer (see stampLayer), then as found. */
+function inDrawingOrder(hits: StampHit[]): StampHit[] {
+  return hits.sort((a, b) => stampLayer(a.stamp[0]) - stampLayer(b.stamp[0]));
 }
 
 // ---------------------------------------------------------------- edits
@@ -1966,6 +1972,8 @@ export class BuildRenderer {
       return false;
     };
     const hidden = this.model.hiddenSlots;
+    // Floor objects first, then those standing on it, then treetops (see stampLayer).
+    const layers: Array<Array<[StampId, number, number, number, number, number, number]>> = [[], [], []];
     // Objects standing up to STAMP_DRAW_AFTER cells before the area, or STAMP_DRAW_BEFORE
     // after it, can reach into it (3 squares, turned 45 degrees).
     for (let cy = chunkOf(r0 - STAMP_DRAW_AFTER); cy <= chunkOf(r1 + STAMP_DRAW_BEFORE); cy++) {
@@ -1990,8 +1998,13 @@ export class BuildRenderer {
             if (Math.floor(x - h) > c1 || Math.floor(y - h) > r1 || Math.ceil(x + h) - 1 < c0 || Math.ceil(y + h) - 1 < r0) continue;
           }
           if (draft?.size && erased(ax, ay, n)) continue;
-          paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
+          layers[stampLayer(id)].push([id, ax, ay, turns, size, fine, n]);
         }
+      }
+    }
+    for (const layer of layers) {
+      for (const [id, ax, ay, turns, size, fine, n] of layer) {
+        paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
       }
     }
   }

@@ -38,24 +38,34 @@ export function StampPicker(props: { value: StampId; placing: boolean; recent: S
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState(() => groupOf(props.value));
-  /** Pixels the popover moves left so its right edge stays on screen (the picker sits far right). */
-  const [shift, setShift] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const found = useMemo(() => searchObjects(query), [query]);
 
+  // The popover is placed on screen from the button rather than hung under it, so the Build bar
+  // (which scrolls sideways on phones, and so clips what hangs out of it) can't cut it off; and
+  // moved left when the button is near the right edge. Set before it's first painted.
   useLayoutEffect(() => {
-    if (!open || !root.current || !pop.current) return;
-    const left = root.current.getBoundingClientRect().left;
-    const width = pop.current.getBoundingClientRect().width;
-    setShift(Math.max(0, left + width - (window.innerWidth - 8)));
+    if (!open) return;
+    const place = () => {
+      const p = pop.current;
+      if (!root.current || !p) return;
+      const at = root.current.getBoundingClientRect();
+      p.style.top = `${at.bottom + 8}px`;
+      p.style.left = `${Math.max(16, Math.min(at.left, window.innerWidth - p.getBoundingClientRect().width - 16))}px`;
+    };
+    place();
+    // A turned phone, a resized window, or a keyboard that resizes the page.
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     setGroup(groupOf(props.value));
-    search.current?.focus();
+    // Not on a touch screen, where the keyboard would come up over the groups.
+    if (!window.matchMedia("(pointer: coarse)").matches) search.current?.focus();
     const away = (e: PointerEvent) => {
       if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
     };
@@ -102,7 +112,7 @@ export function StampPicker(props: { value: StampId; placing: boolean; recent: S
         </div>
       )}
       {open && (
-        <div class="stamp-popover" role="dialog" aria-label="Objects" ref={pop} style={{ left: `${-shift}px` }}>
+        <div class="stamp-popover" role="dialog" aria-label="Objects" ref={pop}>
           <label class="stamp-search">
             <Search size={14} />
             <input

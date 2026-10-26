@@ -53,6 +53,21 @@ describe("picking objects with a click", () => {
     expect(at(far, 16.1, 14.5)).toEqual(["0,0:0"]);
     expect(at(far, 14.5, 16.1)).toEqual(["0,0:0"]);
   });
+
+  it("goes by Dungeon's layers: a rug put down last is still under the table, and a treetop over both", () => {
+    // Placed tree, table, rug, in that order; the table and rug across into the next chunk.
+    const m = model(
+      chunk(0, 0, { stamps: [["d:oak-tree", 13, 2, 0, 3], ["table", 15, 3, 0, 2], ["d:rug", 15, 3, 0, 2]] }),
+      chunk(1, 0, { stamps: [["d:rug-round", 0, 3, 0, 1]] }),
+    );
+    expect(at(m, 15.5, 3.5)).toEqual(["0,0:0", "0,0:1", "0,0:2"]);
+    // Past the tree, the table is over both rugs.
+    expect(at(m, 16.5, 3.5)).toEqual(["0,0:1", "1,0:0", "0,0:2"]);
+    // What erasing takes first goes the same way.
+    expect(m.stampAt(15, 3)?.stamp[0]).toBe("d:oak-tree");
+    expect(m.stampAt(16, 3)?.stamp[0]).toBe("table");
+    expect(m.stampsInBox(0, 0, 20, 20).map((h) => h.stamp[0])).toEqual(["d:rug", "d:rug-round", "table", "d:oak-tree"]);
+  });
 });
 
 describe("picking objects with a box", () => {

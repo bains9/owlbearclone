@@ -25,6 +25,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
+          "Rugs, flowers, trapdoors and the like always lie under what stands on them, and treetops, tents and chandeliers are over everything, whatever order you put them down in.",
           "The last few objects you picked stay in the bar beside it, one click away.",
           "Everyone needs the new version to see them: a page left open from before today is asked to reload.",
           "See **Place objects** in **Building a map: floors, walls, doors and objects**."
@@ -1991,6 +1992,7 @@ export const GUIDE: GuideSection[] = [
           "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
           "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them.",
           "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
+          "Objects are drawn in three layers, as in Dungeon: what lies on the floor (rugs, flowers, a trapdoor, a magic circle) is always under what stands on it, and treetops, tents, market stalls and chandeliers are over both. Within a layer, the one put down last is on top; clicking where they overlap picks the top one first. Tabletop's own sixteen all stand on the floor, so maps built before stay as they were.",
           "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
           "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
         ]
