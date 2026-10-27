@@ -37,9 +37,17 @@ describe("Dungeon objects' season roles", () => {
     expect(dungeonRole("d:flowers-red")).toBe(OR.FLOWERS);
     expect(dungeonRole("d:campfire")).toBe(OR.FIRE);
     expect(dungeonRole("d:snowdrift")).toBe(OR.SNOW);
-    // Nothing man-made is taken for a plant or a rock.
+    // Nothing man-made is taken for a plant or a rock. What grows outside Nature: the farm's
+    // fields (crops) and Light's glowing mushrooms.
     for (const p of DUNGEON_PROPS) {
-      if (p.category !== "Nature") expect([OR.STRUCTURE, OR.FIRE, OR.DEADWOOD], p.id).toContain(dungeonRole(`d:${p.id}` as DungeonStampId));
+      const role = dungeonRole(`d:${p.id}` as DungeonStampId);
+      if (p.category === "Farm & village" && p.group === "Fields") expect(role, p.id).toBe(OR.CROP);
+      else if (p.id.startsWith("glowing-mushrooms")) expect(role, p.id).toBe(OR.MUSHROOM);
+      else if (p.category !== "Nature") expect([OR.STRUCTURE, OR.FIRE, OR.DEADWOOD], p.id).toContain(role);
+    }
+    // And everything in Nature is taken for what it is, so the seasons change it.
+    for (const p of DUNGEON_PROPS.filter((x) => x.category === "Nature")) {
+      expect([OR.STRUCTURE, OR.OPAQUE], p.id).not.toContain(dungeonRole(`d:${p.id}` as DungeonStampId));
     }
   });
 
@@ -54,8 +62,10 @@ describe("Dungeon objects' season roles", () => {
   it("give everything outdoors snow in winter, and only plants the other seasons", () => {
     for (const p of DUNGEON_PROPS) {
       const id = `d:${p.id}` as DungeonStampId;
-      expect(dungeonSeasonal(id, "winter"), p.id).toBe(p.id !== "snowdrift");
-      expect(hasSeasonalArt(id, "winter"), p.id).toBe(p.id !== "snowdrift");
+      // Snow itself is the one thing winter doesn't add snow to.
+      const snow = dungeonRole(id) === OR.SNOW;
+      expect(dungeonSeasonal(id, "winter"), p.id).toBe(!snow);
+      expect(hasSeasonalArt(id, "winter"), p.id).toBe(!snow);
     }
     expect(dungeonSeasonal("d:oak-tree", "autumn")).toBe(true);
     expect(dungeonSeasonal("d:pine", "autumn")).toBe(false);

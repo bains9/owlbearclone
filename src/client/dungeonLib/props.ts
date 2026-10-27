@@ -1,10 +1,11 @@
-// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon 4445927. Change it there and run the script again.
+// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
 // Built-in props, drawn in code. Each draws itself centred on (0, 0) in cell units inside a
 // w-by-h box; sprites are cached at SPRITE_PX pixels per cell.
 
 import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
 import { MORE_PROPS } from "./props-more";
+import { LIBRARY_PROPS } from "./library";
 
 export type { PropDef } from "./propkit";
 
@@ -462,8 +463,66 @@ const BASE_PROPS: PropDef[] = [
   },
 ];
 
-/** Every built-in prop: the first set, then the larger library added on 26 October 2026. */
-export const PROPS: PropDef[] = [...BASE_PROPS, ...MORE_PROPS];
+/** The group each of the first 135 objects folds under in the pickers. */
+const FIRST_GROUPS: Record<string, string> = {
+  ...Object.fromEntries(["table","round-table","small-table","dining-table","long-table","chess-table"].map((id) => [id, "Tables"])),
+  ...Object.fromEntries(["chair","bench","stool","armchair","throne","cushions"].map((id) => [id, "Seating"])),
+  ...Object.fromEntries(["bed","double-bed","straw-bed"].map((id) => [id, "Beds"])),
+  ...Object.fromEntries(["bookshelf","wardrobe","dresser","scroll-rack"].map((id) => [id, "Storage"])),
+  ...Object.fromEntries(["rug","rug-blue","rug-round","fur-rug"].map((id) => [id, "Rugs"])),
+  ...Object.fromEntries(["bathtub","washbasin"].map((id) => [id, "Bath and wash"])),
+  ...Object.fromEntries(["desk","lectern"].map((id) => [id, "Desks and lecterns"])),
+  ...Object.fromEntries(["folding-screen"].map((id) => [id, "Screens and decor"])),
+  ...Object.fromEntries(["barrel","barrel-lying","barrels"].map((id) => [id, "Barrels"])),
+  ...Object.fromEntries(["crate","crate-small","crates"].map((id) => [id, "Crates"])),
+  ...Object.fromEntries(["chest","chest-open","strongbox"].map((id) => [id, "Chests and strongboxes"])),
+  ...Object.fromEntries(["sack","sacks","basket","bucket"].map((id) => [id, "Sacks, baskets and buckets"])),
+  ...Object.fromEntries(["urn","pots"].map((id) => [id, "Pots, jars and urns"])),
+  ...Object.fromEntries(["treasure"].map((id) => [id, "Treasure"])),
+  ...Object.fromEntries(["tree","oak-tree","birch-tree","willow-tree"].map((id) => [id, "Leafy trees"])),
+  ...Object.fromEntries(["pine","fir-tree"].map((id) => [id, "Evergreens"])),
+  ...Object.fromEntries(["dead-tree","stump","log","fallen-branch"].map((id) => [id, "Bare and fallen wood"])),
+  ...Object.fromEntries(["bush","flower-bush","hedge","fern"].map((id) => [id, "Bushes and hedges"])),
+  ...Object.fromEntries(["grass-tuft","flowers-red","flowers-yellow","flowers-purple"].map((id) => [id, "Flowers and grass"])),
+  ...Object.fromEntries(["rock","boulder","rocks","rubble"].map((id) => [id, "Rocks"])),
+  ...Object.fromEntries(["reeds","lily-pads"].map((id) => [id, "Water plants"])),
+  ...Object.fromEntries(["mushrooms"].map((id) => [id, "Mushrooms"])),
+  ...Object.fromEntries(["snowdrift"].map((id) => [id, "Snow and ice"])),
+  ...Object.fromEntries(["pillar","statue","pillar-square","pillar-broken","obelisk","idol"].map((id) => [id, "Pillars and statues"])),
+  ...Object.fromEntries(["coffin","sarcophagus","bones","skulls"].map((id) => [id, "Tombs and bones"])),
+  ...Object.fromEntries(["stairs","stairs-spiral","trapdoor","pit","drain"].map((id) => [id, "Stairs and ways down"])),
+  ...Object.fromEntries(["cage","chains"].map((id) => [id, "Prison and torture"])),
+  ...Object.fromEntries(["lever"].map((id) => [id, "Levers and mechanisms"])),
+  ...Object.fromEntries(["spider-web"].map((id) => [id, "Lairs"])),
+  ...Object.fromEntries(["debris"].map((id) => [id, "Stains and floor"])),
+  ...Object.fromEntries(["altar","cauldron","magic-circle","arcane-portal"].map((id) => [id, "Magic"])),
+  ...Object.fromEntries(["well","fountain"].map((id) => [id, "Wells and fountains"])),
+  ...Object.fromEntries(["anvil","forge","weapon-rack","armor-stand"].map((id) => [id, "Arms and the forge"])),
+  ...Object.fromEntries(["torch","standing-torch"].map((id) => [id, "Torches"])),
+  ...Object.fromEntries(["brazier","campfire","bonfire","fireplace"].map((id) => [id, "Fires"])),
+  ...Object.fromEntries(["candles","candelabra","chandelier"].map((id) => [id, "Candles"])),
+  ...Object.fromEntries(["lantern","street-lamp"].map((id) => [id, "Sconces and lamps"])),
+  ...Object.fromEntries(["magic-orb","glowing-crystals"].map((id) => [id, "Magic light"])),
+  ...Object.fromEntries(["bar-counter","keg","tankards","wine-rack"].map((id) => [id, "The bar"])),
+  ...Object.fromEntries(["oven","kitchen-counter","cookware","spit-roast"].map((id) => [id, "The kitchen"])),
+  ...Object.fromEntries(["food-platter","cheese-wheel"].map((id) => [id, "Food"])),
+  ...Object.fromEntries(["tent","bedroll","log-pile","haystack","scarecrow"].map((id) => [id, "Camp"])),
+  ...Object.fromEntries(["wagon","cart"].map((id) => [id, "Wagons and carts"])),
+  ...Object.fromEntries(["fence"].map((id) => [id, "Fences and gates"])),
+  ...Object.fromEntries(["signpost"].map((id) => [id, "Signs and banners"])),
+  ...Object.fromEntries(["market-stall"].map((id) => [id, "Market"])),
+  ...Object.fromEntries(["archery-target"].map((id) => [id, "Games and training"])),
+  ...Object.fromEntries(["rowboat"].map((id) => [id, "Boats and bridges"])),
+};
+
+/**
+ * Every built-in prop: the first set, the larger library of 26 October 2026, then the big
+ * library of 27 October (designs in variants, one file per category).
+ */
+export const PROPS: PropDef[] = [
+  ...[...BASE_PROPS, ...MORE_PROPS].map((p) => ({ ...p, group: p.group ?? FIRST_GROUPS[p.id] ?? "More" })),
+  ...LIBRARY_PROPS,
+];
 
 const byId = new Map(PROPS.map((p) => [p.id, p]));
 
@@ -483,56 +542,69 @@ export interface SpriteRef {
   sh: number;
 }
 
-const ATLAS_W = 2048;
+const PAGE = 2048;
 const PAD = 2;
-let atlas: Map<string, SpriteRef> | null = null;
 
-/**
- * All built-in props drawn once into one large sheet. Browsers keep a big canvas on the GPU,
- * but upload a small one again every time it's drawn: 50 props from separate small canvases
- * took about 350 ms a frame, from one sheet about 8 ms.
- */
-function buildAtlas(): Map<string, SpriteRef> {
-  const size = (d: PropDef) => [Math.ceil(d.w * SPRITE_PX), Math.ceil(d.h * SPRITE_PX)];
-  const order = PROPS.slice().sort((a, b) => size(b)[1] - size(a)[1]);
-  const places = new Map<string, [number, number]>();
-  let x = 0;
-  let y = 0;
-  let rowH = 0;
-  for (const d of order) {
-    const [w, h] = size(d);
-    if (x + w > ATLAS_W) {
-      x = 0;
-      y += rowH + PAD;
-      rowH = 0;
-    }
-    places.set(d.id, [x, y]);
-    x += w + PAD;
-    rowH = Math.max(rowH, h);
-  }
-  const img = document.createElement("canvas");
-  img.width = ATLAS_W;
-  img.height = Math.max(256, Math.ceil((y + rowH) / 256) * 256);
-  const c = img.getContext("2d")!;
-  const out = new Map<string, SpriteRef>();
-  for (const d of PROPS) {
-    const [w, h] = size(d);
-    const [px, py] = places.get(d.id)!;
-    c.save();
-    c.beginPath();
-    c.rect(px, py, w, h);
-    c.clip();
-    c.translate(px + w / 2, py + h / 2);
-    c.scale(SPRITE_PX, SPRITE_PX);
-    d.draw(c);
-    c.restore();
-    out.set(d.id, { img, sx: px, sy: py, sw: w, sh: h });
-  }
-  return out;
+interface Page {
+  img: HTMLCanvasElement;
+  c: CanvasRenderingContext2D;
+  /** Where the next picture goes: along the current row, then a new row below. */
+  x: number;
+  y: number;
+  rowH: number;
 }
 
-/** A prop's picture: w*SPRITE_PX by h*SPRITE_PX pixels inside the shared sprite sheet. */
+const pages: Page[] = [];
+const sprites = new Map<string, SpriteRef>();
+
+/**
+ * Props are drawn into a few large sheets. Browsers keep a big canvas on the GPU, but upload a
+ * small one again every time it's drawn: 50 props from separate small canvases took about
+ * 350 ms a frame, from one sheet about 8 ms. With about 2,000 props a single sheet would be far
+ * too tall, so each prop is drawn into a 2048-pixel page the first time it's needed, and a
+ * new page starts when one fills.
+ */
+function place(w: number, h: number): { page: Page; x: number; y: number } {
+  let page = pages[pages.length - 1];
+  if (page && page.x + w > PAGE) {
+    page.x = 0;
+    page.y += page.rowH + PAD;
+    page.rowH = 0;
+  }
+  if (!page || page.y + h > PAGE) {
+    const img = document.createElement("canvas");
+    img.width = PAGE;
+    img.height = PAGE;
+    page = { img, c: img.getContext("2d")!, x: 0, y: 0, rowH: 0 };
+    pages.push(page);
+  }
+  const at = { page, x: page.x, y: page.y };
+  page.x += w + PAD;
+  page.rowH = Math.max(page.rowH, h);
+  return at;
+}
+
+function drawSprite(d: PropDef): SpriteRef {
+  // A prop longer than a page is drawn at fewer pixels per cell; it's stretched back when drawn.
+  const px = Math.min(SPRITE_PX, PAGE / Math.max(d.w, d.h));
+  const w = Math.ceil(d.w * px);
+  const h = Math.ceil(d.h * px);
+  const { page, x, y } = place(w, h);
+  const c = page.c;
+  c.save();
+  c.beginPath();
+  c.rect(x, y, w, h);
+  c.clip();
+  c.translate(x + w / 2, y + h / 2);
+  c.scale(px, px);
+  d.draw(c);
+  c.restore();
+  return { img: page.img, sx: x, sy: y, sw: w, sh: h };
+}
+
+/** A prop's picture inside a shared sprite sheet: drawn the first time it's asked for. */
 export function propSprite(def: PropDef): SpriteRef {
-  atlas ??= buildAtlas();
-  return atlas.get(def.id)!;
+  let s = sprites.get(def.id);
+  if (!s) sprites.set(def.id, (s = drawSprite(def)));
+  return s;
 }

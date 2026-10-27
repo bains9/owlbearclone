@@ -1,15 +1,31 @@
-// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon 4445927. Change it there and run the script again.
+// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
 import { rng } from "./noise";
 
 // The drawing kit shared by every built-in prop: shapes, outlines, wood, foliage, flames, rocks.
 // Props draw centred on (0, 0) in cell units.
-export const PROP_CATEGORIES = ["Furniture", "Containers", "Kitchen & tavern", "Nature", "Camp & outdoors", "Dungeon", "Light"] as const;
+export const PROP_CATEGORIES = [
+  "Furniture",
+  "Containers",
+  "Kitchen & tavern",
+  "Nature",
+  "Camp & outdoors",
+  "Dungeon",
+  "Light",
+  "Library & magic",
+  "Workshop & smithy",
+  "Ship & dock",
+  "Farm & village",
+  "Temple & graveyard",
+  "Arms & armour",
+] as const;
 export type PropCategory = (typeof PROP_CATEGORIES)[number];
 
 export interface PropDef {
   id: string;
   name: string;
   category: PropCategory;
+  /** The group inside its category the pickers fold it under, such as "Tables" in Furniture. */
+  group?: string;
   w: number;
   h: number;
   layer: "floor" | "object" | "canopy";

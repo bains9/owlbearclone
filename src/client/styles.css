@@ -2747,6 +2747,15 @@ kbd {
   color: var(--muted);
   font-weight: 400;
 }
+/* A group's own folds (Dungeon's "Tables" in Furniture), set in under its heading. */
+.lib-part {
+  padding-left: 14px;
+}
+.lib-part-head {
+  padding: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
 .lib-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 34px);

@@ -4,7 +4,12 @@
 export interface LibraryGroup<T extends string> {
   name: string;
   ids: T[];
+  /** The group's own folds, when it has them (Dungeon's "Tables" in Furniture): every id is in one. */
+  parts?: { name: string; ids: T[] }[];
 }
+
+/** Search shows at most this many items at once; typing more narrows it. */
+export const MAX_FOUND = 120;
 
 export function libraryCount<T extends string>(groups: readonly LibraryGroup<T>[]): number {
   return groups.reduce((n, g) => n + g.ids.length, 0);
@@ -22,6 +27,12 @@ export function searchLibrary<T extends string>(groups: readonly LibraryGroup<T>
     }
   }
   return out;
+}
+
+/** The part of its group an item is in, or "" for a group without parts. */
+export function libraryPartOf<T extends string>(groups: readonly LibraryGroup<T>[], id: T): string {
+  for (const g of groups) for (const p of g.parts ?? []) if (p.ids.includes(id)) return p.name;
+  return "";
 }
 
 /** The group an item is in (the first group for one that's in none). */

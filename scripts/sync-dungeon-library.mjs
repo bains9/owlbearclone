@@ -6,20 +6,28 @@
 //   DUNGEON_DIR=/path/to/dungeon node scripts/sync-dungeon-library.mjs
 //
 // It writes:
-//   src/client/dungeonLib/<file>.ts  the six library files, as they are, under a header line
+//   src/client/dungeonLib/<file>.ts  the library's files, as they are, under a header line: the
+//                                    drawing kit, the textures, and the objects (props.ts and
+//                                    every file it's made from: props-*.ts, library.ts...)
 //   src/shared/dungeonCatalog.ts     what the server needs to know without drawing anything:
-//                                    every object's id, name, group, size and layer, and every
-//                                    texture's id, name and group
+//                                    every object's id, name, category, group, size and layer,
+//                                    and every texture's id, name and group, read from the
+//                                    library itself (loaded with esbuild), because most objects
+//                                    are made in code as versions of a design
 // test/dungeonLib.test.ts checks the copies still match Dungeon (when it's there) and that the
 // catalogue matches the copies.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "esbuild";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dungeon = process.env.DUNGEON_DIR ?? fileURLToPath(new URL("../../dungeon/", import.meta.url));
-const FILES = ["noise.ts", "color.ts", "textures.ts", "propkit.ts", "props.ts", "props-more.ts"];
+/** The library's files in Dungeon's src/render: the drawing kit, the textures, the objects. */
+export const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|props(-[a-z]+)?)\.ts$/;
 export const HEADER_PREFIX = "// Copied from Dungeon (src/render/";
 
 if (!existsSync(`${dungeon}/src/render/props.ts`)) {
@@ -36,28 +44,32 @@ try {
   // Not a git checkout: the copy still works, it just can't say which version it is.
 }
 
-mkdirSync(`${root}/src/client/dungeonLib`, { recursive: true });
-const sources = {};
+const libDir = `${root}/src/client/dungeonLib`;
+mkdirSync(libDir, { recursive: true });
+const FILES = readdirSync(`${dungeon}/src/render`).filter((f) => LIBRARY_FILE.test(f)).sort();
 for (const f of FILES) {
   const text = readFileSync(`${dungeon}/src/render/${f}`, "utf8").replace(/\r\n/g, "\n");
-  sources[f] = text;
   const header = `${HEADER_PREFIX}${f}) by scripts/sync-dungeon-library.mjs, Dungeon ${commit}. Change it there and run the script again.\n`;
-  writeFileSync(`${root}/src/client/dungeonLib/${f}`, header + text);
+  writeFileSync(`${libDir}/${f}`, header + text);
 }
+// A file Dungeon no longer has goes here too.
+for (const f of readdirSync(libDir)) if (!FILES.includes(f)) unlinkSync(`${libDir}/${f}`);
 
-// The catalogue, read from the object and texture lists. Every entry starts the same way,
-// `{ id: "…", name: "…", category: "…", w: …, h: …, layer: "…"` (objects) or
-// `{ id: "…", name: "…", group: "…"` (textures); the test checks nothing was missed.
-const props = [];
-for (const f of ["props.ts", "props-more.ts"]) {
-  for (const m of sources[f].matchAll(/id: "([^"]+)", name: "([^"]+)", category: "([^"]+)", w: ([\d.]+), h: ([\d.]+), layer: "([a-z]+)"/g)) {
-    props.push({ id: m[1], name: m[2], category: m[3], w: Number(m[4]), h: Number(m[5]), layer: m[6] });
-  }
-}
-const materials = [];
-for (const m of sources["textures.ts"].matchAll(/\{ id: "([^"]+)", name: "([^"]+)", group: "([a-z]+)"/g)) {
-  materials.push({ id: m[1], name: m[2], group: m[3] });
-}
+// The catalogue, from the library itself: the copies bundled into one module and loaded.
+const bundled = await build({
+  stdin: { contents: `export { PROPS } from "./props"; export { MATERIALS } from "./textures";`, resolveDir: libDir, loader: "ts" },
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  write: false,
+  logLevel: "silent",
+});
+const tmp = join(tmpdir(), `dungeon-library-${process.pid}.mjs`);
+writeFileSync(tmp, bundled.outputFiles[0].text);
+const library = await import(pathToFileURL(tmp).href);
+unlinkSync(tmp);
+const props = library.PROPS.map((p) => ({ id: p.id, name: p.name, category: p.category, group: p.group, w: p.w, h: p.h, layer: p.layer }));
+const materials = library.MATERIALS.map((m) => ({ id: m.id, name: m.name, group: m.group }));
 
 /** An object literal on one line, as the rest of the code writes them: { id: "x", w: 2 }. */
 const literal = (o) => `{ ${Object.entries(o).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ")} }`;
@@ -70,6 +82,8 @@ export interface DungeonPropInfo {
   id: string;
   name: string;
   category: string;
+  /** The group it folds under in the picker, inside its category ("Tables" in Furniture). */
+  group: string;
   /** Natural size in squares. */
   w: number;
   h: number;

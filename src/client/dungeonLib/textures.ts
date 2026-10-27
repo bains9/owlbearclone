@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon 4445927. Change it there and run the script again.
+// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
 import { fbm, hash2, ridged, rng, valueNoise, worley } from "./noise";
 import { css, mix, scale, type RGB } from "./color";
 

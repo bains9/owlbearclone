@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 26 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 27 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Nearly 2,000 objects from Dungeon in the Build tool (27 October 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar to choose from all 1978: Tabletop's own sixteen and 1,962 from Dungeon, the map maker.",
+          "Open a category, then a group inside it (Furniture, then Tables), or type in **Search 1978 objects**: a name, a version (\"walnut\", \"open\", \"crimson\") or a group."
+        ],
+        "notes": [
+          "Six new categories: Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour, and many more objects in the first seven. Most come in several versions: woods, stones, metals, colours, open or shut.",
+          "Outdoors they change with **Seasons** as before: snow on everything in winter, and trees, bushes, flowers, grass, reeds, mushrooms and the farm's crops changing all year.",
+          "Search shows up to 120 matches; type more to narrow them."
+        ]
+      },
       {
         "title": "Maps with levels from Dungeon (26 October 2026)",
         "steps": [
@@ -2071,7 +2083,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Place objects",
         "steps": [
           "Pick **Objects**.",
-          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 151. Type in **Search 151 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon and Light. **Enter** picks the first match; **Esc** or a click outside closes it.",
+          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 1978. Type in **Search 1978 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's thirteen categories (Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon, Light, Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour), each folding into its groups. **Enter** picks the first match; **Esc** or a click outside closes it.",
           "Set its **Size** (½ to 3 squares) and **Turn** in the bar. With a mouse you can instead scroll the wheel to turn it 15° a notch (hold **Z** for 5°), hold **Alt** and scroll to change its size, or right-click to turn it 90°, as in Dungeondraft.",
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],

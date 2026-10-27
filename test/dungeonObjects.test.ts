@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { cleanStamps, isDungeonStamp, isStampId, makeStamp, naturalStampSize, STAMP_IDS, stampLayer, stampName, type StampId } from "../src/shared/terrain";
 import { DUNGEON_PROPS } from "../src/shared/dungeonCatalog";
-import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
+import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
+import { libraryPartOf } from "../src/client/ui/library";
 import { RECENT_MAX, withRecent } from "../src/client/ui/recentPicks";
 
 // Dungeon's objects in the Build tool: ids "d:<dungeon id>", accepted by the server's check,
@@ -38,13 +39,34 @@ describe("Dungeon's objects as Build tool objects", () => {
 });
 
 describe("the object picker", () => {
-  it("has every object once, Tabletop's sixteen first, then Dungeon's seven groups", () => {
+  it("has every object once, Tabletop's sixteen first, then Dungeon's categories, each folding into its groups", () => {
     const all = OBJECT_GROUPS.flatMap((g) => g.ids);
     expect(all.length).toBe(STAMP_IDS.length + DUNGEON_PROPS.length);
     expect(OBJECT_COUNT).toBe(all.length);
     expect(new Set(all).size).toBe(all.length);
-    expect(OBJECT_GROUPS.map((g) => g.name)).toEqual(["Tabletop", "Furniture", "Containers", "Kitchen & tavern", "Nature", "Camp & outdoors", "Dungeon", "Light"]);
+    expect(OBJECT_GROUPS.map((g) => g.name)).toEqual([
+      "Tabletop",
+      "Furniture",
+      "Containers",
+      "Kitchen & tavern",
+      "Nature",
+      "Camp & outdoors",
+      "Dungeon",
+      "Light",
+      "Library & magic",
+      "Workshop & smithy",
+      "Ship & dock",
+      "Farm & village",
+      "Temple & graveyard",
+      "Arms & armour",
+    ]);
     for (const g of OBJECT_GROUPS) expect(g.ids.length, g.name).toBeGreaterThan(0);
+    // Dungeon's categories fold again, into their groups, which hold every object once.
+    expect(OBJECT_GROUPS[0].parts).toBeUndefined();
+    for (const g of OBJECT_GROUPS.slice(1)) expect(g.parts!.flatMap((p) => p.ids), g.name).toEqual(g.ids);
+    expect(OBJECT_GROUPS.find((g) => g.name === "Furniture")!.parts!.map((p) => p.name)).toContain("Tables");
+    expect(libraryPartOf(OBJECT_GROUPS, "d:table-long-walnut-set")).toBe("Tables");
+    expect(libraryPartOf(OBJECT_GROUPS, "campfire")).toBe("");
     expect(groupOf("d:oak-tree")).toBe("Nature");
     expect(groupOf("campfire")).toBe("Tabletop");
   });
@@ -59,8 +81,11 @@ describe("the object picker", () => {
   });
 
   it("finds objects by every word typed, in name or group", () => {
-    expect(searchObjects("oak")).toEqual(["d:oak-tree"]);
-    expect(searchObjects("OAK")).toEqual(["d:oak-tree"]);
+    const oaks = ["d:oak-tree", ...DUNGEON_PROPS.filter((p) => p.id.startsWith("oak-tree-")).map((p) => `d:${p.id}`)];
+    expect(oaks.length).toBe(7);
+    expect(searchObjects("oak")).toEqual(oaks);
+    expect(searchObjects("OAK")).toEqual(oaks);
+    expect(searchObjects("table walnut set")).toContain("d:table-long-walnut-set");
     const trees = searchObjects("tree nature");
     expect(trees).toContain("d:oak-tree");
     expect(trees).toContain("d:dead-tree");
@@ -79,5 +104,21 @@ describe("recent objects", () => {
     expect(list).toEqual(["table", "chair", "d:oak-tree"]);
     for (let i = 0; i < 20; i++) list = withRecent(list, `d:${DUNGEON_PROPS[i].id}` as StampId);
     expect(list.length).toBe(RECENT_MAX);
+  });
+});
+
+describe("the guide", () => {
+  it("has nearly 2,000 objects first in What's new, with the count the picker shows", async () => {
+    const { GUIDE } = await import("../src/client/guide");
+    const news = GUIDE.find((s) => s.id === "whats-new")!;
+    expect(news.parts[0].title).toBe("Nearly 2,000 objects from Dungeon in the Build tool (27 October 2026)");
+    expect(news.parts[1].title).toBe("Maps with levels from Dungeon (26 October 2026)");
+    const entry = [...news.parts[0].steps, ...news.parts[0].notes].join("\n");
+    expect(entry).toContain(`**Search ${OBJECT_COUNT} objects**`);
+    expect(entry).toContain(`all ${OBJECT_COUNT}`);
+    expect(entry).toContain(`${DUNGEON_PROPS.length.toLocaleString("en")} from Dungeon`);
+    const howTo = GUIDE.flatMap((s) => s.parts).flatMap((p) => p.steps).find((s) => s.startsWith("Pick an object. The bar shows"))!;
+    expect(howTo).toContain(`**Search ${OBJECT_COUNT} objects**`);
+    for (const g of OBJECT_GROUPS.slice(1)) expect(howTo, g.name).toContain(g.name);
   });
 });

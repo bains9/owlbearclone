@@ -5,7 +5,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { ChevronDown, ChevronRight, Search } from "lucide-preact";
-import { libraryCount, libraryGroupOf, searchLibrary, type LibraryGroup } from "./library";
+import { MAX_FOUND, libraryCount, libraryGroupOf, libraryPartOf, searchLibrary, type LibraryGroup } from "./library";
 
 export interface LibraryPickerProps<T extends string> {
   /** What it picks, for its labels: "objects", "floors". */
@@ -40,6 +40,8 @@ export function LibraryPicker<T extends string>(props: LibraryPickerProps<T>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState(() => libraryGroupOf(props.groups, props.value));
+  // The open part of the open group, for a group that folds again (Dungeon's categories).
+  const [part, setPart] = useState(() => libraryPartOf(props.groups, props.value));
   const root = useRef<HTMLDivElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -67,6 +69,7 @@ export function LibraryPicker<T extends string>(props: LibraryPickerProps<T>) {
   useEffect(() => {
     if (!open) return;
     setGroup(libraryGroupOf(props.groups, props.value));
+    setPart(libraryPartOf(props.groups, props.value));
     // Not on a touch screen, where the keyboard would come up over the groups.
     if (!window.matchMedia("(pointer: coarse)").matches) search.current?.focus();
     const away = (e: PointerEvent) => {
@@ -130,9 +133,16 @@ export function LibraryPicker<T extends string>(props: LibraryPickerProps<T>) {
           </label>
           {query.trim() ? (
             found.length ? (
-              <div class="lib-grid" role="group" aria-label={`${props.noun} found`}>
-                {found.map(item)}
-              </div>
+              <>
+                {found.length > MAX_FOUND && (
+                  <p class="lib-none">
+                    The first {MAX_FOUND} of {found.length}: type more to narrow it.
+                  </p>
+                )}
+                <div class="lib-grid" role="group" aria-label={`${props.noun} found`}>
+                  {found.slice(0, MAX_FOUND).map(item)}
+                </div>
+              </>
             ) : (
               <p class="lib-none">Nothing is called that.</p>
             )
@@ -146,11 +156,30 @@ export function LibraryPicker<T extends string>(props: LibraryPickerProps<T>) {
                     <span>{g.name}</span>
                     <span class="lib-group-count">{g.ids.length}</span>
                   </button>
-                  {isOpen && (
-                    <div class="lib-grid" role="group" aria-label={g.name}>
-                      {g.ids.map(item)}
-                    </div>
-                  )}
+                  {isOpen &&
+                    (g.parts ? (
+                      g.parts.map((p) => {
+                        const partOpen = p.name === part;
+                        return (
+                          <section key={p.name} class="lib-part">
+                            <button class="lib-group-head lib-part-head" aria-expanded={partOpen} onClick={() => setPart(partOpen ? "" : p.name)}>
+                              {partOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              <span>{p.name}</span>
+                              <span class="lib-group-count">{p.ids.length}</span>
+                            </button>
+                            {partOpen && (
+                              <div class="lib-grid" role="group" aria-label={`${g.name}: ${p.name}`}>
+                                {p.ids.map(item)}
+                              </div>
+                            )}
+                          </section>
+                        );
+                      })
+                    ) : (
+                      <div class="lib-grid" role="group" aria-label={g.name}>
+                        {g.ids.map(item)}
+                      </div>
+                    ))}
                 </section>
               );
             })
