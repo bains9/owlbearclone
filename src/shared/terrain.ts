@@ -11,7 +11,14 @@ export const CHUNK_CELLS = CHUNK * CHUNK;
 /** Chunk coordinates stay within this range (far beyond the biggest scene at the smallest grid). */
 export const CHUNK_RANGE = 1000;
 /** Objects one chunk can hold. */
-export const MAX_STAMPS_PER_CHUNK = 64;
+export const MAX_STAMPS_PER_CHUNK = 256;
+/**
+ * The most objects code from before 27 October 2026 (protocol 5) takes in one chunk: a chunk
+ * with more needs protocol 6, as one with an object off the grid does (see stampsOnGrid).
+ */
+export const GRID_STAMPS_PER_CHUNK = 64;
+/** Objects placed off the grid stand anywhere, to a sixteenth of a square. */
+export const STAMP_POS_STEP = 1 / 16;
 
 /**
  * One character per cell, row by row. "." is empty. A lowercase room floor (stone, wood,
@@ -140,7 +147,8 @@ export const STAMP_DEG_STEP = 5;
 
 /**
  * An object: what it is, the column and row (within the chunk) of the top-left cell of the
- * block of squares it stands on, whole quarter turns clockwise (0-3), its size in squares
+ * block of squares it stands on (or, placed off the grid, of where that block's top-left
+ * corner is, in sixteenths of a square), whole quarter turns clockwise (0-3), its size in squares
  * (0.5-3 in quarter squares; the block is 1, 2 or 3 squares, see stampBlock), and, when it
  * isn't turned by whole quarter turns, the degrees clockwise on top of them (5-85, a
  * multiple of 5; never stored as 0).
@@ -165,6 +173,19 @@ export function snapDeg(deg: number): number {
   return (((Math.round(deg / STAMP_DEG_STEP) * STAMP_DEG_STEP) % 360) + 360) % 360;
 }
 
+/** A position rounded to a sixteenth of a square (exact in floating point, so it compares exactly). */
+export function snapPos(n: number): number {
+  return Math.round(n / STAMP_POS_STEP) * STAMP_POS_STEP || 0;
+}
+
+/**
+ * Whether a chunk's objects are all on the grid and few enough for code from before
+ * 27 October 2026 (protocol 5), which took a column or row only as a whole cell.
+ */
+export function stampsOnGrid(stamps: readonly Stamp[]): boolean {
+  return stamps.length <= GRID_STAMPS_PER_CHUNK && stamps.every((s) => Number.isInteger(s[1]) && Number.isInteger(s[2]));
+}
+
 /** Rounded to a quarter square, between half a square and 3 squares. */
 export function snapSize(size: number): number {
   return Math.min(STAMP_SIZE_MAX, Math.max(STAMP_SIZE_MIN, Math.round(size / STAMP_SIZE_STEP) * STAMP_SIZE_STEP));
@@ -172,15 +193,17 @@ export function snapSize(size: number): number {
 
 /**
  * An object as it's stored, with its angle and size snapped (col and row within the chunk,
- * 0-15). There's one way to write each, so two the same always join() the same: the fine
- * degrees only when there are some.
+ * 0-15, or below 16 in sixteenths off the grid). There's one way to write each, so two the
+ * same always join() the same: the fine degrees only when there are some.
  */
 export function makeStamp(id: StampId, col: number, row: number, deg: number, size: number): Stamp {
   const d = snapDeg(deg);
   const turns = Math.floor(d / 90);
   const fine = d % 90;
   const sz = snapSize(size);
-  return fine ? [id, col, row, turns, sz, fine] : [id, col, row, turns, sz];
+  const c = snapPos(col);
+  const r = snapPos(row);
+  return fine ? [id, c, r, turns, sz, fine] : [id, c, r, turns, sz];
 }
 
 export function emptyCells(): string {
@@ -288,7 +311,8 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
     if (!Array.isArray(s) || (s.length !== 5 && s.length !== 6)) return undefined;
     const [id, col, row, turns, size, fine] = s as unknown[];
     const kind = isStampId(id) ? id : undefined;
-    const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n < CHUNK;
+    // A whole cell, or off the grid a sixteenth of a square (exact: sixteenths are exact in floating point).
+    const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n / STAMP_POS_STEP) && n >= 0 && n < CHUNK;
     if (!kind || !cell(col) || !cell(row)) return undefined;
     if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 0 || turns > 3) return undefined;
     // Quarter squares are exact in floating point, so this is exact too.

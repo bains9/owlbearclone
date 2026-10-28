@@ -430,8 +430,8 @@ describe("the room's undo for bursts, and X", () => {
 });
 
 describe("the protocol version", () => {
-  it("is 5, and the browser sends it", async () => {
-    expect(PROTOCOL_VERSION).toBe(5);
+  it("is 6, and the browser sends it", async () => {
+    expect(PROTOCOL_VERSION).toBe(6);
     // Node's fs, which the tests' types leave out (they check browser and Worker code).
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const src = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");

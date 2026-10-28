@@ -18,6 +18,23 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 27 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Objects and tokens anywhere, not only on squares (27 October 2026)",
+        "steps": [
+          "GM: in the Build tool, untick **Snap to squares** in the bar, in **Objects** or **Select**.",
+          "Click to place objects exactly where you click, to a sixteenth of a square: chairs close round a table, bottles along a shelf, rocks in a heap.",
+          "In **Select**, drag objects to move them smoothly, or press the arrow keys to move them a quarter square (**Shift**: a square).",
+          "To put a new token between squares, hold **Alt** as you let go of it on the map, from the **Tokens**, **Monsters** or **NPCs** tab, as you already could when moving one."
+        ],
+        "notes": [
+          "Tick **Snap to squares** again for whole squares. Objects already off the grid stay where they are; moved with it ticked, they move a square at a time and keep their place within the square.",
+          "Each 16 by 16 squares of the map now holds 256 objects, up from 64.",
+          "With it unticked, **Ctrl+V** pastes copies centred on the pointer itself, and several objects turn exactly round their middle.",
+          "It's ticked to begin with, and remembered in this browser.",
+          "Everyone needs the new version to see objects off the grid: a page left open from before today is asked to reload.",
+          "See **Place objects** in **Building a map: floors, walls, doors and objects**."
+        ]
+      },
+      {
         "title": "Over 2,200 objects from Dungeon in the Build tool (27 October 2026)",
         "steps": [
           "GM: in the Build tool, pick **Objects**, then click the object shown in the bar to choose from all 2242: Tabletop's own sixteen and 2,226 from Dungeon, the map maker.",
@@ -663,6 +680,7 @@ export const GUIDE: GuideSection[] = [
           "Click a picture in the list to place it in the middle of your view, or drag it onto the map and let go where you want it."
         ],
         "notes": [
+          "A token you drag in snaps into the square where you let go, when the scene's **Snap tokens** box is ticked. To put it between squares, hold **Alt** as you let go. This works for monsters and NPCs too.",
           "Uploading only adds pictures to the list. Nothing appears on the map until you click or drag one.",
           "While files are uploading, the button shows how many are still going.",
           "If you've typed something in the **Name (optional)** box, a picture you click gets that name (a picture you drag in doesn't). The name stays in the box, so every picture you click gets it until you clear the box.",
@@ -1976,7 +1994,7 @@ export const GUIDE: GuideSection[] = [
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
           "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",
-          "Different: everything sits on the grid: walls follow grid lines, and objects stand on whole squares, turn in 5° steps and size from ½ to 3 squares. In **Select** the wheel turns 15° a notch (Dungeondraft: 30°) and **Z**+wheel 5° (Dungeondraft: 10°). Walls and floors can't be selected (floors can't in Dungeondraft either); doors can be selected only to delete them, and openings not at all. There's no mirror, layers, locking, lighting or levels (a scene is a level).",
+          "Different: walls follow grid lines, and objects stand on whole squares unless you untick **Snap to squares** (then anywhere, to a sixteenth of a square), turn in 5° steps and size from ½ to 3 squares. In **Select** the wheel turns 15° a notch (Dungeondraft: 30°) and **Z**+wheel 5° (Dungeondraft: 10°). Walls and floors can't be selected (floors can't in Dungeondraft either); doors can be selected only to delete them, and openings not at all. There's no mirror, layers, locking, lighting or levels (a scene is a level).",
           "A **Blank grid**'s **Columns** and **Rows** are Dungeondraft's new map size in squares."
         ]
       },
@@ -2088,10 +2106,12 @@ export const GUIDE: GuideSection[] = [
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],
         "notes": [
+          "To place objects closer together than squares allow, untick **Snap to squares** in the bar. Each then goes exactly where you click, to a sixteenth of a square. Tick it again for whole squares. It's remembered in this browser.",
           "A click always places a new object, even on top of another (a chair at a table), but never an exact copy on top of the same object. To move, turn or delete objects already placed, use **Select**. With a mouse you can also drag one to move it without switching.",
           "While you place objects, the mouse wheel turns them: zoom with **Ctrl** and the wheel, or pinch on a trackpad. Two fingers on a trackpad still move the map.",
           "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
-          "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them.",
+          "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them. Placed with **Snap to squares** unticked, it stands on every square it overlaps: erasing any of them takes it away, and a tree there makes them all outdoors.",
+          "Each 16 by 16 squares of the map holds up to 256 objects.",
           "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
           "Objects are drawn in three layers, as in Dungeon: what lies on the floor (rugs, flowers, a trapdoor, a magic circle) is always under what stands on it, and treetops, tents, market stalls and chandeliers are over both. Within a layer, the one put down last is on top; clicking where they overlap picks the top one first. Tabletop's own sixteen all stand on the floor, so maps built before stay as they were.",
           "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
@@ -2110,7 +2130,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Selected objects have a blue outline, and the one under the pointer a yellow one, as in Dungeondraft. The bar has the same actions as buttons.",
-          "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, they keep to the grid, so they can shift a little; turn on and they fall back into place. Sizing sizes each object where it stands.",
+          "With **Snap to squares** unticked, dragging moves them smoothly, the arrow keys move them a quarter square (**Shift**: a square), and **Ctrl+V** pastes centred on the pointer itself. Objects off the grid keep their place within the square when moved with it ticked.",
+          "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, objects on the grid keep to it, so they can shift a little; turn on and they fall back into place. With **Snap to squares** unticked, or any of them off the grid, they turn exactly round their middle. Sizing sizes each object where it stands.",
           "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected.",
           "Each move, delete, duplicate or paste is one step for **Undo**, and so is each burst of turning, sizing or nudging. Undo also clears the selection.",
           "With nothing selected, the mouse wheel zooms as usual. With objects selected it turns them; **Ctrl** and the wheel always zoom. If your wheel or trackpad moves the map instead, hold **Z** while you scroll, or see **Place objects**.",
@@ -2310,7 +2331,7 @@ export const GUIDE: GuideSection[] = [
           "Drag **Line opacity** to make the lines fainter or stronger."
         ],
         "notes": [
-          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel still snap."
+          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel snap too, unless you hold Alt as you let go of them."
         ]
       },
       {
@@ -3073,7 +3094,7 @@ export const GUIDE: GuideSection[] = [
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
           "**Mouse wheel** over a selected compass: turn it 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller; **Ctrl**+wheel still zooms (GM)",
-          "**Alt** while letting go of a token you're dragging: don't snap to the grid",
+          "**Alt** while letting go of a token you're dragging, or a new one you're dragging onto the map: don't snap to the grid",
           "**H**: hide or show the selected tokens, drawings and notes (GM)",
           "**L**: lock or unlock the selected tokens (GM)",
           "**Delete** or **Backspace**: delete the selection",
@@ -3109,7 +3130,7 @@ export const GUIDE: GuideSection[] = [
           "**Mouse wheel** with **Objects**: turn the next object 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller. In **Select**, the same for the selected objects (GM)",
           "**Right-click** with **Objects**: turn the next object 90°; in **Select**, the selected objects (or the one under the pointer); with **Walls**, finish the walls you're placing corner by corner (GM)",
           "**X**: **Select**, and back (GM)",
-          "In **Select**: **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste, the arrow keys move (**Shift**: five squares), **Escape** deselects (GM)",
+          "In **Select**: **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste, the arrow keys move (**Shift**: five squares; with **Snap to squares** unticked, a quarter square, **Shift**: a square), **Escape** deselects (GM)",
           "**Alt** while you drag or click: take away instead of adding (cut out a room, erase terrain, remove walls, doors or objects) (GM)",
           "**Enter** or a double-click: finish walls placed corner by corner; **Backspace** takes the last corner back (GM)",
           "**Escape** while dragging or placing corners: stop without changing anything (GM)",

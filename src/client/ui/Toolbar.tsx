@@ -648,6 +648,7 @@ function BuildOptions() {
           >
             <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
           </button>
+          <ObjectSnap />
         </>
       )}
       {o.mode === "select" && (
@@ -671,6 +672,20 @@ function BuildOptions() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Objects and Select: whether objects go on whole squares, or anywhere (to a sixteenth of a
+ * square), closer together than squares allow. Remembered in this browser.
+ */
+function ObjectSnap() {
+  const room = useRoom();
+  const snap = useRoomState((s) => s.objectSnap);
+  return (
+    <label class="check" title="Untick to place and move objects anywhere, not only on whole squares (the arrow keys then move a quarter square)">
+      <input type="checkbox" checked={snap} onChange={(e) => room.setObjectSnap(e.currentTarget.checked)} /> Snap to squares
+    </label>
   );
 }
 
@@ -739,6 +754,7 @@ function SelectOptions(props: {
           <Trash size={16} />
         </button>
       </div>
+      <ObjectSnap />
       <button class="seg-btn wide" title={`Back to ${props.back} (X)`} aria-label={`Back to ${props.back}`} onClick={() => room.toggleBuildSelect()}>
         <ArrowLeft size={16} /> <span class="seg-label">Back</span>
       </button>

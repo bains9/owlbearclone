@@ -20,8 +20,10 @@ import type {
  * The protocol version this build's browser code speaks (sent as v=). 3: objects turned to
  * any 5 degrees and sized in quarter squares. 4: compass roses (tokens with art "compass").
  * 5: Dungeon's objects and textures in built maps (stamps "d:<id>"; a chunk's tex and pal).
+ * 6: objects off the grid (a stamp's column and row in sixteenths of a square), and up to 256
+ * objects in a chunk.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
 export type MeasureShape = "ruler" | TemplateShape;

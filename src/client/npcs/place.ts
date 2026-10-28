@@ -104,7 +104,8 @@ function npcAsset(room: RoomClient, race: NpcRace, cls: NpcClass): Promise<strin
 
 /**
  * GM: puts an NPC of race `raceId` and class `classId` on the scene in view, at `at` (where it
- * was dropped) or in the middle of the view, and selects it. The first of a pair in a room takes
+ * was dropped; with `free`, Alt held, not snapped to the grid) or in the middle of the view,
+ * and selects it. The first of a pair in a room takes
  * a moment (its picture is uploaded); after that it's at once. If the GM moves to another scene
  * meanwhile, it isn't placed (`at` was on the old one): the picture is ready, so placing it
  * again is at once.
@@ -115,6 +116,7 @@ export async function placeNpc(
   classId: string,
   at?: Point,
   hidden = loadAddHidden(),
+  free = false,
 ): Promise<TokenItem | null> {
   if (!room.isGm) return null;
   // The scene it's meant for (and `at` is on).
@@ -133,5 +135,5 @@ export async function placeNpc(
   const taken = Object.values(room.state.items)
     .filter((i): i is TokenItem => i.kind === "token" && i.sceneId === scene.id)
     .map((t) => t.label);
-  return room.addToken({ assetId, label: npcLabel(name, taken), size: npcSquares(race), color: cls.color, hidden }, at);
+  return room.addToken({ assetId, label: npcLabel(name, taken), size: npcSquares(race), color: cls.color, hidden }, at, free);
 }

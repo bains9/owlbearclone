@@ -188,6 +188,11 @@ export interface RoomState {
   buildClip: boolean;
   /** What this device's mouse wheel does over objects in the Build tool (remembered in the browser). */
   wheelTurns: WheelPref;
+  /**
+   * Build › Objects and Select: objects go on whole squares (on to begin with), or anywhere,
+   * to a sixteenth of a square, when it's off (remembered in the browser).
+   */
+  objectSnap: boolean;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -325,6 +330,7 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
 
 const SEASONS_OFF_KEY = "tabletop-seasons-off";
 const WHEEL_TURNS_KEY = "tabletop-wheel-turns";
+const OBJECT_SNAP_KEY = "tabletop-object-snap";
 
 /** Whether this device has seasonal looks turned off (remembered in the browser). */
 function loadSeasonsOff(): boolean {
@@ -342,6 +348,15 @@ function loadWheelTurns(): WheelPref {
     return v === "always" || v === "never" ? v : "auto";
   } catch {
     return "auto";
+  }
+}
+
+/** Whether this device puts objects on whole squares in the Build tool (remembered in the browser; on to begin with). */
+function loadObjectSnap(): boolean {
+  try {
+    return localStorage.getItem(OBJECT_SNAP_KEY) !== "0";
+  } catch {
+    return true;
   }
 }
 
@@ -457,6 +472,7 @@ export class RoomClient {
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
+      objectSnap: displayKey === null ? loadObjectSnap() : true,
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -1262,7 +1278,11 @@ export class RoomClient {
     return Math.min(n, free);
   }
 
-  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point): TokenItem | null {
+  /**
+   * A new token, centred on `at` (snapped to the grid when the scene snaps, unless `free`:
+   * Alt held as it's dropped) or near the middle of the view, clear of other tokens.
+   */
+  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point, free = false): TokenItem | null {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !s.room) return null;
@@ -1272,7 +1292,7 @@ export class RoomClient {
     }
     const size = opts.size ?? 1;
     const raw = at ?? this.board?.viewCenter() ?? sceneMiddle(scene);
-    let pos = scene.grid.snap ? snapTokenCenter(raw, size, scene.grid) : raw;
+    let pos = scene.grid.snap && !(at && free) ? snapTokenCenter(raw, size, scene.grid) : raw;
     if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
       id: randomId(12),
@@ -1384,6 +1404,18 @@ export class RoomClient {
       // Not remembered, but still applies until the page reloads.
     }
     this.store.set({ wheelTurns: v });
+  }
+
+  /** Whether objects placed and moved in the Build tool go on whole squares. */
+  setObjectSnap(on: boolean): void {
+    if (this.display) return;
+    try {
+      if (on) localStorage.removeItem(OBJECT_SNAP_KEY);
+      else localStorage.setItem(OBJECT_SNAP_KEY, "0");
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ objectSnap: on });
   }
 
   /**

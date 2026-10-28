@@ -33,6 +33,7 @@ import {
   isTerrainFloor,
   sceneAreaCells,
   snapDeg,
+  snapPos,
   snapSize,
   stampBlock,
 } from "../../shared/terrain";
@@ -79,6 +80,7 @@ import {
   decodeObjects,
   encodeObjects,
   groupFits,
+  onGrid,
   placeGroupAt,
   placedOf,
   samePlaced,
@@ -253,13 +255,16 @@ type Gesture =
   /** Build › Select: dragging a box to select the objects whose middles are in it. */
   | { kind: "build-box"; pointerId: number; start: Point; end: Point; additive: boolean; node: Konva.Rect }
   /**
-   * Build tool: dragging objects somewhere else, a square at a time: the selection in
-   * Select, or the one under the pointer in Objects (select: false, which leaves them unselected).
+   * Build tool: dragging objects somewhere else, a square at a time (or, with Snap to squares
+   * off, free: to a sixteenth of a square): the selection in Select, or the one under the
+   * pointer in Objects (select: false, which leaves them unselected).
    */
   | {
       kind: "build-move-sel";
       pointerId: number;
-      grab: Cell;
+      /** Where it was grabbed, in cells (fractional). */
+      grab: { u: number; v: number };
+      free: boolean;
       refs: StampRef[];
       orig: Placed[];
       shift: { dCol: number; dRow: number };
@@ -2559,13 +2564,17 @@ export class Board implements BoardApi {
       : { col: Math.round(u) - n / 2, row: Math.round(v) - n / 2 };
   }
 
-  /** Where an n x n object goes when placed at a point: centred on it, and inside the scene. */
+  /**
+   * Where an n x n object goes when placed at a point: centred on it (on whole squares, or
+   * with Snap to squares off to a sixteenth of a square), and inside the scene.
+   */
   private stampAnchor(p: Point, n: number): Cell {
     const scene = this.renderedScene!;
     const g = scene.grid;
     const all = sceneAreaCells(scene, g);
-    const col = Math.round((p.x - g.offsetX) / g.size - n / 2);
-    const row = Math.round((p.y - g.offsetY) / g.size - n / 2);
+    const snap = this.room.state.objectSnap ? Math.round : snapPos;
+    const col = snap((p.x - g.offsetX) / g.size - n / 2);
+    const row = snap((p.y - g.offsetY) / g.size - n / 2);
     return {
       col: Math.max(all.c0, Math.min(all.c1 - n + 1, col)),
       row: Math.max(all.r0, Math.min(all.r1 - n + 1, row)),
@@ -3023,7 +3032,9 @@ export class Board implements BoardApi {
     const keys = keysOf(ctx.refs);
     const from = this.turnBase?.keys === keys ? this.turnBase : { base: ctx.cur, deg: 0, keys };
     const deg = (((from.deg + delta) % 360) + 360) % 360;
-    const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds), coalesce);
+    // Off the grid, or with Snap to squares off, they turn exactly about their middle.
+    const free = !this.room.state.objectSnap || from.base.some((p) => !onGrid(p));
+    const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds, free), coalesce);
     if (r.ok) this.turnBase = { base: from.base, deg, keys: keysOf(r.refs) };
   }
 
@@ -3120,7 +3131,8 @@ export class Board implements BoardApi {
 
   /**
    * Paste: objects (copied here, or text copied from Tabletop anywhere) centred on the
-   * square under the mouse, or the middle of the view; then they're what's selected.
+   * square under the mouse (with Snap to squares off, on the mouse itself), or the middle
+   * of the view; then they're what's selected.
    */
   private pasteObjects(ps: Placed[] | null): void {
     const scene = this.renderedScene;
@@ -3134,8 +3146,14 @@ export class Board implements BoardApi {
       return;
     }
     const at = this.pointerPos ? this.toWorld(this.pointerPos) : this.viewCenter();
-    const cell = cellAt(at.x, at.y, scene.grid);
-    const placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
+    let placed: Placed[] | null;
+    if (this.room.state.objectSnap) {
+      const cell = cellAt(at.x, at.y, scene.grid);
+      placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
+    } else {
+      const { u, v } = this.cellsAt(at);
+      placed = placeGroupAt(ps, u, v, this.sceneBounds(scene), true);
+    }
     if (!placed) {
       this.room.toast(BUILD_TOASTS.tooBig, "error");
       return;
@@ -3202,7 +3220,8 @@ export class Board implements BoardApi {
     const g: Extract<Gesture, { kind: "build-move-sel" }> = {
       kind: "build-move-sel",
       pointerId,
-      grab: cellAt(from.x, from.y, scene.grid),
+      grab: this.cellsAt(from),
+      free: !this.room.state.objectSnap,
       refs: r.refs,
       orig,
       shift: { dCol: 0, dRow: 0 },
@@ -3218,11 +3237,16 @@ export class Board implements BoardApi {
     return true;
   }
 
-  /** Objects being dragged follow the pointer a square at a time, all together, kept on the scene. */
+  /**
+   * Objects being dragged follow the pointer a square at a time (free: a sixteenth of a
+   * square at a time), all together, kept on the scene.
+   */
   private moveSelTo(g: Extract<Gesture, { kind: "build-move-sel" }>, world: Point): void {
     const scene = this.renderedScene!;
-    const cell = cellAt(world.x, world.y, scene.grid);
-    const d = clampShift(g.orig, cell.col - g.grab.col, cell.row - g.grab.row, this.sceneBounds(scene));
+    const { u, v } = this.cellsAt(world);
+    const dCol = g.free ? snapPos(u - g.grab.u) : Math.floor(u) - Math.floor(g.grab.u);
+    const dRow = g.free ? snapPos(v - g.grab.v) : Math.floor(v) - Math.floor(g.grab.v);
+    const d = clampShift(g.orig, dCol, dRow, this.sceneBounds(scene));
     if (d.dCol === g.shift.dCol && d.dRow === g.shift.dRow) return;
     g.shift = d;
     this.uiLayer.batchDraw();
@@ -4193,21 +4217,23 @@ export class Board implements BoardApi {
       return;
     }
     const world = this.toWorld(this.localPos(e));
+    // Alt held as it's dropped: exactly there, not snapped to the grid (as when letting go of one being moved).
+    const free = e.altKey;
     const assetId = e.dataTransfer?.getData("application/x-tabletop-asset");
     if (assetId) {
-      this.room.addToken({ assetId }, world);
+      this.room.addToken({ assetId }, world, free);
       return;
     }
     // A creature from the GM's Monsters list, hidden or not as the list showed.
     const monster = readMonsterDrag(e.dataTransfer?.getData(MONSTER_DRAG_TYPE));
     if (monster) {
-      void placeMonster(this.room, monster.id, world, monster.hidden);
+      void placeMonster(this.room, monster.id, world, monster.hidden, free);
       return;
     }
     // An NPC from the GM's NPCs list, likewise.
     const npc = readNpcDrag(e.dataTransfer?.getData(NPC_DRAG_TYPE));
     if (npc) {
-      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden);
+      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden, free);
       return;
     }
     void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
@@ -4401,7 +4427,8 @@ export class Board implements BoardApi {
       return;
     }
     if (selecting) {
-      const nudge = e.shiftKey ? 5 : 1;
+      // A square (Shift: 5); with Snap to squares off, a quarter square (Shift: a square).
+      const nudge = this.room.state.objectSnap ? (e.shiftKey ? 5 : 1) : e.shiftKey ? 1 : 0.25;
       switch (key) {
         case "Delete":
         case "Backspace":

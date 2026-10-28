@@ -169,9 +169,9 @@ describe("the guide", () => {
     return [...part.steps, ...part.notes].join("\n");
   };
 
-  it("has the update messages twelfth in What's new, under the 25, 24 and 22 October entries", () => {
-    expect(news.parts[11].title).toBe("Clearer messages after an update (5 October 2026)");
-    const entry = notes("whats-new", news.parts[11].title);
+  it("has the update messages thirteenth in What's new, under the 25, 24 and 22 October entries", () => {
+    expect(news.parts[12].title).toBe("Clearer messages after an update (5 October 2026)");
+    const entry = notes("whats-new", news.parts[12].title);
     for (const what of ["**Monsters**", "**NPCs**", "Dungeondraft files", "may not load", "**Reload**", "**Try again**", "dropped connection", "If the guide itself can't load", "dropping a monster"]) {
       expect(entry).toContain(what);
     }

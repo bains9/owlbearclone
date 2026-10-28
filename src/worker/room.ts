@@ -10,7 +10,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { randomId } from "../shared/ids";
-import { isDungeonStamp, looksLikeTerrainId } from "../shared/terrain";
+import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
 import { applyInitOp } from "../shared/initiative";
@@ -89,9 +89,19 @@ const COMPASS_VERSION = 4;
  * reload, as with terrain.
  */
 const DUNGEON_VERSION = 5;
+/**
+ * Objects off the grid, and more than 64 objects in a chunk, need code from 27 October 2026
+ * (6). Older code checks a chunk's objects as whole cells, at most 64 of them, and would drop
+ * the whole chunk: that part of the map would stop being drawn. Such tabs don't get those
+ * chunks, can't change them, and are asked to reload, as with terrain.
+ */
+const FREE_VERSION = 6;
 /** The oldest protocol version whose code can show this item. */
 function versionFor(item: Item): number {
-  if (item.kind === "terrain") return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
+  if (item.kind === "terrain") {
+    if (!stampsOnGrid(item.stamps)) return FREE_VERSION;
+    return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
+  }
   return isCompass(item) ? COMPASS_VERSION : 1;
 }
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";

@@ -1030,6 +1030,57 @@ async function main() {
   gm5.items({ patch: [{ id: texChunk.id, set: { tex: "02" + noCells.slice(2), pal: ["meadow", "flagstone"] } }] });
   const badTex = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
   check(badTex?.refused?.includes(texChunk.id), "textures that don't match their palette are refused");
+  // Objects off the grid (a column or row in sixteenths of a square), and more than 64 in a
+  // chunk, need protocol 6: a tab on 5 (Hal) isn't sent such a chunk, can't change it, and
+  // is asked to reload; a chunk of 64 on the grid still reaches him.
+  const gm6 = connect(room.id, { cookie, uid: "gm6" + rid(), name: "GM tab", v: 6 });
+  const gina = connect(room.id, { uid: "gina" + rid(), name: "Gina", v: 6 });
+  // On this build but protocol 5, so nothing has made him reload yet.
+  const hal = connect(room.id, { uid: "hal" + rid(), name: "Hal", v: 5, b: gmHello.build });
+  await gm6.waitFor((m) => m.t === "hello");
+  await gina.waitFor((m) => m.t === "hello");
+  await hal.waitFor((m) => m.t === "hello");
+  hal.clear();
+  const freeChunk = { ...chunk, id: tid(4, 0, scene2.id), cx: 4, cells: noCells, edges: noEdges, stamps: [["chair", 2.5, 3.0625, 0, 1], ["d:dining-table", 8, 8.25, 1, 2.5, 15]] };
+  gm6.items({ upsert: [freeChunk] });
+  const fEcho = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  const fGot = await gina.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === freeChunk.id));
+  check(
+    fEcho && !fEcho.refused && JSON.stringify(fGot?.upsert.find((i) => i.id === freeChunk.id)?.stamps) === JSON.stringify(freeChunk.stamps),
+    "the GM places objects off the grid, and a player on new code gets them where they were placed",
+  );
+  const rocks = (n) => Array.from({ length: n }, (_, i) => ["rock", i % 16, Math.floor(i / 16) % 16, 0, 0.5]);
+  const gridChunk = { ...chunk, id: tid(5, 0, scene2.id), cx: 5, cells: noCells, edges: noEdges, stamps: rocks(64) };
+  const denseChunk = { ...chunk, id: tid(6, 0, scene2.id), cx: 6, cells: noCells, edges: noEdges, stamps: rocks(256) };
+  gm6.items({ upsert: [gridChunk, denseChunk] });
+  const mEcho = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  const mGot = await gina.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === denseChunk.id));
+  const halGrid = await hal.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === gridChunk.id));
+  check(
+    mEcho && !mEcho.refused && mGot?.upsert.find((i) => i.id === denseChunk.id)?.stamps.length === 256 && Boolean(halGrid),
+    "a chunk holds 256 objects for tabs on new code, and one of 64 on the grid still reaches a tab on 5",
+  );
+  await sleep(300);
+  const seenFree = hal.msgs.some((m) => JSON.stringify(m).includes(freeChunk.id) || JSON.stringify(m).includes(denseChunk.id));
+  const toldHal = hal.msgs.some((m) => m.t === "error" && /Reload/.test(m.message));
+  check(!seenFree && toldHal, "a tab on code from before objects off the grid isn't sent them, and is asked to reload");
+  gm5.clear();
+  gm5.items({ patch: [{ id: freeChunk.id, set: { stamps: [["chair", 2, 3, 0, 1]] } }] });
+  const old5 = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(old5?.refused?.includes(freeChunk.id), "a GM tab on 5 can't change a chunk with objects off the grid");
+  gm6.items({ patch: [{ id: freeChunk.id, set: { stamps: [["chair", 1.03, 0, 0, 1]] } }] });
+  const finer = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  gm6.items({ patch: [{ id: denseChunk.id, set: { stamps: rocks(257) } }] });
+  const over = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  check(
+    finer?.refused?.includes(freeChunk.id) && over?.refused?.includes(denseChunk.id),
+    "a position finer than a sixteenth of a square, and a 257th object in a chunk, are refused",
+  );
+  gm6.items({ delete: [freeChunk.id, gridChunk.id, denseChunk.id] });
+  await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  gm6.ws.close();
+  gina.ws.close();
+  hal.ws.close();
   gm5.items({ delete: [dungeonChunk.id, texChunk.id] });
   await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
   gm5.ws.close();

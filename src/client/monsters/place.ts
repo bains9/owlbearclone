@@ -116,16 +116,18 @@ function monsterAsset(room: RoomClient, m: MonsterIcon): Promise<string | null> 
 }
 
 /**
- * GM: puts creature `id` on the scene in view, at `at` (where it was dropped) or in the middle
- * of the view, and selects it. The first of a creature in a room takes a moment (its picture is
- * uploaded); after that it's at once. If the GM moves to another scene meanwhile, it isn't
- * placed (`at` was on the old one): the picture is ready, so placing it again is at once.
+ * GM: puts creature `id` on the scene in view, at `at` (where it was dropped; with `free`, Alt
+ * held, not snapped to the grid) or in the middle of the view, and selects it. The first of a
+ * creature in a room takes a moment (its picture is uploaded); after that it's at once. If the
+ * GM moves to another scene meanwhile, it isn't placed (`at` was on the old one): the picture
+ * is ready, so placing it again is at once.
  */
 export async function placeMonster(
   room: RoomClient,
   id: string,
   at?: Point,
   hidden = loadAddHidden(),
+  free = false,
 ): Promise<TokenItem | null> {
   if (!room.isGm) return null;
   // The scene it's meant for (and `at` is on).
@@ -151,5 +153,6 @@ export async function placeMonster(
   return room.addToken(
     { assetId, label: monsterLabel(m.name, taken), size: monsterSquares(m), color: TYPE_COLORS[m.type], hidden },
     at,
+    free,
   );
 }

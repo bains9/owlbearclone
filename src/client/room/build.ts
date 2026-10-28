@@ -33,7 +33,7 @@ import {
   stampLayer,
   terrainId,
 } from "../../shared/terrain";
-import type { FloorId, Stamp, StampId } from "../../shared/terrain";
+import type { CellBounds, FloorId, Stamp, StampId } from "../../shared/terrain";
 import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
 import { sceneBounds } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
@@ -410,18 +410,26 @@ export class BuildModel {
   }
 }
 
-/** Objects whose block covers a cell, in drawing order (the last is on top). */
+/** The squares a block of n at (col, row) stands on: n by n on the grid, every one it overlaps off it. */
+function blockSquares(col: number, row: number, n: number): CellBounds {
+  return { c0: Math.floor(col), r0: Math.floor(row), c1: Math.ceil(col + n) - 1, r1: Math.ceil(row + n) - 1 };
+}
+
+/**
+ * Objects whose block covers a cell (overlaps it, for one off the grid), in drawing order
+ * (the last is on top). A block of 3 off the grid can start nearly 3 cells before it.
+ */
 function stampsCovering(chunks: Map<number, { cx: number; cy: number; stamps: Stamp[] }>, col: number, row: number): StampHit[] {
   const out: StampHit[] = [];
-  for (let cy = chunkOf(row - 2); cy <= chunkOf(row); cy++) {
-    for (let cx = chunkOf(col - 2); cx <= chunkOf(col); cx++) {
+  for (let cy = chunkOf(row - 3); cy <= chunkOf(row); cy++) {
+    for (let cx = chunkOf(col - 3); cx <= chunkOf(col); cx++) {
       const ch = chunks.get(ckey(cx, cy));
       if (!ch) continue;
       ch.stamps.forEach((stamp, i) => {
         const ax = cx * CHUNK + stamp[1];
         const ay = cy * CHUNK + stamp[2];
         const n = stampBlock(stamp[4]);
-        if (col >= ax && col < ax + n && row >= ay && row < ay + n) out.push({ cx, cy, i, stamp });
+        if (col + 1 > ax && col < ax + n && row + 1 > ay && row < ay + n) out.push({ cx, cy, i, stamp });
       });
     }
   }
@@ -1384,20 +1392,21 @@ export function computeExposure(m: BuildModel): Exposure {
         if (!makesOutdoors(id)) continue;
         const ax = ch.cx * CHUNK + sc;
         const ay = ch.cy * CHUNK + sr;
-        // The squares it stands on, however big it's drawn.
-        const n = stampBlock(size);
+        // The squares it stands on, however big it's drawn (every one its block overlaps, off the grid).
+        const sq = blockSquares(ax, ay, stampBlock(size));
         let outdoors = false;
-        for (let dy = 0; dy < n; dy++) {
-          for (let dx = 0; dx < n; dx++) {
+        for (let y = sq.r0; y <= sq.r1; y++) {
+          for (let x = sq.c0; x <= sq.c1; x++) {
             // Empty cells count: a tree on an uploaded map, with no floor under it, is outdoors.
             // Water doesn't: only grass makes water outdoors.
-            const cell = m.cell(ax + dx, ay + dy);
+            const cell = m.cell(x, y);
             if (isWalledFloor(cell) || cell === "l" || cell === "a") continue;
-            trees.push(cellKey(ax + dx, ay + dy));
+            trees.push(cellKey(x, y));
             outdoors = true;
           }
         }
-        if (outdoors) near.push(ax - 1, ay - 1, n + 2);
+        // The squares round it too (a square box: off the grid, the larger side).
+        if (outdoors) near.push(sq.c0 - 1, sq.r0 - 1, Math.max(sq.c1 - sq.c0, sq.r1 - sq.r0) + 3);
       }
     }
     const spread = (seeds: number[], water: boolean) => {
@@ -1659,13 +1668,14 @@ export class BuildRenderer {
     if (!s || !hasSeasonalArt(id, s.look)) return null;
     const plant = makesOutdoors(id);
     let dist = SHELTERED;
-    for (let dy = 0; dy < n; dy++) {
-      for (let dx = 0; dx < n; dx++) {
+    const sq = blockSquares(col, row, n);
+    for (let y = sq.r0; y <= sq.r1; y++) {
+      for (let x = sq.c0; x <= sq.c1; x++) {
         // A plant makes its own squares outdoors, as computeExposure has it: so the
         // preview of one not placed yet (or being moved) looks as it will once it's there.
-        const cell = plant ? this.model.storedCell(col + dx, row + dy) : "";
+        const cell = plant ? this.model.storedCell(x, y) : "";
         if (plant && !isWalledFloor(cell) && cell !== "l" && cell !== "a") dist = 0;
-        else if (e) dist = Math.min(dist, e.dist(col + dx, row + dy));
+        else if (e) dist = Math.min(dist, e.dist(x, y));
       }
     }
     if (dist > EXPOSURE_REACH) return null;
@@ -2099,7 +2109,8 @@ export class BuildRenderer {
     const draft = this.model.draft?.groundOnly ? undefined : this.model.draft?.cells;
     // An object over any square of a room being erased goes with it, so it isn't shown.
     const erased = (ax: number, ay: number, n: number) => {
-      for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) if (draft!.get(cellKey(ax + dx, ay + dy)) === EMPTY) return true;
+      const sq = blockSquares(ax, ay, n);
+      for (let y = sq.r0; y <= sq.r1; y++) for (let x = sq.c0; x <= sq.c1; x++) if (draft!.get(cellKey(x, y)) === EMPTY) return true;
       return false;
     };
     const hidden = this.model.hiddenSlots;

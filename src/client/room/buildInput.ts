@@ -363,7 +363,7 @@ export function selectionStatus(sel: { objects: number; doors: number }): string
 
 /** What the Build tool says when something can't be done. */
 export const BUILD_TOASTS = {
-  full: "That part of the map has as many objects as it can hold (64 in each 16 by 16 squares).",
+  full: "That part of the map has as many objects as it can hold (256 in each 16 by 16 squares).",
   samePlace: "There's already one exactly like it there.",
   samePaste: "Pasting there would put copies exactly on top of the same objects. Point somewhere else and paste again.",
   samePasteMiddle:

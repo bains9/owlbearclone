@@ -6,10 +6,16 @@
 // drawn centred on it, turned to any 5 degrees and sized in quarter squares. Chunks,
 // erasing, what's outdoors and undo go by the block, so they stay cell by cell; clicks
 // and outlines go by the drawing, so what you see is what you click.
+//
+// Placed off the grid (Snap to squares unticked), the block's top-left can be anywhere, to
+// a sixteenth of a square (STAMP_POS_STEP); the cells it then stands on are every cell the
+// block overlaps. Moving, turning, sizing and pasting keep an object on the grid if it was,
+// and off the grid exactly where it lands (see the `free` flags).
 
 import {
   CHUNK,
   STAMP_DEG_STEP,
+  STAMP_POS_STEP,
   STAMP_SIZE_MAX,
   STAMP_SIZE_MIN,
   STAMP_SIZE_STEP,
@@ -18,13 +24,14 @@ import {
   isStampId,
   makeStamp,
   snapDeg,
+  snapPos,
   snapSize,
   stampBlock,
   stampDeg,
 } from "../../shared/terrain";
 import type { CellBounds, Stamp, StampId } from "../../shared/terrain";
 
-/** An object where it stands: col and row are the scene cell of its block's top-left. */
+/** An object where it stands: col and row are the scene cell of its block's top-left (in sixteenths, off the grid). */
 export interface Placed {
   id: StampId;
   col: number;
@@ -60,10 +67,15 @@ export function centreOf(p: Placed): { x: number; y: number } {
   return { x: p.col + n / 2, y: p.row + n / 2 };
 }
 
-/** The cells it stands on. */
+/** The cells it stands on: every cell its block overlaps (n by n on the grid, n + 1 off it). */
 export function blockOf(p: Placed): CellBounds {
   const n = stampBlock(p.size);
-  return { c0: p.col, r0: p.row, c1: p.col + n - 1, r1: p.row + n - 1 };
+  return { c0: Math.floor(p.col), r0: Math.floor(p.row), c1: Math.ceil(p.col + n) - 1, r1: Math.ceil(p.row + n) - 1 };
+}
+
+/** Whether it stands on whole cells. */
+export function onGrid(p: Placed): boolean {
+  return Number.isInteger(p.col) && Number.isInteger(p.row);
 }
 
 /** The cosine and sine of an angle in degrees, exact for quarter turns. */
@@ -110,6 +122,8 @@ export function hitsPoint(p: Placed, u: number, v: number, pad: number): boolean
  */
 export function rescaleAnchor(a: number, fromN: number, toN: number): number {
   const x = (2 * a + fromN - toN) / 2;
+  // Off the grid, exactly about its middle (a sixteenth plus half a whole is still a sixteenth).
+  if (!Number.isInteger(a)) return snapPos(x);
   // (|| 0: no -0.)
   return (Number.isInteger(x) ? x : toN > fromN ? Math.floor(x) : Math.ceil(x)) || 0;
 }
@@ -142,11 +156,12 @@ export function clampShift(ps: Placed[], dCol: number, dRow: number, b: CellBoun
   let loR = -Infinity;
   let hiR = Infinity;
   for (const p of ps) {
+    // The block's far edge stays on or before the far edge of b's last cell.
     const n = stampBlock(p.size);
     loC = Math.max(loC, b.c0 - p.col);
-    hiC = Math.min(hiC, b.c1 - (p.col + n - 1));
+    hiC = Math.min(hiC, b.c1 + 1 - (p.col + n));
     loR = Math.max(loR, b.r0 - p.row);
-    hiR = Math.min(hiR, b.r1 - (p.row + n - 1));
+    hiR = Math.min(hiR, b.r1 + 1 - (p.row + n));
   }
   const clamp = (d: number, lo: number, hi: number) => (lo <= hi ? Math.min(hi, Math.max(lo, d)) : 0);
   return { dCol: clamp(dCol, loC, hiC), dRow: clamp(dRow, loR, hiR) };
@@ -191,8 +206,9 @@ export function sizeGroup(ps: Placed[], dSize: number, b: CellBounds, base: Plac
  * that would be off it is then moved just onto it (as sizing does), so none is ever left
  * where it isn't drawn and can't be picked.
  */
-export function turnGroup(base: Placed[], deg: number, b: CellBounds): Placed[] {
+export function turnGroup(base: Placed[], deg: number, b: CellBounds, free = false): Placed[] {
   if (!base.length) return [];
+  if (free) return turnFree(base, deg, b);
   const g = groupBlock(base);
   const w = g.c1 - g.c0 + 1;
   const h = g.r1 - g.r0 + 1;
@@ -223,10 +239,46 @@ export function turnGroup(base: Placed[], deg: number, b: CellBounds): Placed[] 
       return { ...p, col: Math.floor(mx - n / 2 + 0.5), row: Math.floor(my - n / 2 + 0.5), deg: snapDeg(p.deg + deg) };
     });
   }
-  return shiftGroup(turned, 0, 0, b).map((p) => {
+  return keepWithin(shiftGroup(turned, 0, 0, b), b);
+}
+
+/** The box a group's blocks fill exactly (off the grid, not rounded out to whole cells). */
+function groupBox(ps: Placed[]): { x0: number; y0: number; x1: number; y1: number } {
+  const out = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const p of ps) {
     const n = stampBlock(p.size);
-    return { ...p, col: Math.max(b.c0, Math.min(b.c1 - n + 1, p.col)), row: Math.max(b.r0, Math.min(b.r1 - n + 1, p.row)) };
+    out.x0 = Math.min(out.x0, p.col);
+    out.y0 = Math.min(out.y0, p.row);
+    out.x1 = Math.max(out.x1, p.col + n);
+    out.y1 = Math.max(out.y1, p.row + n);
+  }
+  return out;
+}
+
+/** Keeps every block within b, each moved just onto it if it's off (as sizing does). */
+function keepWithin(ps: Placed[], b: CellBounds): Placed[] {
+  return ps.map((p) => {
+    const n = stampBlock(p.size);
+    return { ...p, col: Math.max(b.c0, Math.min(b.c1 + 1 - n, p.col)), row: Math.max(b.r0, Math.min(b.r1 + 1 - n, p.row)) };
   });
+}
+
+/**
+ * turnGroup off the grid: each object's middle turned about the middle of the group's
+ * blocks, exactly, to a sixteenth of a square; then kept within b.
+ */
+function turnFree(base: Placed[], deg: number, b: CellBounds): Placed[] {
+  const g = groupBox(base);
+  const px = (g.x0 + g.x1) / 2;
+  const py = (g.y0 + g.y1) / 2;
+  const [cos, sin] = cosSin(((deg % 360) + 360) % 360);
+  const turned = base.map((p) => {
+    const n = stampBlock(p.size);
+    const x = p.col + n / 2 - px;
+    const y = p.row + n / 2 - py;
+    return { ...p, col: snapPos(px + x * cos - y * sin - n / 2), row: snapPos(py + x * sin + y * cos - n / 2), deg: snapDeg(p.deg + deg) };
+  });
+  return keepWithin(shiftGroup(turned, 0, 0, b), b);
 }
 
 /** Whether any of them can be made bigger (dir 1) or smaller (-1). */
@@ -237,18 +289,28 @@ export function canResize(ps: Placed[], dir: 1 | -1): boolean {
 /** Whether every block is within b. */
 export function groupFits(ps: Placed[], b: CellBounds): boolean {
   return ps.every((p) => {
-    const k = blockOf(p);
-    return k.c0 >= b.c0 && k.r0 >= b.r0 && k.c1 <= b.c1 && k.r1 <= b.r1;
+    const n = stampBlock(p.size);
+    return p.col >= b.c0 && p.row >= b.r0 && p.col + n <= b.c1 + 1 && p.row + n <= b.r1 + 1;
   });
 }
 
 /**
  * A group moved so its blocks are centred on the cell (col, row), as near as whole cells
  * allow (their top-left at col - floor(width / 2), row - floor(height / 2)), and kept
- * within b; null if it's bigger than b.
+ * within b; null if it's bigger than b. With free, (col, row) is a point in cells
+ * (fractional) and the group is centred on it exactly, to a sixteenth of a square.
  */
-export function placeGroupAt(ps: Placed[], col: number, row: number, b: CellBounds): Placed[] | null {
+export function placeGroupAt(ps: Placed[], col: number, row: number, b: CellBounds, free = false): Placed[] | null {
   if (!ps.length) return [];
+  if (free) {
+    const g = groupBox(ps);
+    const w = g.x1 - g.x0;
+    const h = g.y1 - g.y0;
+    if (w > b.c1 - b.c0 + 1 || h > b.r1 - b.r0 + 1) return null;
+    const x = snapPos(Math.max(b.c0, Math.min(b.c1 + 1 - w, col - w / 2)));
+    const y = snapPos(Math.max(b.r0, Math.min(b.r1 + 1 - h, row - h / 2)));
+    return ps.map((p) => ({ ...p, col: snapPos(p.col + x - g.x0), row: snapPos(p.row + y - g.y0) }));
+  }
   const g = groupBlock(ps);
   const w = g.c1 - g.c0 + 1;
   const h = g.r1 - g.r0 + 1;
@@ -267,7 +329,7 @@ const CLIP_SPAN = 4095;
 /**
  * Objects as text for the system clipboard, so they can be pasted into another scene,
  * tab or room: each as [id, column, row, degrees, size], the columns and rows counted
- * from the group's top-left.
+ * from the group's top-left (in sixteenths of a square, for objects off the grid).
  */
 export function encodeObjects(ps: Placed[]): string {
   let c0 = Infinity;
@@ -296,13 +358,15 @@ export function decodeObjects(text: string): Placed[] | null {
   if (tabletop !== CLIP_TAG || v !== 1 || !Array.isArray(objects)) return null;
   if (objects.length < 1 || objects.length > CLIPBOARD_MAX) return null;
   const whole = (n: unknown, max: number): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
+  // A column or row: a whole cell, or a sixteenth of a square off the grid.
+  const pos = (n: unknown, max: number): n is number => typeof n === "number" && Number.isInteger(n / STAMP_POS_STEP) && n >= 0 && n <= max;
   const out: Placed[] = [];
   for (const o of objects) {
     // Anything after the size is left for later versions.
     if (!Array.isArray(o) || o.length < 5) return null;
     const [id, col, row, deg, size] = o as unknown[];
     const kind = isStampId(id) ? id : undefined;
-    if (!kind || !whole(col, CLIP_SPAN) || !whole(row, CLIP_SPAN) || !whole(deg, 360 - STAMP_DEG_STEP) || deg % STAMP_DEG_STEP) return null;
+    if (!kind || !pos(col, CLIP_SPAN) || !pos(row, CLIP_SPAN) || !whole(deg, 360 - STAMP_DEG_STEP) || deg % STAMP_DEG_STEP) return null;
     if (typeof size !== "number" || !Number.isInteger(size / STAMP_SIZE_STEP) || size < STAMP_SIZE_MIN || size > STAMP_SIZE_MAX) return null;
     out.push({ id: kind, col, row, deg, size });
   }
