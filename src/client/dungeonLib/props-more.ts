@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
 import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
 
@@ -218,14 +218,14 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "bathtub", name: "Bathtub", category: "Furniture", w: 1, h: 2, layer: "object",
+    id: "bathtub", name: "Bathtub", category: "Washroom", w: 1, h: 2, layer: "object",
     draw: (c) => {
       rr(c, -0.45, -0.92, 0.9, 1.84, 0.4); fo(c, linear(c, -0.45, 0, 0.45, 0, "#e8e4dc", "#b8b2a6"));
       rr(c, -0.34, -0.8, 0.68, 1.6, 0.32); fo(c, radial(c, 0, 0, 0.8, "#9ad0e0", "#4a8aa8"), 0.02);
     },
   },
   {
-    id: "washbasin", name: "Washbasin", category: "Furniture", w: 0.7, h: 0.7, layer: "object",
+    id: "washbasin", name: "Washbasin", category: "Washroom", w: 0.7, h: 0.7, layer: "object",
     draw: (c) => { circle(c, 0, 0, 0.3); fo(c, radial(c, 0, 0, 0.3, "#d8d4cc", "#9a968e")); circle(c, 0, 0, 0.2); fo(c, radial(c, 0, 0, 0.2, "#a8d8e8", "#5a9ab8"), 0.015); },
   },
   {

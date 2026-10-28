@@ -1,8 +1,9 @@
-// Copied from Dungeon (src/render/library.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
+// Copied from Dungeon (src/render/library.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
 import type { PropDef } from "./propkit";
 import { FURNITURE_PROPS } from "./props-furniture";
 import { CONTAINER_PROPS } from "./props-containers";
 import { KITCHEN_PROPS } from "./props-kitchen";
+import { WASHROOM_PROPS } from "./props-washroom";
 import { NATURE_PROPS } from "./props-nature";
 import { CAMP_PROPS } from "./props-camp";
 import { DUNGEON_PROPS } from "./props-dungeon";
@@ -17,4 +18,4 @@ import { ARMS_PROPS } from "./props-arms";
 // The big library (27 October 2026): one file per category, each design in its variants
 // (see propvariants.ts). props.ts adds these after the first 135 objects.
 
-export const LIBRARY_PROPS: PropDef[] = [...FURNITURE_PROPS, ...CONTAINER_PROPS, ...KITCHEN_PROPS, ...NATURE_PROPS, ...CAMP_PROPS, ...DUNGEON_PROPS, ...LIGHT_PROPS, ...MAGIC_PROPS, ...WORKSHOP_PROPS, ...SHIP_PROPS, ...FARM_PROPS, ...TEMPLE_PROPS, ...ARMS_PROPS];
+export const LIBRARY_PROPS: PropDef[] = [...FURNITURE_PROPS, ...CONTAINER_PROPS, ...KITCHEN_PROPS, ...WASHROOM_PROPS, ...NATURE_PROPS, ...CAMP_PROPS, ...DUNGEON_PROPS, ...LIGHT_PROPS, ...MAGIC_PROPS, ...WORKSHOP_PROPS, ...SHIP_PROPS, ...FARM_PROPS, ...TEMPLE_PROPS, ...ARMS_PROPS];

@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
+// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
 // Built-in props, drawn in code. Each draws itself centred on (0, 0) in cell units inside a
 // w-by-h box; sprites are cached at SPRITE_PX pixels per cell.
 
@@ -470,7 +470,8 @@ const FIRST_GROUPS: Record<string, string> = {
   ...Object.fromEntries(["bed","double-bed","straw-bed"].map((id) => [id, "Beds"])),
   ...Object.fromEntries(["bookshelf","wardrobe","dresser","scroll-rack"].map((id) => [id, "Storage"])),
   ...Object.fromEntries(["rug","rug-blue","rug-round","fur-rug"].map((id) => [id, "Rugs"])),
-  ...Object.fromEntries(["bathtub","washbasin"].map((id) => [id, "Bath and wash"])),
+  ...Object.fromEntries(["bathtub"].map((id) => [id, "Tubs"])),
+  ...Object.fromEntries(["washbasin"].map((id) => [id, "Basins and washstands"])),
   ...Object.fromEntries(["desk","lectern"].map((id) => [id, "Desks and lecterns"])),
   ...Object.fromEntries(["folding-screen"].map((id) => [id, "Screens and decor"])),
   ...Object.fromEntries(["barrel","barrel-lying","barrels"].map((id) => [id, "Barrels"])),

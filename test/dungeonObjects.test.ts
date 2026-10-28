@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cleanStamps, isDungeonStamp, isStampId, makeStamp, naturalStampSize, STAMP_IDS, stampLayer, stampName, type StampId } from "../src/shared/terrain";
 import { DUNGEON_PROPS } from "../src/shared/dungeonCatalog";
-import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
+import { OBJECT_COUNT, OBJECT_GROUPS, groupOf, searchObjects } from "../src/client/ui/objectGroups";
 import { libraryPartOf } from "../src/client/ui/library";
 import { RECENT_MAX, withRecent } from "../src/client/ui/recentPicks";
 
@@ -49,6 +49,7 @@ describe("the object picker", () => {
       "Furniture",
       "Containers",
       "Kitchen & tavern",
+      "Washroom",
       "Nature",
       "Camp & outdoors",
       "Dungeon",
@@ -108,10 +109,10 @@ describe("recent objects", () => {
 });
 
 describe("the guide", () => {
-  it("has nearly 2,000 objects first in What's new, with the count the picker shows", async () => {
+  it("has Dungeon's objects first in What's new, with the count the picker shows", async () => {
     const { GUIDE } = await import("../src/client/guide");
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[0].title).toBe("Nearly 2,000 objects from Dungeon in the Build tool (27 October 2026)");
+    expect(news.parts[0].title).toBe("Over 2,200 objects from Dungeon in the Build tool (27 October 2026)");
     expect(news.parts[1].title).toBe("Maps with levels from Dungeon (26 October 2026)");
     const entry = [...news.parts[0].steps, ...news.parts[0].notes].join("\n");
     expect(entry).toContain(`**Search ${OBJECT_COUNT} objects**`);

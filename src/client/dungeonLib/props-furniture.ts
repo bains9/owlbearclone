@@ -1,10 +1,11 @@
-// Copied from Dungeon (src/render/props-furniture.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-furniture.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
 import { rng } from "./noise";
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, CLOTHS, GOLD, cross, family, shade, ell, poly, fo, box, disc, plank, drape, plate, bookRow, glow, stroke, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
 
-// Furniture for the big library: tables, seating, beds, storage, rugs, washing and decor.
+// Furniture for the big library: tables, seating, beds, storage, rugs and decor (baths and
+// washstands are in the Washroom, props-washroom.ts).
 
 const F = "Furniture" as const;
 
@@ -298,35 +299,15 @@ const rugs: PropDef[] = [
   }),
 ];
 
-const bathTones: (Variant & { tone: Tone })[] = [
-  { key: "wooden", name: "wooden", tone: WOODS[1] },
-  { key: "copper", name: "copper", tone: { key: "", name: "", light: "#e8a070", dark: "#8a4a22" } },
-  { key: "white", name: "white enamel", tone: { key: "", name: "", light: "#ffffff", dark: "#c8c4bc" } },
-];
-
 const MIRROR_FRAMES = [...METALS.map((m) => ({ key: m.key, name: m.name, tone: m })), ...WOODS.slice(1, 3).map((w) => ({ key: w.key, name: w.name, tone: w }))];
 
-const wash: PropDef[] = [
-  ...family({ id: "bath", name: "Bath", category: F, group: "Bath and wash", w: 1.6, h: 0.9, layer: "object" }, bathTones, (c, v) => {
-    rr(c, -0.76, -0.42, 1.52, 0.84, 0.3);
-    fo(c, linear(c, -0.7, -0.4, 0.7, 0.4, v.tone.light, v.tone.dark));
-    rr(c, -0.64, -0.3, 1.28, 0.6, 0.24);
-    fo(c, radial(c, 0, 0, 0.7, "#cfe6f2", "#6a9ab4"), 0.015);
-  }),
-  ...family({ id: "washstand", name: "Washstand", category: F, group: "Bath and wash", w: 0.7, h: 0.5, layer: "object" }, WOODS, (c, v) => {
-    box(c, -0.33, -0.23, 0.66, 0.46, v, 0.04);
-    disc(c, 0, 0, 0.17, { key: "", name: "", light: "#ffffff", dark: "#b8c4cc" });
-    disc(c, 0, 0, 0.11, { key: "", name: "", light: "#cfe6f2", dark: "#7aa4bc" }, 0.01);
-  }),
-  ...family({ id: "mirror-standing", name: "Standing mirror", category: F, group: "Bath and wash", w: 0.7, h: 0.3, layer: "object" }, MIRROR_FRAMES, (c, v) => {
+const decor: PropDef[] = [
+  ...family({ id: "mirror-standing", name: "Standing mirror", category: F, group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" }, MIRROR_FRAMES, (c, v) => {
     rr(c, -0.33, -0.12, 0.66, 0.24, 0.06);
     fo(c, linear(c, -0.3, 0, 0.3, 0, v.tone.light, v.tone.dark));
     rr(c, -0.27, -0.07, 0.54, 0.14, 0.04);
     fo(c, linear(c, -0.27, -0.07, 0.27, 0.07, "#eef6fb", "#9ab8c8"), 0.012);
   }),
-];
-
-const decor: PropDef[] = [
   ...family({ id: "screen-painted", name: "Painted screen", category: F, group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" }, CLOTHS, (c, v) => {
     const panels = [-0.6, -0.2, 0.2, 0.6];
     panels.forEach((x, i) => {
@@ -356,4 +337,4 @@ const decor: PropDef[] = [
   }),
 ];
 
-export const FURNITURE_PROPS: PropDef[] = [...tables, ...seating, ...beds, ...storage, ...rugs, ...wash, ...decor];
+export const FURNITURE_PROPS: PropDef[] = [...tables, ...seating, ...beds, ...storage, ...rugs, ...decor];

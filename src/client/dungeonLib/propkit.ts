@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon c3dcca5. Change it there and run the script again.
+// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
 import { rng } from "./noise";
 
 // The drawing kit shared by every built-in prop: shapes, outlines, wood, foliage, flames, rocks.
@@ -7,6 +7,7 @@ export const PROP_CATEGORIES = [
   "Furniture",
   "Containers",
   "Kitchen & tavern",
+  "Washroom",
   "Nature",
   "Camp & outdoors",
   "Dungeon",
