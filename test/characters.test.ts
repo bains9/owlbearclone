@@ -4,11 +4,13 @@ import {
   TO_HIT_DIE,
   attackLabel,
   attackModifiers,
+  attackWays,
   characterLabel,
   cleanCharacter,
   critDamage,
   critOf,
   damageDice,
+  damageRoll,
   initiativeRoll,
   withModifier,
   type Character,
@@ -125,6 +127,40 @@ describe("a character from their sheet", () => {
     expect(attackLabel("Testa", "Longbow", "crit damage")).toBe("Testa: Longbow crit damage");
   });
 
+  it("gives a rogue's sneak attack its rank in d6, one fewer at range or thrown", () => {
+    // A made-up rogue's attacks, worded as the handbook's sheet words them.
+    const rapier = { weapon: "Rapier", damage: "1d8", range: "", toHit: "+3", bonus: "dmg 0 · sneak 4d6" };
+    const dagger = { weapon: "Dagger", damage: "1d4", range: "7/20", toHit: "+3 · thrown +2", bonus: "dmg 0 · sneak 4d6 / 3d6 thrown" };
+    const bow = { weapon: "Longbow", damage: "1d8", range: "50/250", toHit: "+2 missile", bonus: "no STR bonus · sneak 3d6" };
+    const pick = (ws: ReturnType<typeof attackWays>) => ws.map((w) => [w.name, w.toHit, w.sneak]);
+    // By their rank (5, say, after the sheet's words went stale): the rank wins.
+    expect(pick(attackWays(rapier, 5))).toEqual([["Rapier", 3, "5d6"]]);
+    expect(pick(attackWays(dagger, 5))).toEqual([
+      ["Dagger", 3, "5d6"],
+      ["Dagger, thrown", 2, "4d6"],
+    ]);
+    expect(pick(attackWays(bow, 5))).toEqual([["Longbow", 2, "4d6"]]);
+    expect(pick(attackWays(bow, 1))).toEqual([["Longbow", 2, null]]);
+    // Without a rank, the sheet's own words.
+    expect(pick(attackWays(dagger))).toEqual([
+      ["Dagger", 3, "4d6"],
+      ["Dagger, thrown", 2, "3d6"],
+    ]);
+    // Anyone else: no sneak attack, and a thrown line only when the sheet gives a thrown to-hit.
+    expect(pick(attackWays({ weapon: "Dagger", damage: "1d4", range: "7/20", toHit: "+1 · thrown 0", bonus: "dmg +2" }))).toEqual([
+      ["Dagger", 1, null],
+      ["Dagger, thrown", 0, null],
+    ]);
+    // The damage: the sneak attack dice added when it's ticked; a crit adds the weapon's most, not theirs.
+    const w = attackWays(rapier, 4)[0];
+    expect([damageRoll(w), damageRoll(w, { sneak: true }), damageRoll(w, { sneak: true, crit: true })]).toEqual(["1d8", "1d8+4d6", "1d8+4d6+8"]);
+    expect(damageRoll({ dice: "1d6", damage: 2, sneak: null }, { sneak: true })).toBe("1d6+2");
+    for (const expr of ["1d8+4d6", "1d8+4d6+8", "1d4+3d6-1"]) expect(() => parseDice(expr), expr).not.toThrow();
+    expect(attackLabel("Malspar", "Dagger, thrown", "crit sneak damage")).toBe("Malspar: Dagger, thrown crit sneak damage");
+    // The rank as the sheet has it.
+    expect([cleanCharacter({ ...raw, sneakRank: "4" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "0" })!.sneakRank]).toEqual([4, null, null]);
+  });
+
   it("calls a natural 20 to hit a critical hit, and a natural 2 a critical failure", () => {
     const toHit = (rolls: number[], text = "Testa: Longbow to hit", extra: { dropped?: boolean }[] = []) => ({
       kind: "roll" as const,
@@ -196,7 +232,7 @@ describe("a character from their sheet", () => {
 
 /** A made-up Character tab, in the sheet's layout: labels in A and F, values beside them. */
 function characterTab(): string[][] {
-  const v = Array.from({ length: 90 }, () => Array<string>(8).fill(""));
+  const v = Array.from({ length: 160 }, () => Array<string>(8).fill(""));
   const put = (row: number, col: number, label: string, value: string) => {
     v[row][col] = label;
     v[row][col + 1] = value;
@@ -272,6 +308,18 @@ describe("the GM's Apps Script", () => {
     expect(out.characters).toHaveLength(1);
     expect(cleanCharacter(out.characters![0])).toEqual(cleanCharacter(raw));
     expect(out.unread).toEqual([]);
+  });
+
+  it("reads a rogue's Sneak Attack rank from the skills, however far down the tab they are", async () => {
+    const tab = characterTab();
+    tab[118] = ["Skill", "Rank", "Points", "What it gives you", "", "", "", ""];
+    tab[119] = ["Sneak Attack", "4", "11", "· Rogue only", "", "", "", ""];
+    // The sheet's note about the rule isn't the skill.
+    tab[60] = ["Sneak Attack (p75; DM: always d6): melee adds rank × d6, ranged adds (rank − 1)d6.", "", "", "", "", "", "", ""];
+    const out = await runScript("folder1", [{ id: SHEET, tab }]);
+    expect(cleanCharacter(out.characters![0])!.sneakRank).toBe(4);
+    const plain = await runScript("folder1", [{ id: SHEET, tab: characterTab() }]);
+    expect(cleanCharacter(plain.characters![0])!.sneakRank).toBeNull();
   });
 
   it("says which sheets it couldn't open just now, rather than leaving them out silently", async () => {

@@ -878,11 +878,14 @@ export const GUIDE: GuideSection[] = [
           "Their card shows above the bar at the bottom: HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
           "Click an attack's first button to roll to hit (two d10 with the sheet's to-hit, its DEX bonus and the rest), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
           "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the most the weapon's dice can roll, without the bonuses (a 1d8 weapon adds 8, a 2d6 weapon 12). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
+          "A rogue: for a hit that's a sneak attack, tick **Sneak attack** on the card before you roll damage. The damage adds a d6 for each rank of their Sneak Attack skill (one fewer with a bow, crossbow or thrown weapon), and the box unticks itself after the roll.",
           "Click the arrow at the top right to open the character's sheet."
         ],
         "notes": [
           "Click **Initiative** on the card to roll it in the chat (a d10 with their INT bonus).",
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
+          "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
+          "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
           "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
         ]
       },

@@ -47,7 +47,7 @@ function doGet() {
 function card(ss) {
   const sheet = ss.getSheetByName('Character');
   if (!sheet) return null;
-  const v = sheet.getRange('A1:H90').getDisplayValues();
+  const v = sheet.getRange('A1:H160').getDisplayValues();
   // The value beside a label: column B for those in column A, G for those in F (0-based col).
   const at = function (col, label) {
     for (let i = 0; i < v.length; i++) if (String(v[i][col]).trim() === label) return String(v[i][col + 1]).trim();
@@ -82,6 +82,8 @@ function card(ss) {
     maxSp: at(0, 'Maximum spell points'),
     ac: at(5, 'Combat AC'),
     acShield: at(5, 'AC with shield'),
+    // A rogue's Sneak Attack rank, from the skills: how many d6 a sneak attack adds (one fewer at range).
+    sneakRank: at(0, 'Sneak Attack'),
     attacks: attacks,
   };
 }

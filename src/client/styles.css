@@ -890,6 +890,18 @@ button:disabled {
   color: var(--warn);
   font-weight: 700;
 }
+/* A rogue's Sneak attack box, and a damage button that adds the sneak attack dice. */
+.character-sneak {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.character-attacks .btn.sneak {
+  border-color: var(--accent);
+}
 
 .selbar {
   position: absolute;

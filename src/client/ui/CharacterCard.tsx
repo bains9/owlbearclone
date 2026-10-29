@@ -2,17 +2,20 @@
 // HP, AC, initiative and spell points as their sheet has them now, their attacks as one-tap rolls
 // (to hit, and damage) in the chat, and a link to open the sheet itself. After your own natural 20
 // to hit with an attack (a critical hit), its damage button rolls the crit's damage until you roll it.
+// A rogue's card has a Sneak attack box: ticked, the next damage roll adds the sheet's sneak attack
+// dice for that weapon (fewer when it's ranged or thrown, as the sheet has them), then unticks.
 
+import { useState } from "preact/hooks";
 import { Dices, ExternalLink } from "lucide-preact";
 import {
+  DAMAGE_ROLLS,
   INITIATIVE_DIE,
   TO_HIT_DIE,
   attackLabel,
-  attackModifiers,
+  attackWays,
   characterLabel,
-  critDamage,
   critOf,
-  damageDice,
+  damageRoll,
   withModifier,
   type Character,
 } from "../../shared/characters";
@@ -24,7 +27,7 @@ const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 /** Whether your last roll with an attack was a critical hit to hit, its damage not rolled yet. */
 function critPending(messages: readonly ChatMessage[], userId: string | undefined, who: string, weapon: string): boolean {
   const hit = attackLabel(who, weapon, "to hit");
-  const damage = [attackLabel(who, weapon, "damage"), attackLabel(who, weapon, "crit damage")];
+  const damage = DAMAGE_ROLLS.map((kind) => attackLabel(who, weapon, kind));
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.kind !== "roll" || m.userId !== userId) continue;
@@ -42,6 +45,10 @@ export function CharacterCard(props: { c: Character }) {
   const who = characterLabel(c);
   const share = c.hp !== null && c.maxHp ? Math.max(0, Math.min(1, c.hp / c.maxHp)) : null;
   const roll = (expr: string, label: string) => room.roll(expr, { label });
+  const ways = c.attacks.flatMap((a) => attackWays(a, c.sneakRank ?? null));
+  // Ticked for this character only (the card stays up when another token is picked).
+  const [sneakFor, setSneakFor] = useState<string | null>(null);
+  const sneak = sneakFor === c.id;
   return (
     <div class="character-card" onPointerDown={(e) => e.stopPropagation()}>
       <div class="character-head">
@@ -81,29 +88,38 @@ export function CharacterCard(props: { c: Character }) {
           </span>
         )}
       </div>
-      {c.attacks.length > 0 && (
+      {ways.some((w) => w.sneak) && (
+        <label class="character-sneak" title="Tick it for a hit that's a sneak attack: the damage roll adds the sneak attack dice from the sheet, then it unticks">
+          <input type="checkbox" checked={sneak} onChange={(e) => setSneakFor(e.currentTarget.checked ? c.id : null)} />
+          Sneak attack
+        </label>
+      )}
+      {ways.length > 0 && (
         <ul class="character-attacks">
-          {c.attacks.map((a, i) => {
-            const mods = attackModifiers(a);
-            const dice = damageDice(a);
-            const hit = withModifier(TO_HIT_DIE, mods.toHit);
-            const dmg = dice ? withModifier(dice, mods.damage) : null;
-            const crit = dice && critPending(messages, me, who, a.weapon) ? critDamage(a) : null;
+          {ways.map((w, i) => {
+            const hit = withModifier(TO_HIT_DIE, w.toHit);
+            const crit = critPending(messages, me, who, w.name);
+            const sneaking = sneak && !!w.sneak;
+            const dmg = damageRoll(w, { crit, sneak: sneaking });
+            const kind = crit ? (sneaking ? "crit sneak damage" : "crit damage") : sneaking ? "sneak damage" : "damage";
             return (
-              <li key={i}>
-                <span class="character-weapon" title={[a.range && `Range ${a.range}`, a.toHit && `To hit ${a.toHit}`, a.bonus].filter(Boolean).join(" · ")}>
-                  {a.weapon}
+              <li key={`${i}:${w.name}`}>
+                <span class="character-weapon" title={w.detail}>
+                  {w.name}
                 </span>
-                <button class="btn btn-sm" title={`Roll ${hit} to hit (a natural 20 is a critical hit, a natural 2 a critical failure)`} onClick={() => roll(hit, attackLabel(who, a.weapon, "to hit"))}>
+                <button class="btn btn-sm" title={`Roll ${hit} to hit (a natural 20 is a critical hit, a natural 2 a critical failure)`} onClick={() => roll(hit, attackLabel(who, w.name, "to hit"))}>
                   <Dices size={13} /> {hit}
                 </button>
                 {dmg && (
                   <button
-                    class={cx("btn btn-sm", crit && "crit")}
-                    title={crit ? `Critical hit: roll ${crit} damage (the most the weapon's dice can roll, added)` : `Roll ${dmg} damage`}
-                    onClick={() => (crit ? roll(crit, attackLabel(who, a.weapon, "crit damage")) : roll(dmg, attackLabel(who, a.weapon, "damage")))}
+                    class={cx("btn btn-sm", crit && "crit", sneaking && "sneak")}
+                    title={[crit && "Critical hit: the most the weapon's dice can roll, added", sneaking && `Sneak attack: ${w.sneak} added`, `Roll ${dmg} damage`].filter(Boolean).join(". ")}
+                    onClick={() => {
+                      roll(dmg, attackLabel(who, w.name, kind));
+                      if (sneaking) setSneakFor(null);
+                    }}
                   >
-                    {crit ? `Crit ${crit}` : dmg}
+                    {crit ? `Crit ${dmg}` : dmg}
                   </button>
                 )}
               </li>

@@ -47,6 +47,8 @@ export interface Character {
   sp: number | null;
   maxSp: number | null;
   attacks: CharacterAttack[];
+  /** A rogue's Sneak Attack rank, from the sheet's skills (null for anyone without it): its d6s on a sneak attack. */
+  sneakRank?: number | null;
   /** The sheet itself, to open. */
   url: string;
   /** The version of the token picture the GM chose for them, when there is one (else their figure is drawn). */
@@ -86,7 +88,8 @@ export function cleanCharacter(raw: unknown): Character | null {
   const name = text(r.name, 80);
   if (!name) return null;
   const init = num(r.init);
-  const attacks =(Array.isArray(r.attacks) ? r.attacks : [])
+  const rank = num(r.sneakRank);
+  const attacks = (Array.isArray(r.attacks) ? r.attacks : [])
     .slice(0, 12)
     .map((a) => {
       const x = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
@@ -112,6 +115,7 @@ export function cleanCharacter(raw: unknown): Character | null {
     sp: num(r.sp),
     maxSp: num(r.maxSp),
     attacks,
+    sneakRank: rank !== null && rank >= 1 ? Math.min(20, Math.round(rank)) : null,
     // Made from the id, so a card only ever opens that character's own sheet.
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
   };
@@ -140,8 +144,13 @@ export function initiativeRoll(c: Pick<Character, "init"> | null): number {
 /** The chat keeps a roll's label to 60 characters. */
 const LABEL_MAX = 60;
 
+/** What an attack roll is for, the end of its label. */
+export type AttackRollKind = "to hit" | "damage" | "crit damage" | "sneak damage" | "crit sneak damage";
+/** The damage rolls among them: the ones that come after a hit. */
+export const DAMAGE_ROLLS: readonly AttackRollKind[] = ["damage", "crit damage", "sneak damage", "crit sneak damage"];
+
 /** An attack roll's label, "Testa: Longbow to hit": a long weapon's name is shortened rather than "to hit". */
-export function attackLabel(who: string, weapon: string, what: "to hit" | "damage" | "crit damage"): string {
+export function attackLabel(who: string, weapon: string, what: AttackRollKind): string {
   const room = LABEL_MAX - `${who}:  ${what}`.length;
   const name = weapon.length > room ? `${weapon.slice(0, Math.max(1, room - 1)).trimEnd()}…` : weapon;
   return `${who}: ${name} ${what}`.slice(0, LABEL_MAX);
@@ -174,9 +183,61 @@ export function damageDice(a: Pick<CharacterAttack, "damage">): string | null {
  */
 export function critDamage(a: Pick<CharacterAttack, "damage" | "bonus">): string | null {
   const dice = damageDice(a);
-  if (!dice) return null;
-  const [count, sides] = dice.split("d").map(Number);
-  return withModifier(dice, attackModifiers({ toHit: "", bonus: a.bonus }).damage + count * sides);
+  return dice ? damageRoll({ dice, damage: attackModifiers({ toHit: "", bonus: a.bonus }).damage, sneak: null }, { crit: true }) : null;
+}
+
+/**
+ * One way to use an attack on the card: the weapon itself, and for one the sheet gives a thrown
+ * to-hit too ("+3 · thrown +2"), thrown. `sneak` is a rogue's sneak attack dice for it, as the
+ * sheet works them out in the last column ("sneak 4d6", "sneak 4d6 / 3d6 thrown"; a ranged
+ * weapon's already one fewer), else null.
+ */
+export interface AttackWay {
+  name: string;
+  /** What the sheet says of it (range, to-hit, bonus), for a tooltip. */
+  detail: string;
+  toHit: number;
+  /** Its damage dice ("1d8"), or null when the sheet's damage isn't dice. */
+  dice: string | null;
+  /** The sheet's damage bonus. */
+  damage: number;
+  sneak: string | null;
+}
+
+/**
+ * A character's ways of attacking with a weapon. With their Sneak Attack rank (`sneakRank`, from
+ * their skills), a sneak attack is that many d6 in melee and one fewer at range (a missile weapon,
+ * or one thrown), by the handbook (p75; the DM: always d6). Without it, the sheet's own words for
+ * the weapon are used.
+ */
+export function attackWays(a: CharacterAttack, sneakRank: number | null = null): AttackWay[] {
+  const mods = attackModifiers(a);
+  const dice = damageDice(a);
+  const s = a.bonus.match(/sneak(?:\s+attack)?\s*(\d{1,2})d(\d{1,3})(?:\s*\/\s*(\d{1,2})d(\d{1,3})\s*thrown)?/i);
+  const d6 = (n: number) => (n >= 1 ? `${n}d6` : null);
+  const ranged = /missile/i.test(a.toHit);
+  const sneak = sneakRank ? d6(ranged ? sneakRank - 1 : sneakRank) : s ? `${s[1]}d${s[2]}` : null;
+  const detail = [a.range && `Range ${a.range}`, a.toHit && `To hit ${a.toHit}`, a.bonus].filter(Boolean).join(" · ");
+  const ways: AttackWay[] = [{ name: a.weapon, detail, toHit: mods.toHit, dice, damage: mods.damage, sneak }];
+  const thrown = a.toHit.match(/thrown\s*([+-]?\d+)/i);
+  if (thrown) {
+    // Thrown is ranged: one die fewer (the sheet's own thrown sneak attack, when there's no rank).
+    const thrownSneak = sneakRank ? d6(sneakRank - 1) : s?.[3] ? `${s[3]}d${s[4]}` : s ? d6(Number(s[1]) - 1) : null;
+    ways.push({ name: `${a.weapon}, thrown`, detail, toHit: bonus(Number(thrown[1])), dice, damage: mods.damage, sneak: thrownSneak });
+  }
+  return ways;
+}
+
+/**
+ * The damage roll for a way of attacking: its dice and bonus, with the sneak attack dice when
+ * `sneak` (and it has them), and on a crit the most its own dice can roll added again (not the
+ * sneak attack's, nor the bonus). Null when its damage isn't dice.
+ */
+export function damageRoll(w: Pick<AttackWay, "dice" | "damage" | "sneak">, opts: { crit?: boolean; sneak?: boolean } = {}): string | null {
+  if (!w.dice) return null;
+  const [count, sides] = w.dice.split("d").map(Number);
+  const dice = opts.sneak && w.sneak ? `${w.dice}+${w.sneak}` : w.dice;
+  return withModifier(dice, w.damage + (opts.crit ? count * sides : 0));
 }
 
 /**
