@@ -38,6 +38,7 @@ interface Party {
   forgetParty(env: unknown, cache: Cache | null): Promise<void>;
   SCRIPT_URL: RegExp;
   FIGURE_ICON: RegExp;
+  isWeaponName(v: unknown): boolean;
 }
 const party = (await import(/* @vite-ignore */ "../src/worker/" + "characters")) as Party;
 
@@ -58,6 +59,7 @@ const raw = {
   init: "+2",
   sp: "30",
   maxSp: "39",
+  strBonus: "+2",
   ac: "5",
   acShield: "7",
   attacks: [
@@ -134,13 +136,13 @@ describe("a character from their sheet", () => {
     const bow = { weapon: "Longbow", damage: "1d8", range: "50/250", toHit: "+2 missile", bonus: "no STR bonus · sneak 3d6" };
     const pick = (ws: ReturnType<typeof attackWays>) => ws.map((w) => [w.name, w.toHit, w.sneak]);
     // By their rank (5, say, after the sheet's words went stale): the rank wins.
-    expect(pick(attackWays(rapier, 5))).toEqual([["Rapier", 3, "5d6"]]);
-    expect(pick(attackWays(dagger, 5))).toEqual([
+    expect(pick(attackWays(rapier, { sneakRank: 5 }))).toEqual([["Rapier", 3, "5d6"]]);
+    expect(pick(attackWays(dagger, { sneakRank: 5 }))).toEqual([
       ["Dagger", 3, "5d6"],
       ["Dagger, thrown", 2, "4d6"],
     ]);
-    expect(pick(attackWays(bow, 5))).toEqual([["Longbow", 2, "4d6"]]);
-    expect(pick(attackWays(bow, 1))).toEqual([["Longbow", 2, null]]);
+    expect(pick(attackWays(bow, { sneakRank: 5 }))).toEqual([["Longbow", 2, "4d6"]]);
+    expect(pick(attackWays(bow, { sneakRank: 1 }))).toEqual([["Longbow", 2, null]]);
     // Without a rank, the sheet's own words.
     expect(pick(attackWays(dagger))).toEqual([
       ["Dagger", 3, "4d6"],
@@ -152,13 +154,33 @@ describe("a character from their sheet", () => {
       ["Dagger, thrown", 0, null],
     ]);
     // The damage: the sneak attack dice added when it's ticked; a crit adds the weapon's most, not theirs.
-    const w = attackWays(rapier, 4)[0];
+    const w = attackWays(rapier, { sneakRank: 4 })[0];
     expect([damageRoll(w), damageRoll(w, { sneak: true }), damageRoll(w, { sneak: true, crit: true })]).toEqual(["1d8", "1d8+4d6", "1d8+4d6+8"]);
     expect(damageRoll({ dice: "1d6", damage: 2, sneak: null }, { sneak: true })).toBe("1d6+2");
     for (const expr of ["1d8+4d6", "1d8+4d6+8", "1d4+3d6-1"]) expect(() => parseDice(expr), expr).not.toThrow();
     expect(attackLabel("Malspar", "Dagger, thrown", "crit sneak damage")).toBe("Malspar: Dagger, thrown crit sneak damage");
     // The rank as the sheet has it.
     expect([cleanCharacter({ ...raw, sneakRank: "4" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "0" })!.sneakRank]).toEqual([4, null, null]);
+  });
+
+  it("adds their STR bonus to a ranged weapon matched to their strength, and only that", () => {
+    const bow = { weapon: "Longbow", damage: "1d8", range: "50/250", toHit: "0 missile", bonus: "no STR bonus" };
+    const specialised = { weapon: "Shortbow", damage: "1d6", range: "30/110", toHit: "+3 missile", bonus: "dmg +2 · specialised, 3 attacks / 2 rds" };
+    const dagger = { weapon: "Dagger", damage: "1d4", range: "7/20", toHit: "+1 · thrown 0", bonus: "dmg +2" };
+    const roll = (a: typeof bow, o: Parameters<typeof attackWays>[1]) => attackWays(a, o).map((w) => [w.name, damageRoll(w), w.strMatched]);
+    expect(roll(bow, { strBonus: 2 })).toEqual([["Longbow", "1d8", false]]);
+    expect(roll(bow, { strBonus: 2, strMatched: ["Longbow"] })).toEqual([["Longbow", "1d8+2", true]]);
+    expect(roll(specialised, { strBonus: 1, strMatched: ["Shortbow"] })).toEqual([["Shortbow", "1d6+3", true]]);
+    // A melee weapon has its STR bonus from the sheet already; marking it changes nothing.
+    expect(roll(dagger, { strBonus: 2, strMatched: ["Dagger"] })).toEqual([
+      ["Dagger", "1d4+2", false],
+      ["Dagger, thrown", "1d4+2", false],
+    ]);
+    expect(attackWays(bow)[0].ranged).toBe(true);
+    expect(attackWays(dagger)[0].ranged).toBe(false);
+    // A crit doubles the dice's most, not the STR bonus.
+    expect(damageRoll(attackWays(bow, { strBonus: 2, strMatched: ["Longbow"] })[0], { crit: true })).toBe("1d8+10");
+    expect([cleanCharacter({ ...raw, strBonus: "+2" })!.strBonus, cleanCharacter({ ...raw, strBonus: "0" })!.strBonus, cleanCharacter({ ...raw, strBonus: "" })!.strBonus]).toEqual([2, 0, null]);
   });
 
   it("calls a natural 20 to hit a critical hit, and a natural 2 a critical failure", () => {
@@ -253,6 +275,7 @@ function characterTab(): string[][] {
   put(22, 0, "Current spell points", "30");
   put(22, 5, "AC with shield", "7");
   put(23, 0, "Maximum spell points", "39");
+  put(27, 5, "Melee damage", "+2");
   v[44] = ["Weapon", "Damage", "Range", "Properties · inventory", "", "Proficient?", "To-hit", "Damage bonus · sneak attack"];
   v[45] = ["Longbow", "1d8", "50/250", "Ammunition", "", "Yes", "0 missile", "no STR bonus"];
   v[46] = ["Dagger", "1d4", "7/20", "Finesse", "", "Yes", "+1 · thrown 0", "dmg +2"];
@@ -352,9 +375,22 @@ function memoryCache() {
 
 describe("the Worker's reading of the party", () => {
   const URL_ = "https://script.google.com/macros/s/AKfycbTESTtestTESTtestTESTtest/exec";
-  const env = (source: string | null, pictures: Record<string, string> = {}, figures: Record<string, string> = {}) => ({
-    directory: { charactersSource: async () => source, characterFigures: async () => figures },
+  const env = (source: string | null, pictures: Record<string, string> = {}, figures: Record<string, string> = {}, matched: Record<string, string[]> = {}) => ({
+    directory: { charactersSource: async () => source, characterFigures: async () => figures, characterStrMatched: async () => matched },
     files: { head: async (key: string) => (pictures[key] ? { httpEtag: `"${pictures[key]}"` } : null) },
+  });
+
+  it("gives each character the ranged weapons the GM marked as matched to their strength", async () => {
+    const { cache } = memoryCache();
+    const fetcher = vi.fn(async () => Response.json({ characters: [raw] }));
+    const r = await party.readParty(env(URL_, {}, {}, { [SHEET]: ["Longbow"] }), cache, fetcher as unknown as typeof fetch, 1000);
+    expect(r.characters[0].strMatched).toEqual(["Longbow"]);
+    expect(r.characters[0].strBonus).toBe(2);
+    const none = await party.readParty(env(URL_), cache, fetcher as unknown as typeof fetch, 2000);
+    expect(none.characters[0].strMatched).toBeUndefined();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    for (const ok of ["Longbow", "Crossbow, heavy"]) expect(party.isWeaponName(ok), ok).toBe(true);
+    for (const bad of ["", " Longbow", "x".repeat(61), "bow\u0000", 3]) expect(party.isWeaponName(bad), String(bad)).toBe(false);
   });
 
   it("gives each character the figure the GM chose, at once and without reading the sheets again", async () => {

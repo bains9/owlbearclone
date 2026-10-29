@@ -84,6 +84,8 @@ function card(ss) {
     acShield: at(5, 'AC with shield'),
     // A rogue's Sneak Attack rank, from the skills: how many d6 a sneak attack adds (one fewer at range).
     sneakRank: at(0, 'Sneak Attack'),
+    // Their STR damage bonus, for a bow matched to their strength (the sheet adds it to melee weapons).
+    strBonus: at(5, 'Melee damage'),
     attacks: attacks,
   };
 }

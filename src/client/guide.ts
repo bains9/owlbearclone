@@ -886,6 +886,7 @@ export const GUIDE: GuideSection[] = [
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
+          "A bow or crossbow matched to the character's strength adds their STR bonus to its damage, as a melee weapon does. GM: click **STR** beside it on their card to mark it (every room); it lights up, and everyone's card adds the bonus.",
           "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
         ]
       },

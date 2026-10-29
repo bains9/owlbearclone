@@ -143,6 +143,21 @@ export async function setCharacterFigure(room: RoomClient, c: Character, figure:
   await room.refreshParty();
 }
 
+/** GM: marks one of a character's ranged weapons as matched to their strength (its damage adds their STR bonus), or not. */
+export async function setCharacterStrMatched(room: RoomClient, c: Character, weapon: string, matched: boolean): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/str-matched`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ weapon, matched }),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
 /** GM: back to their figure. */
 export async function clearCharacterPicture(room: RoomClient, c: Character): Promise<void> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/picture`, { method: "DELETE", credentials: "same-origin" });

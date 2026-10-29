@@ -45,6 +45,7 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS trusted_logins (ip TEXT PRIMARY KEY, last_ok INTEGER NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS spent_hops (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_figures (sheet_id TEXT PRIMARY KEY, figure TEXT NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_str_matched (sheet_id TEXT NOT NULL, weapon TEXT NOT NULL, PRIMARY KEY (sheet_id, weapon))`);
     });
   }
 
@@ -81,6 +82,23 @@ export class Directory extends DurableObject<Env> {
   characterFigures(): Record<string, string> {
     const rows = this.sql.exec<{ sheet_id: string; figure: string }>(`SELECT sheet_id, figure FROM character_figures`).toArray();
     return Object.fromEntries(rows.map((r) => [r.sheet_id, r.figure]));
+  }
+
+  /** The ranged weapons the GM marked as matched to a character's strength, by sheet id (worker/characters.ts). */
+  characterStrMatched(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const r of this.sql.exec<{ sheet_id: string; weapon: string }>(`SELECT sheet_id, weapon FROM character_str_matched ORDER BY weapon`)) {
+      (out[r.sheet_id] ??= []).push(r.weapon);
+    }
+    return out;
+  }
+
+  /** Marks one of a character's ranged weapons as matched to their strength, or not, for every room (up to 12 a character). */
+  setCharacterStrMatched(sheetId: string, weapon: string, matched: boolean): void {
+    this.sql.exec(`DELETE FROM character_str_matched WHERE sheet_id = ? AND weapon = ?`, sheetId, weapon);
+    if (!matched) return;
+    const n = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM character_str_matched WHERE sheet_id = ?`, sheetId).one().n;
+    if (n < 12) this.sql.exec(`INSERT INTO character_str_matched (sheet_id, weapon) VALUES (?, ?)`, sheetId, weapon);
   }
 
   /** A character's figure for every room; null goes back to their class's. */

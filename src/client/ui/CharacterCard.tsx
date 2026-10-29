@@ -20,6 +20,7 @@ import {
   type Character,
 } from "../../shared/characters";
 import type { ChatMessage } from "../../shared/types";
+import { setCharacterStrMatched } from "../party";
 import { cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -45,7 +46,10 @@ export function CharacterCard(props: { c: Character }) {
   const who = characterLabel(c);
   const share = c.hp !== null && c.maxHp ? Math.max(0, Math.min(1, c.hp / c.maxHp)) : null;
   const roll = (expr: string, label: string) => room.roll(expr, { label });
-  const ways = c.attacks.flatMap((a) => attackWays(a, c.sneakRank ?? null));
+  const gm = useRoomState((s) => s.me?.role === "gm");
+  const ways = c.attacks.flatMap((a) => attackWays(a, { sneakRank: c.sneakRank, strBonus: c.strBonus, strMatched: c.strMatched }));
+  const matchStr = (weapon: string, matched: boolean) =>
+    void setCharacterStrMatched(room, c, weapon, matched).catch((err: Error) => room.toast(err.message, "error"));
   // Ticked for this character only (the card stays up when another token is picked).
   const [sneakFor, setSneakFor] = useState<string | null>(null);
   const sneak = sneakFor === c.id;
@@ -107,6 +111,21 @@ export function CharacterCard(props: { c: Character }) {
                 <span class="character-weapon" title={w.detail}>
                   {w.name}
                 </span>
+                {w.ranged && c.strBonus != null && (gm || w.strMatched) && (
+                  <button
+                    class={cx("str-match", w.strMatched && "on")}
+                    disabled={!gm}
+                    aria-pressed={w.strMatched}
+                    title={
+                      w.strMatched
+                        ? `Matched to their strength: its damage adds their STR bonus (${signed(c.strBonus)})${gm ? ". Click to unmark it" : ""}`
+                        : `GM: mark it as matched to their strength, so its damage adds their STR bonus (${signed(c.strBonus)})`
+                    }
+                    onClick={() => matchStr(w.weapon, !w.strMatched)}
+                  >
+                    STR
+                  </button>
+                )}
                 <button class="btn btn-sm" title={`Roll ${hit} to hit (a natural 20 is a critical hit, a natural 2 a critical failure)`} onClick={() => roll(hit, attackLabel(who, w.name, "to hit"))}>
                   <Dices size={13} /> {hit}
                 </button>

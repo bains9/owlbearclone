@@ -56,7 +56,11 @@ export async function askScript(source: string, fetcher: typeof fetch = fetch): 
 }
 
 export interface PartyEnv {
-  directory: { charactersSource(): Promise<string | null>; characterFigures(): Promise<Record<string, string>> };
+  directory: {
+    charactersSource(): Promise<string | null>;
+    characterFigures(): Promise<Record<string, string>>;
+    characterStrMatched(): Promise<Record<string, string[]>>;
+  };
   files: Pick<R2Bucket, "head">;
 }
 
@@ -69,11 +73,20 @@ export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typ
   const source = await env.directory.charactersSource();
   if (!source) return { configured: false, characters: [], readAt: now };
   const reading = await readSheets(env, source, cache, fetcher, now);
-  const figures = await env.directory.characterFigures();
+  const [figures, matched] = await Promise.all([env.directory.characterFigures(), env.directory.characterStrMatched()]);
   return {
     ...reading,
-    characters: reading.characters.map(({ figure: _, ...c }) => (figures[c.id] ? { ...c, figure: figures[c.id] } : c)),
+    characters: reading.characters.map(({ figure: _f, strMatched: _m, ...c }) => ({
+      ...c,
+      ...(figures[c.id] ? { figure: figures[c.id] } : {}),
+      ...(matched[c.id]?.length ? { strMatched: matched[c.id] } : {}),
+    })),
   };
+}
+
+/** A weapon's name as a character's sheet has it, to mark it matched to their strength. */
+export function isWeaponName(v: unknown): v is string {
+  return typeof v === "string" && v.trim() === v && v.length >= 1 && v.length <= 60 && !/[\u0000-\u001f\u007f]/.test(v);
 }
 
 async function readSheets(env: PartyEnv, source: string, cache: Cache | null, fetcher: typeof fetch, now: number): Promise<CharactersReply> {

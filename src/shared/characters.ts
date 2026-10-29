@@ -49,6 +49,13 @@ export interface Character {
   attacks: CharacterAttack[];
   /** A rogue's Sneak Attack rank, from the sheet's skills (null for anyone without it): its d6s on a sneak attack. */
   sneakRank?: number | null;
+  /** Their STR damage bonus, the sheet's "Melee damage" (null when it isn't there). */
+  strBonus?: number | null;
+  /**
+   * The ranged weapons (by the sheet's name for them) the GM marked as matched to their strength,
+   * which add their STR bonus to damage like a melee weapon (kept by the Worker, for every room).
+   */
+  strMatched?: string[];
   /** The sheet itself, to open. */
   url: string;
   /** The version of the token picture the GM chose for them, when there is one (else their figure is drawn). */
@@ -89,7 +96,8 @@ export function cleanCharacter(raw: unknown): Character | null {
   if (!name) return null;
   const init = num(r.init);
   const rank = num(r.sneakRank);
-  const attacks = (Array.isArray(r.attacks) ? r.attacks : [])
+  const str = num(r.strBonus);
+  const attacks =(Array.isArray(r.attacks) ? r.attacks : [])
     .slice(0, 12)
     .map((a) => {
       const x = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
@@ -116,6 +124,7 @@ export function cleanCharacter(raw: unknown): Character | null {
     maxSp: num(r.maxSp),
     attacks,
     sneakRank: rank !== null && rank >= 1 ? Math.min(20, Math.round(rank)) : null,
+    strBonus: str === null ? null : bonus(str),
     // Made from the id, so a card only ever opens that character's own sheet.
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
   };
@@ -194,36 +203,56 @@ export function critDamage(a: Pick<CharacterAttack, "damage" | "bonus">): string
  */
 export interface AttackWay {
   name: string;
+  /** The sheet's name for the weapon (a thrown way's too). */
+  weapon: string;
   /** What the sheet says of it (range, to-hit, bonus), for a tooltip. */
   detail: string;
   toHit: number;
   /** Its damage dice ("1d8"), or null when the sheet's damage isn't dice. */
   dice: string | null;
-  /** The sheet's damage bonus. */
+  /** Its damage bonus: the sheet's, and the STR bonus for a ranged weapon matched to their strength. */
   damage: number;
   sneak: string | null;
+  /** A missile weapon (bow, crossbow): one that can be matched to their strength. */
+  ranged: boolean;
+  /** A ranged weapon the GM marked as matched to their strength (its damage has their STR bonus). */
+  strMatched: boolean;
+}
+
+/** What else of a character's goes into their attacks. */
+export interface AttackOptions {
+  /** Their Sneak Attack rank (Character.sneakRank). */
+  sneakRank?: number | null;
+  /** Their STR damage bonus (Character.strBonus). */
+  strBonus?: number | null;
+  /** Their ranged weapons matched to their strength (Character.strMatched). */
+  strMatched?: readonly string[];
 }
 
 /**
  * A character's ways of attacking with a weapon. With their Sneak Attack rank (`sneakRank`, from
  * their skills), a sneak attack is that many d6 in melee and one fewer at range (a missile weapon,
  * or one thrown), by the handbook (p75; the DM: always d6). Without it, the sheet's own words for
- * the weapon are used.
+ * the weapon are used. A ranged weapon matched to their strength adds their STR bonus to damage
+ * (the sheet gives a melee weapon's itself).
  */
-export function attackWays(a: CharacterAttack, sneakRank: number | null = null): AttackWay[] {
+export function attackWays(a: CharacterAttack, o: AttackOptions = {}): AttackWay[] {
+  const { sneakRank = null } = o;
   const mods = attackModifiers(a);
   const dice = damageDice(a);
   const s = a.bonus.match(/sneak(?:\s+attack)?\s*(\d{1,2})d(\d{1,3})(?:\s*\/\s*(\d{1,2})d(\d{1,3})\s*thrown)?/i);
   const d6 = (n: number) => (n >= 1 ? `${n}d6` : null);
   const ranged = /missile/i.test(a.toHit);
+  const strMatched = ranged && !!o.strMatched?.includes(a.weapon);
+  const damage = mods.damage + (strMatched ? (o.strBonus ?? 0) : 0);
   const sneak = sneakRank ? d6(ranged ? sneakRank - 1 : sneakRank) : s ? `${s[1]}d${s[2]}` : null;
   const detail = [a.range && `Range ${a.range}`, a.toHit && `To hit ${a.toHit}`, a.bonus].filter(Boolean).join(" · ");
-  const ways: AttackWay[] = [{ name: a.weapon, detail, toHit: mods.toHit, dice, damage: mods.damage, sneak }];
+  const ways: AttackWay[] = [{ name: a.weapon, weapon: a.weapon, detail, toHit: mods.toHit, dice, damage, sneak, ranged, strMatched }];
   const thrown = a.toHit.match(/thrown\s*([+-]?\d+)/i);
   if (thrown) {
     // Thrown is ranged: one die fewer (the sheet's own thrown sneak attack, when there's no rank).
     const thrownSneak = sneakRank ? d6(sneakRank - 1) : s?.[3] ? `${s[3]}d${s[4]}` : s ? d6(Number(s[1]) - 1) : null;
-    ways.push({ name: `${a.weapon}, thrown`, detail, toHit: bonus(Number(thrown[1])), dice, damage: mods.damage, sneak: thrownSneak });
+    ways.push({ name: `${a.weapon}, thrown`, weapon: a.weapon, detail, toHit: bonus(Number(thrown[1])), dice, damage: mods.damage, sneak: thrownSneak, ranged: false, strMatched: false });
   }
   return ways;
 }

@@ -902,6 +902,25 @@ button:disabled {
 .character-attacks .btn.sneak {
   border-color: var(--accent);
 }
+/* A ranged weapon's STR tick: lit when it's matched to their strength (the GM sets it). */
+.str-match {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.str-match.on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.str-match:disabled {
+  cursor: default;
+}
 
 .selbar {
   position: absolute;
