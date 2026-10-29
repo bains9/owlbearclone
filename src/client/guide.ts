@@ -21,7 +21,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Lighting and line of sight (29 October 2026)",
         "steps": [
           "GM: open **Edit scene** and tick **On for this scene** under **Lighting and line of sight**.",
-          "Players now see only what the party can see: walls and shut doors block their sight. Choose **Dark** and they see only what the map's lights, or the party's own light, fall on.",
+          "Players now see only what the party can see: walls and shut doors block their sight, out to 12 squares (**How far the party sees**). Choose **Dark** and they see only what the map's lights, or the party's own light, fall on.",
           "Click a door's marker on the map to open or shut it."
         ],
         "notes": [
@@ -877,10 +877,12 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Open **Edit scene** (the pencil beside the scene) and find **Lighting and line of sight**.",
           "Tick **On for this scene**.",
-          "Choose **Daylight** (lit all over: only walls block sight) or **Dark** (only lights show). In the dark, set how far **The party's own light** reaches, in squares."
+          "Choose **Daylight** (lit all over: only walls block sight) or **Dark** (only lights show). In the dark, set how far **The party's own light** reaches, in squares.",
+          "Set **How far the party sees**, in squares (12 to begin with): their sight fades out there, light or dark. 0 lets them see as far as the walls allow."
         ],
         "notes": [
           "You see the players' dark dimmed, so you can still see the whole map. To see it as players do, use the fog tool's player view.",
+          "The fog of war still covers what it covers: players see only where both let them.",
           "It's set for each scene. A map from Dungeon whose light is dark starts on **Dark**."
         ]
       },

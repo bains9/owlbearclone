@@ -6,7 +6,7 @@
 
 import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
-import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
+import { DEFAULT_GRID, LIMITS, SIGHT_RANGE } from "../shared/sanitize";
 import type { ScenePatch } from "../shared/protocol";
 import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneMapData, SceneVision, TokenItem } from "../shared/types";
 import { importedUnits } from "../shared/units";
@@ -89,6 +89,7 @@ export function visionFromSight(sight: MapSight, perSquare: number, keep?: Scene
     on: keep?.on ?? false,
     daylight: keep?.daylight ?? sight.daylight,
     partyLight: keep?.partyLight ?? PARTY_LIGHT,
+    sightRange: keep?.sightRange ?? SIGHT_RANGE,
     walls: sight.walls.map((l) => l.map(k)),
     doors: sight.doors.map((d) => {
       const line = d.line.map(k) as [number, number, number, number];

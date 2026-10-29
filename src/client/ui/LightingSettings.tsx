@@ -5,12 +5,12 @@
 
 import { useRef, useState } from "preact/hooks";
 import type { Scene, SceneVision } from "../../shared/types";
-import { VISION_LIMITS } from "../../shared/sanitize";
+import { SIGHT_RANGE, VISION_LIMITS } from "../../shared/sanitize";
 import { PARTY_LIGHT, visionFromSight } from "../importScenes";
 import { parseUniversalVttLevels } from "../mapImport";
 import { useRoom } from "./common";
 
-const NONE: SceneVision = { on: false, daylight: true, partyLight: PARTY_LIGHT, walls: [], doors: [], lights: [] };
+const NONE: SceneVision = { on: false, daylight: true, partyLight: PARTY_LIGHT, sightRange: SIGHT_RANGE, walls: [], doors: [], lights: [] };
 
 export function LightingSettings(props: { scene: Scene }) {
   const room = useRoom();
@@ -79,7 +79,20 @@ export function LightingSettings(props: { scene: Scene }) {
               />
             </label>
           )}
-          <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open).</p>
+          <label class="field">
+            <span>How far the party sees (squares; 0: as far as the walls allow)</span>
+            <input
+              type="number"
+              min={0}
+              max={VISION_LIMITS.sightRange}
+              value={v.sightRange}
+              onChange={(e) => {
+                const n = Math.round(Number(e.currentTarget.value));
+                if (Number.isFinite(n)) set({ sightRange: Math.max(0, Math.min(VISION_LIMITS.sightRange, n)) });
+              }}
+            />
+          </label>
+          <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
         </>
       )}
       <p class="small muted">

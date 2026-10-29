@@ -4,7 +4,7 @@ import { WallIndex, blockers, doorNear, doorSpots, insidePolygon, isSightToken, 
 import type { Seg } from "../src/client/room/vision";
 import { PARTY_LIGHT, visionFromSight } from "../src/client/importScenes";
 import { parseUniversalVtt } from "../src/client/mapImport";
-import { VISION_LIMITS, sanitizeScene, sanitizeVision } from "../src/shared/sanitize";
+import { SIGHT_RANGE, VISION_LIMITS, sanitizeScene, sanitizeVision } from "../src/shared/sanitize";
 import { terrainId } from "../src/shared/terrain";
 import type { Scene, SceneVision, TerrainItem, TokenItem } from "../src/shared/types";
 
@@ -39,7 +39,7 @@ describe("what can be seen from a point", () => {
 
   it("is blocked by a shut door and not by an open one", () => {
     const walls = segmentsOf([[0, 500, 450, 500], [550, 500, 1000, 500]]);
-    const v: SceneVision = { on: true, daylight: true, partyLight: 0, walls: [], doors: [{ line: [450, 500, 550, 500], open: false }], lights: [] };
+    const v: SceneVision = { on: true, daylight: true, partyLight: 0, sightRange: 0, walls: [], doors: [{ line: [450, 500, 550, 500], open: false }], lights: [] };
     const shut = doorSpots(v, []);
     const behind = (doors: typeof shut) => insidePolygon(sightPolygon(new WallIndex(blockers(walls, doors), AREA, 100), 500, 300, 5000), 500, 800);
     expect(behind(shut)).toBe(false);
@@ -51,7 +51,7 @@ describe("what can be seen from a point", () => {
   });
 
   it("opens and shuts the Build tool's doors by their edge, and finds the door nearest a click", () => {
-    const v: SceneVision = { on: true, daylight: true, partyLight: 0, walls: [], doors: [], lights: [] };
+    const v: SceneVision = { on: true, daylight: true, partyLight: 0, sightRange: 0, walls: [], doors: [], lights: [] };
     const built = [{ key: 77, line: [100, 100, 200, 100] as Seg }];
     const doors = doorSpots(v, built);
     expect(doors[0]).toMatchObject({ kind: "built", key: 77, open: false });
@@ -80,6 +80,7 @@ describe("a scene's lighting", () => {
     on: true,
     daylight: false,
     partyLight: 4,
+    sightRange: 10,
     walls: [[0, 0, 10.04, 0, 10, 10]],
     doors: [{ line: [1, 2, 3, 4], open: true }],
     lights: [{ x: 5, y: 5, r: 40 }],
@@ -93,6 +94,11 @@ describe("a scene's lighting", () => {
     }
     expect(sanitizeVision({ ...vision, walls: Array.from({ length: VISION_LIMITS.wallLines + 1 }, () => [0, 0, 1, 1]) })).toBeUndefined();
     expect(sanitizeVision({ ...vision, partyLight: 9999 })!.partyLight).toBe(VISION_LIMITS.partyLight);
+    // How far the party sees: 12 squares unless the GM says, at most 200, 0 for as far as the walls allow.
+    expect(sanitizeVision({ ...vision, sightRange: undefined })!.sightRange).toBe(SIGHT_RANGE);
+    expect(SIGHT_RANGE).toBe(12);
+    expect(sanitizeVision({ ...vision, sightRange: 0 })!.sightRange).toBe(0);
+    expect(sanitizeVision({ ...vision, sightRange: 9999 })!.sightRange).toBe(VISION_LIMITS.sightRange);
   });
 
   it("stays when a change to the scene leaves it out, and goes when it's null", () => {
@@ -119,7 +125,7 @@ describe("walls, doors and lights from a map file", () => {
   it("are scaled to the scene, off to begin with, and keep the GM's choices when brought in again", () => {
     const sight = { walls: [[0, 0, 2, 0]], doors: [{ line: [1, 1, 1, 2] as [number, number, number, number], open: false }], lights: [{ x: 3, y: 3, r: 5 }], daylight: true };
     const fresh = visionFromSight(sight, 50);
-    expect(fresh).toEqual({ on: false, daylight: true, partyLight: PARTY_LIGHT, walls: [[0, 0, 100, 0]], doors: [{ line: [50, 50, 50, 100], open: false }], lights: [{ x: 150, y: 150, r: 250 }] });
+    expect(fresh).toEqual({ on: false, daylight: true, partyLight: PARTY_LIGHT, sightRange: SIGHT_RANGE, walls: [[0, 0, 100, 0]], doors: [{ line: [50, 50, 50, 100], open: false }], lights: [{ x: 150, y: 150, r: 250 }] });
     // The GM turned it on, made it dark and opened the door; the map is brought in again (Update from Dungeon).
     const mine: SceneVision = { ...fresh, on: true, daylight: false, partyLight: 2, doors: [{ line: [50, 50, 50, 100], open: true }], openEdges: [12] };
     const again = visionFromSight({ ...sight, lights: [] }, 50, mine);
@@ -161,7 +167,7 @@ describe("in the guide", () => {
     const section = GUIDE.find((s) => s.id === "lighting")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Turn it on (GM)", "Doors (GM)", "Who the party sees with", "Walls, doors and lights"]);
     const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
-    for (const label of ["Lighting and line of sight", "On for this scene", "Daylight", "Dark", "The party's own light", "Load walls, doors and lights from a map file"]) {
+    for (const label of ["Lighting and line of sight", "On for this scene", "Daylight", "Dark", "The party's own light", "How far the party sees", "Load walls, doors and lights from a map file"]) {
       expect(ui, label).toContain(label);
       expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[0]), label).toContain(label);
     }

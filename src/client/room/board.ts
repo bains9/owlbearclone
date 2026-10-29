@@ -1787,7 +1787,7 @@ export class Board implements BoardApi {
     const geom = this.sightGeometry(scene, v);
     const viewers = this.sightViewers(scene);
     const area = sceneBounds(scene);
-    const key = `${this.sightGeomVersion}|${v.daylight}|${v.partyLight}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    const key = `${this.sightGeomVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
     if (key !== this.sightMadeFrom || !this.sightCanvas) {
       this.renderSight(scene, v, geom, viewers);
       this.sightMadeFrom = key;
@@ -1825,20 +1825,23 @@ export class Board implements BoardApi {
       }
       c.closePath();
     };
-    const glow = (x: number, y: number, r: number) => {
+    // Seen in full out to `solid` of the way, then fading to nothing at r.
+    const glow = (x: number, y: number, r: number, solid = 0.7) => {
       const g = c.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, "#000");
-      g.addColorStop(0.7, "#000");
+      g.addColorStop(solid, "#000");
       g.addColorStop(1, "rgba(0,0,0,0)");
       return g;
     };
-    const far = Math.hypot(w0, h0);
+    // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls.
+    const range = v.sightRange > 0 ? v.sightRange * scene.grid.size : 0;
+    const far = range || Math.hypot(w0, h0);
     const reach = v.partyLight * scene.grid.size;
     for (let i = 0; i < viewers.length; i += 2) {
       const x = viewers[i], y = viewers[i + 1];
       const seen = sightPolygon(geom.index, x, y, far);
       if (v.daylight) {
-        c.fillStyle = "#000";
+        c.fillStyle = range ? glow(x, y, range, 0.85) : "#000";
         trace(seen);
         c.fill();
         continue;

@@ -89,6 +89,8 @@ export interface SceneVision {
   daylight: boolean;
   /** How far the party's own light reaches in the dark, in squares (0: none). */
   partyLight: number;
+  /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow). */
+  sightRange: number;
   /** The map file's walls that block sight: lines, each [x0, y0, x1, y1, ...] in scene units. */
   walls: number[][];
   /** The map file's doors: from one end to the other in scene units, and whether each is open. */

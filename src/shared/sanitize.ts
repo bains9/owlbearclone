@@ -440,7 +440,9 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
 }
 
 /** How much of a scene's lighting and line of sight is kept: plenty for a big map from Dungeon. */
-export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60 };
+export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60, sightRange: 200 };
+/** How far the party sees to begin with, in squares: so sight doesn't run ahead of the fog of war down a long hall. */
+export const SIGHT_RANGE = 12;
 
 /**
  * A scene's lighting and line of sight as sent (SceneVision): null to take it away; undefined when
@@ -488,6 +490,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     on: r.on === true,
     daylight: r.daylight !== false,
     partyLight: num(r.partyLight, 0, VISION_LIMITS.partyLight) ?? 0,
+    sightRange: num(r.sightRange, 0, VISION_LIMITS.sightRange) ?? SIGHT_RANGE,
     walls,
     doors,
     lights,
