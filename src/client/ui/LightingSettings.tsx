@@ -1,14 +1,16 @@
 // Edit scene › Lighting and line of sight (GM): turn it on, day or dark, how far the party's own
 // light reaches, and the walls, doors and lights it goes by (from the map's file: a scene from
 // Dungeon or any Universal VTT file has them; Update from Dungeon brings them again). The Build
-// tool's walls and doors count too. The darkness itself is drawn by the board (room/vision.ts).
+// tool's walls and doors count too. The darkness itself is drawn by the board (room/vision.ts),
+// and what the party has explored is kept by the Room (shared/explore.ts); the GM can forget it.
 
 import { useRef, useState } from "preact/hooks";
 import type { Scene, SceneVision } from "../../shared/types";
+import { exploreGrid, hasCell } from "../../shared/explore";
 import { SIGHT_RANGE, VISION_LIMITS } from "../../shared/sanitize";
 import { PARTY_LIGHT, visionFromSight } from "../importScenes";
 import { parseUniversalVttLevels } from "../mapImport";
-import { useRoom } from "./common";
+import { ConfirmDialog, useRoom, useRoomState } from "./common";
 
 const NONE: SceneVision = { on: false, daylight: true, partyLight: PARTY_LIGHT, sightRange: SIGHT_RANGE, walls: [], doors: [], lights: [] };
 
@@ -18,7 +20,17 @@ export function LightingSettings(props: { scene: Scene }) {
   const v = s.vision ?? NONE;
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [forget, setForget] = useState(false);
   const set = (change: Partial<SceneVision>) => room.updateScene(s.id, { vision: { ...v, ...change } });
+  // How much of the scene the party has explored, in per cent (0 for none).
+  const kept = useRoomState((st) => st.explored[s.id]);
+  const grid = exploreGrid(s);
+  let explored = 0;
+  if (kept && kept.key === grid.key) {
+    let n = 0;
+    for (let i = 0, total = grid.cols * grid.rows; i < total; i++) if (hasCell(kept.bits, i)) n++;
+    explored = (n / (grid.cols * grid.rows)) * 100;
+  }
 
   // Walls, doors and lights from a map file, for a scene brought in without them (or before Tabletop read them).
   const load = async (file: File) => {
@@ -93,6 +105,22 @@ export function LightingSettings(props: { scene: Scene }) {
             />
           </label>
           <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
+          <p class="small muted">
+            Places the party has seen stay on the map for players, dimmed, without the tokens in them
+            {explored > 0 ? ` (${explored < 1 ? "under 1" : Math.round(explored)}% of this scene so far)` : ""}.
+          </p>
+          <button class="btn btn-sm" disabled={!explored} onClick={() => setForget(true)}>
+            Forget what the party has explored
+          </button>
+          {forget && (
+            <ConfirmDialog
+              title="Forget what the party has explored?"
+              message="Players will see only what the party sees now; the places they've been go dark again."
+              confirmLabel="Forget it"
+              onConfirm={() => room.resetExplored(s.id)}
+              onClose={() => setForget(false)}
+            />
+          )}
         </>
       )}
       <p class="small muted">

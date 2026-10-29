@@ -9,6 +9,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
+import { MAX_EXPLORE_BATCH, addCells, bitsToText, emptyBits, exploreGrid, keyCells, textToBits } from "../shared/explore";
 import { randomId } from "../shared/ids";
 import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid } from "../shared/units";
@@ -155,6 +156,8 @@ export class Room extends DurableObject<Env> {
   private info: RoomInfo | null = null;
   private activeSceneId: string | null = null;
   private scenes = new Map<string, Scene>();
+  /** Explored cells, by scene, as read from the explored table (exploredOf). */
+  private explored = new Map<string, { key: string; bits: Uint8Array }>();
   private items = new Map<string, Item>();
   private itemBytes = new Map<string, number>();
   private totalItemBytes = 0;
@@ -210,6 +213,19 @@ export class Room extends DurableObject<Env> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (seq INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, owner TEXT NOT NULL, at INTEGER NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL, at INTEGER NOT NULL)`);
+    // What the party has explored of each scene with lighting on (shared/explore.ts): the grid's key and its bits.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS explored (scene_id TEXT PRIMARY KEY, key TEXT NOT NULL, bits TEXT NOT NULL)`);
+  }
+
+  /** A scene's explored cells as kept (read once, then held), or null for none. */
+  private exploredOf(sceneId: string): { key: string; bits: Uint8Array } | null {
+    const held = this.explored.get(sceneId);
+    if (held) return held;
+    const row = this.sql.exec<{ key: string; bits: string }>(`SELECT key, bits FROM explored WHERE scene_id = ?`, sceneId).toArray()[0];
+    if (!row) return null;
+    const kept = { key: row.key, bits: textToBits(row.bits, keyCells(row.key)) };
+    this.explored.set(sceneId, kept);
+    return kept;
   }
 
   private load(): void {
@@ -625,8 +641,10 @@ export class Room extends DurableObject<Env> {
         this.ctx.storage.transactionSync(() => {
           this.sql.exec(`DELETE FROM items WHERE scene_id = ?`, scene.id);
           this.sql.exec(`DELETE FROM scenes WHERE id = ?`, scene.id);
+          this.sql.exec(`DELETE FROM explored WHERE scene_id = ?`, scene.id);
           if (nextActive !== this.activeSceneId) this.setMeta("active", nextActive);
         });
+        this.explored.delete(scene.id);
         for (const [id, item] of this.items) {
           if (item.sceneId !== scene.id) continue;
           this.items.delete(id);
@@ -729,6 +747,40 @@ export class Room extends DurableObject<Env> {
           kind: "chat",
           text,
         });
+        return;
+      }
+
+      case "explore": {
+        // Anyone at the table but a display (which changes nothing) adds what the party has just
+        // seen, on a scene with lighting on, on the scene's grid as it is now.
+        if (conn.display) return;
+        const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
+        if (!scene?.vision?.on || !Array.isArray(msg.cells) || msg.cells.length > MAX_EXPLORE_BATCH) return;
+        const grid = exploreGrid(scene);
+        if (msg.key !== grid.key) return;
+        const total = grid.cols * grid.rows;
+        let kept = this.exploredOf(scene.id);
+        if (!kept || kept.key !== grid.key) kept = { key: grid.key, bits: emptyBits(total) };
+        const fresh = addCells(kept.bits, msg.cells, total);
+        if (!fresh.length) return;
+        this.explored.set(scene.id, kept);
+        this.sql.exec(
+          `INSERT INTO explored (scene_id, key, bits) VALUES (?, ?, ?) ON CONFLICT(scene_id) DO UPDATE SET key = excluded.key, bits = excluded.bits`,
+          scene.id,
+          kept.key,
+          bitsToText(kept.bits),
+        );
+        this.broadcast({ t: "explore", sceneId: scene.id, key: kept.key, cells: fresh });
+        return;
+      }
+
+      case "explore.reset": {
+        if (!gm) return this.deny(ws);
+        const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
+        if (!scene) return;
+        this.sql.exec(`DELETE FROM explored WHERE scene_id = ?`, scene.id);
+        this.explored.delete(scene.id);
+        this.broadcast({ t: "explore", sceneId: scene.id, key: exploreGrid(scene).key, reset: true });
         return;
       }
 
@@ -1311,11 +1363,19 @@ export class Room extends DurableObject<Env> {
   }
 
   private hello(conn: Conn): ServerMsg {
+    const scenes = helloScenes(this.scenes.values(), conn, this.activeSceneId);
+    // What the party has explored of those scenes (with lighting on).
+    const explored: Record<string, { key: string; bits: string }> = {};
+    for (const s of scenes) {
+      const kept = s.vision?.on ? this.exploredOf(s.id) : null;
+      if (kept) explored[s.id] = { key: kept.key, bits: bitsToText(kept.bits) };
+    }
     return {
       t: "hello",
       you: publicPlayer(conn),
       room: this.info!,
-      scenes: helloScenes(this.scenes.values(), conn, this.activeSceneId),
+      scenes,
+      explored,
       activeSceneId: this.activeSceneId,
       items: [...this.items.values()].filter((i) => this.sees(conn, i)),
       assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn)),
@@ -1414,6 +1474,9 @@ export class Room extends DurableObject<Env> {
         this.sendRaw(ws, forPlayers);
       }
     }
+    // What the party has explored of the live scene (players had only the last one's).
+    const kept = live?.vision?.on ? this.exploredOf(live.id) : null;
+    if (live && kept) this.broadcast({ t: "explore", sceneId: live.id, key: kept.key, bits: bitsToText(kept.bits) }, (c) => c.role !== "gm");
     // Which initiative entries players may see depends on the live scene.
     this.broadcastInitiative();
   }

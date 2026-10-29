@@ -27,6 +27,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The walls, doors and lights come from the map: a map from Dungeon (and any Universal VTT file) has them, and walls and doors made with the Build tool count too. For a scene brought in before today, use **Update from Dungeon**, or **Load walls, doors and lights from a map file**.",
           "The party sees from the characters' tokens and the tokens players put down.",
+          "Places the party has explored stay on the map for players, dimmed, once it moves on (without the tokens in them).",
           "See **Lighting and line of sight**."
         ]
       },
@@ -905,7 +906,18 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Monsters and other tokens the GM put down don't see for the party.",
-          "With no party token on the scene, players see only dark."
+          "With no party token on the scene, players see only dark (and what the party has explored)."
+        ]
+      },
+      {
+        "title": "What the party has explored",
+        "steps": [
+          "Wherever the party has seen stays on the map for players after it moves on, dimmed: the map shows, but not the tokens on it, so a monster isn't seen until someone's looking.",
+          "Places never seen stay black. What the party sees now shows in full."
+        ],
+        "notes": [
+          "It's kept for each scene, for everyone, from one session to the next.",
+          "GM: **Edit scene** says how much of the scene has been explored. **Forget what the party has explored** makes it all dark again."
         ]
       },
       {

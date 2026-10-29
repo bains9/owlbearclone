@@ -81,7 +81,11 @@ export type ClientAction =
   | { t: "initiative.op"; op: InitOp }
   | { t: "chat"; text: string }
   | { t: "roll"; expr: string; private?: boolean; label?: string }
-  | { t: "profile"; name: string; color: string };
+  | { t: "profile"; name: string; color: string }
+  /** Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen. */
+  | { t: "explore"; sceneId: string; key: string; cells: number[] }
+  /** GM only: the party forgets what it's explored of a scene. */
+  | { t: "explore.reset"; sceneId: string };
 
 /**
  * Every change carries a seq that counts up within one browser tab (the `sid` the
@@ -107,7 +111,14 @@ export type ServerMsg =
       lastSeq: number;
       /** The build of Tabletop the server is running. */
       build?: string;
+      /** What the party has explored of the scenes sent (shared/explore.ts): the grid's key and its bits as text. */
+      explored?: Record<string, { key: string; bits: string }>;
     }
+  /**
+   * Cells the party has just explored of a scene (each sent once); with bits, all it's explored of
+   * it (to players, when it becomes the live scene); with reset, it's forgotten all of it.
+   */
+  | { t: "explore"; sceneId: string; key: string; cells?: number[]; bits?: string; reset?: boolean }
   /**
    * Item changes, and the scene change made with them, if any. `by` is the connId
    * that caused them. `seq` is present only on the copy sent back to that

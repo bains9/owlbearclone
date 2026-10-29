@@ -53,6 +53,8 @@ import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
+import { exploreGrid, hasCell } from "../../shared/explore";
+import type { ExploreGrid, Explored } from "../../shared/explore";
 import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
 import {
@@ -130,6 +132,8 @@ const PING_MS = 3500;
 const FOG_CACHE_MAX = 2560;
 /** The dark where the party can't see (lighting and line of sight). */
 const SIGHT_DARK = "#06070a";
+/** How much of an explored place shows through the dark once the party has moved on (0 to 1). */
+const EXPLORED_SHOWN = 0.45;
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
 
@@ -1784,24 +1788,97 @@ export class Board implements BoardApi {
   private drawSight(c: CanvasRenderingContext2D): void {
     const scene = this.renderedScene;
     const v = scene?.vision;
-    if (!scene || !v?.on) return;
+    if (!scene || !v?.on) {
+      // Lighting off: every token shows again.
+      this.sightSeen = null;
+      this.applySightToTokens();
+      return;
+    }
     const geom = this.sightGeometry(scene, v);
     const viewers = this.sightViewers(scene);
     const area = sceneBounds(scene);
-    const key = `${this.sightGeomVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    const explored = this.room.state.explored[scene.id];
+    if (explored !== this.exploredShown) {
+      this.exploredShown = explored;
+      this.exploredVersion++;
+    }
+    const key = `${this.sightGeomVersion}|${this.exploredVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
     if (key !== this.sightMadeFrom || !this.sightCanvas) {
-      this.renderSight(scene, v, geom, viewers);
       this.sightMadeFrom = key;
+      this.renderSight(scene, v, geom, viewers, explored);
     }
     c.save();
     c.imageSmoothingEnabled = true;
     c.drawImage(this.sightCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.restore();
+    this.applySightToTokens();
   }
 
-  private renderSight(scene: Scene, v: SceneVision, geom: NonNullable<Board["sightGeom"]>, viewers: readonly number[]): void {
+  /** What the party saw when the darkness was last made, on the explore grid (for which tokens players see). */
+  private sightSeen: { grid: ExploreGrid; alpha: Uint8ClampedArray } | null = null;
+  private exploredShown: Explored | undefined;
+  private exploredVersion = 0;
+  /** The explored cells as a picture, a pixel a cell (remade when they change). */
+  private exploredCanvas: { of: Explored; canvas: HTMLCanvasElement } | null = null;
+
+  private renderSight(scene: Scene, v: SceneVision, geom: NonNullable<Board["sightGeom"]>, viewers: readonly number[], explored: Explored | undefined): void {
     const area = sceneBounds(scene);
     const w0 = area.x1 - area.x0, h0 = area.y1 - area.y0;
+    // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls.
+    const range = v.sightRange > 0 ? v.sightRange * scene.grid.size : 0;
+    const far = range || Math.hypot(w0, h0);
+    const reach = v.partyLight * scene.grid.size;
+    const polys: number[][] = [];
+    for (let i = 0; i < viewers.length; i += 2) polys.push(sightPolygon(geom.index, viewers[i], viewers[i + 1], far));
+
+    // What the party sees, painted onto a canvas with whatever compositing it's set to (a soft edge
+    // where a light fades): cut out of the dark, and drawn on the explore grid.
+    const paint = (c: CanvasRenderingContext2D) => {
+      const trace = (poly: readonly number[]) => {
+        c.beginPath();
+        for (let i = 0; i < poly.length; i += 2) {
+          if (i) c.lineTo(poly[i], poly[i + 1]);
+          else c.moveTo(poly[i], poly[i + 1]);
+        }
+        c.closePath();
+      };
+      // Seen in full out to `solid` of the way, then fading to nothing at r.
+      const glow = (x: number, y: number, r: number, solid = 0.7) => {
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, "#000");
+        g.addColorStop(solid, "#000");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        return g;
+      };
+      polys.forEach((seen, n) => {
+        const x = viewers[n * 2], y = viewers[n * 2 + 1];
+        if (v.daylight) {
+          c.fillStyle = range ? glow(x, y, range, 0.85) : "#000";
+          trace(seen);
+          c.fill();
+          return;
+        }
+        // In the dark: what the lights fall on, and the party's own light, as far as this token can see.
+        c.save();
+        trace(seen);
+        c.clip();
+        geom.lights.forEach((poly, j) => {
+          const l = v.lights[j];
+          c.fillStyle = glow(l.x, l.y, l.r);
+          trace(poly);
+          c.fill();
+        });
+        if (reach > 0) {
+          c.fillStyle = glow(x, y, reach);
+          c.beginPath();
+          c.arc(x, y, reach, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.restore();
+      });
+    };
+
+    // The dark: black where the party has never been, dimmed where it has explored, clear where it sees.
     const k = Math.min(1, FOG_CACHE_MAX / Math.max(w0, h0));
     const canvas = (this.sightCanvas ??= document.createElement("canvas"));
     const w = Math.max(1, Math.ceil(w0 * k)), h = Math.max(1, Math.ceil(h0 * k));
@@ -1815,56 +1892,82 @@ export class Board implements BoardApi {
     c.clearRect(0, 0, w, h);
     c.fillStyle = SIGHT_DARK;
     c.fillRect(0, 0, w, h);
-    c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
-    // What's seen is cut out of the dark (a soft edge where a light fades).
-    c.globalCompositeOperation = "destination-out";
-    const trace = (poly: readonly number[]) => {
-      c.beginPath();
-      for (let i = 0; i < poly.length; i += 2) {
-        if (i) c.lineTo(poly[i], poly[i + 1]);
-        else c.moveTo(poly[i], poly[i + 1]);
-      }
-      c.closePath();
-    };
-    // Seen in full out to `solid` of the way, then fading to nothing at r.
-    const glow = (x: number, y: number, r: number, solid = 0.7) => {
-      const g = c.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, "#000");
-      g.addColorStop(solid, "#000");
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      return g;
-    };
-    // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls.
-    const range = v.sightRange > 0 ? v.sightRange * scene.grid.size : 0;
-    const far = range || Math.hypot(w0, h0);
-    const reach = v.partyLight * scene.grid.size;
-    for (let i = 0; i < viewers.length; i += 2) {
-      const x = viewers[i], y = viewers[i + 1];
-      const seen = sightPolygon(geom.index, x, y, far);
-      if (v.daylight) {
-        c.fillStyle = range ? glow(x, y, range, 0.85) : "#000";
-        trace(seen);
-        c.fill();
-        continue;
-      }
-      // In the dark: what the lights fall on, and the party's own light, as far as this token can see.
+    const grid = exploreGrid(scene);
+    if (explored && explored.key === grid.key) {
       c.save();
-      trace(seen);
-      c.clip();
-      geom.lights.forEach((poly, j) => {
-        const l = v.lights[j];
-        c.fillStyle = glow(l.x, l.y, l.r);
-        trace(poly);
-        c.fill();
-      });
-      if (reach > 0) {
-        c.fillStyle = glow(x, y, reach);
-        c.beginPath();
-        c.arc(x, y, reach, 0, Math.PI * 2);
-        c.fill();
-      }
+      c.globalCompositeOperation = "destination-out";
+      c.globalAlpha = EXPLORED_SHOWN;
+      c.imageSmoothingEnabled = true;
+      c.drawImage(this.exploredPicture(explored, grid), 0, 0, (grid.cols * grid.cell) * k, (grid.rows * grid.cell) * k);
       c.restore();
     }
+    c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
+    c.globalCompositeOperation = "destination-out";
+    paint(c);
+
+    // The same on the explore grid, a pixel a cell: which cells the party sees now. Those it hadn't
+    // explored yet are kept for everyone (RoomClient.explore), and players see only the tokens on
+    // cells it sees (applySightToTokens).
+    const seenCanvas = (this.seenCanvas ??= document.createElement("canvas"));
+    if (seenCanvas.width !== grid.cols || seenCanvas.height !== grid.rows) {
+      seenCanvas.width = grid.cols;
+      seenCanvas.height = grid.rows;
+    }
+    const sc = seenCanvas.getContext("2d", { willReadFrequently: true })!;
+    sc.setTransform(1, 0, 0, 1, 0, 0);
+    sc.clearRect(0, 0, grid.cols, grid.rows);
+    sc.setTransform(1 / grid.cell, 0, 0, 1 / grid.cell, -grid.x0 / grid.cell, -grid.y0 / grid.cell);
+    sc.globalCompositeOperation = "source-over";
+    paint(sc);
+    const alpha = sc.getImageData(0, 0, grid.cols, grid.rows).data;
+    this.sightSeen = { grid, alpha };
+    const had = explored && explored.key === grid.key ? explored.bits : null;
+    const fresh: number[] = [];
+    for (let i = 0, n = grid.cols * grid.rows; i < n; i++) if (alpha[i * 4 + 3] > 127 && !(had && hasCell(had, i))) fresh.push(i);
+    if (fresh.length) this.room.explore(scene.id, grid.key, fresh);
+  }
+
+  private seenCanvas: HTMLCanvasElement | null = null;
+
+  /** The explored cells as a picture, a pixel a cell, opaque where explored. */
+  private exploredPicture(explored: Explored, grid: ExploreGrid): HTMLCanvasElement {
+    if (this.exploredCanvas?.of === explored) return this.exploredCanvas.canvas;
+    const canvas = this.exploredCanvas?.canvas ?? document.createElement("canvas");
+    canvas.width = grid.cols;
+    canvas.height = grid.rows;
+    const ctx = canvas.getContext("2d")!;
+    const img = ctx.createImageData(grid.cols, grid.rows);
+    for (let i = 0, n = grid.cols * grid.rows; i < n; i++) if (hasCell(explored.bits, i)) img.data[i * 4 + 3] = 255;
+    ctx.putImageData(img, 0, 0);
+    this.exploredCanvas = { of: explored, canvas };
+    return canvas;
+  }
+
+  /**
+   * Players (and the GM looking as players), lighting on: only the tokens on what the party sees
+   * now show, and its own, and compasses; a token in an explored place it's moved on from, or in
+   * the dark, doesn't. Everyone else sees every token.
+   */
+  private applySightToTokens(): void {
+    const scene = this.renderedScene;
+    const seen = this.sightSeen;
+    const hide = !!scene?.vision?.on && !!seen && (!this.isGm || this.room.state.fogOpts.preview);
+    let changed = false;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t) continue;
+      let show = true;
+      if (hide && !isCompass(t) && !isSightToken(t)) {
+        const g = seen!.grid;
+        const col = Math.floor((n.group.x() - g.x0) / g.cell), row = Math.floor((n.group.y() - g.y0) / g.cell);
+        show = col >= 0 && row >= 0 && col < g.cols && row < g.rows && seen!.alpha[(row * g.cols + col) * 4 + 3] > 100;
+      }
+      if (n.group.visible() !== show) {
+        n.group.visible(show);
+        changed = true;
+      }
+    }
+    if (changed) this.tokenLayer.batchDraw();
   }
 
   /** The doors' markers for the GM (lighting on, not looking as players): shut ones brown, open ones green. */

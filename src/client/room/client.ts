@@ -3,6 +3,8 @@
 // reconciles them with what the server confirms, and keeps an undo history.
 
 import type { Character, CharactersReply } from "../../shared/characters";
+import { MAX_EXPLORE_BATCH, addCells, emptyBits, keyCells, textToBits } from "../../shared/explore";
+import type { Explored } from "../../shared/explore";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -209,6 +211,8 @@ export interface RoomState {
   uploading: number;
   /** The party from their character sheets (refreshParty), or null before the first reading. */
   party: CharactersReply | null;
+  /** What the party has explored of each scene with lighting on (shared/explore.ts); replaced, never changed in place. */
+  explored: Record<string, Explored>;
 }
 
 /** The buttons of Build › Select's bars. */
@@ -489,6 +493,7 @@ export class RoomClient {
       toasts: [],
       uploading: 0,
       party: null,
+      explored: {},
     });
   }
 
@@ -777,6 +782,7 @@ export class RoomClient {
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
+          explored: Object.fromEntries(Object.entries(msg.explored ?? {}).map(([id, e]) => [id, { key: e.key, bits: textToBits(e.bits, keyCells(e.key)) }])),
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
@@ -880,6 +886,21 @@ export class RoomClient {
       case "players":
         this.store.set({ players: msg.players });
         return;
+
+      case "explore": {
+        const total = keyCells(msg.key);
+        if (!total) return;
+        const had = s.explored[msg.sceneId];
+        let bits: Uint8Array;
+        if (msg.reset) bits = emptyBits(total);
+        else if (msg.bits !== undefined) bits = textToBits(msg.bits, total);
+        else {
+          bits = had && had.key === msg.key ? had.bits.slice() : emptyBits(total);
+          if (!addCells(bits, msg.cells ?? [], total).length && had?.key === msg.key) return;
+        }
+        this.store.set({ explored: { ...s.explored, [msg.sceneId]: { key: msg.key, bits } } });
+        return;
+      }
 
       case "eph":
         for (const fn of this.ephListeners) fn(msg.from, msg.e);
@@ -1212,6 +1233,27 @@ export class RoomClient {
    * Cover all (the whole scene goes dark for players) or Clear all (players see it
    * all): sets the scene's base cover and removes its fog shapes, in one undoable step.
    */
+  /**
+   * Cells of a scene's explore grid (`key`) the party has just seen: kept here at once, so they
+   * aren't sent again, and sent to the Room, which tells everyone. A table display only looks.
+   */
+  explore(sceneId: string, key: string, cells: number[]): void {
+    if (this.display || !cells.length) return;
+    const total = keyCells(key);
+    const had = this.state.explored[sceneId];
+    const bits = had && had.key === key ? had.bits.slice() : emptyBits(total);
+    const fresh = addCells(bits, cells, total);
+    if (!fresh.length) return;
+    this.store.set((s) => ({ explored: { ...s.explored, [sceneId]: { key, bits } } }));
+    for (let i = 0; i < fresh.length; i += MAX_EXPLORE_BATCH) this.submit({ t: "explore", sceneId, key, cells: fresh.slice(i, i + MAX_EXPLORE_BATCH) });
+  }
+
+  /** GM: the party forgets what it's explored of a scene. */
+  resetExplored(sceneId: string): void {
+    if (!this.isGm || !this.state.scenes[sceneId]) return;
+    this.submit({ t: "explore.reset", sceneId });
+  }
+
   resetFog(sceneId: string, cover: boolean): void {
     const scene = this.state.scenes[sceneId];
     if (!scene) return;
