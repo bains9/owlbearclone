@@ -87,6 +87,11 @@ export interface SceneVision {
   on: boolean;
   /** Lit all over, as by day. Off, it's dark: only the lights and the party's own light show. */
   daylight: boolean;
+  /**
+   * Not by day, night by moon or starlight rather than dark (underground): characters with
+   * nightvision see as well, in black and white (shared/characters.ts nightvisionOf).
+   */
+  night?: boolean;
   /** How far the party's own light reaches in the dark, in squares (0: none), when `light` isn't set (scenes from before distances). */
   partyLight: number;
   /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow), when `sight` isn't set. */

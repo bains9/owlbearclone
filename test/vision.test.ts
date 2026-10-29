@@ -8,6 +8,7 @@ import { SIGHT_RANGE, VISION_LIMITS, sanitizeScene, sanitizeVision } from "../sr
 import { terrainId } from "../src/shared/terrain";
 import type { Scene, SceneVision, TerrainItem, TokenItem } from "../src/shared/types";
 import { defaultVisionDistances, distanceIn, distanceSquares, squaresDistance, visionSquares } from "../src/shared/units";
+import { NIGHTVISION_M, PARTIAL_NIGHTVISION_M, nightvisionOf } from "../src/shared/characters";
 
 // Lighting and line of sight (Par: "build lighting and line of sight"): walls and shut doors block
 // the party's sight, and in the dark only lights (and the party's own light) show. The geometry,
@@ -185,6 +186,13 @@ describe("how far the party sees and its light reaches, as distances", () => {
     expect(visionFromSight(sight, 50, before, metres)).not.toHaveProperty("sight");
   });
 
+  it("keep Night, and the GM's other choices, when the map is brought in again", () => {
+    const sight = { walls: [], doors: [], lights: [], daylight: false };
+    const mine: SceneVision = { ...visionFromSight(sight, 50, undefined, metres), on: true, night: true };
+    expect(visionFromSight(sight, 50, mine, metres)).toMatchObject({ daylight: false, night: true });
+    expect(visionFromSight(sight, 50, undefined, metres)).not.toHaveProperty("night");
+  });
+
   it("are set in Edit scene in the scene's unit, with the squares beside them", async () => {
     const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
     expect(ui).toContain("The party's own light, in {unitName} ({squaresText(squares.light)})");
@@ -246,6 +254,45 @@ describe("the Build tool's walls and doors", () => {
   });
 });
 
+// Par: "yes, build night lighting with nightvision". The group's handbook: nightvision is black and
+// white by moon or starlight, to 100 m for the elves and 50 m for half-elves, and nothing underground.
+describe("night by moon or starlight, and nightvision", () => {
+  it("comes from a character's race, as the handbook has it", () => {
+    const of = (race: string, culture = "") => nightvisionOf({ race, culture });
+    expect([of("Nyloran"), of("Sylvan"), of("Duga"), of("Elf", "Nyloran")]).toEqual([100, 100, 100, 100]);
+    // A half-elf's is partial, whichever elves their family came from.
+    expect([of("Half-elf"), of("Half Elf"), of("half-elf", "Sylvan")]).toEqual([50, 50, 50]);
+    expect([of("Human", "Wyddin"), of("Human", "Danae"), of("Dwerv"), of("Gnome"), of("")]).toEqual([0, 0, 0, 0, 0]);
+    expect(nightvisionOf(null)).toBe(0);
+    expect([NIGHTVISION_M, PARTIAL_NIGHTVISION_M]).toEqual([100, 50]);
+  });
+
+  it("is a scene's lighting the server keeps, off unless turned on", () => {
+    const base = { on: true, daylight: false, partyLight: 4, sightRange: 12, walls: [], doors: [], lights: [] };
+    expect(sanitizeVision({ ...base, night: true })?.night).toBe(true);
+    expect(sanitizeVision({ ...base, night: "yes" })).not.toHaveProperty("night");
+    expect(sanitizeVision(base)).not.toHaveProperty("night");
+  });
+
+  it("shows what only nightvision sees dimmed and in black and white, to players only, and as far as the party sees at most", async () => {
+    const board = await readFile(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
+    // Grey drawn as "saturation" takes the colour from the map and tokens under it.
+    expect(board).toContain('this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";');
+    expect(board).toContain("this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);");
+    expect(board).toContain("this.monoLayer.visible(!gm || preview);");
+    // Dim in the dark, whole on the explore grid (it's seen: explored, and its tokens show), and none where a light is.
+    expect(board).toContain("paint(c, true, NIGHT_SHOWN);");
+    expect(board).toContain("paint(sc);");
+    expect(board).toContain("paint(mc, false, 1);");
+    expect(board).toContain("paint(mc, true, 0);");
+    expect(board).toContain("(range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size)");
+    expect(board).toContain('const metres = isNight ? nightvisionOf(this.room.characterOf(t)) : 0;');
+    const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
+    expect(ui).toContain("set({ daylight: false, night: true })");
+    expect(ui).toContain("set({ daylight: false, night: false })");
+  });
+});
+
 describe("in the guide", () => {
   it("leads What's new, has a section of its own, and names the controls as Edit scene does", async () => {
     const { GUIDE } = await import("../src/client/guide");
@@ -270,6 +317,7 @@ describe("in the guide", () => {
       "Load walls, doors and lights from a map file",
       "Forget what the party has explored",
       "Each player sees only through their own character",
+      "Night: moon or starlight",
     ]) {
       expect(ui, label).toContain(label);
       expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[0]), label).toContain(label);

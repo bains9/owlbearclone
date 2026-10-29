@@ -97,7 +97,16 @@ export function visionFromSight(sight: MapSight, perSquare: number, keep?: Scene
     }),
     lights: sight.lights.map((l) => ({ x: k(l.x), y: k(l.y), r: k(l.r) })),
     ...(keep?.openEdges?.length ? { openEdges: keep.openEdges } : {}),
-    ...(keep ? { ...(keep.perPlayer ? { perPlayer: true } : {}), ...(keep.sight ? { sight: keep.sight } : {}), ...(keep.light ? { light: keep.light } : {}) } : units ? defaultVisionDistances(units) : {}),
+    ...(keep
+      ? {
+          ...(keep.perPlayer ? { perPlayer: true } : {}),
+          ...(keep.night ? { night: true } : {}),
+          ...(keep.sight ? { sight: keep.sight } : {}),
+          ...(keep.light ? { light: keep.light } : {}),
+        }
+      : units
+        ? defaultVisionDistances(units)
+        : {}),
   };
 }
 

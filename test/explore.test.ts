@@ -86,7 +86,7 @@ describe("the board", () => {
     const board = await source("src/client/room/board.ts");
     const at = board.indexOf("if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs) {");
     expect(at).toBeGreaterThan(0);
-    expect(board.slice(at, at + 600)).toContain("if (scene?.vision?.on) this.sightLayer.batchDraw();");
+    expect(board.slice(at, at + 600)).toContain("if (scene?.vision?.on) this.redrawSight();");
   });
 });
 

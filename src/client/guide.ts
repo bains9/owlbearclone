@@ -21,7 +21,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Lighting and line of sight (29 October 2026)",
         "steps": [
           "GM: open **Edit scene** and tick **On for this scene** under **Lighting and line of sight**.",
-          "Players now see only what the party can see: walls and shut doors block their sight, out to 18 m (**How far the party sees**). Choose **Dark** and they see only what the map's lights, or the party's own light, fall on.",
+          "Players now see only what the party can see: walls and shut doors block their sight, out to 18 m (**How far the party sees**). Choose **Dark** and they see only what the map's lights, or the party's own light, fall on. Choose **Night** and characters with nightvision see further, in black and white.",
           "Click a door's marker on the map to open or shut it."
         ],
         "notes": [
@@ -879,7 +879,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Open **Edit scene** (the pencil beside the scene) and find **Lighting and line of sight**.",
           "Tick **On for this scene**.",
-          "Choose **Daylight** (lit all over: only walls block sight) or **Dark** (only lights show). In the dark, set how far **The party's own light** reaches (6 m, or 20 ft, to begin with).",
+          "Choose **Daylight** (lit all over: only walls block sight), **Night: moon or starlight** or **Dark: underground** (only lights show). At night or in the dark, set how far **The party's own light** reaches (6 m, or 20 ft, to begin with).",
+          "At night, characters with nightvision see more, in black and white: the elves (Nyloran, Sylvan, Duga) to 100 m and half-elves to 50 m, as the handbook has it (and as far as **How far the party sees** at most). It comes from their sheet's race. Everyone else sees only what the lights and the party's own light show, as in the dark.",
           "Set **How far the party sees** (18 m, or 60 ft, to begin with): their sight fades out there, light or dark. 0 lets them see as far as the walls allow."
         ],
         "notes": [

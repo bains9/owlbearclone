@@ -54,7 +54,8 @@ import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, to
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
 import { exploreGrid, exploreSlot, hasCell } from "../../shared/explore";
-import { visionSquares } from "../../shared/units";
+import { distanceSquares, visionSquares } from "../../shared/units";
+import { nightvisionOf } from "../../shared/characters";
 import type { ExploreGrid, Explored } from "../../shared/explore";
 import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isOwnSightToken, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
@@ -135,6 +136,11 @@ const FOG_CACHE_MAX = 2560;
 const SIGHT_DARK = "#06070a";
 /** How much of an explored place shows through the dark once the party has moved on (0 to 1). */
 const EXPLORED_SHOWN = 0.45;
+/**
+ * How much of what only nightvision sees shows through the dark (in black and white, at night):
+ * more than an explored place, and enough that a token there can be picked.
+ */
+const NIGHT_SHOWN = 0.6;
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
 
@@ -364,11 +370,17 @@ export class Board implements BoardApi {
   private bgLayer = new Konva.Layer({ listening: false });
   private drawLayer = new Konva.Layer();
   private tokenLayer = new Konva.Layer();
+  /**
+   * The night's black and white (Night lighting): where only nightvision sees, the map and tokens
+   * under it lose their colour (its canvas blends as "saturation"). Players' views only.
+   */
+  private monoLayer = new Konva.Layer({ listening: false });
   /** Lighting and line of sight's darkness (vision.ts): over the tokens, under the GM's fog. */
   private sightLayer = new Konva.Layer({ listening: false });
   private fogLayer = new Konva.Layer({ listening: false });
   private uiLayer = new Konva.Layer({ listening: false });
   private sightNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawSight(native(ctx)) });
+  private monoNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawMono(native(ctx)) });
   /** The doors' markers, for the GM to open and shut them with a click (with lighting on). */
   private doorNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawDoors(native(ctx)) });
   private bgRect = new Konva.Rect({ x: 0, y: 0, width: 1, height: 1, fill: "#2b2f36" });
@@ -568,8 +580,11 @@ export class Board implements BoardApi {
     this.bgLayer.add(this.bgRect, this.mapNode, this.buildNode, this.gridNode);
     this.fogLayer.add(this.fogNode, this.compassFogNode);
     this.sightLayer.add(this.sightNode);
+    this.monoLayer.add(this.monoNode);
     this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
-    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
+    this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
 
     this.anim = new Konva.Animation(() => this.tick(), this.uiLayer);
 
@@ -851,7 +866,7 @@ export class Board implements BoardApi {
       this.fogDirty = true;
       this.fogLayer.batchDraw();
       // The lighting may have changed (a door, day or dark, turned on or off).
-      this.sightLayer.batchDraw();
+      this.redrawSight();
       this.uiLayer.batchDraw();
     }
 
@@ -875,7 +890,9 @@ export class Board implements BoardApi {
       this.fogLayer.batchDraw();
       // The players' darkness too: the GM sees it dimmed, and whole when looking as players.
       this.sightLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
-      this.sightLayer.batchDraw();
+      // The night's black and white is the players' alone: the GM sees the map in colour.
+      this.monoLayer.visible(!gm || preview);
+      this.redrawSight();
       // The doors' markers are the GM's alone: gone while looking as players.
       this.uiLayer.batchDraw();
       this.renderedGm = gm;
@@ -889,7 +906,7 @@ export class Board implements BoardApi {
       this.renderedExplored = s.explored;
       this.renderedParty = s.party;
       this.renderedLookAs = s.fogOpts.lookAs;
-      if (scene?.vision?.on) this.sightLayer.batchDraw();
+      if (scene?.vision?.on) this.redrawSight();
     }
 
     if (force || this.itemsDirty || s.items !== this.renderedItems || s.selection !== this.renderedSelection) {
@@ -1782,18 +1799,23 @@ export class Board implements BoardApi {
   private sightGeomVersion = 0;
 
   /**
-   * Where the tokens this page sees with stand ([x0, y0, ...]): the party's sight tokens, or only
-   * `eyes`; as dragged, while they're being dragged.
+   * Where the tokens this page sees with stand (`xy`: [x0, y0, ...]): the party's sight tokens, or
+   * only `eyes`; as dragged, while they're being dragged. At night, how far each one's nightvision
+   * reaches (`night`, in squares: 0 for none), from their character's race.
    */
-  private sightViewers(scene: Scene, eyes: ReadonlySet<string> | null): number[] {
-    const out: number[] = [];
+  private sightViewers(scene: Scene, v: SceneVision, eyes: ReadonlySet<string> | null): { xy: number[]; night: number[] } {
+    const xy: number[] = [];
+    const night: number[] = [];
+    const isNight = !v.daylight && !!v.night;
     for (const n of this.tokens.values()) {
       const t = n.item;
       if (!t || t.sceneId !== scene.id || !(eyes ? eyes.has(t.id) : isSightToken(t))) continue;
       const p = n.group.position();
-      out.push(Math.round(p.x), Math.round(p.y));
+      xy.push(Math.round(p.x), Math.round(p.y));
+      const metres = isNight ? nightvisionOf(this.room.characterOf(t)) : 0;
+      night.push(metres > 0 ? distanceSquares({ d: metres, unit: "m" }, scene.grid) : 0);
     }
-    return out;
+    return { xy, night };
   }
 
   /**
@@ -1835,18 +1857,48 @@ export class Board implements BoardApi {
    * and zooming just draw it.
    */
   private drawSight(c: CanvasRenderingContext2D): void {
+    const area = this.ensureSight();
+    if (area) {
+      c.save();
+      c.imageSmoothingEnabled = true;
+      c.drawImage(this.sightCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+      c.restore();
+    }
+    // Lighting off: every token shows again.
+    this.applySightToTokens();
+  }
+
+  /** The night's black and white, where only nightvision sees (players' views: the layer's hidden for the GM). */
+  private drawMono(c: CanvasRenderingContext2D): void {
+    const area = this.ensureSight();
+    if (!area || !this.monoShown || !this.monoCanvas) return;
+    c.save();
+    c.imageSmoothingEnabled = true;
+    c.drawImage(this.monoCanvas, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+    c.restore();
+  }
+
+  /** Draws the dark again, and the night's black and white with it. */
+  private redrawSight(): void {
+    this.sightLayer.batchDraw();
+    this.monoLayer.batchDraw();
+  }
+
+  /**
+   * Makes the dark (and the night's black and white) again when what it's made from has changed,
+   * whichever layer asks first; the scene's area, or null with lighting off.
+   */
+  private ensureSight(): ReturnType<typeof sceneBounds> | null {
     const scene = this.renderedScene;
     const v = scene?.vision;
     if (!scene || !v?.on) {
-      // Lighting off: every token shows again.
       this.sightSeen = null;
-      this.applySightToTokens();
-      return;
+      return null;
     }
     const geom = this.sightGeometry(scene, v);
     const look = this.sightLook(scene, v);
     this.sightEyes = look.eyes;
-    const viewers = this.sightViewers(scene, look.eyes);
+    const viewers = this.sightViewers(scene, v, look.eyes);
     const area = sceneBounds(scene);
     const explored = this.room.state.explored[exploreSlot(scene.id, look.who)];
     if (explored !== this.exploredShown) {
@@ -1854,22 +1906,31 @@ export class Board implements BoardApi {
       this.exploredVersion++;
     }
     const reach = visionSquares(v, scene.grid);
-    const key = `${this.sightGeomVersion}|${look.who}|${this.exploredVersion}|${v.daylight}|${reach.light * scene.grid.size}|${reach.sight * scene.grid.size}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    const key = [
+      this.sightGeomVersion,
+      look.who,
+      this.exploredVersion,
+      v.daylight ? "day" : v.night ? "night" : "dark",
+      reach.light * scene.grid.size,
+      reach.sight * scene.grid.size,
+      `${area.x0},${area.y0},${area.x1},${area.y1}`,
+      viewers.xy.join(","),
+      viewers.night.join(","),
+    ].join("|");
     if (key !== this.sightMadeFrom || !this.sightCanvas) {
       this.sightMadeFrom = key;
       this.renderSight(scene, v, geom, viewers, explored, look.who);
     }
-    c.save();
-    c.imageSmoothingEnabled = true;
-    c.drawImage(this.sightCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
-    c.restore();
-    this.applySightToTokens();
+    return area;
   }
 
   /** What the party saw when the darkness was last made, on the explore grid (for which tokens players see). */
   private sightSeen: { grid: ExploreGrid; alpha: Uint8ClampedArray } | null = null;
   /** The tokens it was seen with, with per-player sight (sightLook); null: the party's. */
   private sightEyes: ReadonlySet<string> | null = null;
+  /** The night's black and white, made with the dark (a canvas like it), and whether there's any. */
+  private monoCanvas: HTMLCanvasElement | null = null;
+  private monoShown = false;
   private exploredShown: Explored | undefined;
   private exploredVersion = 0;
   /** The explored cells as a picture, a pixel a cell (remade when they change). */
@@ -1879,7 +1940,7 @@ export class Board implements BoardApi {
     scene: Scene,
     v: SceneVision,
     geom: NonNullable<Board["sightGeom"]>,
-    viewers: readonly number[],
+    viewers: { xy: readonly number[]; night: readonly number[] },
     explored: Explored | undefined,
     who: string,
   ): void {
@@ -1891,12 +1952,17 @@ export class Board implements BoardApi {
     const range = squares.sight > 0 ? squares.sight * scene.grid.size : 0;
     const far = range || Math.hypot(w0, h0);
     const reach = squares.light * scene.grid.size;
+    const at = viewers.xy;
     const polys: number[][] = [];
-    for (let i = 0; i < viewers.length; i += 2) polys.push(sightPolygon(geom.index, viewers[i], viewers[i + 1], far));
+    for (let i = 0; i < at.length; i += 2) polys.push(sightPolygon(geom.index, at[i], at[i + 1], far));
+    // At night, how far each one's nightvision reaches (as far as the party sees, at most).
+    const nights = viewers.night.map((n) => (n > 0 ? (range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size) : 0));
+    const anyNight = nights.some((n) => n > 0);
 
     // What the party sees, painted onto a canvas with whatever compositing it's set to (a soft edge
-    // where a light fades): cut out of the dark, and drawn on the explore grid.
-    const paint = (c: CanvasRenderingContext2D) => {
+    // where a light fades): cut out of the dark, and drawn on the explore grid. `lit`: what the
+    // lights and the party's own light show; `night`: how much of what only nightvision sees, if any.
+    const paint = (c: CanvasRenderingContext2D, lit = true, night = 1) => {
       const trace = (poly: readonly number[]) => {
         c.beginPath();
         for (let i = 0; i < poly.length; i += 2) {
@@ -1914,27 +1980,39 @@ export class Board implements BoardApi {
         return g;
       };
       polys.forEach((seen, n) => {
-        const x = viewers[n * 2], y = viewers[n * 2 + 1];
+        const x = at[n * 2], y = at[n * 2 + 1];
         if (v.daylight) {
+          if (!lit) return;
           c.fillStyle = range ? glow(x, y, range, 0.85) : "#000";
           trace(seen);
           c.fill();
           return;
         }
-        // In the dark: what the lights fall on, and the party's own light, as far as this token can see.
+        // In the dark (or at night): what the lights fall on, and the party's own light, as far as
+        // this token can see; at night, what its nightvision makes out too.
         c.save();
         trace(seen);
         c.clip();
-        geom.lights.forEach((poly, j) => {
-          const l = v.lights[j];
-          c.fillStyle = glow(l.x, l.y, l.r);
-          trace(poly);
-          c.fill();
-        });
-        if (reach > 0) {
-          c.fillStyle = glow(x, y, reach);
+        if (lit) {
+          geom.lights.forEach((poly, j) => {
+            const l = v.lights[j];
+            c.fillStyle = glow(l.x, l.y, l.r);
+            trace(poly);
+            c.fill();
+          });
+          if (reach > 0) {
+            c.fillStyle = glow(x, y, reach);
+            c.beginPath();
+            c.arc(x, y, reach, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+        const nv = nights[n];
+        if (night > 0 && nv > 0) {
+          c.globalAlpha = night;
+          c.fillStyle = glow(x, y, nv, 0.85);
           c.beginPath();
-          c.arc(x, y, reach, 0, Math.PI * 2);
+          c.arc(x, y, nv, 0, Math.PI * 2);
           c.fill();
         }
         c.restore();
@@ -1966,7 +2044,26 @@ export class Board implements BoardApi {
     }
     c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
     c.globalCompositeOperation = "destination-out";
-    paint(c);
+    // What only nightvision sees stays dim (and in black and white, below).
+    paint(c, true, NIGHT_SHOWN);
+
+    // The night's black and white: grey where only nightvision sees, none where a light shows.
+    this.monoShown = anyNight;
+    if (anyNight) {
+      const mono = (this.monoCanvas ??= document.createElement("canvas"));
+      if (mono.width !== w || mono.height !== h) {
+        mono.width = w;
+        mono.height = h;
+      }
+      const mc = mono.getContext("2d")!;
+      mc.setTransform(1, 0, 0, 1, 0, 0);
+      mc.globalCompositeOperation = "source-over";
+      mc.clearRect(0, 0, w, h);
+      mc.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
+      paint(mc, false, 1);
+      mc.globalCompositeOperation = "destination-out";
+      paint(mc, true, 0);
+    }
 
     // The same on the explore grid, a pixel a cell: which cells the party sees now. Those it hadn't
     // explored yet are kept for everyone (RoomClient.explore), and players see only the tokens on
@@ -2113,7 +2210,7 @@ export class Board implements BoardApi {
   private drawTokens(): void {
     this.tokenLayer.batchDraw();
     // The darkness follows the party's tokens (remade only if one of them moved).
-    if (this.renderedScene?.vision?.on) this.sightLayer.batchDraw();
+    if (this.renderedScene?.vision?.on) this.redrawSight();
     const shown: CompassLook[] = [];
     for (const [id, n] of this.tokens) {
       const t = n.item;

@@ -92,16 +92,26 @@ export function LightingSettings(props: { scene: Scene }) {
       </label>
       {v.on && (
         <>
-          <div class="row" role="radiogroup" aria-label="Day or dark">
+          <div class="row" role="radiogroup" aria-label="Day, night or dark">
             <label class="check">
-              <input type="radio" name={`light-${s.id}`} checked={v.daylight} onChange={() => set({ daylight: true })} />
+              <input type="radio" name={`light-${s.id}`} checked={v.daylight} onChange={() => set({ daylight: true, night: false })} />
               <span>Daylight: lit all over</span>
             </label>
             <label class="check">
-              <input type="radio" name={`light-${s.id}`} checked={!v.daylight} onChange={() => set({ daylight: false })} />
-              <span>Dark</span>
+              <input type="radio" name={`light-${s.id}`} checked={!v.daylight && !!v.night} onChange={() => set({ daylight: false, night: true })} />
+              <span>Night: moon or starlight</span>
+            </label>
+            <label class="check">
+              <input type="radio" name={`light-${s.id}`} checked={!v.daylight && !v.night} onChange={() => set({ daylight: false, night: false })} />
+              <span>Dark: underground</span>
             </label>
           </div>
+          {!v.daylight && v.night && (
+            <p class="small muted">
+              Characters with nightvision see in black and white, as far as the party sees: the elves (Nyloran, Sylvan, Duga) to 100 m, half-elves to 50 m, from
+              their sheet's race. Everyone else sees only what the lights and the party's own light show.
+            </p>
+          )}
           {!v.daylight && (
             <label class="field">
               <span>

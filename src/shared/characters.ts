@@ -85,6 +85,23 @@ export interface CharactersReply {
   error?: string;
 }
 
+/**
+ * Nightvision, as the group's handbook has it: black-and-white sight by moon or starlight (not in
+ * total darkness, like underground), to 100 m for the elves (Nyloran, Sylvan, Duga) and to 50 m
+ * for half-elves (partial nightvision). Dwerv, Gnome and Human have none.
+ */
+export const NIGHTVISION_M = 100;
+export const PARTIAL_NIGHTVISION_M = 50;
+
+/** How far a character's nightvision reaches, in metres (0 for none), from their sheet's race (and culture). */
+export function nightvisionOf(c: Pick<Character, "race" | "culture"> | null | undefined): number {
+  if (!c) return 0;
+  const names = [c.race, c.culture].map((s) => (s ?? "").toLowerCase().replace(/[^a-z]/g, ""));
+  if (names.some((n) => n.includes("halfel"))) return PARTIAL_NIGHTVISION_M;
+  if (names.some((n) => /nylor|sylvan|duga|elf/.test(n))) return NIGHTVISION_M;
+  return 0;
+}
+
 const SHEET_ID = /^[A-Za-z0-9_-]{20,80}$/;
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : "");
 const num = (v: unknown): number | null => {
