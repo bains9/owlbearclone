@@ -476,6 +476,7 @@ export class Board implements BoardApi {
   private renderedSelection: string[] | null = null;
   private renderedGm = false;
   private renderedPreview = false;
+  private renderedExplored: RoomState["explored"] | null = null;
   private itemsDirty = false;
   private needsFit = true;
   private cameras = new Map<string, Camera>();
@@ -877,6 +878,12 @@ export class Board implements BoardApi {
       this.renderedGm = gm;
       this.renderedPreview = preview;
       force = true;
+    }
+
+    if (s.explored !== this.renderedExplored) {
+      // What the party has explored changed: others' exploring, all of a scene's coming in, or the GM forgetting it.
+      this.renderedExplored = s.explored;
+      if (scene?.vision?.on) this.sightLayer.batchDraw();
     }
 
     if (force || this.itemsDirty || s.items !== this.renderedItems || s.selection !== this.renderedSelection) {
@@ -1924,7 +1931,10 @@ export class Board implements BoardApi {
     const had = explored && explored.key === grid.key ? explored.bits : null;
     const fresh: number[] = [];
     for (let i = 0, n = grid.cols * grid.rows; i < n; i++) if (alpha[i * 4 + 3] > 127 && !(had && hasCell(had, i))) fresh.push(i);
-    if (fresh.length) this.room.explore(scene.id, grid.key, fresh);
+    if (!fresh.length) return;
+    this.room.explore(scene.id, grid.key, fresh);
+    // What was just explored is what's seen now, already clear in the dark just made: no need to make it again.
+    this.exploredShown = this.room.state.explored[scene.id];
   }
 
   private seenCanvas: HTMLCanvasElement | null = null;

@@ -75,6 +75,15 @@ describe("a page's explored cells", () => {
   });
 });
 
+describe("the board", () => {
+  it("draws the dark again when what's explored changes, so the GM forgetting it shows at once", async () => {
+    const board = await source("src/client/room/board.ts");
+    const redraw = board.slice(board.indexOf("if (s.explored !== this.renderedExplored) {"));
+    expect(redraw).not.toBe(board);
+    expect(redraw.slice(0, 300)).toContain("if (scene?.vision?.on) this.sightLayer.batchDraw();");
+  });
+});
+
 describe("the Room", () => {
   it("keeps explored cells for scenes with lighting on, from anyone but a display, and lets only the GM forget them", async () => {
     const room = await source("src/worker/room.ts");
