@@ -44,6 +44,65 @@ export interface MapFile {
   vtt?: VttMeta;
   /** What one cell is, when the file says (an Owlbear Rodeo scale such as 5 ft). */
   scale?: GridUnits;
+  /** A Universal VTT file's walls, doors and lights, for lighting and line of sight. */
+  sight?: MapSight;
+}
+
+/** A map file's walls, doors and lights, in squares from its picture's top-left corner. */
+export interface MapSight {
+  /** Lines that block sight, each [x0, y0, x1, y1, ...]. */
+  walls: number[][];
+  doors: { line: [number, number, number, number]; open: boolean }[];
+  /** Where each light is, and how far it reaches. */
+  lights: { x: number; y: number; r: number }[];
+  /** Whether the map is lit all over: its ambient light is bright (else it's dark but for the lights). */
+  daylight: boolean;
+}
+
+/** The most wall points taken from a file (VISION_LIMITS keeps a scene's to this). */
+const MAX_SIGHT_POINTS = 40_000;
+
+/**
+ * A Universal VTT file's walls (line_of_sight, and objects_line_of_sight from Dungeondraft),
+ * doors (portals: open when not "closed", as Dungeon's arches) and lights, moved to the
+ * picture's top-left corner; undefined when it has none.
+ */
+function sightOf(data: Record<string, unknown>, originX: number, originY: number): MapSight | undefined {
+  let left = MAX_SIGHT_POINTS;
+  const walls: number[][] = [];
+  for (const key of ["line_of_sight", "objects_line_of_sight"]) {
+    const lines = data[key];
+    if (!Array.isArray(lines)) continue;
+    for (const line of lines) {
+      if (!Array.isArray(line) || left <= 0) continue;
+      const pts: number[] = [];
+      for (const p of line) {
+        if (left <= 0) break;
+        if (!isPos(p)) continue;
+        pts.push(p.x - originX, p.y - originY);
+        left--;
+      }
+      if (pts.length >= 4) walls.push(pts);
+    }
+  }
+  const doors: MapSight["doors"] = [];
+  for (const d of Array.isArray(data.portals) ? data.portals.slice(0, 2000) : []) {
+    const b = (d as { bounds?: unknown } | null)?.bounds;
+    if (!Array.isArray(b) || b.length < 2 || !isPos(b[0]) || !isPos(b[1])) continue;
+    doors.push({ line: [b[0].x - originX, b[0].y - originY, b[1].x - originX, b[1].y - originY], open: (d as { closed?: unknown }).closed === false });
+  }
+  const lights: MapSight["lights"] = [];
+  for (const l of Array.isArray(data.lights) ? data.lights.slice(0, 1000) : []) {
+    const p = (l as { position?: unknown } | null)?.position;
+    const range = (l as { range?: unknown } | null)?.range;
+    if (isPos(p) && finite(range) && range > 0) lights.push({ x: p.x - originX, y: p.y - originY, r: Math.min(range, 200) });
+  }
+  if (!walls.length && !doors.length && !lights.length) return undefined;
+  // "ffRRGGBB" (alpha first): bright enough to see by, or dark.
+  const ambient = (data.environment as { ambient_light?: unknown } | undefined)?.ambient_light;
+  const rgb = typeof ambient === "string" && /^[0-9a-f]{8}$/i.test(ambient) ? [2, 4, 6].map((i) => parseInt(ambient.slice(i, i + 2), 16) / 255) : null;
+  const daylight = !rgb || 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2] >= 0.35;
+  return { walls, doors, lights, daylight };
 }
 
 /** What the file picker offers. */
@@ -577,8 +636,11 @@ function vttMap(data: Record<string, unknown>, fileName: string, name = vttName(
     offsetY: ppg ? (((-originY % 1) + 1) % 1) * ppg : undefined,
     // The whole of the grid, and the level clues, for a Dungeondraft project file.
     ...(ppg && cols && rows ? { vtt: vttMetaOf(data, { x: originX, y: originY }, { x: cols, y: rows }, ppg) } : {}),
+    ...withSight(sightOf(data, originX, originY)),
   };
 }
+
+const withSight = (sight: MapSight | undefined) => (sight ? { sight } : {});
 
 // ---------------------------------------------------------------- everything together
 

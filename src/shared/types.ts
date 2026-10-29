@@ -73,6 +73,30 @@ export interface Scene {
   bounds?: [number, number, number, number];
   /** The Dungeon map and level it came from (New scene › From Dungeon), so it can be updated from Dungeon. */
   dungeon?: SceneDungeon;
+  /** Lighting and line of sight: its walls, doors and lights, and whether players see only what the party sees. */
+  vision?: SceneVision;
+}
+
+/**
+ * Lighting and line of sight on a scene (client/room/vision.ts). With it on, players see only
+ * what the party's tokens can see: walls and closed doors block sight (the map file's, and the
+ * Build tool's), and in the dark only what a light, or the party's own light, falls on.
+ */
+export interface SceneVision {
+  /** On: players see only what the party can see. Off: everything, as before. */
+  on: boolean;
+  /** Lit all over, as by day. Off, it's dark: only the lights and the party's own light show. */
+  daylight: boolean;
+  /** How far the party's own light reaches in the dark, in squares (0: none). */
+  partyLight: number;
+  /** The map file's walls that block sight: lines, each [x0, y0, x1, y1, ...] in scene units. */
+  walls: number[][];
+  /** The map file's doors: from one end to the other in scene units, and whether each is open. */
+  doors: { line: [number, number, number, number]; open: boolean }[];
+  /** The map file's lights: where, and how far they reach, in scene units. */
+  lights: { x: number; y: number; r: number }[];
+  /** The Build tool's doors that are open (build.ts edge keys); the rest are shut. */
+  openEdges?: number[];
 }
 
 /** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */

@@ -382,6 +382,43 @@ export class BuildModel {
     return { refs: r.refs, hits: r.hits };
   }
 
+  /**
+   * The built walls and doors, for line of sight (vision.ts), as lines in cells [col0, row0, col1,
+   * row1]: every edge of every chunk's cells, and the edges along their right and bottom too. As
+   * stored (no draft). A secret door is a wall here, for players and the GM alike.
+   */
+  sightLines(): { walls: [number, number, number, number][]; doors: { key: number; line: [number, number, number, number] }[] } {
+    const walls: [number, number, number, number][] = [];
+    const doors: { key: number; line: [number, number, number, number] }[] = [];
+    const draft = this.draft;
+    this.draft = null;
+    const seen = new Set<number>();
+    try {
+      for (const ch of this.index.chunks.values()) {
+        const c0 = ch.cx * CHUNK, r0 = ch.cy * CHUNK;
+        for (let row = r0; row <= r0 + CHUNK; row++) {
+          for (let col = c0; col <= c0 + CHUNK; col++) {
+            for (const side of ["t", "l"] as const) {
+              // The extra row and column only for their edges facing into the chunk.
+              if ((row === r0 + CHUNK && side === "l") || (col === c0 + CHUNK && side === "t")) continue;
+              const key = edgeKey(col, row, side);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const s = this.state(col, row, side);
+              if (s === NONE) continue;
+              const line: [number, number, number, number] = side === "t" ? [col, row, col + 1, row] : [col, row, col, row + 1];
+              if (s === DOOR) doors.push({ key, line });
+              else walls.push(line);
+            }
+          }
+        }
+      }
+    } finally {
+      this.draft = draft;
+    }
+    return { walls, doors };
+  }
+
   /** What an edge is now: a door, a secret door, or neither. */
   doorStyle(d: DoorRef): "door" | "secret" | null {
     const e = this.edge(d.col, d.row, d.side);

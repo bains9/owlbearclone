@@ -104,7 +104,7 @@ export function FromDungeon(props: {
           ))}
         </select>
       </label>
-      <label class="check" title="Tabletop has no lighting of its own: tick this to keep the light and dark Dungeon shows">
+      <label class="check" title="Dungeon's light and dark, painted into the picture. Tabletop's own lighting (Edit scene › Lighting and line of sight) shows players only what the party can see, either way">
         <input
           type="checkbox"
           checked={lighting}

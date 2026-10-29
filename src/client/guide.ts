@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 29 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Lighting and line of sight (29 October 2026)",
+        "steps": [
+          "GM: open **Edit scene** and tick **On for this scene** under **Lighting and line of sight**.",
+          "Players now see only what the party can see: walls and shut doors block their sight. Choose **Dark** and they see only what the map's lights, or the party's own light, fall on.",
+          "Click a door's marker on the map to open or shut it."
+        ],
+        "notes": [
+          "The walls, doors and lights come from the map: a map from Dungeon (and any Universal VTT file) has them, and walls and doors made with the Build tool count too. For a scene brought in before today, use **Update from Dungeon**, or **Load walls, doors and lights from a map file**.",
+          "The party sees from the characters' tokens and the tokens players put down.",
+          "See **Lighting and line of sight**."
+        ]
+      },
+      {
         "title": "Flip a token to face the other way (29 October 2026)",
         "steps": [
           "Click a token with a picture to select it.",
@@ -849,6 +862,58 @@ export const GUIDE: GuideSection[] = [
           "The two buttons are the curved arrows at the bottom of the toolbar on the left.",
           "Undo only takes back your own changes on the scene you're looking at. The buttons are greyed out when there's nothing of yours to undo or redo there.",
           "Undo remembers up to 200 of your changes, and only in the browser tab where you made them. If you reload the page or close the tab, you can't undo them any more."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "lighting",
+    "title": "Lighting and line of sight",
+    "audience": "everyone",
+    "intro": "With lighting on, players see only what the party can see. Walls and shut doors block sight, and in the dark only what a light, or the party's own light, falls on shows. The rest of the map is dark, and so is anything on it.",
+    "parts": [
+      {
+        "title": "Turn it on (GM)",
+        "steps": [
+          "Open **Edit scene** (the pencil beside the scene) and find **Lighting and line of sight**.",
+          "Tick **On for this scene**.",
+          "Choose **Daylight** (lit all over: only walls block sight) or **Dark** (only lights show). In the dark, set how far **The party's own light** reaches, in squares."
+        ],
+        "notes": [
+          "You see the players' dark dimmed, so you can still see the whole map. To see it as players do, use the fog tool's player view.",
+          "It's set for each scene. A map from Dungeon whose light is dark starts on **Dark**."
+        ]
+      },
+      {
+        "title": "Doors (GM)",
+        "steps": [
+          "With lighting on, each door has a marker on the map: brown when it's shut, green when it's open.",
+          "Click a marker to open or shut its door. Players' sight changes at once."
+        ],
+        "notes": [
+          "A token standing on the marker is picked instead: move it aside first.",
+          "Secret doors made with the Build tool are walls to the players' sight."
+        ]
+      },
+      {
+        "title": "Who the party sees with",
+        "steps": [
+          "The party sees from every character token (placed from the **Party**) and every token a player put down, shown and not a prop.",
+          "Players share what all of them see."
+        ],
+        "notes": [
+          "Monsters and other tokens the GM put down don't see for the party.",
+          "With no party token on the scene, players see only dark."
+        ]
+      },
+      {
+        "title": "Walls, doors and lights",
+        "steps": [
+          "A map from Dungeon brings its walls, doors and lights, and so does any Universal VTT file (.dd2vtt, .uvtt). Walls and doors made with the Build tool count too.",
+          "For a scene brought in before 29 October 2026: **Update from Dungeon** brings them, or click **Load walls, doors and lights from a map file** in **Edit scene** and choose the map's file."
+        ],
+        "notes": [
+          "Edit scene says how many walls, doors and lights the scene has from its map."
         ]
       }
     ]

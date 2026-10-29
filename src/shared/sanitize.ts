@@ -14,6 +14,7 @@ import type {
   RoomSettings,
   Scene,
   SceneDungeon,
+  SceneVision,
   SceneMapData,
   SceneSeason,
 } from "./types";
@@ -438,6 +439,62 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
   };
 }
 
+/** How much of a scene's lighting and line of sight is kept: plenty for a big map from Dungeon. */
+export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60 };
+
+/**
+ * A scene's lighting and line of sight as sent (SceneVision): null to take it away; undefined when
+ * unusable (the scene keeps what it had). Points are kept to a tenth of a unit, inside the
+ * biggest scene there can be.
+ */
+export function sanitizeVision(v: unknown): SceneVision | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const far = LIMITS.sceneSizeMax * 3;
+  const coord = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= far ? Math.round(n * 10) / 10 : undefined);
+  if (!Array.isArray(r.walls) || r.walls.length > VISION_LIMITS.wallLines) return undefined;
+  const walls: number[][] = [];
+  let numbers = 0;
+  for (const line of r.walls) {
+    if (!Array.isArray(line) || line.length < 4 || line.length % 2 !== 0) return undefined;
+    numbers += line.length;
+    if (numbers > VISION_LIMITS.wallNumbers) return undefined;
+    const pts = line.map(coord);
+    if (pts.some((n) => n === undefined)) return undefined;
+    walls.push(pts as number[]);
+  }
+  if (!Array.isArray(r.doors) || r.doors.length > VISION_LIMITS.doors) return undefined;
+  const doors: SceneVision["doors"] = [];
+  for (const d of r.doors) {
+    const x = (d && typeof d === "object" ? d : {}) as Record<string, unknown>;
+    if (!Array.isArray(x.line) || x.line.length !== 4) return undefined;
+    const line = x.line.map(coord);
+    if (line.some((n) => n === undefined)) return undefined;
+    doors.push({ line: line as [number, number, number, number], open: x.open === true });
+  }
+  if (!Array.isArray(r.lights) || r.lights.length > VISION_LIMITS.lights) return undefined;
+  const lights: SceneVision["lights"] = [];
+  for (const l of r.lights) {
+    const x = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
+    const px = coord(x.x), py = coord(x.y), pr = coord(x.r);
+    if (px === undefined || py === undefined || pr === undefined || pr <= 0) return undefined;
+    lights.push({ x: px, y: py, r: pr });
+  }
+  const openEdges = Array.isArray(r.openEdges)
+    ? [...new Set(r.openEdges.filter((k): k is number => typeof k === "number" && Number.isInteger(k) && k >= 0 && k < 2 ** 40))].slice(0, VISION_LIMITS.openEdges)
+    : [];
+  return {
+    on: r.on === true,
+    daylight: r.daylight !== false,
+    partyLight: num(r.partyLight, 0, VISION_LIMITS.partyLight) ?? 0,
+    walls,
+    doors,
+    lights,
+    ...(openEdges.length ? { openEdges } : {}),
+  };
+}
+
 /** A scene's bounds as sent: null to go back to the picture's rectangle; undefined when unusable. */
 export function sanitizeBounds(v: unknown): [number, number, number, number] | null | undefined {
   if (v === null) return null;
@@ -497,6 +554,9 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const lv = sanitizeDungeonLink(r.dungeon);
   const linked = lv === null ? undefined : (lv ?? (newPicture ? undefined : existing?.dungeon));
   const dungeon = linked && linked.asset === mapAssetId ? linked : undefined;
+  // Lighting and line of sight: null takes it away, a change without it keeps the scene's.
+  const vv = sanitizeVision(r.vision);
+  const vision = vv === null ? undefined : (vv ?? existing?.vision);
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -514,6 +574,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(wallTexture ? { wallTexture } : {}),
     ...(bounds ? { bounds } : {}),
     ...(dungeon ? { dungeon } : {}),
+    ...(vision ? { vision } : {}),
   };
 }
 

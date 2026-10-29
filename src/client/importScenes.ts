@@ -8,14 +8,14 @@ import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
 import type { ScenePatch } from "../shared/protocol";
-import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneMapData, TokenItem } from "../shared/types";
+import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneMapData, SceneVision, TokenItem } from "../shared/types";
 import { importedUnits } from "../shared/units";
 import type { GridUnits } from "../shared/units";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
 import type { AttachReport, VttMeta } from "./dd/extract";
 import { dungeonLevelNames, gridSizeFor, readMapFiles, vttName } from "./mapImport";
 import { randomId as newBatchId } from "../shared/ids";
-import type { MapFile } from "./mapImport";
+import type { MapFile, MapSight } from "./mapImport";
 import type { Uploaded } from "./api";
 import { isOb2File, readOb2 } from "./ob2";
 import type { RoomClient } from "./room/client";
@@ -69,6 +69,33 @@ export function sceneFromMap(
     },
     fogCover,
     createdAt: Date.now(),
+    ...(from?.map.sight ? { vision: visionFromSight(from.map.sight, size) } : {}),
+  };
+}
+
+/** How far the party's own light reaches in the dark, to begin with (squares). */
+export const PARTY_LIGHT = 4;
+
+/**
+ * A scene's lighting and line of sight from its map file's walls, doors and lights (in squares
+ * from the picture's corner), `perSquare` scene units a square. With `keep` (the scene's own,
+ * when the map is brought in again), the GM's choices stay: on or off, day or dark, the party's
+ * light, and which doors are open (a file door by where it is).
+ */
+export function visionFromSight(sight: MapSight, perSquare: number, keep?: SceneVision): SceneVision {
+  const k = (n: number) => Math.round(n * perSquare * 10) / 10;
+  const wasOpen = new Set((keep?.doors ?? []).filter((d) => d.open).map((d) => d.line.join(",")));
+  return {
+    on: keep?.on ?? false,
+    daylight: keep?.daylight ?? sight.daylight,
+    partyLight: keep?.partyLight ?? PARTY_LIGHT,
+    walls: sight.walls.map((l) => l.map(k)),
+    doors: sight.doors.map((d) => {
+      const line = d.line.map(k) as [number, number, number, number];
+      return { line, open: keep ? wasOpen.has(line.join(",")) || (d.open && !keep.doors.some((o) => o.line.join(",") === line.join(","))) : d.open };
+    }),
+    lights: sight.lights.map((l) => ({ x: k(l.x), y: k(l.y), r: k(l.r) })),
+    ...(keep?.openEdges?.length ? { openEdges: keep.openEdges } : {}),
   };
 }
 
@@ -482,6 +509,8 @@ export function updatePatch(
     height: round2(d.asset.height * k),
     mapData: attach ? { ...attach.mapData, ...kept } : null,
     mapRect: d.map.vtt ? vttRect(d.map.vtt) : null,
+    // The new picture's walls, doors and lights, with the GM's choices kept.
+    ...(d.map.sight ? { vision: visionFromSight(d.map.sight, perSquare, scene.vision) } : {}),
     dungeon: {
       ...scene.dungeon,
       level: link.levels[link.index] ?? scene.dungeon.level,

@@ -38,7 +38,7 @@ import {
   stampBlock,
 } from "../../shared/terrain";
 import type { CellBounds } from "../../shared/terrain";
-import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
+import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
 import { isCompass, sceneBounds } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
@@ -53,6 +53,8 @@ import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
+import { WallIndex, blockers, doorNear, doorSpots, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
+import type { DoorSpot, Seg } from "./vision";
 import {
   BuildEdit,
   BuildRenderer,
@@ -126,6 +128,8 @@ const POINTER_HOLD_MS = 200;
 const PING_MS = 3500;
 /** The fog is drawn once into an image at most this many pixels on its long side. */
 const FOG_CACHE_MAX = 2560;
+/** The dark where the party can't see (lighting and line of sight). */
+const SIGHT_DARK = "#06070a";
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
 
@@ -355,8 +359,13 @@ export class Board implements BoardApi {
   private bgLayer = new Konva.Layer({ listening: false });
   private drawLayer = new Konva.Layer();
   private tokenLayer = new Konva.Layer();
+  /** Lighting and line of sight's darkness (vision.ts): over the tokens, under the GM's fog. */
+  private sightLayer = new Konva.Layer({ listening: false });
   private fogLayer = new Konva.Layer({ listening: false });
   private uiLayer = new Konva.Layer({ listening: false });
+  private sightNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawSight(native(ctx)) });
+  /** The doors' markers, for the GM to open and shut them with a click (with lighting on). */
+  private doorNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawDoors(native(ctx)) });
   private bgRect = new Konva.Rect({ x: 0, y: 0, width: 1, height: 1, fill: "#2b2f36" });
   private mapNode = new Konva.Image({ x: 0, y: 0, image: undefined, visible: false });
   private gridNode: Konva.Shape;
@@ -451,6 +460,11 @@ export class Board implements BoardApi {
    */
   private fogCanvas: HTMLCanvasElement | null = null;
   private fogDirty = true;
+  /** The darkness, composited like the fog, and what it was made from (so it's remade only when that changes). */
+  private sightCanvas: HTMLCanvasElement | null = null;
+  private sightMadeFrom = "";
+  /** The scene's walls and doors, made into an index, and the lights' reach: remade when walls, doors or built walls change. */
+  private sightGeom: { scene: Scene; vision: SceneVision; terrain: unknown; index: WallIndex; doors: DoorSpot[]; lights: number[][] } | null = null;
 
   private renderedSceneId: string | null = null;
   private renderedScene: Scene | null = null;
@@ -545,8 +559,9 @@ export class Board implements BoardApi {
 
     this.bgLayer.add(this.bgRect, this.mapNode, this.buildNode, this.gridNode);
     this.fogLayer.add(this.fogNode, this.compassFogNode);
-    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover);
-    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.fogLayer, this.uiLayer);
+    this.sightLayer.add(this.sightNode);
+    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
+    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.sightLayer, this.fogLayer, this.uiLayer);
 
     this.anim = new Konva.Animation(() => this.tick(), this.uiLayer);
 
@@ -827,6 +842,9 @@ export class Board implements BoardApi {
       this.bgLayer.batchDraw();
       this.fogDirty = true;
       this.fogLayer.batchDraw();
+      // The lighting may have changed (a door, day or dark, turned on or off).
+      this.sightLayer.batchDraw();
+      this.uiLayer.batchDraw();
     }
 
     if (this.needsFit && scene) {
@@ -847,6 +865,9 @@ export class Board implements BoardApi {
       // reveal only half-remove the fog under it.
       this.fogLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
       this.fogLayer.batchDraw();
+      // The players' darkness too: the GM sees it dimmed, and whole when looking as players.
+      this.sightLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
+      this.sightLayer.batchDraw();
       this.renderedGm = gm;
       this.renderedPreview = preview;
       force = true;
@@ -1306,13 +1327,15 @@ export class Board implements BoardApi {
   private fogged(pos: Point): boolean {
     const s = this.room.state;
     if (s.me?.role === "gm" && !s.fogOpts.preview) return false;
-    const canvas = this.fogLayer.getCanvas();
-    const pr = canvas.getPixelRatio();
-    const x = Math.floor(pos.x * pr);
-    const y = Math.floor(pos.y * pr);
-    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return false;
-    const ctx = native(canvas.getContext());
-    return ctx.getImageData(x, y, 1, 1).data[3] > 128;
+    // Fog, or the dark where the party can't see (lighting and line of sight).
+    return [this.fogLayer, this.sightLayer].some((layer) => {
+      const canvas = layer.getCanvas();
+      const pr = canvas.getPixelRatio();
+      const x = Math.floor(pos.x * pr);
+      const y = Math.floor(pos.y * pr);
+      if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return false;
+      return native(canvas.getContext()).getImageData(x, y, 1, 1).data[3] > 128;
+    });
   }
 
   private toScreen(p: Point): Point {
@@ -1715,6 +1738,163 @@ export class Board implements BoardApi {
     c.restore();
   }
 
+  /**
+   * The scene's walls and doors as an index for sight, and where its lights reach: remade when
+   * the scene's lighting (walls, doors, lights), its grid or its built walls change.
+   */
+  private sightGeometry(scene: Scene, v: SceneVision): NonNullable<Board["sightGeom"]> {
+    const terrain = this.build.model.index;
+    const g = this.sightGeom;
+    if (g && g.vision === v && g.terrain === terrain && g.scene.grid === scene.grid && g.scene.bounds === scene.bounds && g.scene.width === scene.width) return g;
+    const { size, offsetX, offsetY } = scene.grid;
+    const toScene = (l: readonly number[]): Seg => [offsetX + l[0] * size, offsetY + l[1] * size, offsetX + l[2] * size, offsetY + l[3] * size];
+    const built = this.build.model.sightLines();
+    const walls = [...segmentsOf(v.walls), ...built.walls.map(toScene)];
+    const doors = doorSpots(v, built.doors.map((d) => ({ key: d.key, line: toScene(d.line) })));
+    const area = sceneBounds(scene);
+    const index = new WallIndex(blockers(walls, doors), area, size * 2);
+    const lights = v.daylight ? [] : v.lights.map((l) => sightPolygon(index, l.x, l.y, l.r));
+    this.sightGeom = { scene, vision: v, terrain, index, doors, lights };
+    this.sightGeomVersion++;
+    return this.sightGeom;
+  }
+
+  private sightGeomVersion = 0;
+
+  /** Where the party's sight tokens stand ([x0, y0, ...]): as dragged, while they're being dragged. */
+  private sightViewers(scene: Scene): number[] {
+    const out: number[] = [];
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || t.sceneId !== scene.id || !isSightToken(t)) continue;
+      const p = n.group.position();
+      out.push(Math.round(p.x), Math.round(p.y));
+    }
+    return out;
+  }
+
+  /**
+   * Lighting and line of sight's darkness: all of the scene but what the party can see. Remade
+   * only when what it's made from changes (a sight token moving, a door, the lighting); panning
+   * and zooming just draw it.
+   */
+  private drawSight(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on) return;
+    const geom = this.sightGeometry(scene, v);
+    const viewers = this.sightViewers(scene);
+    const area = sceneBounds(scene);
+    const key = `${this.sightGeomVersion}|${v.daylight}|${v.partyLight}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    if (key !== this.sightMadeFrom || !this.sightCanvas) {
+      this.renderSight(scene, v, geom, viewers);
+      this.sightMadeFrom = key;
+    }
+    c.save();
+    c.imageSmoothingEnabled = true;
+    c.drawImage(this.sightCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+    c.restore();
+  }
+
+  private renderSight(scene: Scene, v: SceneVision, geom: NonNullable<Board["sightGeom"]>, viewers: readonly number[]): void {
+    const area = sceneBounds(scene);
+    const w0 = area.x1 - area.x0, h0 = area.y1 - area.y0;
+    const k = Math.min(1, FOG_CACHE_MAX / Math.max(w0, h0));
+    const canvas = (this.sightCanvas ??= document.createElement("canvas"));
+    const w = Math.max(1, Math.ceil(w0 * k)), h = Math.max(1, Math.ceil(h0 * k));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    const c = canvas.getContext("2d")!;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = "source-over";
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = SIGHT_DARK;
+    c.fillRect(0, 0, w, h);
+    c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
+    // What's seen is cut out of the dark (a soft edge where a light fades).
+    c.globalCompositeOperation = "destination-out";
+    const trace = (poly: readonly number[]) => {
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i) c.lineTo(poly[i], poly[i + 1]);
+        else c.moveTo(poly[i], poly[i + 1]);
+      }
+      c.closePath();
+    };
+    const glow = (x: number, y: number, r: number) => {
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "#000");
+      g.addColorStop(0.7, "#000");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      return g;
+    };
+    const far = Math.hypot(w0, h0);
+    const reach = v.partyLight * scene.grid.size;
+    for (let i = 0; i < viewers.length; i += 2) {
+      const x = viewers[i], y = viewers[i + 1];
+      const seen = sightPolygon(geom.index, x, y, far);
+      if (v.daylight) {
+        c.fillStyle = "#000";
+        trace(seen);
+        c.fill();
+        continue;
+      }
+      // In the dark: what the lights fall on, and the party's own light, as far as this token can see.
+      c.save();
+      trace(seen);
+      c.clip();
+      geom.lights.forEach((poly, j) => {
+        const l = v.lights[j];
+        c.fillStyle = glow(l.x, l.y, l.r);
+        trace(poly);
+        c.fill();
+      });
+      if (reach > 0) {
+        c.fillStyle = glow(x, y, reach);
+        c.beginPath();
+        c.arc(x, y, reach, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.restore();
+    }
+  }
+
+  /** The doors' markers for the GM (lighting on, not looking as players): shut ones brown, open ones green. */
+  private drawDoors(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return;
+    const geom = this.sightGeometry(scene, v);
+    const s = this.stage.scaleX();
+    const r = Math.max(scene.grid.size * 0.16, 6 / s);
+    c.save();
+    c.lineWidth = 1.5 / s;
+    c.strokeStyle = "#fff";
+    for (const d of geom.doors) {
+      const [ax, ay, bx, by] = d.line;
+      c.beginPath();
+      c.arc((ax + bx) / 2, (ay + by) / 2, r, 0, Math.PI * 2);
+      c.fillStyle = d.open ? "rgba(91, 216, 143, 0.9)" : "rgba(154, 101, 50, 0.95)";
+      c.fill();
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  /** GM, lighting on: a click on a door's marker opens or shuts it (true if it did). */
+  private doorClick(world: Point): boolean {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return false;
+    const geom = this.sightGeometry(scene, v);
+    const door = doorNear(geom.doors, world.x, world.y, Math.max(scene.grid.size * 0.3, 10 / this.stage.scaleX()));
+    if (!door) return false;
+    this.room.updateScene(scene.id, { vision: toggledDoor(v, door) });
+    return true;
+  }
+
   private drawFog(c: CanvasRenderingContext2D): void {
     const scene = this.renderedScene;
     if (!scene) return;
@@ -1755,6 +1935,8 @@ export class Board implements BoardApi {
    */
   private drawTokens(): void {
     this.tokenLayer.batchDraw();
+    // The darkness follows the party's tokens (remade only if one of them moved).
+    if (this.renderedScene?.vision?.on) this.sightLayer.batchDraw();
     const shown: CompassLook[] = [];
     for (const [id, n] of this.tokens) {
       const t = n.item;
@@ -2182,6 +2364,8 @@ export class Board implements BoardApi {
     }
     switch (s.tool) {
       case "select":
+        // GM, lighting on: a click on a door's marker (not on a token) opens or shuts it.
+        if (this.isGm && !this.pickAt(pos) && this.doorClick(world)) return;
         this.selectDown(e.pointerId, pos, world, this.shiftHeld(e));
         return;
       case "draw":

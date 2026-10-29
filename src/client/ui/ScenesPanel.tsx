@@ -22,6 +22,7 @@ import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
 import type { Pending } from "./ddText";
 import { SeasonPicker } from "./SeasonPicker";
+import { LightingSettings } from "./LightingSettings";
 
 export function ScenesPanel() {
   const room = useRoom();
@@ -890,6 +891,8 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
           onClose={() => setFogReset(null)}
         />
       )}
+
+      <LightingSettings scene={s} />
 
       <button class="btn btn-primary full" onClick={props.onDone}>
         <Check size={16} /> Done

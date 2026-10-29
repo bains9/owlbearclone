@@ -538,7 +538,7 @@ describe("in Tabletop", () => {
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[1].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].parts[2].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
     expect(GUIDE[0].intro).toContain("The latest updates came out on 29 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);
