@@ -9,7 +9,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
-import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addCells, bitsToText, emptyBits, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
+import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
 import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
@@ -153,13 +153,20 @@ export function fileKey(roomId: string, assetId: string): string {
   return `rooms/${roomId}/${assetId}`;
 }
 
+/** An explored map as the Room holds it: the grid's key, its bits, and those seen in colour (missing: all). */
+interface KeptExplored {
+  key: string;
+  bits: Uint8Array;
+  lit?: Uint8Array;
+}
+
 export class Room extends DurableObject<Env> {
   private sql: SqlStorage;
   private info: RoomInfo | null = null;
   private activeSceneId: string | null = null;
   private scenes = new Map<string, Scene>();
   /** Explored cells, by exploreSlot (the party's or a character's of a scene), as read from the explored_maps table (exploredOf). */
-  private explored = new Map<string, { key: string; bits: Uint8Array }>();
+  private explored = new Map<string, KeptExplored>();
   private items = new Map<string, Item>();
   private itemBytes = new Map<string, number>();
   private totalItemBytes = 0;
@@ -216,10 +223,17 @@ export class Room extends DurableObject<Env> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, owner TEXT NOT NULL, at INTEGER NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL, at INTEGER NOT NULL)`);
     // What the party, and each of its characters, has explored of each scene with lighting on
-    // (shared/explore.ts): the grid's key and its bits. `who` is "" for the party's, else the character's sheet id.
+    // (shared/explore.ts): the grid's key and its bits, and those seen in colour (`lit`; null: all
+    // of them). `who` is "" for the party's, else the character's sheet id.
     this.sql.exec(
-      `CREATE TABLE IF NOT EXISTS explored_maps (scene_id TEXT NOT NULL, who TEXT NOT NULL, key TEXT NOT NULL, bits TEXT NOT NULL, PRIMARY KEY (scene_id, who))`,
+      `CREATE TABLE IF NOT EXISTS explored_maps (scene_id TEXT NOT NULL, who TEXT NOT NULL, key TEXT NOT NULL, bits TEXT NOT NULL, lit TEXT, PRIMARY KEY (scene_id, who))`,
     );
+    try {
+      // Kept before nightvision's black and white: everything explored was seen in colour.
+      this.sql.exec(`ALTER TABLE explored_maps ADD COLUMN lit TEXT`);
+    } catch {
+      // Already there.
+    }
     // The party's, kept before characters had their own.
     if (this.sql.exec(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'explored'`).toArray().length) {
       this.sql.exec(`INSERT OR IGNORE INTO explored_maps (scene_id, who, key, bits) SELECT scene_id, '', key, bits FROM explored`);
@@ -228,49 +242,54 @@ export class Room extends DurableObject<Env> {
   }
 
   /** The party's (or with `who`, a character's) explored cells of a scene as kept (read once, then held), or null for none. */
-  private exploredOf(sceneId: string, who = ""): { key: string; bits: Uint8Array } | null {
+  private exploredOf(sceneId: string, who = ""): KeptExplored | null {
     const slot = exploreSlot(sceneId, who);
     const held = this.explored.get(slot);
     if (held) return held;
-    const row = this.sql.exec<{ key: string; bits: string }>(`SELECT key, bits FROM explored_maps WHERE scene_id = ? AND who = ?`, sceneId, who).toArray()[0];
+    const row = this.sql
+      .exec<{ key: string; bits: string; lit: string | null }>(`SELECT key, bits, lit FROM explored_maps WHERE scene_id = ? AND who = ?`, sceneId, who)
+      .toArray()[0];
     if (!row) return null;
-    const kept = { key: row.key, bits: textToBits(row.bits, keyCells(row.key)) };
+    const total = keyCells(row.key);
+    const kept = { key: row.key, bits: textToBits(row.bits, total), lit: row.lit === null ? undefined : textToBits(row.lit, total) };
     this.explored.set(slot, kept);
     return kept;
   }
 
-  /** Every explored map of a scene, by exploreSlot, its bits as text. */
-  private exploredMaps(sceneId: string): Record<string, { key: string; bits: string }> {
-    const out: Record<string, { key: string; bits: string }> = {};
-    for (const r of this.sql.exec<{ who: string; key: string; bits: string }>(`SELECT who, key, bits FROM explored_maps WHERE scene_id = ?`, sceneId)) {
-      out[exploreSlot(sceneId, r.who)] = { key: r.key, bits: r.bits };
-    }
+  /** Every explored map of a scene, by exploreSlot, its bits (and those seen in colour, when kept) as text. */
+  private exploredMaps(sceneId: string): Record<string, { key: string; bits: string; lit?: string }> {
+    const out: Record<string, { key: string; bits: string; lit?: string }> = {};
+    const rows = this.sql.exec<{ who: string; key: string; bits: string; lit: string | null }>(`SELECT who, key, bits, lit FROM explored_maps WHERE scene_id = ?`, sceneId);
+    for (const r of rows) out[exploreSlot(sceneId, r.who)] = { key: r.key, bits: r.bits, ...(r.lit !== null ? { lit: r.lit } : {}) };
     return out;
   }
 
-  /** Adds cells to the party's (or a character's) explored map of a scene, and tells everyone the new ones. */
-  private addExplored(sceneId: string, who: string, grid: ExploreGrid, cells: readonly unknown[]): void {
+  /**
+   * Adds cells to the party's (or a character's) explored map of a scene, and with `lit` those
+   * seen in colour (shared/explore.ts addExplored), and tells everyone the new ones.
+   */
+  private addExplored(sceneId: string, who: string, grid: ExploreGrid, cells: readonly unknown[], lit: readonly unknown[] | undefined): void {
     const total = grid.cols * grid.rows;
-    let kept = this.exploredOf(sceneId, who);
-    if (!kept || kept.key !== grid.key) {
-      // Only so many maps a scene: a character's is made only while there's room.
-      if (!kept && who) {
-        const maps = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM explored_maps WHERE scene_id = ?`, sceneId).one().n;
-        if (maps >= MAX_EXPLORE_MAPS) return;
-      }
-      kept = { key: grid.key, bits: emptyBits(total) };
+    let had = this.exploredOf(sceneId, who);
+    if (had && had.key !== grid.key) had = null;
+    // Only so many maps a scene: a character's is made only while there's room.
+    if (!had && who && !this.exploredOf(sceneId, who)) {
+      const maps = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM explored_maps WHERE scene_id = ?`, sceneId).one().n;
+      if (maps >= MAX_EXPLORE_MAPS) return;
     }
-    const fresh = addCells(kept.bits, cells, total);
-    if (!fresh.length) return;
+    const next = addExplored(had, cells, lit, total);
+    if (!next.fresh.length && !next.freshLit.length) return;
+    const kept = { key: grid.key, bits: next.bits, lit: next.lit };
     this.explored.set(exploreSlot(sceneId, who), kept);
     this.sql.exec(
-      `INSERT INTO explored_maps (scene_id, who, key, bits) VALUES (?, ?, ?, ?) ON CONFLICT(scene_id, who) DO UPDATE SET key = excluded.key, bits = excluded.bits`,
+      `INSERT INTO explored_maps (scene_id, who, key, bits, lit) VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, who) DO UPDATE SET key = excluded.key, bits = excluded.bits, lit = excluded.lit`,
       sceneId,
       who,
       kept.key,
       bitsToText(kept.bits),
+      kept.lit ? bitsToText(kept.lit) : null,
     );
-    this.broadcast({ t: "explore", sceneId, key: kept.key, ...(who ? { who } : {}), cells: fresh });
+    this.broadcast({ t: "explore", sceneId, key: kept.key, ...(who ? { who } : {}), cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });
   }
 
   /** Forgets every explored map of a scene (in storage too). */
@@ -816,6 +835,7 @@ export class Room extends DurableObject<Env> {
         if (conn.display) return;
         const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
         if (!scene?.vision?.on || !Array.isArray(msg.cells) || msg.cells.length > MAX_EXPLORE_BATCH) return;
+        const lit = Array.isArray(msg.lit) && msg.lit.length <= MAX_EXPLORE_BATCH ? msg.lit : undefined;
         const grid = exploreGrid(scene);
         if (msg.key !== grid.key) return;
         const who = msg.who ?? "";
@@ -824,7 +844,7 @@ export class Room extends DurableObject<Env> {
         // A character's exploring is the party's too (the GM's map); the party's, seeing together,
         // is every character's there.
         const maps = who ? [who, ""] : ["", ...(scene.vision.perPlayer ? [] : here)];
-        for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells);
+        for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells, lit);
         return;
       }
 
@@ -1528,7 +1548,7 @@ export class Room extends DurableObject<Env> {
     if (live?.vision?.on) {
       for (const [slot, m] of Object.entries(this.exploredMaps(live.id))) {
         const who = slot.slice(live.id.length + 1);
-        this.broadcast({ t: "explore", sceneId: live.id, key: m.key, ...(who ? { who } : {}), bits: m.bits }, (c) => c.role !== "gm");
+        this.broadcast({ t: "explore", sceneId: live.id, key: m.key, ...(who ? { who } : {}), bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) }, (c) => c.role !== "gm");
       }
     }
     // Which initiative entries players may see depends on the live scene.

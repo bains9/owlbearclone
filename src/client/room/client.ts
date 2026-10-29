@@ -3,7 +3,7 @@
 // reconciles them with what the server confirms, and keeps an undo history.
 
 import type { Character, CharactersReply } from "../../shared/characters";
-import { MAX_EXPLORE_BATCH, addCells, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
+import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
@@ -790,7 +790,12 @@ export class RoomClient {
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
-          explored: Object.fromEntries(Object.entries(msg.explored ?? {}).map(([slot, e]) => [slot, { key: e.key, bits: textToBits(e.bits, keyCells(e.key)) }])),
+          explored: Object.fromEntries(
+            Object.entries(msg.explored ?? {}).map(([slot, e]) => {
+              const total = keyCells(e.key);
+              return [slot, { key: e.key, bits: textToBits(e.bits, total), ...(e.lit !== undefined ? { lit: textToBits(e.lit, total) } : {}) }];
+            }),
+          ),
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
@@ -905,14 +910,15 @@ export class RoomClient {
           return;
         }
         const slot = exploreSlot(msg.sceneId, msg.who);
-        const had = s.explored[slot];
-        let bits: Uint8Array;
-        if (msg.bits !== undefined) bits = textToBits(msg.bits, total);
-        else {
-          bits = had && had.key === msg.key ? had.bits.slice() : emptyBits(total);
-          if (!addCells(bits, msg.cells ?? [], total).length && had?.key === msg.key) return;
+        if (msg.bits !== undefined) {
+          const lit = msg.litBits !== undefined ? { lit: textToBits(msg.litBits, total) } : {};
+          this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits: textToBits(msg.bits, total), ...lit } } });
+          return;
         }
-        this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits } } });
+        const had = s.explored[slot]?.key === msg.key ? s.explored[slot] : null;
+        const next = addExplored(had, msg.cells ?? [], msg.lit, total);
+        if (had && !next.fresh.length && !next.freshLit.length) return;
+        this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits: next.bits, ...(next.lit ? { lit: next.lit } : {}) } } });
         return;
       }
 
@@ -1244,25 +1250,23 @@ export class RoomClient {
   }
 
   /**
-   * Cover all (the whole scene goes dark for players) or Clear all (players see it
-   * all): sets the scene's base cover and removes its fog shapes, in one undoable step.
-   */
-  /**
    * Cells of a scene's explore grid (`key`) the party (or with `who`, that character) has just
-   * seen: kept here at once, so they aren't sent again, and sent to the Room, which tells
-   * everyone. A table display only looks.
+   * seen, and with `lit` those of them seen in colour (the rest only by nightvision): kept here
+   * at once, so they aren't sent again, and sent to the Room, which tells everyone. A table
+   * display only looks.
    */
-  explore(sceneId: string, key: string, cells: number[], who = ""): void {
-    if (this.display || !cells.length) return;
+  explore(sceneId: string, key: string, cells: number[], who = "", lit?: number[]): void {
+    if (this.display || (!cells.length && !lit?.length)) return;
     const total = keyCells(key);
     const slot = exploreSlot(sceneId, who);
-    const had = this.state.explored[slot];
-    const bits = had && had.key === key ? had.bits.slice() : emptyBits(total);
-    const fresh = addCells(bits, cells, total);
-    if (!fresh.length) return;
-    this.store.set((s) => ({ explored: { ...s.explored, [slot]: { key, bits } } }));
-    for (let i = 0; i < fresh.length; i += MAX_EXPLORE_BATCH) {
-      this.submit({ t: "explore", sceneId, key, cells: fresh.slice(i, i + MAX_EXPLORE_BATCH), ...(who ? { who } : {}) });
+    const had = this.state.explored[slot]?.key === key ? this.state.explored[slot] : null;
+    const next = addExplored(had, cells, lit, total);
+    if (!next.fresh.length && !next.freshLit.length) return;
+    this.store.set((s) => ({ explored: { ...s.explored, [slot]: { key, bits: next.bits, ...(next.lit ? { lit: next.lit } : {}) } } }));
+    const batches = Math.max(1, Math.ceil(Math.max(next.fresh.length, next.freshLit.length) / MAX_EXPLORE_BATCH));
+    for (let b = 0; b < batches; b++) {
+      const part = (cells: number[]) => cells.slice(b * MAX_EXPLORE_BATCH, (b + 1) * MAX_EXPLORE_BATCH);
+      this.submit({ t: "explore", sceneId, key, cells: part(next.fresh), ...(who ? { who } : {}), ...(lit ? { lit: part(next.freshLit) } : {}) });
     }
   }
 
@@ -1279,6 +1283,10 @@ export class RoomClient {
     this.submit({ t: "explore.reset", sceneId });
   }
 
+  /**
+   * Cover all (the whole scene goes dark for players) or Clear all (players see it
+   * all): sets the scene's base cover and removes its fog shapes, in one undoable step.
+   */
   resetFog(sceneId: string, cover: boolean): void {
     const scene = this.state.scenes[sceneId];
     if (!scene) return;

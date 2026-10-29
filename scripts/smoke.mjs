@@ -293,6 +293,15 @@ async function exploreChecks(cookie) {
   check(got(A).join() === "4,5" && got("").join() === "4,5,8" && got(B).join() === "", "with per-player sight, a character's exploring is theirs and the party's only");
   check(!gm.msgs.some((m) => m.t === "explore" && (m.cells?.includes(6) || m.cells?.includes(7))), "a character not on the scene, or not a sheet, keeps no map");
 
+  // At night: which explored cells were seen in colour (the rest only by nightvision, shown grey).
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [20, 21], lit: [21] });
+  const litMsg = await gm.waitFor((m) => m.t === "explore" && m.cells?.includes(20));
+  check(litMsg?.lit?.join() === "21", "what was seen in colour comes with what was explored");
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [], lit: [20] });
+  const nowLit = await gm.waitFor((m) => m.t === "explore" && m.lit?.includes(20));
+  check(Boolean(nowLit) && nowLit.cells.length === 0, "a place seen only by nightvision is put in colour when a light reaches it");
+
   // Kept: a tab joining later gets every map of the scene.
   const late = connect(room.id, { uid: "late" + rid(), name: "Late" });
   const lateHello = await late.waitFor((m) => m.t === "hello");
@@ -300,6 +309,7 @@ async function exploreChecks(cookie) {
     Object.keys(lateHello?.explored ?? {}).sort().join() === [scene.id, `${scene.id}/${A}`, `${scene.id}/${B}`].sort().join(),
     "hello brings the party's map and each character's",
   );
+  check(typeof lateHello?.explored?.[scene.id]?.lit === "string" && lateHello.explored[`${scene.id}/${B}`].lit === undefined, "and which places were seen in colour, where it's kept");
   late.ws.close();
 
   // Only the GM forgets, and then every map of the scene goes.

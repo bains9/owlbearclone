@@ -53,7 +53,7 @@ import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
-import { exploreGrid, exploreSlot, hasCell } from "../../shared/explore";
+import { exploreGrid, exploreSlot, hasCell, onlyByNightvision } from "../../shared/explore";
 import { distanceSquares, visionSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
 import type { ExploreGrid, Explored } from "../../shared/explore";
@@ -141,6 +141,8 @@ const EXPLORED_SHOWN = 0.45;
  * more than an explored place, and enough that a token there can be picked.
  */
 const NIGHT_SHOWN = 0.6;
+/** The black and white reaches this much further than nightvision, so no colour shows at its soft edge. */
+const MONO_OUT = 1.15;
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
 
@@ -1962,7 +1964,9 @@ export class Board implements BoardApi {
     // What the party sees, painted onto a canvas with whatever compositing it's set to (a soft edge
     // where a light fades): cut out of the dark, and drawn on the explore grid. `lit`: what the
     // lights and the party's own light show; `night`: how much of what only nightvision sees, if any.
-    const paint = (c: CanvasRenderingContext2D, lit = true, night = 1) => {
+    // `nightOut`: how much further than its reach nightvision is painted (the black and white's
+    // edge then lies in the dark, past the edge of what's dimly seen).
+    const paint = (c: CanvasRenderingContext2D, lit = true, night = 1, nightOut = 1) => {
       const trace = (poly: readonly number[]) => {
         c.beginPath();
         for (let i = 0; i < poly.length; i += 2) {
@@ -2007,10 +2011,10 @@ export class Board implements BoardApi {
             c.fill();
           }
         }
-        const nv = nights[n];
+        const nv = nights[n] * nightOut;
         if (night > 0 && nv > 0) {
           c.globalAlpha = night;
-          c.fillStyle = glow(x, y, nv, 0.85);
+          c.fillStyle = glow(x, y, nv, 0.85 / nightOut);
           c.beginPath();
           c.arc(x, y, nv, 0, Math.PI * 2);
           c.fill();
@@ -2048,8 +2052,12 @@ export class Board implements BoardApi {
     paint(c, true, NIGHT_SHOWN);
 
     // The night's black and white: grey where only nightvision sees, none where a light shows.
-    this.monoShown = anyNight;
-    if (anyNight) {
+    // ...and where the party has explored but only ever seen by nightvision; none where the day or
+    // a light shows now.
+    const known = explored && explored.key === grid.key ? explored : null;
+    const grey = known ? this.greyPicture(known, grid) : null;
+    this.monoShown = anyNight || !!grey;
+    if (this.monoShown) {
       const mono = (this.monoCanvas ??= document.createElement("canvas"));
       if (mono.width !== w || mono.height !== h) {
         mono.width = w;
@@ -2059,8 +2067,12 @@ export class Board implements BoardApi {
       mc.setTransform(1, 0, 0, 1, 0, 0);
       mc.globalCompositeOperation = "source-over";
       mc.clearRect(0, 0, w, h);
+      if (grey) {
+        mc.imageSmoothingEnabled = true;
+        mc.drawImage(grey, 0, 0, grid.cols * grid.cell * k, grid.rows * grid.cell * k);
+      }
       mc.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
-      paint(mc, false, 1);
+      if (anyNight) paint(mc, false, 1, MONO_OUT);
       mc.globalCompositeOperation = "destination-out";
       paint(mc, true, 0);
     }
@@ -2081,11 +2093,25 @@ export class Board implements BoardApi {
     paint(sc);
     const alpha = sc.getImageData(0, 0, grid.cols, grid.rows).data;
     this.sightSeen = { grid, alpha };
-    const had = explored && explored.key === grid.key ? explored.bits : null;
+    const cells = grid.cols * grid.rows;
     const fresh: number[] = [];
-    for (let i = 0, n = grid.cols * grid.rows; i < n; i++) if (alpha[i * 4 + 3] > 127 && !(had && hasCell(had, i))) fresh.push(i);
-    if (!fresh.length) return;
-    this.room.explore(scene.id, grid.key, fresh, who);
+    for (let i = 0; i < cells; i++) if (alpha[i * 4 + 3] > 127 && !(known && hasCell(known.bits, i))) fresh.push(i);
+    // Which of them are seen in colour (by day, or in a light), once it matters: at night with
+    // nightvision, or once the map keeps what was seen only by nightvision.
+    let freshLit: number[] | undefined;
+    if (anyNight || known?.lit) {
+      sc.setTransform(1, 0, 0, 1, 0, 0);
+      sc.clearRect(0, 0, grid.cols, grid.rows);
+      sc.setTransform(1 / grid.cell, 0, 0, 1 / grid.cell, -grid.x0 / grid.cell, -grid.y0 / grid.cell);
+      paint(sc, true, 0);
+      const lit = sc.getImageData(0, 0, grid.cols, grid.rows).data;
+      // What was explored before the map kept colour was all seen in colour.
+      const inColour = known ? (known.lit ?? known.bits) : null;
+      freshLit = [];
+      for (let i = 0; i < cells; i++) if (lit[i * 4 + 3] > 127 && !(inColour && hasCell(inColour, i))) freshLit.push(i);
+    }
+    if (!fresh.length && !freshLit?.length) return;
+    this.room.explore(scene.id, grid.key, fresh, who, freshLit);
     // What was just explored is what's seen now, already clear in the dark just made: no need to make it again.
     this.exploredShown = this.room.state.explored[exploreSlot(scene.id, who)];
   }
@@ -2093,6 +2119,37 @@ export class Board implements BoardApi {
   private seenCanvas: HTMLCanvasElement | null = null;
 
   /** The explored cells as a picture, a pixel a cell, opaque where explored. */
+  /** The explored cells seen only by nightvision, as a picture a pixel a cell; null when there are none (remade when they change). */
+  private greyPicture(explored: Explored, grid: ExploreGrid): HTMLCanvasElement | null {
+    if (this.greyCanvas?.of === explored) return this.greyCanvas.canvas;
+    const canvas = (this.greyCanvas?.canvas ?? null) || document.createElement("canvas");
+    canvas.width = grid.cols;
+    canvas.height = grid.rows;
+    const ctx = canvas.getContext("2d")!;
+    const img = ctx.createImageData(grid.cols, grid.rows);
+    let any = false;
+    const { cols, rows } = grid;
+    for (let i = 0, n = cols * rows; i < n; i++) {
+      if (!onlyByNightvision(explored, i)) continue;
+      any = true;
+      // A cell round it too where nothing's explored (it's dark there anyway): the grey's soft edge
+      // then lies in the dark, and no colour shows round what was seen only by nightvision.
+      const col = i % cols, row = (i - col) / cols;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const c = col + dx, r = row + dy;
+          if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+          const j = r * cols + c;
+          if (j === i || !hasCell(explored.bits, j)) img.data[j * 4 + 3] = 255;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    this.greyCanvas = { of: explored, canvas: any ? canvas : null };
+    return this.greyCanvas.canvas;
+  }
+  private greyCanvas: { of: Explored; canvas: HTMLCanvasElement | null } | null = null;
+
   private exploredPicture(explored: Explored, grid: ExploreGrid): HTMLCanvasElement {
     if (this.exploredCanvas?.of === explored) return this.exploredCanvas.canvas;
     const canvas = this.exploredCanvas?.canvas ?? document.createElement("canvas");

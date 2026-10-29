@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_EXPLORE_CELLS, addCells, bitsToText, emptyBits, exploreGrid, exploreSlot, hasCell, isSceneSlot, keyCells, textToBits } from "../src/shared/explore";
+import {
+  MAX_EXPLORE_CELLS,
+  addCells,
+  addExplored,
+  bitsToText,
+  emptyBits,
+  exploreGrid,
+  exploreSlot,
+  hasCell,
+  isSceneSlot,
+  keyCells,
+  onlyByNightvision,
+  textToBits,
+} from "../src/shared/explore";
 import { RoomClient } from "../src/client/room/client";
 import { isOwnSightToken } from "../src/client/room/vision";
 import { DEFAULT_GRID, GM_OWNER, sanitizeVision } from "../src/shared/sanitize";
@@ -161,6 +174,64 @@ describe("per-player sight's explored maps", () => {
   });
 });
 
+// Par: "make explored areas seen by nightvision show grey too": the map keeps which explored
+// cells were seen in colour (by day, or in a light); the rest show in black and white.
+describe("explored places seen only by nightvision", () => {
+  const key = exploreGrid(scene).key;
+  const total = keyCells(key);
+
+  it("are told apart by a map of the cells seen in colour, started from all that was explored before", () => {
+    const old = emptyBits(total);
+    addCells(old, [1, 2], total);
+    // At night: cell 3 seen by nightvision, cell 4 in a light. What was explored before counts as seen in colour.
+    const next = addExplored({ bits: old }, [3, 4], [4], total);
+    expect([next.fresh, next.freshLit]).toEqual([[3, 4], [4]]);
+    expect([1, 2, 3, 4].map((i) => onlyByNightvision(next, i))).toEqual([false, false, true, false]);
+    // An empty list of cells seen in colour still starts the map: cell 5 is only by nightvision.
+    const quiet = addExplored({ bits: old }, [5], [], total);
+    expect([onlyByNightvision(quiet, 5), onlyByNightvision(quiet, 1)]).toEqual([true, false]);
+    // A light reaching a place seen only by nightvision puts it in colour.
+    const later = addExplored(next, [], [3], total);
+    expect([later.fresh, later.freshLit, onlyByNightvision(later, 3)]).toEqual([[], [3], false]);
+    // Without a list, nothing is kept about colour: everything was seen in colour.
+    const day = addExplored({ bits: old }, [6], undefined, total);
+    expect([day.lit, onlyByNightvision(day, 6)]).toEqual([undefined, false]);
+  });
+
+  it("a page keeps and sends what it saw in colour, takes in others', and gets it with hello and the live scene", () => {
+    const r = new RoomClient("AbCdEf123456", { uid: "gmuid", name: "GM", color: "#ff0000" });
+    const send = vi.spyOn(r as unknown as { submit: (a: unknown) => void }, "submit").mockImplementation(() => undefined);
+    r.explore("Scene1234567", key, [1, 2], "", [2]);
+    expect(send.mock.calls[0][0]).toEqual({ t: "explore", sceneId: "Scene1234567", key, cells: [1, 2], lit: [2] });
+    expect([onlyByNightvision(r.state.explored.Scene1234567, 1), onlyByNightvision(r.state.explored.Scene1234567, 2)]).toEqual([true, false]);
+    // Seen in colour now, where it was only by nightvision: sent though it's explored already.
+    r.explore("Scene1234567", key, [], "", [1]);
+    expect(send.mock.calls[1][0]).toEqual({ t: "explore", sceneId: "Scene1234567", key, cells: [], lit: [1] });
+    expect(onlyByNightvision(r.state.explored.Scene1234567, 1)).toBe(false);
+    const handle = (msg: unknown) => (r as unknown as { onServer(m: unknown): void }).onServer(msg);
+    handle({ t: "explore", sceneId: "Scene1234567", key, cells: [9], lit: [] });
+    expect(onlyByNightvision(r.state.explored.Scene1234567, 9)).toBe(true);
+    const bits = emptyBits(total), lit = emptyBits(total);
+    addCells(bits, [7, 8], total);
+    addCells(lit, [7], total);
+    handle({ t: "explore", sceneId: "Other1234567", key, bits: bitsToText(bits), litBits: bitsToText(lit) });
+    expect([onlyByNightvision(r.state.explored.Other1234567, 7), onlyByNightvision(r.state.explored.Other1234567, 8)]).toEqual([false, true]);
+  });
+
+  it("the Room keeps it beside each map, and the board shows it grey to players", async () => {
+    const room = await source("src/worker/room.ts");
+    expect(room).toContain("ALTER TABLE explored_maps ADD COLUMN lit TEXT");
+    expect(room).toContain("const next = addExplored(had, cells, lit, total);");
+    expect(room).toContain("cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });");
+    expect(room).toContain("for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells, lit);");
+    const board = await source("src/client/room/board.ts");
+    expect(board).toContain("const grey = known ? this.greyPicture(known, grid) : null;");
+    expect(board).toContain("this.monoShown = anyNight || !!grey;");
+    expect(board).toContain("if (anyNight || known?.lit) {");
+    expect(board).toContain("this.room.explore(scene.id, grid.key, fresh, who, freshLit);");
+  });
+});
+
 describe("the Room", () => {
   it("keeps explored cells for scenes with lighting on, from anyone but a display, and lets only the GM forget them", async () => {
     const room = await source("src/worker/room.ts");
@@ -174,7 +245,7 @@ describe("the Room", () => {
     // Sent with hello, to players when the live scene changes, and let go with a deleted scene.
     expect(room).toContain("explored,");
     expect(room).toContain("for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));");
-    expect(room).toContain("bits: m.bits }, (c) => c.role !== \"gm\")");
+    expect(room).toContain("bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) }, (c) => c.role !== \"gm\")");
     expect(room).toContain("DELETE FROM explored_maps WHERE scene_id = ?");
     const deleted = room.slice(room.indexOf('case "scene.delete": {'));
     expect(deleted.slice(0, 1200)).toContain("this.forgetExplored(scene.id);");

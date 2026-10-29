@@ -84,9 +84,11 @@ export type ClientAction =
   | { t: "profile"; name: string; color: string }
   /**
    * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
-   * with `who` (a sheet id), what that character has just seen, with per-player sight.
+   * with `who` (a sheet id), what that character has just seen, with per-player sight. With
+   * `lit`, the cells just seen in colour (shared/explore.ts addExplored): the rest of `cells` were
+   * seen only by nightvision.
    */
-  | { t: "explore"; sceneId: string; key: string; cells: number[]; who?: string }
+  | { t: "explore"; sceneId: string; key: string; cells: number[]; who?: string; lit?: number[] }
   /** GM only: the party forgets what it's explored of a scene. */
   | { t: "explore.reset"; sceneId: string };
 
@@ -116,16 +118,16 @@ export type ServerMsg =
       build?: string;
       /**
        * What the party and its characters have explored of the scenes sent (shared/explore.ts), by
-       * exploreSlot: the grid's key and its bits as text.
+       * exploreSlot: the grid's key and its bits as text, and those seen in colour (`lit`) when kept.
        */
-      explored?: Record<string, { key: string; bits: string }>;
+      explored?: Record<string, { key: string; bits: string; lit?: string }>;
     }
   /**
-   * Cells the party (or with `who`, that character) has just explored of a scene (each sent once);
-   * with bits, all it's explored of it (to players, when it becomes the live scene); with reset,
-   * every explored map of the scene is forgotten.
+   * Cells the party (or with `who`, that character) has just explored of a scene (each sent once),
+   * and with `lit`, those just seen in colour; with bits (and litBits), all it's explored of it (to
+   * players, when it becomes the live scene); with reset, every explored map of the scene is forgotten.
    */
-  | { t: "explore"; sceneId: string; key: string; who?: string; cells?: number[]; bits?: string; reset?: boolean }
+  | { t: "explore"; sceneId: string; key: string; who?: string; cells?: number[]; lit?: number[]; bits?: string; litBits?: string; reset?: boolean }
   /**
    * Item changes, and the scene change made with them, if any. `by` is the connId
    * that caused them. `seq` is present only on the copy sent back to that

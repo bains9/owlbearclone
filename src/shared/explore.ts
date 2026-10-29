@@ -106,4 +106,35 @@ export function textToBits(text: string, cells: number): Uint8Array {
 export interface Explored {
   key: string;
   bits: Uint8Array;
+  /** The explored cells seen in colour (by day, or in a light): the rest only by nightvision. Missing: all of them. */
+  lit?: Uint8Array;
+}
+
+/**
+ * Adds an explore message's cells to explored bits, and with `lit` (cells just seen in colour; an
+ * empty list counts) to the map of those seen in colour: started, when there's none yet, from
+ * what was explored before, all of which was seen in colour. Returns the bits and that map, and
+ * whether anything was new. The Room and the browsers keep both alike.
+ */
+export function addExplored(
+  had: { bits: Uint8Array; lit?: Uint8Array | null } | null,
+  cells: readonly unknown[],
+  lit: readonly unknown[] | undefined,
+  total: number,
+): { bits: Uint8Array; lit: Uint8Array | undefined; fresh: number[]; freshLit: number[] } {
+  const before = had?.bits ?? null;
+  let seenInColour = had?.lit ?? undefined;
+  let freshLit: number[] = [];
+  if (lit) {
+    seenInColour = seenInColour ? seenInColour.slice() : before ? before.slice() : emptyBits(total);
+    freshLit = addCells(seenInColour, lit, total);
+  }
+  const bits = before ? before.slice() : emptyBits(total);
+  const fresh = addCells(bits, cells, total);
+  return { bits, lit: seenInColour, fresh, freshLit };
+}
+
+/** Whether an explored cell was seen only by nightvision (it shows in black and white). */
+export function onlyByNightvision(e: Pick<Explored, "bits" | "lit">, i: number): boolean {
+  return !!e.lit && hasCell(e.bits, i) && !hasCell(e.lit, i);
 }

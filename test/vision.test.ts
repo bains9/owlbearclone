@@ -283,7 +283,7 @@ describe("night by moon or starlight, and nightvision", () => {
     // Dim in the dark, whole on the explore grid (it's seen: explored, and its tokens show), and none where a light is.
     expect(board).toContain("paint(c, true, NIGHT_SHOWN);");
     expect(board).toContain("paint(sc);");
-    expect(board).toContain("paint(mc, false, 1);");
+    expect(board).toContain("paint(mc, false, 1, MONO_OUT);");
     expect(board).toContain("paint(mc, true, 0);");
     expect(board).toContain("(range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size)");
     expect(board).toContain('const metres = isNight ? nightvisionOf(this.room.characterOf(t)) : 0;');
