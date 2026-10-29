@@ -249,6 +249,94 @@ async function staticChecks() {
   check(r.ok && type.includes("javascript") && /immutable/.test(r.headers.get("cache-control") ?? ""), "the page's bundle is served and cached as immutable");
 }
 
+/**
+ * What the party, and with per-player sight each character, has explored (shared/explore.ts), and
+ * who plays whom: in a room of its own, deleted again at the end.
+ */
+async function exploreChecks(cookie) {
+  let r = await fetch(`${BASE}/api/rooms`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ name: "Smoke explore room" }) });
+  const room = await r.json();
+  const aliceUid = "alice" + rid();
+  const gm = connect(room.id, { cookie, uid: "gmuser" + rid(), name: "The GM" });
+  const alice = connect(room.id, { uid: aliceUid, name: "Alice" });
+  const hello = await gm.waitFor((m) => m.t === "hello");
+  await alice.waitFor((m) => m.t === "hello");
+  const scene = hello.scenes[0];
+  // The scene's explore grid, as exploreGrid makes it: half squares over the scene.
+  const cell = scene.grid.size / 2;
+  const key = `${Math.ceil(scene.width / cell)}x${Math.ceil(scene.height / cell)}@0,0/${Math.round(cell * 100) / 100}`;
+  const A = "1SmokeSheetAAAAAAAAAAAAAAAAAAAAAA", B = "1SmokeSheetBBBBBBBBBBBBBBBBBBBBBB", NOBODY = "1SmokeSheetCCCCCCCCCCCCCCCCCCCCCC";
+  const vision = { on: true, daylight: true, partyLight: 4, sightRange: 12, walls: [], doors: [], lights: [] };
+  gm.send({ t: "scene.upsert", seq: ++gm.seq, scene: { id: scene.id, vision } });
+  const base = { sceneId: scene.id, kind: "token", z: 0, size: 1, rotation: 0, assetId: null, color: "#e4572e", label: "", hidden: false, locked: false, rings: [] };
+  gm.items({ upsert: [{ ...base, id: "pcA" + rid(), x: 35, y: 35, character: A }, { ...base, id: "pcB" + rid(), x: 105, y: 35, character: B }, { ...base, id: "orc" + rid(), x: 175, y: 35 }] });
+  await alice.waitFor((m) => m.t === "items" && m.upsert?.length === 3);
+
+  // The party seeing together: what it explores is the party's, and every character's on the scene.
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [1, 2, 3] });
+  await gm.waitFor((m) => m.t === "explore" && m.who === B);
+  await sleep(150);
+  const got = (who) => gm.msgs.filter((m) => m.t === "explore" && (m.who ?? "") === who).flatMap((m) => m.cells ?? []);
+  check(got("").join() === "1,2,3" && got(A).join() === "1,2,3" && got(B).join() === "1,2,3", "the party's exploring is kept for the party and every character on the scene");
+
+  // Per-player sight: a character's exploring is theirs and the party's, and no one else's.
+  gm.send({ t: "scene.upsert", seq: ++gm.seq, scene: { id: scene.id, vision: { ...vision, perPlayer: true } } });
+  await alice.waitFor((m) => m.t === "scene" && m.scene?.vision?.perPlayer === true);
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [4, 5], who: A });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [6], who: NOBODY });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [7], who: "../../x" });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [8] });
+  await gm.waitFor((m) => m.t === "explore" && m.cells?.includes(8));
+  await sleep(150);
+  check(got(A).join() === "4,5" && got("").join() === "4,5,8" && got(B).join() === "", "with per-player sight, a character's exploring is theirs and the party's only");
+  check(!gm.msgs.some((m) => m.t === "explore" && (m.cells?.includes(6) || m.cells?.includes(7))), "a character not on the scene, or not a sheet, keeps no map");
+
+  // Kept: a tab joining later gets every map of the scene.
+  const late = connect(room.id, { uid: "late" + rid(), name: "Late" });
+  const lateHello = await late.waitFor((m) => m.t === "hello");
+  check(
+    Object.keys(lateHello?.explored ?? {}).sort().join() === [scene.id, `${scene.id}/${A}`, `${scene.id}/${B}`].sort().join(),
+    "hello brings the party's map and each character's",
+  );
+  late.ws.close();
+
+  // Only the GM forgets, and then every map of the scene goes.
+  alice.clear();
+  alice.send({ t: "explore.reset", seq: ++alice.seq, sceneId: scene.id });
+  await sleep(300);
+  check(!alice.msgs.some((m) => m.t === "explore" && m.reset), "a player can't forget what's explored");
+  gm.send({ t: "explore.reset", seq: ++gm.seq, sceneId: scene.id });
+  check(Boolean(await alice.waitFor((m) => m.t === "explore" && m.reset)), "the GM's forgetting reaches everyone");
+  const after = connect(room.id, { uid: "after" + rid(), name: "After" });
+  const afterHello = await after.waitFor((m) => m.t === "hello");
+  check(afterHello && Object.keys(afterHello.explored ?? {}).length === 0, "and every map of the scene is gone");
+  after.ws.close();
+
+  // Who plays whom: a player picks for their own browser, with the room's id as the pass.
+  const pick = (body, headers = {}, roomId = room.id) =>
+    fetch(`${BASE}/api/characters/${A}/player?room=${roomId}`, { method: "PUT", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+  r = await pick({ playing: true, name: "Alice" }, { "X-Tabletop-User": aliceUid });
+  check(r.ok, "a player says they play a character");
+  r = await pick({ playing: true, name: "Alice" }, { "X-Tabletop-User": aliceUid }, "Nope00000000");
+  check(r.status === 404, "only with the id of a room that exists");
+  r = await pick({ playing: true, name: "Alice" });
+  check(r.status === 400, "and only for a browser that says which it is");
+  r = await pick({ playing: false, userId: null }, { Cookie: cookie });
+  check(r.ok, "the GM can say nobody plays them");
+
+  r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });
+  check(r.ok, "the explore room is deleted again");
+  for (const c of [gm, alice]) {
+    try {
+      c.ws.close();
+    } catch {
+      // already closed
+    }
+  }
+}
+
 async function main() {
   console.log(`Smoke test against ${BASE}`);
   if (process.env.GOOGLE === "1") {
@@ -1284,6 +1372,8 @@ async function main() {
     check(!late2.msgs.some((m) => m.t === "voice.hello"), "a deleted room's link no longer gets into voice chat");
     for (const c of [watcher, late2]) c.ws.close();
   }
+
+  await exploreChecks(cookie);
 
   // deletion
   r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });

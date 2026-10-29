@@ -4,6 +4,11 @@
 // browsers say which cells they've just seen (ClientAction "explore"); the Room keeps them and
 // tells everyone. The grid's key changes when the scene's grid or area does, and what was kept
 // for the old one is let go.
+//
+// With per-player sight (SceneVision.perPlayer) each character keeps an explored map of their
+// own too, beside the party's. The party's then holds everything any of them has explored, for
+// the GM; with the party seeing together, what it explores goes to every character on the scene,
+// so they remember it if the GM switches to per-player sight later.
 
 import type { Scene } from "./types";
 import { sceneBounds } from "./types";
@@ -12,6 +17,21 @@ import { sceneBounds } from "./types";
 export const MAX_EXPLORE_CELLS = 1_000_000;
 /** At most this many cells in one message. */
 export const MAX_EXPLORE_BATCH = 50_000;
+/** At most this many explored maps a scene: the party's and its characters'. */
+export const MAX_EXPLORE_MAPS = 16;
+
+/**
+ * Where a browser keeps an explored map: under the scene's id for the party's, and under the
+ * scene's id and a character's sheet id for that character's.
+ */
+export function exploreSlot(sceneId: string, who = ""): string {
+  return who ? `${sceneId}/${who}` : sceneId;
+}
+
+/** Whether a slot is one of the scene's (the party's or a character's). */
+export function isSceneSlot(slot: string, sceneId: string): boolean {
+  return slot === sceneId || slot.startsWith(`${sceneId}/`);
+}
 
 export interface ExploreGrid {
   /** The area's top-left corner, in scene units. */

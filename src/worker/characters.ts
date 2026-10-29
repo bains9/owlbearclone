@@ -8,7 +8,7 @@
 // own token picture (one the GM chose, instead of the drawn figure) is kept in R2 under
 // characters/<sheet id>, for every room.
 
-import { cleanCharacter, type Character, type CharactersReply } from "../shared/characters";
+import { cleanCharacter, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
 
 /** How long a reading of the sheets is used before they're read again. */
 const FRESH_MS = 30_000;
@@ -60,26 +60,32 @@ export interface PartyEnv {
     charactersSource(): Promise<string | null>;
     characterFigures(): Promise<Record<string, string>>;
     characterStrMatched(): Promise<Record<string, string[]>>;
+    characterPlayers(): Promise<Record<string, CharacterPlayer[]>>;
   };
   files: Pick<R2Bucket, "head">;
 }
 
 /**
  * The party for a room's pages: the sheets' cards, each with its own picture's version if it has
- * one, and the figure the GM chose for them if they did (asked each time, so a choice shows at
- * once without reading the sheets again).
+ * one, and the figure the GM chose for them and who plays them, if anyone (asked each time, so a
+ * choice shows at once without reading the sheets again).
  */
 export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typeof fetch = fetch, now = Date.now()): Promise<CharactersReply> {
   const source = await env.directory.charactersSource();
   if (!source) return { configured: false, characters: [], readAt: now };
   const reading = await readSheets(env, source, cache, fetcher, now);
-  const [figures, matched] = await Promise.all([env.directory.characterFigures(), env.directory.characterStrMatched()]);
+  const [figures, matched, players] = await Promise.all([
+    env.directory.characterFigures(),
+    env.directory.characterStrMatched(),
+    env.directory.characterPlayers(),
+  ]);
   return {
     ...reading,
-    characters: reading.characters.map(({ figure: _f, strMatched: _m, ...c }) => ({
+    characters: reading.characters.map(({ figure: _f, strMatched: _m, players: _p, ...c }) => ({
       ...c,
       ...(figures[c.id] ? { figure: figures[c.id] } : {}),
       ...(matched[c.id]?.length ? { strMatched: matched[c.id] } : {}),
+      ...(players[c.id]?.length ? { players: players[c.id] } : {}),
     })),
   };
 }

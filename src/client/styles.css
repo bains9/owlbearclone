@@ -3122,6 +3122,19 @@ kbd {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+/* Fog's player view with per-player sight: whose view the GM sees. */
+.look-as {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.look-as select {
+  width: auto;
+  max-width: 180px;
+  padding: 4px 6px;
+}
 
 /* The Build tool's Objects: the next object's size and turn, a button each side of a slider. */
 .build-size,

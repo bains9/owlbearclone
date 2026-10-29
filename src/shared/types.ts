@@ -99,6 +99,11 @@ export interface SceneVision {
   lights: { x: number; y: number; r: number }[];
   /** The Build tool's doors that are open (build.ts edge keys); the rest are shut. */
   openEdges?: number[];
+  /**
+   * Each player sees only through their own character's token (and tokens they placed), and keeps
+   * their character's own explored map. Missing or false: the whole party sees together.
+   */
+  perPlayer?: boolean;
 }
 
 /** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */

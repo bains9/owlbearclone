@@ -3,7 +3,7 @@
 // reconciles them with what the server confirms, and keeps an undo history.
 
 import type { Character, CharactersReply } from "../../shared/characters";
-import { MAX_EXPLORE_BATCH, addCells, emptyBits, keyCells, textToBits } from "../../shared/explore";
+import { MAX_EXPLORE_BATCH, addCells, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
@@ -76,6 +76,11 @@ export interface FogOptions {
   snap: boolean;
   /** GM only: show fog fully opaque, the way players see it. */
   preview: boolean;
+  /**
+   * GM only, looking as players on a scene with per-player sight: the character (sheet id) whose
+   * player's view to show, or null for the whole party's.
+   */
+  lookAs: string | null;
 }
 
 /** How the Building and Terrain modes paint: drag out a rectangle or an oval, or brush. */
@@ -211,7 +216,10 @@ export interface RoomState {
   uploading: number;
   /** The party from their character sheets (refreshParty), or null before the first reading. */
   party: CharactersReply | null;
-  /** What the party has explored of each scene with lighting on (shared/explore.ts); replaced, never changed in place. */
+  /**
+   * What the party, and each of its characters, has explored of each scene with lighting on, by
+   * exploreSlot (shared/explore.ts); replaced, never changed in place.
+   */
   explored: Record<string, Explored>;
 }
 
@@ -452,7 +460,7 @@ export class RoomClient {
       players: [],
       tool: "select",
       drawOpts: { shape: "pen", color: profile.color, width: 4, fill: false },
-      fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false },
+      fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false, lookAs: null },
       buildOpts: {
         mode: "building",
         shape: { building: "rect", terrain: "brush" },
@@ -782,7 +790,7 @@ export class RoomClient {
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
-          explored: Object.fromEntries(Object.entries(msg.explored ?? {}).map(([id, e]) => [id, { key: e.key, bits: textToBits(e.bits, keyCells(e.key)) }])),
+          explored: Object.fromEntries(Object.entries(msg.explored ?? {}).map(([slot, e]) => [slot, { key: e.key, bits: textToBits(e.bits, keyCells(e.key)) }])),
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
@@ -890,15 +898,21 @@ export class RoomClient {
       case "explore": {
         const total = keyCells(msg.key);
         if (!total) return;
-        const had = s.explored[msg.sceneId];
+        if (msg.reset) {
+          // Every explored map of the scene: the party's and its characters'.
+          const kept = Object.fromEntries(Object.entries(s.explored).filter(([slot]) => !isSceneSlot(slot, msg.sceneId)));
+          this.store.set({ explored: { ...kept, [msg.sceneId]: { key: msg.key, bits: emptyBits(total) } } });
+          return;
+        }
+        const slot = exploreSlot(msg.sceneId, msg.who);
+        const had = s.explored[slot];
         let bits: Uint8Array;
-        if (msg.reset) bits = emptyBits(total);
-        else if (msg.bits !== undefined) bits = textToBits(msg.bits, total);
+        if (msg.bits !== undefined) bits = textToBits(msg.bits, total);
         else {
           bits = had && had.key === msg.key ? had.bits.slice() : emptyBits(total);
           if (!addCells(bits, msg.cells ?? [], total).length && had?.key === msg.key) return;
         }
-        this.store.set({ explored: { ...s.explored, [msg.sceneId]: { key: msg.key, bits } } });
+        this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits } } });
         return;
       }
 
@@ -1234,21 +1248,32 @@ export class RoomClient {
    * all): sets the scene's base cover and removes its fog shapes, in one undoable step.
    */
   /**
-   * Cells of a scene's explore grid (`key`) the party has just seen: kept here at once, so they
-   * aren't sent again, and sent to the Room, which tells everyone. A table display only looks.
+   * Cells of a scene's explore grid (`key`) the party (or with `who`, that character) has just
+   * seen: kept here at once, so they aren't sent again, and sent to the Room, which tells
+   * everyone. A table display only looks.
    */
-  explore(sceneId: string, key: string, cells: number[]): void {
+  explore(sceneId: string, key: string, cells: number[], who = ""): void {
     if (this.display || !cells.length) return;
     const total = keyCells(key);
-    const had = this.state.explored[sceneId];
+    const slot = exploreSlot(sceneId, who);
+    const had = this.state.explored[slot];
     const bits = had && had.key === key ? had.bits.slice() : emptyBits(total);
     const fresh = addCells(bits, cells, total);
     if (!fresh.length) return;
-    this.store.set((s) => ({ explored: { ...s.explored, [sceneId]: { key, bits } } }));
-    for (let i = 0; i < fresh.length; i += MAX_EXPLORE_BATCH) this.submit({ t: "explore", sceneId, key, cells: fresh.slice(i, i + MAX_EXPLORE_BATCH) });
+    this.store.set((s) => ({ explored: { ...s.explored, [slot]: { key, bits } } }));
+    for (let i = 0; i < fresh.length; i += MAX_EXPLORE_BATCH) {
+      this.submit({ t: "explore", sceneId, key, cells: fresh.slice(i, i + MAX_EXPLORE_BATCH), ...(who ? { who } : {}) });
+    }
   }
 
-  /** GM: the party forgets what it's explored of a scene. */
+  /** The character this browser plays (its sheet id, picked in the Party list), or null. The GM plays nobody. */
+  get myCharacter(): string | null {
+    const me = this.state.me;
+    if (!me || me.role === "gm" || this.display) return null;
+    return this.state.party?.characters.find((c) => c.players?.some((p) => p.userId === me.userId))?.id ?? null;
+  }
+
+  /** GM: the party, and every character, forgets what it's explored of a scene. */
   resetExplored(sceneId: string): void {
     if (!this.isGm || !this.state.scenes[sceneId]) return;
     this.submit({ t: "explore.reset", sceneId });

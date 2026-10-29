@@ -186,6 +186,7 @@ function FogOptions() {
   const room = useRoom();
   const o = useRoomState((s) => s.fogOpts);
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
+  const party = useRoomState((s) => s.party);
   const [confirm, setConfirm] = useState<null | "cover" | "clear">(null);
   const set = (patch: Partial<typeof o>) => room.store.set({ fogOpts: { ...o, ...patch } });
   const reset = (cover: boolean) => {
@@ -263,6 +264,19 @@ function FogOptions() {
       >
         {o.preview ? <EyeOff size={16} /> : <Eye size={16} />} Player view
       </button>
+      {o.preview && scene?.vision?.on && scene.vision.perPlayer && (
+        <label class="look-as" title="With per-player sight: whose view to see">
+          <span>Look as</span>
+          <select aria-label="Look as" value={o.lookAs ?? ""} onChange={(e) => set({ lookAs: e.currentTarget.value || null })}>
+            <option value="">The whole party</option>
+            {(party?.characters ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <button class="btn btn-sm" onClick={() => setConfirm("cover")}>
         Cover all
       </button>

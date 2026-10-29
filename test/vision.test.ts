@@ -188,11 +188,32 @@ describe("in the guide", () => {
     const { GUIDE } = await import("../src/client/guide");
     expect(GUIDE[0].parts[0].title).toBe("Lighting and line of sight (29 October 2026)");
     const section = GUIDE.find((s) => s.id === "lighting")!;
-    expect(section.parts.map((p) => p.title)).toEqual(["Turn it on (GM)", "Doors (GM)", "Who the party sees with", "What the party has explored", "Walls, doors and lights"]);
+    expect(section.parts.map((p) => p.title)).toEqual([
+      "Turn it on (GM)",
+      "Doors (GM)",
+      "Who the party sees with",
+      "What the party has explored",
+      "Each player's own sight",
+      "Walls, doors and lights",
+    ]);
     const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
-    for (const label of ["Lighting and line of sight", "On for this scene", "Daylight", "Dark", "The party's own light", "How far the party sees", "Load walls, doors and lights from a map file", "Forget what the party has explored"]) {
+    for (const label of [
+      "Lighting and line of sight",
+      "On for this scene",
+      "Daylight",
+      "Dark",
+      "The party's own light",
+      "How far the party sees",
+      "Load walls, doors and lights from a map file",
+      "Forget what the party has explored",
+      "Each player sees only through their own character",
+    ]) {
       expect(ui, label).toContain(label);
       expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[0]), label).toContain(label);
     }
+    // The fog tool's Look as, as the guide names it.
+    const bar = await readFile(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");
+    expect(bar).toContain("<span>Look as</span>");
+    expect(JSON.stringify(section)).toContain("**Look as**");
   });
 });

@@ -375,9 +375,35 @@ function memoryCache() {
 
 describe("the Worker's reading of the party", () => {
   const URL_ = "https://script.google.com/macros/s/AKfycbTESTtestTESTtestTESTtest/exec";
-  const env = (source: string | null, pictures: Record<string, string> = {}, figures: Record<string, string> = {}, matched: Record<string, string[]> = {}) => ({
-    directory: { charactersSource: async () => source, characterFigures: async () => figures, characterStrMatched: async () => matched },
+  const env = (
+    source: string | null,
+    pictures: Record<string, string> = {},
+    figures: Record<string, string> = {},
+    matched: Record<string, string[]> = {},
+    players: Record<string, { userId: string; name: string }[]> = {},
+  ) => ({
+    directory: {
+      charactersSource: async () => source,
+      characterFigures: async () => figures,
+      characterStrMatched: async () => matched,
+      characterPlayers: async () => players,
+    },
     files: { head: async (key: string) => (pictures[key] ? { httpEtag: `"${pictures[key]}"` } : null) },
+  });
+
+  it("gives each character the browsers playing them, at once and without reading the sheets again", async () => {
+    const { cache } = memoryCache();
+    const fetcher = vi.fn(async () => Response.json({ characters: [raw] }));
+    const before = await party.readParty(env(URL_), cache, fetcher as unknown as typeof fetch, 1000);
+    expect(before.characters[0].players).toBeUndefined();
+    const playing = [{ userId: "browserAAAA1234", name: "Ann" }];
+    const picked = await party.readParty(env(URL_, {}, {}, {}, { [SHEET]: playing }), cache, fetcher as unknown as typeof fetch, 2000);
+    expect(picked.characters[0].players).toEqual(playing);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // A sheet can't name its own players.
+    const sneaky = vi.fn(async () => Response.json({ characters: [{ ...raw, players: playing }] }));
+    const read = await party.readParty(env(URL_), memoryCache().cache, sneaky as unknown as typeof fetch, 3000);
+    expect(read.characters[0].players).toBeUndefined();
   });
 
   it("gives each character the ranged weapons the GM marked as matched to their strength", async () => {

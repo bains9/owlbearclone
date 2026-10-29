@@ -62,6 +62,16 @@ export interface Character {
   picture?: string;
   /** The figure the GM chose for them (an icon of PC_FIGURE_CHOICES), when it isn't their class's. */
   figure?: string;
+  /**
+   * The browsers playing them, with the name each joined under: picked by the player in the Party
+   * list, or by the GM (kept by the Worker, for every room). Per-player sight sees through them.
+   */
+  players?: CharacterPlayer[];
+}
+
+export interface CharacterPlayer {
+  userId: string;
+  name: string;
 }
 
 /** What the Worker answers for the party. */

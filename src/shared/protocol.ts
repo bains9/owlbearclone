@@ -82,8 +82,11 @@ export type ClientAction =
   | { t: "chat"; text: string }
   | { t: "roll"; expr: string; private?: boolean; label?: string }
   | { t: "profile"; name: string; color: string }
-  /** Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen. */
-  | { t: "explore"; sceneId: string; key: string; cells: number[] }
+  /**
+   * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
+   * with `who` (a sheet id), what that character has just seen, with per-player sight.
+   */
+  | { t: "explore"; sceneId: string; key: string; cells: number[]; who?: string }
   /** GM only: the party forgets what it's explored of a scene. */
   | { t: "explore.reset"; sceneId: string };
 
@@ -111,14 +114,18 @@ export type ServerMsg =
       lastSeq: number;
       /** The build of Tabletop the server is running. */
       build?: string;
-      /** What the party has explored of the scenes sent (shared/explore.ts): the grid's key and its bits as text. */
+      /**
+       * What the party and its characters have explored of the scenes sent (shared/explore.ts), by
+       * exploreSlot: the grid's key and its bits as text.
+       */
       explored?: Record<string, { key: string; bits: string }>;
     }
   /**
-   * Cells the party has just explored of a scene (each sent once); with bits, all it's explored of
-   * it (to players, when it becomes the live scene); with reset, it's forgotten all of it.
+   * Cells the party (or with `who`, that character) has just explored of a scene (each sent once);
+   * with bits, all it's explored of it (to players, when it becomes the live scene); with reset,
+   * every explored map of the scene is forgotten.
    */
-  | { t: "explore"; sceneId: string; key: string; cells?: number[]; bits?: string; reset?: boolean }
+  | { t: "explore"; sceneId: string; key: string; who?: string; cells?: number[]; bits?: string; reset?: boolean }
   /**
    * Item changes, and the scene change made with them, if any. `by` is the connId
    * that caused them. `seq` is present only on the copy sent back to that

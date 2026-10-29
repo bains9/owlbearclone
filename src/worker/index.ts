@@ -235,6 +235,32 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     await env.DIRECTORY.getByName("main").setCharacterStrMatched(strMatch[1], body.weapon, body.matched);
     return json({ ok: true });
   }
+  // Who plays whom (per-player sight sees through it): a player picks for their own browser, the
+  // GM for anyone's, or for nobody. For anyone at one of the GM's tables: the room's id is the pass.
+  const playerMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/player$/);
+  if (playerMatch) {
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const sheetId = playerMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const body = await readJson(request);
+    if (typeof body?.playing !== "boolean") return fail(400, "Say whether they play this character.");
+    const gm = await isGm(request, env);
+    const userId = gm ? body.userId : request.headers.get("X-Tabletop-User");
+    if (gm && userId === null && !body.playing) {
+      await directory.clearCharacterPlayers(sheetId);
+      return json({ ok: true });
+    }
+    if (!isId(userId)) return fail(400, "That isn't one of the players.");
+    if (body.playing) {
+      await directory.setCharacterPlayer(userId, sheetId, cleanText(body.name, LIMITS.playerName) || "Player");
+    } else if ((await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId)) {
+      await directory.setCharacterPlayer(userId, null, "");
+    }
+    return json({ ok: true });
+  }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {
     const key = pictureKey(pictureMatch[1]);

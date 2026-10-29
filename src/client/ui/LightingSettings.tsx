@@ -104,6 +104,15 @@ export function LightingSettings(props: { scene: Scene }) {
               }}
             />
           </label>
+          <label class="check">
+            <input type="checkbox" checked={!!v.perPlayer} onChange={(e) => set({ perPlayer: e.currentTarget.checked })} />
+            <span>Each player sees only through their own character</span>
+          </label>
+          <p class="small muted">
+            {v.perPlayer
+              ? "Players pick who they play in the party list (Tokens & images). Each sees through their character's token and the tokens they put down, and keeps their character's own explored map; a player with no token on this scene sees with the whole party. To check, use fog's player view and Look as."
+              : "Off: the whole party sees together, through every character's token."}
+          </p>
           <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
           <p class="small muted">
             Places the party has seen stay on the map for players, dimmed, without the tokens in them

@@ -28,6 +28,7 @@ export const GUIDE: GuideSection[] = [
           "The walls, doors and lights come from the map: a map from Dungeon (and any Universal VTT file) has them, and walls and doors made with the Build tool count too. For a scene brought in before today, use **Update from Dungeon**, or **Load walls, doors and lights from a map file**.",
           "The party sees from the characters' tokens and the tokens players put down.",
           "Places the party has explored stay on the map for players, dimmed, once it moves on (without the tokens in them).",
+          "GM: tick **Each player sees only through their own character** and each player sees only what their own character sees, and keeps their character's own explored map. Players pick who they play in the **Party** list.",
           "See **Lighting and line of sight**."
         ]
       },
@@ -902,7 +903,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Who the party sees with",
         "steps": [
           "The party sees from every character token (placed from the **Party**) and every token a player put down, shown and not a prop.",
-          "Players share what all of them see."
+          "Players share what all of them see, unless the GM gives each player their own sight (below)."
         ],
         "notes": [
           "Monsters and other tokens the GM put down don't see for the party.",
@@ -918,6 +919,20 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "It's kept for each scene, for everyone, from one session to the next.",
           "GM: **Edit scene** says how much of the scene has been explored. **Forget what the party has explored** makes it all dark again."
+        ]
+      },
+      {
+        "title": "Each player's own sight",
+        "steps": [
+          "GM: in **Edit scene**, under **Lighting and line of sight**, tick **Each player sees only through their own character**.",
+          "Each player says who they play: in **Tokens & images**, click the person button beside their character in the **Party** (it lights up). The GM can set it for them with the person button on the GM's side.",
+          "Each player then sees only through their character's token and the tokens they put down. Only the tokens in their own sight show, other characters' too, and each character keeps an explored map of their own."
+        ],
+        "notes": [
+          "A player with no token of their own on the scene sees with the whole party.",
+          "Who plays whom is kept for every room, for each browser: on a new browser or a phone, pick again.",
+          "GM: you see what the whole party sees, and everything any character has explored. To see one player's view, use the fog tool's **Player view** and choose them under **Look as**.",
+          "While the party sees together, what it explores is kept for every character on the scene too, so turning this on later keeps it. A character's own map grows while their player is at the table."
         ]
       },
       {
@@ -947,7 +962,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Each character's token is a full-body figure of their class in action (an archer for a ranger, a hooded rogue for a rogue), or another the GM chose for them, in their race's colouring, with their classes' emblems at their feet. A character with a picture the GM chose shows that instead.",
           "The token is named after them and stands for their sheet: its card, HP bar and rolls come from there.",
-          "Players can place characters when the GM lets players add tokens (**Room settings**)."
+          "Players can place characters when the GM lets players add tokens (**Room settings**).",
+          "Click the person button beside your character to say you play them (it lights up). With each player's own sight on (**Lighting and line of sight**), you see through their token."
         ]
       },
       {

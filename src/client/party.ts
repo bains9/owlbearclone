@@ -158,6 +158,27 @@ export async function setCharacterStrMatched(room: RoomClient, c: Character, wea
   await room.refreshParty();
 }
 
+/**
+ * Who plays a character, for every room (per-player sight sees through them). A player: this
+ * browser plays them, or not. The GM: `who`, a player at the table, plays them, or with null,
+ * nobody does.
+ */
+export async function setCharacterPlayer(room: RoomClient, c: Character, playing: boolean, who?: { userId: string; name: string } | null): Promise<void> {
+  const me = room.profileInfo;
+  const body = room.isGm ? { playing, userId: who?.userId ?? null, name: who?.name } : { playing, name: me.name };
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/player?room=${encodeURIComponent(room.roomId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": me.uid },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
 /** GM: back to their figure. */
 export async function clearCharacterPicture(room: RoomClient, c: Character): Promise<void> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/picture`, { method: "DELETE", credentials: "same-origin" });

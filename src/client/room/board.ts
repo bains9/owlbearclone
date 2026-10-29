@@ -53,9 +53,9 @@ import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
-import { exploreGrid, hasCell } from "../../shared/explore";
+import { exploreGrid, exploreSlot, hasCell } from "../../shared/explore";
 import type { ExploreGrid, Explored } from "../../shared/explore";
-import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
+import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isOwnSightToken, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
 import {
   BuildEdit,
@@ -477,6 +477,8 @@ export class Board implements BoardApi {
   private renderedGm = false;
   private renderedPreview = false;
   private renderedExplored: RoomState["explored"] | null = null;
+  private renderedParty: RoomState["party"] = null;
+  private renderedLookAs: string | null = null;
   private itemsDirty = false;
   private needsFit = true;
   private cameras = new Map<string, Camera>();
@@ -880,9 +882,12 @@ export class Board implements BoardApi {
       force = true;
     }
 
-    if (s.explored !== this.renderedExplored) {
-      // What the party has explored changed: others' exploring, all of a scene's coming in, or the GM forgetting it.
+    if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs) {
+      // What the party has explored changed (others' exploring, all of a scene's coming in, or the GM
+      // forgetting it), or with per-player sight, whose eyes this page sees with may have.
       this.renderedExplored = s.explored;
+      this.renderedParty = s.party;
+      this.renderedLookAs = s.fogOpts.lookAs;
       if (scene?.vision?.on) this.sightLayer.batchDraw();
     }
 
@@ -1775,16 +1780,52 @@ export class Board implements BoardApi {
 
   private sightGeomVersion = 0;
 
-  /** Where the party's sight tokens stand ([x0, y0, ...]): as dragged, while they're being dragged. */
-  private sightViewers(scene: Scene): number[] {
+  /**
+   * Where the tokens this page sees with stand ([x0, y0, ...]): the party's sight tokens, or only
+   * `eyes`; as dragged, while they're being dragged.
+   */
+  private sightViewers(scene: Scene, eyes: ReadonlySet<string> | null): number[] {
     const out: number[] = [];
     for (const n of this.tokens.values()) {
       const t = n.item;
-      if (!t || t.sceneId !== scene.id || !isSightToken(t)) continue;
+      if (!t || t.sceneId !== scene.id || !(eyes ? eyes.has(t.id) : isSightToken(t))) continue;
       const p = n.group.position();
       out.push(Math.round(p.x), Math.round(p.y));
     }
     return out;
+  }
+
+  /**
+   * Whose eyes this page sees with: the whole party's (every sight token, and the party's explored
+   * map), or with per-player sight a player's own (their character's tokens and the ones they put
+   * down, `eyes`, and their character's explored map, `who`). The GM sees with the party, or as a
+   * character's player in fog's player view (Look as); a table display always with the party. A
+   * player with no tokens of their own on the scene sees with the party.
+   */
+  private sightLook(scene: Scene, v: SceneVision): { who: string; eyes: Set<string> | null } {
+    const party = { who: "", eyes: null };
+    if (!v.perPlayer || this.room.display) return party;
+    const s = this.room.state;
+    let character: string | null;
+    let userId: string | null = null;
+    if (this.isGm) {
+      if (!s.fogOpts.preview || !s.fogOpts.lookAs) return party;
+      character = s.fogOpts.lookAs;
+    } else {
+      character = this.room.myCharacter;
+      userId = s.me?.userId ?? null;
+    }
+    const eyes = new Set<string>();
+    let theirs = false;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || t.sceneId !== scene.id || !isOwnSightToken(t, character, userId)) continue;
+      eyes.add(t.id);
+      if (t.character) theirs = true;
+    }
+    if (!eyes.size) return party;
+    // Their character's own map once they're on the scene; tokens of their own alone add to the party's.
+    return { who: theirs && character ? character : "", eyes };
   }
 
   /**
@@ -1802,17 +1843,19 @@ export class Board implements BoardApi {
       return;
     }
     const geom = this.sightGeometry(scene, v);
-    const viewers = this.sightViewers(scene);
+    const look = this.sightLook(scene, v);
+    this.sightEyes = look.eyes;
+    const viewers = this.sightViewers(scene, look.eyes);
     const area = sceneBounds(scene);
-    const explored = this.room.state.explored[scene.id];
+    const explored = this.room.state.explored[exploreSlot(scene.id, look.who)];
     if (explored !== this.exploredShown) {
       this.exploredShown = explored;
       this.exploredVersion++;
     }
-    const key = `${this.sightGeomVersion}|${this.exploredVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    const key = `${this.sightGeomVersion}|${look.who}|${this.exploredVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
     if (key !== this.sightMadeFrom || !this.sightCanvas) {
       this.sightMadeFrom = key;
-      this.renderSight(scene, v, geom, viewers, explored);
+      this.renderSight(scene, v, geom, viewers, explored, look.who);
     }
     c.save();
     c.imageSmoothingEnabled = true;
@@ -1823,12 +1866,21 @@ export class Board implements BoardApi {
 
   /** What the party saw when the darkness was last made, on the explore grid (for which tokens players see). */
   private sightSeen: { grid: ExploreGrid; alpha: Uint8ClampedArray } | null = null;
+  /** The tokens it was seen with, with per-player sight (sightLook); null: the party's. */
+  private sightEyes: ReadonlySet<string> | null = null;
   private exploredShown: Explored | undefined;
   private exploredVersion = 0;
   /** The explored cells as a picture, a pixel a cell (remade when they change). */
   private exploredCanvas: { of: Explored; canvas: HTMLCanvasElement } | null = null;
 
-  private renderSight(scene: Scene, v: SceneVision, geom: NonNullable<Board["sightGeom"]>, viewers: readonly number[], explored: Explored | undefined): void {
+  private renderSight(
+    scene: Scene,
+    v: SceneVision,
+    geom: NonNullable<Board["sightGeom"]>,
+    viewers: readonly number[],
+    explored: Explored | undefined,
+    who: string,
+  ): void {
     const area = sceneBounds(scene);
     const w0 = area.x1 - area.x0, h0 = area.y1 - area.y0;
     // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls.
@@ -1932,9 +1984,9 @@ export class Board implements BoardApi {
     const fresh: number[] = [];
     for (let i = 0, n = grid.cols * grid.rows; i < n; i++) if (alpha[i * 4 + 3] > 127 && !(had && hasCell(had, i))) fresh.push(i);
     if (!fresh.length) return;
-    this.room.explore(scene.id, grid.key, fresh);
+    this.room.explore(scene.id, grid.key, fresh, who);
     // What was just explored is what's seen now, already clear in the dark just made: no need to make it again.
-    this.exploredShown = this.room.state.explored[scene.id];
+    this.exploredShown = this.room.state.explored[exploreSlot(scene.id, who)];
   }
 
   private seenCanvas: HTMLCanvasElement | null = null;
@@ -1967,7 +2019,9 @@ export class Board implements BoardApi {
       const t = n.item;
       if (!t) continue;
       let show = true;
-      if (hide && !isCompass(t) && !isSightToken(t)) {
+      // A page's own eyes always show (with per-player sight, other players' tokens don't, out of its sight).
+      const eyes = this.sightEyes;
+      if (hide && !isCompass(t) && !(eyes ? eyes.has(t.id) : isSightToken(t))) {
         const g = seen!.grid;
         const col = Math.floor((n.group.x() - g.x0) / g.cell), row = Math.floor((n.group.y() - g.y0) / g.cell);
         show = col >= 0 && row >= 0 && col < g.cols && row < g.rows && seen!.alpha[(row * g.cols + col) * 4 + 3] > 100;

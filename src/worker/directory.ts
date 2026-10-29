@@ -16,6 +16,8 @@ const MAX_GLOBAL_FAILURES = 60;
 const GLOBAL_KEY = "*";
 /** An address that signed in successfully this recently isn't held to the global cap. */
 const TRUSTED_MS = 90 * 86400_000;
+/** Who plays whom is kept for this many browsers, the latest to pick (anyone with a room link can pick). */
+const MAX_CHARACTER_PLAYERS = 60;
 
 function b64url(bytes: Uint8Array): string {
   let s = "";
@@ -46,6 +48,8 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS spent_hops (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_figures (sheet_id TEXT PRIMARY KEY, figure TEXT NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_str_matched (sheet_id TEXT NOT NULL, weapon TEXT NOT NULL, PRIMARY KEY (sheet_id, weapon))`);
+      // Who plays whom: a browser (its player id) and the character it plays, with the name it joined under.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_players (user_id TEXT PRIMARY KEY, sheet_id TEXT NOT NULL, name TEXT NOT NULL, at INTEGER NOT NULL)`);
     });
   }
 
@@ -105,6 +109,33 @@ export class Directory extends DurableObject<Env> {
   setCharacterFigure(sheetId: string, figure: string | null): void {
     this.sql.exec(`DELETE FROM character_figures WHERE sheet_id = ?`, sheetId);
     if (figure) this.sql.exec(`INSERT INTO character_figures (sheet_id, figure) VALUES (?, ?)`, sheetId, figure);
+  }
+
+  /** The browsers playing each character, by sheet id, longest-standing first (worker/characters.ts). */
+  characterPlayers(): Record<string, { userId: string; name: string }[]> {
+    const out: Record<string, { userId: string; name: string }[]> = {};
+    const rows = this.sql.exec<{ user_id: string; sheet_id: string; name: string }>(`SELECT user_id, sheet_id, name FROM character_players ORDER BY at`);
+    for (const r of rows) (out[r.sheet_id] ??= []).push({ userId: r.user_id, name: r.name });
+    return out;
+  }
+
+  /**
+   * A browser plays a character (one at a time), for every room; null: it plays nobody. Kept for
+   * the latest MAX_CHARACTER_PLAYERS browsers.
+   */
+  setCharacterPlayer(userId: string, sheetId: string | null, name: string): void {
+    this.sql.exec(`DELETE FROM character_players WHERE user_id = ?`, userId);
+    if (!sheetId) return;
+    this.sql.exec(`INSERT INTO character_players (user_id, sheet_id, name, at) VALUES (?, ?, ?, ?)`, userId, sheetId, name, Date.now());
+    this.sql.exec(
+      `DELETE FROM character_players WHERE user_id NOT IN (SELECT user_id FROM character_players ORDER BY at DESC LIMIT ?)`,
+      MAX_CHARACTER_PLAYERS,
+    );
+  }
+
+  /** Nobody plays a character any more. */
+  clearCharacterPlayers(sheetId: string): void {
+    this.sql.exec(`DELETE FROM character_players WHERE sheet_id = ?`, sheetId);
   }
 
   listRooms(): RoomSummary[] {

@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_EXPLORE_CELLS, addCells, bitsToText, emptyBits, exploreGrid, hasCell, keyCells, textToBits } from "../src/shared/explore";
+import { MAX_EXPLORE_CELLS, addCells, bitsToText, emptyBits, exploreGrid, exploreSlot, hasCell, isSceneSlot, keyCells, textToBits } from "../src/shared/explore";
 import { RoomClient } from "../src/client/room/client";
-import { DEFAULT_GRID } from "../src/shared/sanitize";
+import { isOwnSightToken } from "../src/client/room/vision";
+import { DEFAULT_GRID, GM_OWNER, sanitizeVision } from "../src/shared/sanitize";
+import type { TokenItem } from "../src/shared/types";
 
 // What the party has explored (Par: "build remembering explored areas"): kept for each scene on a
-// grid of half squares, shared by everyone, the GM able to forget it.
+// grid of half squares, shared by everyone, the GM able to forget it. With per-player sight (Par:
+// "build per-player sight"), each character keeps their own beside the party's.
+
+const SHEET = "1TestSheetAAAAAAAAAAAAAAAAAAAAAAA";
+const OTHER = "1TestSheetBBBBBBBBBBBBBBBBBBBBBBB";
 
 const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
 const source = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -76,11 +82,82 @@ describe("a page's explored cells", () => {
 });
 
 describe("the board", () => {
-  it("draws the dark again when what's explored changes, so the GM forgetting it shows at once", async () => {
+  it("draws the dark again when what's explored changes, or whose eyes it sees with may have", async () => {
     const board = await source("src/client/room/board.ts");
-    const redraw = board.slice(board.indexOf("if (s.explored !== this.renderedExplored) {"));
-    expect(redraw).not.toBe(board);
-    expect(redraw.slice(0, 300)).toContain("if (scene?.vision?.on) this.sightLayer.batchDraw();");
+    const at = board.indexOf("if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs) {");
+    expect(at).toBeGreaterThan(0);
+    expect(board.slice(at, at + 600)).toContain("if (scene?.vision?.on) this.sightLayer.batchDraw();");
+  });
+});
+
+describe("per-player sight's explored maps", () => {
+  it("keeps the party's under the scene's id and a character's beside it", () => {
+    expect(exploreSlot("Scene1234567")).toBe("Scene1234567");
+    expect(exploreSlot("Scene1234567", "")).toBe("Scene1234567");
+    expect(exploreSlot("Scene1234567", SHEET)).toBe(`Scene1234567/${SHEET}`);
+    expect(isSceneSlot("Scene1234567", "Scene1234567")).toBe(true);
+    expect(isSceneSlot(`Scene1234567/${SHEET}`, "Scene1234567")).toBe(true);
+    expect(isSceneSlot("Scene12345678", "Scene1234567")).toBe(false);
+    expect(isSceneSlot(`Other1234567/${SHEET}`, "Scene1234567")).toBe(false);
+  });
+
+  it("a page keeps a character's own, sends who it's for, and takes in others' by who", () => {
+    const r = new RoomClient("AbCdEf123456", { uid: "gmuid", name: "GM", color: "#ff0000" });
+    const send = vi.spyOn(r as unknown as { submit: (a: unknown) => void }, "submit").mockImplementation(() => undefined);
+    const key = exploreGrid(scene).key;
+    r.explore("Scene1234567", key, [1, 2], SHEET);
+    expect(send.mock.calls[0][0]).toEqual({ t: "explore", sceneId: "Scene1234567", key, cells: [1, 2], who: SHEET });
+    expect(hasCell(r.state.explored[`Scene1234567/${SHEET}`].bits, 2)).toBe(true);
+    expect(r.state.explored.Scene1234567).toBeUndefined();
+    // The party's (no who) is sent without one.
+    r.explore("Scene1234567", key, [7]);
+    expect(send.mock.calls[1][0]).toEqual({ t: "explore", sceneId: "Scene1234567", key, cells: [7] });
+    const handle = (msg: unknown) => (r as unknown as { onServer(m: unknown): void }).onServer(msg);
+    handle({ t: "explore", sceneId: "Scene1234567", key, who: OTHER, cells: [9] });
+    expect(hasCell(r.state.explored[`Scene1234567/${OTHER}`].bits, 9)).toBe(true);
+    expect(hasCell(r.state.explored[`Scene1234567/${SHEET}`].bits, 9)).toBe(false);
+  });
+
+  it("the GM's forgetting clears every one of the scene's, and no other scene's", () => {
+    const r = new RoomClient("AbCdEf123456", { uid: "gmuid", name: "GM", color: "#ff0000" });
+    const key = exploreGrid(scene).key;
+    const handle = (msg: unknown) => (r as unknown as { onServer(m: unknown): void }).onServer(msg);
+    handle({ t: "explore", sceneId: "Scene1234567", key, cells: [1] });
+    handle({ t: "explore", sceneId: "Scene1234567", key, who: SHEET, cells: [2] });
+    handle({ t: "explore", sceneId: "Other1234567", key, who: SHEET, cells: [3] });
+    handle({ t: "explore", sceneId: "Scene1234567", key, reset: true });
+    expect(r.state.explored.Scene1234567.bits.every((b) => b === 0)).toBe(true);
+    expect(r.state.explored[`Scene1234567/${SHEET}`]).toBeUndefined();
+    expect(hasCell(r.state.explored[`Other1234567/${SHEET}`].bits, 3)).toBe(true);
+  });
+
+  it("a player sees through their character's tokens and the ones they put down; the GM plays nobody", () => {
+    const token = (extra: Partial<TokenItem>): TokenItem => ({
+      id: "t", sceneId: "Scene1234567", kind: "token", z: 0, owner: GM_OWNER, x: 0, y: 0, size: 1, rotation: 0,
+      assetId: null, color: "#fff", label: "", hidden: false, locked: false, rings: [], ...extra,
+    });
+    const malspar = token({ character: SHEET }), nancael = token({ character: OTHER }), mine = token({ owner: "user1" }), theirs = token({ owner: "user2" });
+    expect([malspar, nancael, mine, theirs].map((t) => isOwnSightToken(t, SHEET, "user1"))).toEqual([true, false, true, false]);
+    // A character's token is its character's, whoever put it down.
+    expect(isOwnSightToken(token({ character: OTHER, owner: "user1" }), SHEET, "user1")).toBe(false);
+    // Looking as a character (the GM): only theirs; a hidden token or a prop never.
+    expect([malspar, mine].map((t) => isOwnSightToken(t, SHEET, null))).toEqual([true, false]);
+    expect(isOwnSightToken(token({ character: SHEET, hidden: true }), SHEET, "user1")).toBe(false);
+    expect(isOwnSightToken(token({ owner: "user1", layer: "prop" }), SHEET, "user1")).toBe(false);
+
+    const r = new RoomClient("AbCdEf123456", { uid: "user1", name: "Ann", color: "#ff0000" });
+    const party = { configured: true, readAt: 1, characters: [{ id: SHEET, players: [{ userId: "user1", name: "Ann" }] }, { id: OTHER }] };
+    r.store.set({ party: party as never, me: { connId: "c1", userId: "user1", name: "Ann", color: "#f00", role: "player" } });
+    expect(r.myCharacter).toBe(SHEET);
+    r.store.set({ me: { connId: "c0", userId: "user1", name: "GM", color: "#f00", role: "gm" } });
+    expect(r.myCharacter).toBeNull();
+  });
+
+  it("is a scene setting the server keeps, off unless turned on", () => {
+    const base = { on: true, daylight: true, partyLight: 4, sightRange: 12, walls: [], doors: [], lights: [] };
+    expect(sanitizeVision({ ...base, perPlayer: true })?.perPlayer).toBe(true);
+    expect(sanitizeVision({ ...base, perPlayer: "yes" })).not.toHaveProperty("perPlayer");
+    expect(sanitizeVision(base)).not.toHaveProperty("perPlayer");
   });
 });
 
@@ -93,9 +170,23 @@ describe("the Room", () => {
     expect(explore).toContain("if (msg.key !== grid.key) return;");
     const reset = room.slice(room.indexOf('case "explore.reset": {'), room.indexOf('case "roll": {'));
     expect(reset).toContain("if (!gm) return this.deny(ws);");
+    expect(reset).toContain("this.forgetExplored(scene.id);");
     // Sent with hello, to players when the live scene changes, and let go with a deleted scene.
     expect(room).toContain("explored,");
-    expect(room).toContain("bits: bitsToText(kept.bits) }, (c) => c.role !== \"gm\")");
-    expect(room).toContain("DELETE FROM explored WHERE scene_id = ?");
+    expect(room).toContain("for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));");
+    expect(room).toContain("bits: m.bits }, (c) => c.role !== \"gm\")");
+    expect(room).toContain("DELETE FROM explored_maps WHERE scene_id = ?");
+    const deleted = room.slice(room.indexOf('case "scene.delete": {'));
+    expect(deleted.slice(0, 1200)).toContain("this.forgetExplored(scene.id);");
+  });
+
+  it("keeps a character's map only for a character on the scene; a character's exploring is the party's too, and the party's every character's there", async () => {
+    const room = await source("src/worker/room.ts");
+    const explore = room.slice(room.indexOf('case "explore": {'), room.indexOf('case "explore.reset": {'));
+    expect(explore).toContain("if (who && !(isSheetId(who) && here.has(who))) return;");
+    expect(explore).toContain('const maps = who ? [who, ""] : ["", ...(scene.vision.perPlayer ? [] : here)];');
+    // Only so many a scene, and the party's from before characters had their own is kept.
+    expect(room).toContain("if (maps >= MAX_EXPLORE_MAPS) return;");
+    expect(room).toContain("INSERT OR IGNORE INTO explored_maps (scene_id, who, key, bits) SELECT scene_id, '', key, bits FROM explored");
   });
 });

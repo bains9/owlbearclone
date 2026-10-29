@@ -495,6 +495,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     doors,
     lights,
     ...(openEdges.length ? { openEdges } : {}),
+    ...(r.perPlayer === true ? { perPlayer: true } : {}),
   };
 }
 

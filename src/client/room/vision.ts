@@ -130,6 +130,16 @@ export function isSightToken(t: TokenItem): boolean {
   return !t.art && t.layer !== "prop" && !t.hidden && (!!t.character || t.owner !== GM_OWNER);
 }
 
+/**
+ * With per-player sight: whether a token sees for one player, who plays `character` (a sheet id,
+ * or null) from the browser `userId` (null for the GM looking as them): their character's tokens,
+ * and the ones they put down that aren't a character's.
+ */
+export function isOwnSightToken(t: TokenItem, character: string | null, userId: string | null): boolean {
+  if (!isSightToken(t)) return false;
+  return t.character ? t.character === character : userId !== null && t.owner === userId;
+}
+
 /** Walls in a grid of buckets, for quick ray tests. */
 export class WallIndex {
   readonly segs: Seg[];
