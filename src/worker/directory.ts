@@ -44,6 +44,7 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value TEXT NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS trusted_logins (ip TEXT PRIMARY KEY, last_ok INTEGER NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS spent_hops (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_figures (sheet_id TEXT PRIMARY KEY, figure TEXT NOT NULL)`);
     });
   }
 
@@ -74,6 +75,18 @@ export class Directory extends DurableObject<Env> {
   setCharactersSource(source: string | null): void {
     this.sql.exec(`DELETE FROM secrets WHERE name = 'characters_source'`);
     if (source) this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('characters_source', ?)`, source);
+  }
+
+  /** The figures the GM chose for characters instead of their class's, by sheet id (worker/characters.ts). */
+  characterFigures(): Record<string, string> {
+    const rows = this.sql.exec<{ sheet_id: string; figure: string }>(`SELECT sheet_id, figure FROM character_figures`).toArray();
+    return Object.fromEntries(rows.map((r) => [r.sheet_id, r.figure]));
+  }
+
+  /** A character's figure for every room; null goes back to their class's. */
+  setCharacterFigure(sheetId: string, figure: string | null): void {
+    this.sql.exec(`DELETE FROM character_figures WHERE sheet_id = ?`, sheetId);
+    if (figure) this.sql.exec(`INSERT INTO character_figures (sheet_id, figure) VALUES (?, ?)`, sheetId, figure);
   }
 
   listRooms(): RoomSummary[] {

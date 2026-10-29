@@ -52,8 +52,23 @@ export const PC_FIGURES: Readonly<Record<string, string>> = {
   "war-cleric": "lorc_embrassed-energy",
   "nature-cleric": "delapouite_sun-priest",
   "rogue": "darkzaitzev_hooded-assassin",
-  "rogue/swashbuckler": "delapouite_fencer",
   "monk": "delapouite_high-kick",
   "mage": "lorc_fire-silhouette",
   "shaman": "lorc_meditation",
 };
+
+/** The figures the GM can choose for a character instead of their class's (the figures, then the poses). */
+export const PC_FIGURE_CHOICES: readonly { icon: string; name: string }[] = [
+  { icon: "cathelineau_swordman", name: "Swordsman" },
+  { icon: "cathelineau_swordwoman", name: "Swordwoman" },
+  { icon: "darkzaitzev_running-ninja", name: "Running ninja" },
+  { icon: "lorc_bowman", name: "Bowman" },
+  { icon: "delapouite_sun-priest", name: "Sun priest" },
+  { icon: "lorc_embrassed-energy", name: "Embraced energy" },
+  { icon: "darkzaitzev_hooded-assassin", name: "Hooded assassin" },
+  { icon: "delapouite_high-kick", name: "High kick" },
+  { icon: "lorc_fire-silhouette", name: "Fire silhouette" },
+  { icon: "lorc_meditation", name: "Meditation" },
+  { icon: "delapouite_fencer", name: "Fencer" },
+  { icon: "lorc_bowman-woman", name: "Bowwoman" },
+];

@@ -13,7 +13,7 @@ import {
 } from "../src/shared/characters";
 import { sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
 import { figureFor } from "../src/client/npcs/pcArt";
-import { classesOf, figureOf, raceOf } from "../src/client/npcs/pcTokens";
+import { classFigureOf, classesOf, figureOf, raceOf } from "../src/client/npcs/pcTokens";
 import { characterAssetName } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
 import { GUIDE } from "../src/client/guide";
@@ -31,6 +31,7 @@ interface Party {
   readParty(env: unknown, cache: Cache | null, fetcher: typeof fetch, now?: number): Promise<CharactersReply>;
   forgetParty(env: unknown, cache: Cache | null): Promise<void>;
   SCRIPT_URL: RegExp;
+  FIGURE_ICON: RegExp;
 }
 const party = (await import(/* @vite-ignore */ "../src/worker/" + "characters")) as Party;
 
@@ -110,7 +111,7 @@ describe("a character from their sheet", () => {
     expect(long.endsWith("… damage")).toBe(true);
   });
 
-  it("gets a figure by class, or by subclass when that has its own, in their race's colouring", () => {
+  it("gets a figure by class, in their race's colouring, unless the GM chose another", () => {
     const c = cleanCharacter(raw)!;
     expect(raceOf(c).id).toBe("wyddin");
     expect(raceOf({ race: "Half-elf", culture: "" }).id).toBe("half-elf");
@@ -118,9 +119,14 @@ describe("a character from their sheet", () => {
     expect(classesOf(c).map((k) => k.id)).toEqual(["ranger", "shaman"]);
     expect(classesOf({ cls: "", cls2: "" }).map((k) => k.id)).toEqual(["fighter"]);
     expect(figureOf(c)).toBe("lorc_bowman");
-    expect(figureFor({ id: "rogue" }, "Swashbuckler")).toBe("delapouite_fencer");
-    expect(figureFor({ id: "rogue" }, "")).toBe("darkzaitzev_hooded-assassin");
+    // A swashbuckler is a rogue in a hood, like any rogue (the GM can choose the fencer).
+    expect(figureFor({ id: "rogue" }, "Swashbuckler")).toBe("darkzaitzev_hooded-assassin");
     expect(figureFor({ id: "samurai" })).toBe("darkzaitzev_running-ninja");
+    // The GM's choice, if it's one of the figures.
+    const chosen: Character = { ...c, figure: "lorc_bowman-woman" };
+    expect(figureOf(chosen)).toBe("lorc_bowman-woman");
+    expect(classFigureOf(chosen)).toBe("lorc_bowman");
+    expect(figureOf({ ...c, figure: "lorc_no-such-figure" })).toBe("lorc_bowman");
   });
 
   it("uploads their figure under a name for what it's drawn from, so a changed sheet gets a new one", () => {
@@ -132,6 +138,9 @@ describe("a character from their sheet", () => {
     expect(characterAssetName({ ...c, cls2: "Mage" })).not.toBe(name);
     expect(characterAssetName({ ...c, culture: "Danae" })).not.toBe(name);
     expect(characterAssetName({ ...c, id: "1Another0000000000000000000000000" })).not.toBe(name);
+    // Another figure chosen by the GM is another token; one that isn't a figure changes nothing.
+    expect(characterAssetName({ ...c, figure: "lorc_bowman-woman" })).not.toBe(name);
+    expect(characterAssetName({ ...c, figure: "lorc_no-such-figure" })).toBe(name);
     // HP and the rest don't change the drawing.
     expect(characterAssetName({ ...c, hp: 3 } as Character)).toBe(name);
     expect(characterAssetName({ ...c, picture: "abcdef1234" })).toBe("Testa Brightwood · picture abcdef12");
@@ -249,9 +258,24 @@ function memoryCache() {
 
 describe("the Worker's reading of the party", () => {
   const URL_ = "https://script.google.com/macros/s/AKfycbTESTtestTESTtestTESTtest/exec";
-  const env = (source: string | null, pictures: Record<string, string> = {}) => ({
-    directory: { charactersSource: async () => source },
+  const env = (source: string | null, pictures: Record<string, string> = {}, figures: Record<string, string> = {}) => ({
+    directory: { charactersSource: async () => source, characterFigures: async () => figures },
     files: { head: async (key: string) => (pictures[key] ? { httpEtag: `"${pictures[key]}"` } : null) },
+  });
+
+  it("gives each character the figure the GM chose, at once and without reading the sheets again", async () => {
+    const { cache } = memoryCache();
+    const fetcher = vi.fn(async () => Response.json({ characters: [raw] }));
+    const before = await party.readParty(env(URL_), cache, fetcher as unknown as typeof fetch, 1000);
+    expect(before.characters[0].figure).toBeUndefined();
+    const chosen = await party.readParty(env(URL_, {}, { [SHEET]: "lorc_bowman-woman" }), cache, fetcher as unknown as typeof fetch, 2000);
+    expect(chosen.characters[0].figure).toBe("lorc_bowman-woman");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // Back to their class's: gone from the reading too (the kept one never had it).
+    const back = await party.readParty(env(URL_), cache, fetcher as unknown as typeof fetch, 3000);
+    expect(back.characters[0].figure).toBeUndefined();
+    expect(party.FIGURE_ICON.test("lorc_bowman-woman")).toBe(true);
+    for (const bad of ["../x", "lorc", "Lorc_Bowman", "lorc_bowman/../../x", `a_${"b".repeat(60)}`]) expect(party.FIGURE_ICON.test(bad), bad).toBe(false);
   });
 
   it("asks the script, keeps the answer half a minute, and marks a chosen picture", async () => {
@@ -385,9 +409,9 @@ describe("in Tabletop", () => {
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
     expect(GUIDE[0].parts[0].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
-    expect(GUIDE[0].intro).toContain("The latest updates came out on 28 October 2026.");
+    expect(GUIDE[0].intro).toContain("The latest updates came out on 29 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
-    expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's own picture (GM)"]);
+    expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);
     expect(await source("src/client/ui/CharacterSheetsSettings.tsx")).toContain('href="/guide#character-sheets"');
   });
 });

@@ -773,6 +773,21 @@ button:disabled {
   display: flex;
   flex-direction: column;
 }
+/* The figure button: the list lies over it, unseen, so a click opens the browser's own picker. */
+.party-figure {
+  position: relative;
+}
+.party-figure select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.party-figure:focus-within {
+  outline: 2px solid var(--accent);
+}
 
 /* A character token's selection bar with their card over it (CharacterCard.tsx). The stack
    stands where the bar would and the bar inside it is in the flow, so the bar's sideways

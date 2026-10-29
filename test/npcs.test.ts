@@ -62,10 +62,15 @@ describe("the races and classes", () => {
     expect(NPC_CLASSES).toHaveLength(14);
     expect(NPC_RACES.map((r) => ["race", r.id, r.name, r.icon, r.tint, r.size, r.group])).toEqual(rows.slice(1, 18));
     expect(NPC_CLASSES.map((c) => ["class", c.id, c.name, c.icon, c.color, "", c.group])).toEqual(rows.slice(18, 32));
-    // Then the player characters' figures, by class (or class/subclass).
-    const figures = rows.slice(32);
-    expect(figures.every((r) => r[0] === "figure" && r[4] === "-" && r[5] === "" && r[6] === "Figures")).toBe(true);
+    // Then the player characters' figures, by class (or class/subclass), and the poses only the GM chooses.
+    const figures = rows.slice(32).filter((r) => r[0] === "figure");
+    const poses = rows.slice(32 + figures.length);
+    expect(figures.every((r) => r[4] === "-" && r[5] === "" && r[6] === "Figures")).toBe(true);
+    expect(poses.length && poses.every((r) => r[0] === "pose" && r[4] === "-" && r[5] === "" && r[6] === "Figures")).toBe(true);
     expect(Object.entries(table.PC_FIGURES)).toEqual(figures.map((r) => [r[1], r[3]]));
+    // The GM's choice: every figure once, then every pose.
+    const once = [...figures, ...poses].filter((r, i, all) => all.findIndex((x) => x[3] === r[3]) === i);
+    expect(table.PC_FIGURE_CHOICES).toEqual(once.map((r) => ({ icon: r[3], name: r[2] })));
     // The one table, not a copy kept by hand.
     expect(NPC_RACES).toBe(table.NPC_RACES);
     expect(NPC_CLASSES).toBe(table.NPC_CLASSES);
@@ -181,9 +186,9 @@ describe("the list's pickers", () => {
 
 describe("the icons (generated data)", () => {
   it("has every head, emblem and figure the races, classes and characters use, and no other", () => {
-    const used = new Set([...NPC_RACES.map((r) => r.icon), ...NPC_CLASSES.map((c) => c.icon), ...Object.values(table.PC_FIGURES)]);
+    const used = new Set([...NPC_RACES.map((r) => r.icon), ...NPC_CLASSES.map((c) => c.icon), ...table.PC_FIGURE_CHOICES.map((f) => f.icon)]);
     expect(Object.keys(NPC_ICONS).sort()).toEqual([...used].sort());
-    expect(Object.keys(NPC_ICONS)).toHaveLength(38);
+    expect(Object.keys(NPC_ICONS)).toHaveLength(39);
     for (const [id, icon] of Object.entries(NPC_ICONS)) expect(icon.source, id).toBe(id.replace("_", "/"));
   });
 

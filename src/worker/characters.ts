@@ -20,6 +20,8 @@ const SCRIPT_MS = 30_000;
 export const SCRIPT_URL = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,200}\/exec$/;
 /** A sheet's id, as R2 keys and addresses use it. */
 export const SHEET_ID = /^[A-Za-z0-9_-]{20,80}$/;
+/** A figure the GM chooses for a character: an icon's id, as author_icon (pages draw only the ones they know). */
+export const FIGURE_ICON = /^[a-z0-9-]{1,30}_[a-z0-9-]{1,40}$/;
 export const MAX_PICTURE_BYTES = 4 * 1024 * 1024;
 
 export const pictureKey = (sheetId: string) => `characters/${sheetId}`;
@@ -54,14 +56,27 @@ export async function askScript(source: string, fetcher: typeof fetch = fetch): 
 }
 
 export interface PartyEnv {
-  directory: { charactersSource(): Promise<string | null> };
+  directory: { charactersSource(): Promise<string | null>; characterFigures(): Promise<Record<string, string>> };
   files: Pick<R2Bucket, "head">;
 }
 
-/** The party for a room's pages: the sheets' cards, each with its own picture's version if it has one. */
+/**
+ * The party for a room's pages: the sheets' cards, each with its own picture's version if it has
+ * one, and the figure the GM chose for them if they did (asked each time, so a choice shows at
+ * once without reading the sheets again).
+ */
 export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typeof fetch = fetch, now = Date.now()): Promise<CharactersReply> {
   const source = await env.directory.charactersSource();
   if (!source) return { configured: false, characters: [], readAt: now };
+  const reading = await readSheets(env, source, cache, fetcher, now);
+  const figures = await env.directory.characterFigures();
+  return {
+    ...reading,
+    characters: reading.characters.map(({ figure: _, ...c }) => (figures[c.id] ? { ...c, figure: figures[c.id] } : c)),
+  };
+}
+
+async function readSheets(env: PartyEnv, source: string, cache: Cache | null, fetcher: typeof fetch, now: number): Promise<CharactersReply> {
   const key = await cacheKey(source);
   const kept = await keptReading(cache, key);
   if (kept && now - kept.readAt < FRESH_MS) return kept;

@@ -50,6 +50,8 @@ export interface Character {
   url: string;
   /** The version of the token picture the GM chose for them, when there is one (else their figure is drawn). */
   picture?: string;
+  /** The figure the GM chose for them (an icon of PC_FIGURE_CHOICES), when it isn't their class's. */
+  figure?: string;
 }
 
 /** What the Worker answers for the party. */

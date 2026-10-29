@@ -15,7 +15,7 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 28 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 29 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
         "title": "The party's own tokens, cards and rolls, from their character sheets (28 October 2026)",
@@ -27,7 +27,7 @@ export const GUIDE: GuideSection[] = [
           "The party comes from the group's character sheets in Google Sheets, read every minute while the room is open. Change a sheet and Tabletop follows; nothing in the sheets is changed from here.",
           "A character's token has an HP bar under it, green, then amber, then red.",
           "**Add selected token** in the initiative list rolls a d20 with the character's initiative bonus from their sheet.",
-          "GM: set it up once in **Room settings** › **Character sheets**. You can give a character a picture of your own instead of their figure, for every room.",
+          "GM: set it up once in **Room settings** › **Character sheets**. You can choose a character's figure (their class's, or another, such as a bowwoman), or give them a picture of your own, for every room (29 October).",
           "See **Character sheets**."
         ]
       },
@@ -854,7 +854,7 @@ export const GUIDE: GuideSection[] = [
           "The **Party** is at the top. Click your character to put them in the middle of your view."
         ],
         "notes": [
-          "Each character's token is a full-body figure of their class in action (an archer for a ranger, a fencer for a swashbuckler), in their race's colouring, with their classes' emblems at their feet. A character with a picture the GM chose shows that instead.",
+          "Each character's token is a full-body figure of their class in action (an archer for a ranger, a hooded rogue for a rogue), or another the GM chose for them, in their race's colouring, with their classes' emblems at their feet. A character with a picture the GM chose shows that instead.",
           "The token is named after them and stands for their sheet: its card, HP bar and rolls come from there.",
           "Players can place characters when the GM lets players add tokens (**Room settings**)."
         ]
@@ -898,14 +898,14 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
-        "title": "A character's own picture (GM)",
+        "title": "A character's figure, or a picture of your own (GM)",
         "steps": [
           "Open **Tokens & images**.",
-          "Beside a character in the **Party**, click the picture button and choose an image (a full-body picture with a see-through background looks best).",
-          "To go back to their figure, click the arrow below it."
+          "Beside a character in the **Party**, click the figure button (a standing person) and choose their figure: their class's, or any other (a bowwoman, a swordwoman, a fencer...).",
+          "Or click the picture button and choose an image of your own (a full-body picture with a see-through background looks best). To go back to their figure, click the arrow below it."
         ],
         "notes": [
-          "The picture is used in every room, for tokens placed from then on. A token already on the map keeps its picture."
+          "A figure or picture is used in every room, for tokens placed from then on. A token already on the map keeps its picture: delete it and place them again."
         ]
       }
     ]

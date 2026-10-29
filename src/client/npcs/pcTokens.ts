@@ -4,7 +4,7 @@
 import type { Character } from "../../shared/characters";
 import type { NpcClass, NpcRace } from "./npcs";
 import { figureFor } from "./pcArt";
-import { NPC_CLASSES, NPC_RACES } from "./table";
+import { NPC_CLASSES, NPC_RACES, PC_FIGURE_CHOICES } from "./table";
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -24,7 +24,12 @@ export function classesOf(c: Pick<Character, "cls" | "cls2">): NpcClass[] {
   return found.length ? found : [NPC_CLASSES.find((k) => k.id === "fighter")!];
 }
 
-/** Their figure: their first class's, or its subclass's when that has its own. */
-export function figureOf(c: Pick<Character, "cls" | "cls2" | "subclass">): string {
+/** Their figure: the one the GM chose for them, else their first class's (or its subclass's when that has its own). */
+export function figureOf(c: Pick<Character, "cls" | "cls2" | "subclass" | "figure">): string {
+  return c.figure && PC_FIGURE_CHOICES.some((f) => f.icon === c.figure) ? c.figure : classFigureOf(c);
+}
+
+/** Their class's figure, what they have unless the GM chooses another. */
+export function classFigureOf(c: Pick<Character, "cls" | "cls2" | "subclass">): string {
   return figureFor(classesOf(c)[0], c.subclass);
 }

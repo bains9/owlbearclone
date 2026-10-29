@@ -9,7 +9,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, pictureKey, readParty } from "./characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, pictureKey, readParty } from "./characters";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -215,6 +215,16 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return json({ source: source || null, party: await readParty({ directory, files: env.FILES }, caches.default) });
     }
     return fail(405, "Method not allowed.");
+  }
+  const figureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/figure$/);
+  if (figureMatch) {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const body = await readJson(request);
+    const figure = body?.figure ?? null;
+    if (figure !== null && (typeof figure !== "string" || !FIGURE_ICON.test(figure))) return fail(400, "That isn't one of the figures.");
+    await env.DIRECTORY.getByName("main").setCharacterFigure(figureMatch[1], figure);
+    return json({ ok: true });
   }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {

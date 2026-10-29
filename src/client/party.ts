@@ -13,19 +13,20 @@ import { classesOf, figureOf, raceOf } from "./npcs/pcTokens";
 import { NPCS_LOAD_FAILED, loadNpcs } from "./npcs/place";
 import type { RoomClient } from "./room/client";
 
-type Drawn = Pick<Character, "id" | "name" | "picture" | "race" | "culture" | "cls" | "subclass" | "cls2" | "subclass2">;
+type Drawn = Pick<Character, "id" | "name" | "picture" | "race" | "culture" | "cls" | "subclass" | "cls2" | "subclass2" | "figure">;
 
 /**
  * The name a character's token picture is uploaded under: per picture, and for a figure, per what
- * it's drawn from (their sheet, race and classes), so a new picture or a sheet that changes their
- * race or a class is uploaded anew, and two characters with one name don't share a token.
+ * it's drawn from (their sheet, race, classes and figure), so a new picture, a sheet that changes
+ * their race or a class, or another figure is uploaded anew, and two characters with one name
+ * don't share a token.
  */
 export function characterAssetName(c: Drawn): string {
   const who = c.name.slice(0, 40);
   if (c.picture) return `${who} · picture ${c.picture.slice(0, 8)}`;
   // FNV-1a, 32 bits, written short.
   let h = 0x811c9dc5;
-  for (const ch of [c.id, c.race, c.culture, c.cls, c.subclass, c.cls2, c.subclass2].join("|")) {
+  for (const ch of [c.id, c.race, c.culture, c.cls, c.subclass, c.cls2, c.subclass2, figureOf(c)].join("|")) {
     h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
   }
   return `${who} · figure ${(h >>> 0).toString(36)}`;
@@ -123,6 +124,21 @@ export async function setCharacterPicture(room: RoomClient, c: Character, file: 
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error ?? `The picture couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
+/** GM: chooses a character's figure (an icon of PC_FIGURE_CHOICES) for every room; null goes back to their class's. */
+export async function setCharacterFigure(room: RoomClient, c: Character, figure: string | null): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/figure`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ figure }),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `The figure couldn't be saved (${res.status}).`);
   }
   await room.refreshParty();
 }
