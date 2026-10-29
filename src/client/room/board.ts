@@ -53,7 +53,7 @@ import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
-import { WallIndex, blockers, doorNear, doorSpots, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
+import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
 import {
   BuildEdit,
@@ -1751,7 +1751,8 @@ export class Board implements BoardApi {
     const { size, offsetX, offsetY } = scene.grid;
     const toScene = (l: readonly number[]): Seg => [offsetX + l[0] * size, offsetY + l[1] * size, offsetX + l[2] * size, offsetY + l[3] * size];
     const built = this.build.model.sightLines();
-    const walls = [...segmentsOf(v.walls), ...built.walls.map(toScene)];
+    // The map file's walls, with the cracks where one stops just short of another joined (a fifth of a square).
+    const walls = [...segmentsOf(v.walls), ...crackJoins(v.walls, size * 0.2), ...built.walls.map(toScene)];
     const doors = doorSpots(v, built.doors.map((d) => ({ key: d.key, line: toScene(d.line) })));
     const area = sceneBounds(scene);
     const index = new WallIndex(blockers(walls, doors), area, size * 2);

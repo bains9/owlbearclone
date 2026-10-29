@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BuildModel, indexTerrain } from "../src/client/room/build";
-import { WallIndex, blockers, doorNear, doorSpots, insidePolygon, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "../src/client/room/vision";
+import { WallIndex, blockers, crackJoins, doorNear, doorSpots, insidePolygon, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "../src/client/room/vision";
 import type { Seg } from "../src/client/room/vision";
 import { PARTY_LIGHT, visionFromSight } from "../src/client/importScenes";
 import { parseUniversalVtt } from "../src/client/mapImport";
@@ -61,6 +61,29 @@ describe("what can be seen from a point", () => {
     expect(toggledDoor(opened, doorSpots(opened, built)[0]).openEdges).toEqual([]);
     expect(doorNear(doors, 152, 104, 20)?.key).toBe(77);
     expect(doorNear(doors, 152, 160, 20)).toBeNull();
+  });
+
+  it("doesn't leak through the crack where one wall stops just short of another, and doors stay open", () => {
+    // A room's wall stops at the top of its open door (x 1500, y 2900); the passage's traced edge starts
+    // with a rounded corner a hair away, as Dungeon's do. A ray skimming the corner slipped through
+    // and ran on over the rock (Par: "should it be doing this?").
+    const lines = [
+      [1500, 2700, 1500, 2900],
+      [1508, 2903, 1512, 2900, 1560, 2886, 1740, 2874],
+    ];
+    const area = { x0: 0, y0: 0, x1: 4000, y1: 4000 };
+    const sees = (segs: Seg[], x: number, y: number) => insidePolygon(sightPolygon(new WallIndex(segs, area, 200), 1350, 3050, 6000), x, y);
+    // Far up and to the right, past the corner, over the rock.
+    expect(sees(segmentsOf(lines), 1925, 2494)).toBe(true);
+    const joins = crackJoins(lines, 20);
+    // Each end finds the other (one join from each, harmless).
+    expect(joins.some((j) => j[0] === 1500 && j[1] === 2900)).toBe(true);
+    expect(sees([...segmentsOf(lines), ...joins], 1925, 2494)).toBe(false);
+    // The door itself (1500, 2900 to 3000) is still open: straight through it, far down the passage.
+    expect(sees([...segmentsOf(lines), ...joins], 3000, 2950)).toBe(true);
+    // Walls that meet, or are a door's width apart, aren't joined.
+    expect(crackJoins([[0, 0, 100, 0], [100, 0, 100, 100]], 20)).toEqual([]);
+    expect(crackJoins([[0, 0, 0, 100], [0, 200, 0, 300]], 20)).toEqual([]);
   });
 
   it("sees with the party: characters from the sheets, and tokens players put down", () => {

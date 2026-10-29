@@ -38,6 +38,67 @@ export function segmentsOf(lines: readonly (readonly number[])[]): Seg[] {
   return out;
 }
 
+/**
+ * Joins for the hairline cracks where one wall stops just short of another: from each line's end
+ * to the nearest point of another line within `near` (scene units). A map's walls don't always
+ * meet (a room's wall stops at a door's corner, and the passage's traced edge, rounded, starts a
+ * tenth of a square off), and a ray skimming the corner would slip through and run on over the
+ * rock. Doors are a square wide, far wider than `near`, so they stay open.
+ */
+export function crackJoins(lines: readonly (readonly number[])[], near: number): Seg[] {
+  // Every stretch, with the line it belongs to, in buckets `near` wide.
+  const cell = Math.max(near, 1e-6);
+  const buckets = new Map<string, { line: number; s: Seg }[]>();
+  const key = (cx: number, cy: number) => `${cx},${cy}`;
+  lines.forEach((l, li) => {
+    for (let i = 0; i + 3 < l.length; i += 2) {
+      const s: Seg = [l[i], l[i + 1], l[i + 2], l[i + 3]];
+      const c0 = Math.floor(Math.min(s[0], s[2]) / cell), c1 = Math.floor(Math.max(s[0], s[2]) / cell);
+      const r0 = Math.floor(Math.min(s[1], s[3]) / cell), r1 = Math.floor(Math.max(s[1], s[3]) / cell);
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const list = buckets.get(key(c, r));
+          if (list) list.push({ line: li, s });
+          else buckets.set(key(c, r), [{ line: li, s }]);
+        }
+      }
+    }
+  });
+  const out: Seg[] = [];
+  lines.forEach((l, li) => {
+    if (l.length < 4) return;
+    for (const [px, py] of [[l[0], l[1]], [l[l.length - 2], l[l.length - 1]]]) {
+      let best = near, bx = 0, by = 0;
+      const cx = Math.floor(px / cell), cy = Math.floor(py / cell);
+      for (let r = cy - 1; r <= cy + 1; r++) {
+        for (let c = cx - 1; c <= cx + 1; c++) {
+          for (const { line, s } of buckets.get(key(c, r)) ?? []) {
+            if (line === li) continue;
+            const [qx, qy] = nearestOn(s, px, py);
+            const d = Math.hypot(qx - px, qy - py);
+            if (d < best) {
+              best = d;
+              bx = qx;
+              by = qy;
+            }
+          }
+        }
+      }
+      // Already touching: nothing to join.
+      if (best < near && best > 1e-6) out.push([px, py, bx, by]);
+    }
+  });
+  return out;
+}
+
+/** The point of a stretch nearest (x, y). */
+function nearestOn(s: Seg, x: number, y: number): [number, number] {
+  const ex = s[2] - s[0], ey = s[3] - s[1];
+  const len = ex * ex + ey * ey;
+  const t = len ? Math.max(0, Math.min(1, ((x - s[0]) * ex + (y - s[1]) * ey) / len)) : 0;
+  return [s[0] + ex * t, s[1] + ey * t];
+}
+
 /** What blocks sight: walls, and doors that are shut. */
 export function blockers(walls: readonly Seg[], doors: readonly DoorSpot[]): Seg[] {
   return [...walls, ...doors.filter((d) => !d.open).map((d) => d.line)];
