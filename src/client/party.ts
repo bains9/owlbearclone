@@ -3,7 +3,7 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { characterLabel, type Character } from "../shared/characters";
+import { characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
 import { prepareImage } from "./api";
@@ -172,11 +172,16 @@ export async function setCharacterPlayer(room: RoomClient, c: Character, playing
     body: JSON.stringify(body),
     credentials: "same-origin",
   });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
-  }
-  await room.refreshParty();
+  const data = (await res.json().catch(() => ({}))) as { error?: string; players?: Record<string, CharacterPlayer[]> };
+  if (!res.ok) throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  // Shown at once from the answer, without reading the sheets again (which can take seconds);
+  // other pages see it with their next reading, within the minute.
+  const party = room.state.party;
+  const players = data.players;
+  if (!party || !players) return;
+  room.store.set({
+    party: { ...party, characters: party.characters.map(({ players: _p, ...c }) => (players[c.id]?.length ? { ...c, players: players[c.id] } : c)) },
+  });
 }
 
 /** GM: back to their figure. */

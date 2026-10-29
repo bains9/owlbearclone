@@ -251,15 +251,16 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     const userId = gm ? body.userId : request.headers.get("X-Tabletop-User");
     if (gm && userId === null && !body.playing) {
       await directory.clearCharacterPlayers(sheetId);
-      return json({ ok: true });
+    } else {
+      if (!isId(userId)) return fail(400, "That isn't one of the players.");
+      if (body.playing) {
+        await directory.setCharacterPlayer(userId, sheetId, cleanText(body.name, LIMITS.playerName) || "Player");
+      } else if ((await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId)) {
+        await directory.setCharacterPlayer(userId, null, "");
+      }
     }
-    if (!isId(userId)) return fail(400, "That isn't one of the players.");
-    if (body.playing) {
-      await directory.setCharacterPlayer(userId, sheetId, cleanText(body.name, LIMITS.playerName) || "Player");
-    } else if ((await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId)) {
-      await directory.setCharacterPlayer(userId, null, "");
-    }
-    return json({ ok: true });
+    // Who plays whom now, so the page shows it at once (reading the sheets again can take seconds).
+    return json({ ok: true, players: await directory.characterPlayers() });
   }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {

@@ -20,7 +20,7 @@ import { parseDice } from "../src/shared/dice";
 import { sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
 import { figureFor } from "../src/client/npcs/pcArt";
 import { classFigureOf, classesOf, figureOf, raceOf } from "../src/client/npcs/pcTokens";
-import { characterAssetName } from "../src/client/party";
+import { characterAssetName, setCharacterPlayer } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
 import { GUIDE } from "../src/client/guide";
 import type { Item, TokenItem } from "../src/shared/types";
@@ -545,6 +545,31 @@ describe("a page's party", () => {
       answering(reply({ characters: [] }));
       await room.refreshParty();
       expect(room.state.party?.characters).toEqual([]);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("shows who plays whom at once, from the answer, without reading the sheets again", async () => {
+    const room = new RoomClient("AbCdEf123456", { uid: "user1abcdef", name: "Ann", color: "#ff0000" });
+    try {
+      answering(reply({}));
+      await room.refreshParty();
+      const c = room.state.party!.characters[0];
+      const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, players: { [SHEET]: [{ userId: "user1abcdef", name: "Ann" }] } }));
+      sent.mockClear();
+      const reread = vi.spyOn(room, "refreshParty");
+      await setCharacterPlayer(room, c, true);
+      const [url, init] = sent.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`/api/characters/${SHEET}/player?room=AbCdEf123456`);
+      expect((init.headers as Record<string, string>)["X-Tabletop-User"]).toBe("user1abcdef");
+      expect(JSON.parse(String(init.body))).toEqual({ playing: true, name: "Ann" });
+      expect(room.state.party!.characters[0].players).toEqual([{ userId: "user1abcdef", name: "Ann" }]);
+      expect(reread).not.toHaveBeenCalled();
+      // Nobody plays them any more: gone from the list too.
+      sent.mockImplementation(async () => Response.json({ ok: true, players: {} }));
+      await setCharacterPlayer(room, c, false);
+      expect(room.state.party!.characters[0].players).toBeUndefined();
     } finally {
       vi.restoreAllMocks();
     }
