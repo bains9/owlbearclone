@@ -1,5 +1,5 @@
 import { useRef, useState } from "preact/hooks";
-import { Check, ImagePlus, Play, Plus, SquarePen, Trash } from "lucide-preact";
+import { Check, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
@@ -12,10 +12,12 @@ const GRID_TYPES: { id: GridType; label: string }[] = [
   { id: "hex-flat", label: "Hex (columns)" },
 ];
 import { fileUrl } from "../api";
-import { importFiles, sceneFromMap, touchedSidecars } from "../importScenes";
+import { importFiles, isDungeonScene, sceneFromMap, touchedSidecars } from "../importScenes";
 import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
+import { FromDungeon } from "./FromDungeon";
+import { UpdateFromDungeonDialog } from "./UpdateFromDungeon";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
 import type { Pending } from "./ddText";
@@ -29,6 +31,8 @@ export function ScenesPanel() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Scene | null>(null);
+  // The bring-in from Dungeon whose scenes are being updated (Update from Dungeon).
+  const [updating, setUpdating] = useState<string | null>(null);
   const list = Object.values(scenes).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt);
   const editScene = editing ? scenes[editing] : null;
 
@@ -68,6 +72,16 @@ export function ScenesPanel() {
                   <Play size={16} />
                 </button>
               )}
+              {isDungeonScene(s) && (
+                <button
+                  class="icon-btn"
+                  title="Update from Dungeon: the map as it is in Dungeon now, tokens and fog kept"
+                  aria-label="Update from Dungeon"
+                  onClick={() => setUpdating(s.dungeon.batch)}
+                >
+                  <RefreshCw size={16} />
+                </button>
+              )}
               <button
                 class="icon-btn"
                 title="Edit scene and grid"
@@ -104,6 +118,7 @@ export function ScenesPanel() {
           }}
         />
       )}
+      {updating && <UpdateFromDungeonDialog batch={updating} onClose={() => setUpdating(null)} />}
       {deleting && (
         <ConfirmDialog
           title="Delete scene?"
@@ -148,7 +163,7 @@ export function NewSceneDialog(props: {
   const settings = useRoomState((s) => s.room?.settings);
   const [name, setName] = useState("");
   const fallbackName = `Scene ${Object.keys(scenes).length + 1}`;
-  const [mode, setMode] = useState<"upload" | "library" | "blank">("upload");
+  const [mode, setMode] = useState<"upload" | "library" | "dungeon" | "blank">("upload");
   const [cols, setCols] = useState(30);
   const [covered, setCovered] = useState(true);
   // A blank grid is usually built before the session, in plain view; a map usually starts hidden.
@@ -178,8 +193,11 @@ export function NewSceneDialog(props: {
   // Files dropped or pasted elsewhere open this dialog with them.
   const started = useRef(false);
 
-  /** Brings files in. skip: a pending picture brought in as it is, past its project file. */
-  const onFiles = async (files: File[], opts: { skip?: boolean } = {}) => {
+  /**
+   * Brings files in. skip: a pending picture brought in as it is, past its project file. dungeon:
+   * the file is a map from Dungeon (From Dungeon), its scenes to remember which.
+   */
+  const onFiles = async (files: File[], opts: { skip?: boolean; dungeon?: { map: string; lighting: boolean } } = {}) => {
     if (!files.length || busy.current) return;
     busy.current = true;
     setWorking("Reading…");
@@ -193,7 +211,7 @@ export function NewSceneDialog(props: {
       const waiting = hasPending(plan.pending);
       // Everything waits for its other half: the window stays open with it.
       if (!now.length) return;
-      const r = await importFiles(room, now, { name: name.trim(), order, covered, onProgress: setWorking });
+      const r = await importFiles(room, now, { name: name.trim(), order, covered, onProgress: setWorking, ...(opts.dungeon ? { dungeon: opts.dungeon } : {}) });
       if (!r.scenes.length) {
         for (const n of r.notes) room.toast(n, "error");
         // Opened by a drop that brought nothing in: don't leave an empty window behind.
@@ -310,7 +328,7 @@ export function NewSceneDialog(props: {
 
 
   return (
-    <Modal title="New scene" onClose={props.onClose} width={480}>
+    <Modal title="New scene" onClose={props.onClose} width={520}>
       <label class="field">
         <span>Name</span>
         <input
@@ -320,14 +338,18 @@ export function NewSceneDialog(props: {
           onInput={(e) => setName(e.currentTarget.value)}
         />
       </label>
-      <div class="seg full">
-        <button class={cx("seg-btn wide", mode === "upload" && "active")} onClick={() => setMode("upload")}>
+      {/* Not while something's coming in: leaving From Dungeon mid-draw would drop the map. */}
+      <div class="seg full new-scene-kinds">
+        <button class={cx("seg-btn wide", mode === "upload" && "active")} disabled={!!working} onClick={() => setMode("upload")}>
           Upload a map
         </button>
-        <button class={cx("seg-btn wide", mode === "library" && "active")} onClick={() => setMode("library")}>
+        <button class={cx("seg-btn wide", mode === "library" && "active")} disabled={!!working} onClick={() => setMode("library")}>
           Uploaded maps
         </button>
-        <button class={cx("seg-btn wide", mode === "blank" && "active")} onClick={() => setMode("blank")}>
+        <button class={cx("seg-btn wide", mode === "dungeon" && "active")} disabled={!!working} onClick={() => setMode("dungeon")} title="Your maps in Dungeon, the map maker">
+          From Dungeon
+        </button>
+        <button class={cx("seg-btn wide", mode === "blank" && "active")} disabled={!!working} onClick={() => setMode("blank")}>
           Blank grid
         </button>
       </div>
@@ -447,6 +469,15 @@ export function NewSceneDialog(props: {
         ) : (
           <p class="muted small">No maps uploaded yet.</p>
         ))}
+      {mode === "dungeon" && (
+        <FromDungeon
+          busy={Boolean(working)}
+          working={working}
+          setWorking={setWorking}
+          inRoom={new Set(Object.values(scenes).flatMap((s) => (isDungeonScene(s) ? [s.dungeon.map] : [])))}
+          onFile={(f, link) => void onFiles([f], { skip: true, dungeon: link })}
+        />
+      )}
       {mode === "blank" && (
         <form
           onSubmit={(e) => {

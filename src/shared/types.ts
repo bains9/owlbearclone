@@ -71,6 +71,29 @@ export interface Scene {
    * own rectangle.
    */
   bounds?: [number, number, number, number];
+  /** The Dungeon map and level it came from (New scene › From Dungeon), so it can be updated from Dungeon. */
+  dungeon?: SceneDungeon;
+}
+
+/** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */
+export interface SceneDungeon {
+  /** The map's id in Dungeon's maps online. */
+  map: string;
+  /** The bringing-in it was part of: the scenes brought in together are updated together. */
+  batch: string;
+  /**
+   * Its level's name ("" for a map with one level). Levels are matched by name, so adding, moving
+   * or deleting levels in Dungeon doesn't put a scene on another floor.
+   */
+  level: string;
+  /** Its level's place in the map when it was last brought in (tells levels of the same name apart). */
+  index: number;
+  /** Every level's name then: an update tells a level that's new from one whose scene was deleted. */
+  levels: string[];
+  /** The picture Dungeon drew for it. Showing another (changed by hand), the scene isn't Dungeon's any more. */
+  asset: string;
+  /** Whether Dungeon's lighting was painted into the picture (an update does the same). */
+  lighting?: boolean;
 }
 
 /** A rectangle in world units, from (x0, y0) to (x1, y1). */

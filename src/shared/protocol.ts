@@ -12,6 +12,7 @@ import type {
   RoomInfo,
   RoomSettings,
   Scene,
+  SceneDungeon,
   SceneMapData,
   SceneSeason,
 } from "./types";
@@ -52,8 +53,10 @@ export interface ItemOps {
  * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
  * a mapData or mapRect of null removes it).
  */
-export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds">> & {
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds" | "dungeon">> & {
   id: string;
+  /** null: no longer linked to Dungeon. */
+  dungeon?: SceneDungeon | null;
   season?: SceneSeason | null;
   mapData?: SceneMapData | null;
   mapRect?: [number, number, number, number] | null;

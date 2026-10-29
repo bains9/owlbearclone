@@ -299,7 +299,7 @@ function chunkOps(ops: ItemOps, size: number): ItemOps[] {
  * The settings that say which map a scene shows: what fog covers or uncovers. (Not the
  * grid, so undoing Cover all doesn't also undo a later grid alignment.)
  */
-const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height"];
+const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height", "dungeon"];
 
 /** A scene with some settings changed. A scene we don't have is only added when it's new. */
 function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: boolean): Record<string, Scene> {
@@ -830,6 +830,9 @@ export class RoomClient {
         const assets = { ...s.assets };
         delete assets[msg.id];
         this.store.set({ assets });
+        // A picture deleted (here or in another tab: Update from Dungeon, say) is never put back by undo.
+        const names = (p: ScenePatch) => p.mapAssetId === msg.id || p.mapData?.assetId === msg.id;
+        this.forgetPictureSteps((e) => !!e.scene && (names(e.scene.before) || names(e.scene.after)));
         return;
       }
 
@@ -1143,6 +1146,10 @@ export class RoomClient {
     // undoing the change puts it back.
     if (set.mapAssetId !== undefined && set.mapAssetId !== current.mapAssetId && current.mapRect && !("mapRect" in set)) {
       set.mapRect = null;
+    }
+    // And the link to Dungeon, which belongs to the picture Dungeon drew (the server drops it too).
+    if (set.mapAssetId !== undefined && set.mapAssetId !== current.mapAssetId && current.dungeon && !("dungeon" in set)) {
+      set.dungeon = null;
     }
     // Only the settings this changes: undo puts those back and leaves the rest alone.
     // Covering or uncovering also records the map it was done on, so undoing it after
@@ -1529,6 +1536,37 @@ export class RoomClient {
 
   deleteAsset(id: string): void {
     this.submit({ t: "asset.delete", id });
+  }
+
+  /**
+   * Undo and redo steps that set these scenes' pictures (covering a scene in fog keeps the picture it
+   * was done on, say) forget them: Update from Dungeon gave the scenes new pictures and deleted the
+   * old, which undoing must not bring back. The rest of each step (the fog) still undoes.
+   */
+  forgetPictures(sceneIds: ReadonlySet<string>): void {
+    this.forgetPictureSteps((e) => e.sceneId !== null && sceneIds.has(e.sceneId));
+  }
+
+  /** The steps `picks` chooses forget their scene's picture settings; one left with nothing to do goes. */
+  private forgetPictureSteps(picks: (e: UndoEntry) => boolean): void {
+    const PICTURE = ["mapAssetId", "width", "height", "mapData", "mapRect", "dungeon", "bounds"] as const;
+    const strip = (p: ScenePatch): ScenePatch => {
+      const out = { ...p } as Record<string, unknown>;
+      for (const k of PICTURE) delete out[k];
+      return out as ScenePatch;
+    };
+    const none = (o: ItemOps) => !o.upsert?.length && !o.patch?.length && !o.delete?.length;
+    const mend = (list: UndoEntry[]) =>
+      list.flatMap((e) => {
+        if (!e.scene || !picks(e)) return [e];
+        const scene = { before: strip(e.scene.before), after: strip(e.scene.after) };
+        const kept = Object.keys(scene.before).length > 1 || Object.keys(scene.after).length > 1;
+        const next = { ...e, scene: kept ? scene : undefined };
+        return !kept && !e.steps && !e.units && none(e.redo) && none(e.undo) ? [] : [next];
+      });
+    this.undoStack = mend(this.undoStack);
+    this.redoStack = mend(this.redoStack);
+    this.refreshUndoFlags();
   }
 
   /** GM: sends everyone in this room to another of the GM's rooms; voice chat carries on. */

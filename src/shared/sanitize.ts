@@ -13,6 +13,7 @@ import type {
   MutableFields,
   RoomSettings,
   Scene,
+  SceneDungeon,
   SceneMapData,
   SceneSeason,
 } from "./types";
@@ -406,6 +407,28 @@ export function sanitizeMapRect(v: unknown): [number, number, number, number] | 
   return w > 0 && h > 0 ? [x, y, w, h] : undefined;
 }
 
+/** Where a scene came from in Dungeon, as sent: null to unlink it; undefined when unusable (the scene keeps what it had). */
+export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const levelName = (x: unknown) => (typeof x === "string" && x.length <= 60 ? x : null);
+  if (typeof r.map !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.map)) return undefined;
+  if (typeof r.batch !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.batch)) return undefined;
+  if (levelName(r.level) === null || !isId(r.asset)) return undefined;
+  if (typeof r.index !== "number" || !Number.isInteger(r.index) || r.index < 0 || r.index > 99) return undefined;
+  if (!Array.isArray(r.levels) || r.levels.length > 99 || !r.levels.every((n) => levelName(n) !== null)) return undefined;
+  return {
+    map: r.map,
+    batch: r.batch,
+    level: r.level as string,
+    index: r.index,
+    levels: r.levels as string[],
+    asset: r.asset,
+    ...(r.lighting === true ? { lighting: true } : {}),
+  };
+}
+
 /** A scene's bounds as sent: null to go back to the picture's rectangle; undefined when unusable. */
 export function sanitizeBounds(v: unknown): [number, number, number, number] | null | undefined {
   if (v === null) return null;
@@ -460,6 +483,11 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const bv = sanitizeBounds(r.bounds);
   const asked = bv === null ? undefined : (bv ?? existing?.bounds);
   const bounds = asked && fitBounds(asked, width, height);
+  // The link to Dungeon belongs to the picture Dungeon drew: a new picture ends it unless the change
+  // brings its own (Update from Dungeon), and it never names a picture the scene isn't showing.
+  const lv = sanitizeDungeonLink(r.dungeon);
+  const linked = lv === null ? undefined : (lv ?? (newPicture ? undefined : existing?.dungeon));
+  const dungeon = linked && linked.asset === mapAssetId ? linked : undefined;
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -476,6 +504,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(mapRect ? { mapRect } : {}),
     ...(wallTexture ? { wallTexture } : {}),
     ...(bounds ? { bounds } : {}),
+    ...(dungeon ? { dungeon } : {}),
   };
 }
 

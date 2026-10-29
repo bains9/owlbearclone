@@ -2274,6 +2274,59 @@ button:disabled {
 .asset-wrap {
   position: relative;
 }
+/* Four kinds of new scene: each as wide as its words, on one line; two rows of two on a phone. */
+.seg.full.new-scene-kinds .seg-btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .seg.full.new-scene-kinds {
+    flex-wrap: wrap;
+  }
+  .seg.full.new-scene-kinds .seg-btn {
+    flex: 1 1 40%;
+  }
+}
+.from-dungeon .field {
+  margin-top: 8px;
+}
+.dungeon-maps {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dungeon-map {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.dungeon-map:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.dungeon-map:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.dungeon-map-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .asset {
   width: 100%;
   display: flex;

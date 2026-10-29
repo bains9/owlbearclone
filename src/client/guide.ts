@@ -15,8 +15,27 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 27 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 28 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Maps straight from Dungeon, and updated from it (28 October 2026)",
+        "steps": [
+          "GM: open **Scenes**, click **New scene**, then **From Dungeon**.",
+          "Click one of your maps. Dungeon draws it and Tabletop brings it in: a scene for each level, named after the map and the level.",
+          "Changed the map in Dungeon since? Click **Update from Dungeon** (the circling arrows) on one of its scenes, then **Update**."
+        ],
+        "notes": [
+          "Every map you've saved in Dungeon is listed, newest first. Dungeon saves a map by itself a few seconds after each change, so you get it as you left it.",
+          "There's no file to export or upload, and nothing is saved twice: the map stays in Dungeon until you bring it in.",
+          "Dungeon draws it just as its Export does: the picture with its exact grid, and Dungeon's map data for exact seasons. **Detail** sets how many pixels each square gets (128 to begin with, remembered in this browser). A big map is drawn no more than 6144 pixels across, the most Tabletop keeps for a map, so it's never shrunk afterwards.",
+          "Tabletop has no lighting of its own: tick **Paint Dungeon's lighting into the picture** to keep the light and dark Dungeon shows.",
+          "**Update from Dungeon** gives the scenes that came in with that one their new pictures, in place: tokens, fog, drawings and the grid stay as they are, and the old pictures are deleted once no scene uses them, so updating takes no more room than before. Levels are matched by name. If the map has gained, lost or moved levels, the window shows what will happen first, and you tick which new levels to bring in.",
+          "A scene you've given a picture of your own (**Choose uploaded** or **Upload new**) isn't Dungeon's any more, and is left alone.",
+          "Dungeon signs itself in with your GM sign-in. If it says it can't, sign out of Tabletop and in again.",
+          "While Dungeon draws, this page pauses for a moment for each level; everyone else's carries on.",
+          "See **Maps from Dungeon** under **Adding maps**."
+        ]
+      },
       {
         "title": "Objects and tokens anywhere, not only on squares (27 October 2026)",
         "steps": [
@@ -1878,6 +1897,21 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Maps from Dungeon",
+        "steps": [
+          "Click the **Scenes** button in the top bar.",
+          "Click **New scene**, then **From Dungeon**. Your maps in Dungeon are listed, newest first.",
+          "Choose the **Detail**, and tick **Paint Dungeon's lighting into the picture** if you want Dungeon's light and dark kept.",
+          "Click a map. Dungeon draws it, and Tabletop makes a scene for each level."
+        ],
+        "notes": [
+          "A map is listed once Dungeon has saved it online, which it does by itself a few seconds after each change. There's no file to export, and nothing is saved twice.",
+          "To bring a map in again after changing it in Dungeon, click **Update from Dungeon** (the circling arrows) on one of its scenes in **Scenes**, then **Update**. The scenes that came in with it get their new pictures: tokens, fog, drawings and the grid stay put, and the old pictures are deleted once no scene uses them. Levels are matched by name; if they've changed, you see what will happen before anything does. Clicking the map in **From Dungeon** again makes new scenes instead, updated on their own.",
+          "Tabletop has no lighting or line of sight, so the walls, doors and lights Dungeon draws are only in the picture. Dungeon's map data does come with it, for exact seasons.",
+          "Your other maker's files still come in with **Upload a map**."
+        ]
+      },
+      {
         "title": "Put the grid size in the file name",
         "steps": [
           "Before you upload, rename the image so its name includes the number of squares across and down, like `Crypt 30x20.jpg` or `Crypt [22x30].png`, or the pixels per square, like `Cave 140ppi.png` or `Cave 70px.png`.",
@@ -2445,15 +2479,15 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Exact seasons for maps from Dungeon",
         "steps": [
-          "In Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**.",
-          "In Tabletop, bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
+          "In Tabletop, open **Scenes**, click **New scene**, then **From Dungeon**, and click the map.",
+          "Or, in Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**, and bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
         ],
         "notes": [
           "That's all. The map's data is inside the file, lined up with the picture by Dungeon itself, so there's no project file to add, no level to pick and nothing to check. The **Maps brought in** report says \"map data from Dungeon attached\".",
           "Seasons then know exactly where Dungeon put the ground, water, rooms, caves, paths and trees: snow melts on the open ground, never on a room's floor, and pines stay green in autumn.",
           "Man-made things (furniture, wells, statues and the like) stay as drawn in every season, as they do on Dungeondraft maps. So do pictures you imported into Dungeon, since Tabletop can't tell what they are.",
           "Exact seasons work on maps drawn in winter now; green maps follow in a later update. A green map's data is kept, and its seasons are guessed from the picture until then.",
-          "If you change the map in Dungeon, export it again and bring it in as a new scene: there's no project file to attach to a scene you already have. **Remove** in the season box, or under **Map** in the scene editor, takes the data off.",
+          "If you change the map in Dungeon, click **Update from Dungeon** on its scenes: they get the new pictures and data in place (see **Maps from Dungeon** under **Adding maps**). A file exported again comes in as a new scene, since there's no project file to attach to a scene you already have. **Remove** in the season box, or under **Map** in the scene editor, takes the data off.",
           "Only what seasons need from the map is uploaded, never the file's own data."
         ]
       },
@@ -2769,9 +2803,9 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Open **Scenes** in the top bar.",
           "Click **New scene**.",
-          "Choose **Upload a map** or **Uploaded maps**.",
+          "Choose **Upload a map**, **Uploaded maps** or **From Dungeon**.",
           "Leave **Start with the map covered in fog** ticked so players see nothing until you reveal it, or untick it to show the whole map.",
-          "Add the map. In **Upload a map**, click the box that says **Choose or drop maps** and pick your map file, or drop the file onto that box. In **Uploaded maps**, click the map."
+          "Add the map. In **Upload a map**, click the box that says **Choose or drop maps** and pick your map file, or drop the file onto that box. In **Uploaded maps** or **From Dungeon**, click the map."
         ],
         "notes": [
           "The scene is made as soon as you add the map, so set the tick box first. It starts ticked.",

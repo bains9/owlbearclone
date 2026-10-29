@@ -7,13 +7,16 @@
 import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS } from "../shared/sanitize";
-import type { Asset, FogItem, Item, Scene, SceneMapData, TokenItem } from "../shared/types";
+import type { ScenePatch } from "../shared/protocol";
+import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneMapData, TokenItem } from "../shared/types";
 import { importedUnits } from "../shared/units";
 import type { GridUnits } from "../shared/units";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
 import type { AttachReport, VttMeta } from "./dd/extract";
-import { gridSizeFor, readMapFiles } from "./mapImport";
+import { dungeonLevelNames, gridSizeFor, readMapFiles, vttName } from "./mapImport";
+import { randomId as newBatchId } from "../shared/ids";
 import type { MapFile } from "./mapImport";
+import type { Uploaded } from "./api";
 import { isOb2File, readOb2 } from "./ob2";
 import type { RoomClient } from "./room/client";
 
@@ -209,12 +212,14 @@ function vttRect(vtt: VttMeta): [number, number, number, number] {
 
 /**
  * Makes scenes from map files: images, Universal VTT files and Owlbear Rodeo
- * backups. `name` names the scene when there's just one plain map.
+ * backups. `name` names the scene when there's just one plain map. `dungeon`: the one file is
+ * a map from Dungeon (New scene › From Dungeon), and each scene remembers which map and level it
+ * is, for Update from Dungeon.
  */
 export async function importFiles(
   room: RoomClient,
   files: File[],
-  opts: { name: string; order: number; covered: boolean; onProgress?: (text: string) => void },
+  opts: { name: string; order: number; covered: boolean; onProgress?: (text: string) => void; dungeon?: { map: string; lighting: boolean; name?: string } },
 ): Promise<ImportResult> {
   const result: ImportResult = { scenes: [], gridFromFile: 0, notes: [], owlbear: false, attach: [] };
   let order = opts.order;
@@ -225,6 +230,11 @@ export async function importFiles(
   if (plain.length) {
     const { maps, errors } = await readMapFiles(plain);
     result.notes.push(...errors);
+    const fromDungeon = opts.dungeon && files.length === 1 ? opts.dungeon : null;
+    // Its levels' names, before the maps take the map's own name; the scenes brought in now, one batch.
+    const levels = fromDungeon && maps.length ? dungeonLevelNames(await files[0].text()) : [];
+    const batch = newBatchId(12);
+    if (fromDungeon?.name) withMapName(maps, files[0].name, fromDungeon.name);
     opts.onProgress?.("Uploading maps…");
     const done = await room.uploadMaps(maps);
     // A typed name only makes sense for a single map (with its project file, two files); several use their own names.
@@ -257,6 +267,10 @@ export async function importFiles(
       // The picture's place in its map, from the .dd2vtt, whether or not the data could be attached:
       // so a later attach (Edit scene › Map, or the project file dropped alone) needs no second file (2.1 step 5).
       if (d.map.dd && d.map.vtt) scene.mapRect = vttRect(d.map.vtt);
+      if (fromDungeon) {
+        const index = maps.indexOf(d.map);
+        scene.dungeon = { map: fromDungeon.map, batch, level: levels[index], index, levels, asset: d.asset.id, ...(fromDungeon.lighting ? { lighting: true } : {}) };
+      }
       room.createScene(scene);
       result.scenes.push(scene);
       if (fromFile) result.gridFromFile++;
@@ -350,6 +364,254 @@ export async function importFiles(
       // Not undoable: it's part of making the scene.
       if (items.length) room.change({ upsert: items }, false);
     }
+  }
+  return result;
+}
+
+/**
+ * Names a Dungeon map's levels after the map's own name ("Keep: Night: Cellar"), not the file's
+ * name made from it, which drops what file names can't hold and what reads like a grid size.
+ */
+export function withMapName(maps: MapFile[], fileName: string, name: string): void {
+  const stem = vttName(fileName);
+  for (const m of maps) {
+    if (m.name === stem) m.name = name;
+    else if (m.name.startsWith(`${stem}: `)) m.name = name + m.name.slice(stem.length);
+  }
+}
+
+/** Whether a scene is still Dungeon's: linked, and showing the picture Dungeon drew for it. */
+export function isDungeonScene(s: Scene): s is Scene & { dungeon: SceneDungeon } {
+  return !!s.dungeon && s.mapAssetId === s.dungeon.asset;
+}
+
+/** What Update from Dungeon will do with one bring-in's scenes, given the map's levels now. */
+export interface DungeonPlan {
+  /** Each scene, and the level (its place in the new file) whose picture it gets. */
+  matched: { scene: Scene & { dungeon: SceneDungeon }; level: number }[];
+  /**
+   * Scenes left as they are: their level isn't in the map any more, or they show a picture of the
+   * GM's own. guess: for one whose level has gone, the new level likeliest to be it renamed (the
+   * new one in its old place, or the only one), which the GM can give it instead (withPairs).
+   */
+  left: { scene: Scene; why: "gone" | "picture"; guess?: number }[];
+  /** Levels with no scene: new since (brought in unless the GM says not), or ones whose scene was deleted. */
+  unplaced: { level: number; name: string; isNew: boolean }[];
+  /** Whether it needs the GM's say: a level gone, moved or new in Dungeon, or a scene left alone. */
+  unusual: boolean;
+}
+
+/**
+ * Matches one bring-in's scenes to the map's levels now, by name: adding, moving or deleting levels
+ * in Dungeon never puts a scene on another floor. Two levels of the same name are told apart by
+ * where they were.
+ */
+export function planDungeonUpdate(batch: Scene[], levels: string[]): DungeonPlan {
+  const plan: DungeonPlan = { matched: [], left: [], unplaced: [], unusual: false };
+  const used = new Set<number>();
+  const known = new Set(batch.flatMap((s) => s.dungeon?.levels ?? []));
+  for (const scene of [...batch].sort((a, b) => (a.dungeon?.index ?? 0) - (b.dungeon?.index ?? 0))) {
+    if (!isDungeonScene(scene)) {
+      plan.left.push({ scene, why: "picture" });
+      continue;
+    }
+    const named = levels.flatMap((n, i) => (n === scene.dungeon.level && !used.has(i) ? [i] : []));
+    // A map that had one level (unnamed) and has gained others: its scene is the first level's.
+    if (!named.length && scene.dungeon.level === "" && levels.length && !used.has(0)) named.push(0);
+    const level = named.includes(scene.dungeon.index) ? scene.dungeon.index : named[0];
+    if (level === undefined) {
+      plan.left.push({ scene, why: "gone" });
+      continue;
+    }
+    used.add(level);
+    plan.matched.push({ scene, level });
+  }
+  levels.forEach((name, level) => {
+    if (!used.has(level)) plan.unplaced.push({ level, name, isNew: !known.has(name) });
+  });
+  const fresh = plan.unplaced.filter((u) => u.isNew);
+  const gone = plan.left.filter((l) => l.why === "gone");
+  for (const l of gone) {
+    const inPlace = fresh.find((u) => u.level === l.scene.dungeon?.index);
+    const guess = inPlace ?? (gone.length === 1 && fresh.length === 1 ? fresh[0] : undefined);
+    if (guess && !gone.some((g) => g !== l && g.guess === guess.level)) l.guess = guess.level;
+  }
+  // A level declined before, or whose scene was deleted here, is no change in Dungeon: no need to ask.
+  plan.unusual = plan.left.length > 0 || fresh.length > 0 || plan.matched.some((m) => m.level !== m.scene.dungeon.index);
+  return plan;
+}
+
+/** The plan with scenes whose level had gone given the levels the GM chose for them (a renamed level, say). */
+export function withPairs(plan: DungeonPlan, pairs: ReadonlyMap<string, number>): DungeonPlan {
+  const matched = [...plan.matched];
+  const left: DungeonPlan["left"] = [];
+  const taken = new Set(plan.matched.map((m) => m.level));
+  for (const l of plan.left) {
+    const level = pairs.get(l.scene.id);
+    if (level !== undefined && !taken.has(level) && isDungeonScene(l.scene)) {
+      taken.add(level);
+      matched.push({ scene: l.scene, level });
+    } else {
+      left.push(l);
+    }
+  }
+  return { ...plan, matched, left, unplaced: plan.unplaced.filter((u) => !taken.has(u.level)) };
+}
+
+/**
+ * The change Update from Dungeon makes to a scene for its level's new picture: the picture and
+ * Dungeon's map data, in place. The picture is fitted to the scene's squares, measured from the
+ * picture it had (whatever the grid has been set to since), so tokens, fog and drawings stay
+ * exactly where they are; the grid, name, fog setting, season and any extended area stay as they
+ * are, and so do the GM's choices on the map data (bare trees, what the picture shows, asset packs).
+ */
+export function updatePatch(
+  scene: Scene & { dungeon: SceneDungeon },
+  d: Uploaded & { map: MapFile },
+  attach: Pick<Attached, "mapData"> | null,
+  link: Pick<SceneDungeon, "index" | "levels" | "lighting">,
+): Omit<ScenePatch, "id"> {
+  const fresh = sceneFromMap(d.asset, scene.name, scene.order, scene.fogCover, { unit: scene.grid.unit, unitName: scene.grid.unitName }, d);
+  // World units a square of the map takes on this scene, and a pixel of the new picture.
+  const perSquare = scene.mapRect ? scene.width / scene.mapRect[2] : scene.grid.size;
+  const k = perSquare / fresh.grid.size;
+  const kept = scene.mapData ? { ...(scene.mapData.bare ? { bare: scene.mapData.bare } : {}), ...(scene.mapData.drawn ? { drawn: scene.mapData.drawn } : {}), ...(scene.mapData.packs ? { packs: scene.mapData.packs } : {}) } : {};
+  return {
+    mapAssetId: d.asset.id,
+    width: round2(d.asset.width * k),
+    height: round2(d.asset.height * k),
+    mapData: attach ? { ...attach.mapData, ...kept } : null,
+    mapRect: d.map.vtt ? vttRect(d.map.vtt) : null,
+    dungeon: {
+      ...scene.dungeon,
+      level: link.levels[link.index] ?? scene.dungeon.level,
+      index: link.index,
+      levels: link.levels,
+      asset: d.asset.id,
+      ...(link.lighting ? { lighting: true } : { lighting: undefined }),
+    },
+  };
+}
+
+/** The detail to ask Dungeon for: the pixels a square had in the scene's picture, so the new one is as sharp. */
+export function detailOf(scene: Scene, assets: Record<string, Asset>): number {
+  const asset = scene.mapAssetId ? assets[scene.mapAssetId] : undefined;
+  return Math.round(asset && scene.mapRect ? asset.width / scene.mapRect[2] : scene.grid.size);
+}
+
+/** Of these pictures and map data, the ones no scene uses any more. */
+export function unusedAssets(ids: Iterable<string | null | undefined>, scenes: Iterable<Scene>): string[] {
+  const used = new Set<string>();
+  for (const s of scenes) {
+    if (s.mapAssetId) used.add(s.mapAssetId);
+    if (s.mapData) used.add(s.mapData.assetId);
+  }
+  return [...new Set([...ids].filter((id): id is string => !!id && !used.has(id)))];
+}
+
+/** A Dungeon map drawn for an update: its levels as maps, their names, and anything unreadable. */
+export interface DungeonDrawing {
+  maps: MapFile[];
+  levels: string[];
+  errors: string[];
+}
+
+/** Reads the file Dungeon drew for an update; `name` is the map's own name, for new scenes. */
+export async function readDungeonFile(file: File, name?: string): Promise<DungeonDrawing> {
+  const { maps, errors } = await readMapFiles([file]);
+  const levels = maps.length ? dungeonLevelNames(await file.text()) : [];
+  if (name) withMapName(maps, file.name, name);
+  return { maps, levels, errors };
+}
+
+export interface UpdateResult {
+  updated: Scene[];
+  added: Scene[];
+  notes: string[];
+}
+
+/**
+ * Update from Dungeon, as planned (planDungeonUpdate): each matched scene gets its level's new
+ * picture in place (updatePatch); the levels in `bringIn` come in as new scenes of the same
+ * batch. The pictures and map data Dungeon drew for the updated scenes go once no scene uses them,
+ * so updating takes no more room than the map itself, and this tab's undo forgets them. A scene
+ * deleted meanwhile is skipped.
+ */
+export async function applyDungeonUpdate(
+  room: RoomClient,
+  plan: DungeonPlan,
+  drawing: DungeonDrawing,
+  opts: { lighting: boolean; covered: boolean; bringIn: ReadonlySet<number>; onProgress?: (text: string) => void },
+): Promise<UpdateResult> {
+  const result: UpdateResult = { updated: [], added: [], notes: [] };
+  const { maps, levels } = drawing;
+  const first = plan.matched[0]?.scene.dungeon ?? plan.left.find((l) => l.scene.dungeon)?.scene.dungeon;
+  if (!first) return result;
+  const wanted = new Set([...plan.matched.map((m) => m.level), ...[...opts.bringIn].filter((l) => l < maps.length)]);
+  opts.onProgress?.("Uploading the new pictures…");
+  const done = await room.uploadMaps(maps.filter((_, i) => wanted.has(i)));
+  const old: string[] = [];
+  // Everything uploaded now, so what no scene ends up using (its scene went meanwhile) goes too.
+  const fresh: string[] = done.map((d) => d.asset.id);
+  const updated = new Set<string>();
+  let order = Math.max(0, ...Object.values(room.state.scenes).map((s) => s.order + 1));
+  const settings = room.state.room?.settings;
+  const link = { levels, ...(opts.lighting ? { lighting: true } : {}) };
+  for (const d of done) {
+    const level = maps.indexOf(d.map);
+    let attach: Attached | null = null;
+    if (d.map.dd) {
+      try {
+        attach = await attachProjectFile(room, d, d.map.dd, opts.onProgress);
+        fresh.push(attach.mapData.assetId);
+      } catch (err) {
+        result.notes.push(`${d.map.name}: the map data from Dungeon couldn't be saved (${(err as Error).message}), so its seasons are guessed from the picture.`);
+      }
+    }
+    for (const m of plan.matched.filter((x) => x.level === level)) {
+      // Read again: it may have changed, or gone, while Dungeon drew.
+      const now = room.state.scenes[m.scene.id];
+      if (!now || !isDungeonScene(now)) {
+        if (now) result.notes.push(`${now.name} got a picture of your own meanwhile, so it was left as it is.`);
+        continue;
+      }
+      old.push(now.mapAssetId!);
+      // Its map data only if it's Dungeon's, for this picture: never anything the GM attached.
+      if (now.mapData?.from === "dungeon" && now.mapData.forAssetId === now.mapAssetId) old.push(now.mapData.assetId);
+      room.updateScene(now.id, updatePatch(now, d, attach, { ...link, index: level }));
+      updated.add(now.id);
+      result.updated.push(room.state.scenes[now.id] ?? now);
+    }
+    if (opts.bringIn.has(level)) {
+      const scene = sceneFromMap(d.asset, d.map.name, order++, opts.covered, importedUnits(d.map.scale, settings), d);
+      if (attach) scene.mapData = attach.mapData;
+      if (d.map.vtt) scene.mapRect = vttRect(d.map.vtt);
+      scene.dungeon = { map: first.map, batch: first.batch, level: levels[level], index: level, levels, asset: d.asset.id, ...(opts.lighting ? { lighting: true } : {}) };
+      room.createScene(scene);
+      result.added.push(scene);
+    }
+  }
+  const brought = new Set(done.map((d) => maps.indexOf(d.map)));
+  for (const m of plan.matched) if (!brought.has(m.level)) result.notes.push(`${m.scene.name}: its new picture couldn't be uploaded, so the scene stays as it was. Update again to try once more.`);
+  for (const level of opts.bringIn) if (level < maps.length && !brought.has(level)) result.notes.push(`${maps[level].name}: its picture couldn't be uploaded, so it didn't come in.`);
+  for (const l of plan.left) {
+    result.notes.push(
+      l.why === "gone"
+        ? `${l.scene.name}: Dungeon's map has no level called "${l.scene.dungeon?.level}" any more, so the scene stays as it was.`
+        : `${l.scene.name} shows a picture of your own, so it was left as it is.`,
+    );
+  }
+  // The old pictures and data, once nothing uses them: updating doesn't pile up copies. Undo here
+  // forgets them first, so it can't put a deleted picture back.
+  if (updated.size) room.forgetPictures(updated);
+  const gone = unusedAssets([...old, ...fresh], Object.values(room.state.scenes));
+  if (room.state.status === "open") {
+    for (const id of gone) {
+      touchedSidecars.delete(id);
+      room.deleteAsset(id);
+    }
+  } else if (gone.length) {
+    result.notes.push("Tabletop wasn't connected, so the old pictures were kept. Delete them from Uploaded maps if you like.");
   }
   return result;
 }

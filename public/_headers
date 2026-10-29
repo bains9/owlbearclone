@@ -5,7 +5,7 @@
   X-Frame-Options: DENY
   X-Robots-Tag: noindex, nofollow
   Permissions-Policy: camera=(), microphone=(self), geolocation=()
-  Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' wss://table.parhome.ca https://cloudflareinsights.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' wss://table.parhome.ca https://cloudflareinsights.com; font-src 'self'; frame-src 'self' https://dungeon.parhome.ca; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

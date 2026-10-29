@@ -494,7 +494,7 @@ function vttJson(text: string): Record<string, unknown> {
 }
 
 /** Dungeondraft 1.2 names an export "waterfall.vtt.dd2vtt": the ".vtt" is part of the extension, not the name. */
-const vttName = (fileName: string) => nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
+export const vttName = (fileName: string) => nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
 
 /** Reads a Universal VTT file (.dd2vtt, .df2vtt, .uvtt): its first level, for a file with several. */
 export function parseUniversalVtt(text: string, fileName: string): MapFile {
@@ -520,6 +520,19 @@ export function parseUniversalVttLevels(text: string, fileName: string): MapFile
     } catch (err) {
       throw new Error(`(level ${i + 1}, ${levelName}) ${(err as Error).message}`);
     }
+  });
+}
+
+/**
+ * A Dungeon file's levels' names, in order, from its map data: "Level 2" for one without a name,
+ * and "" for a map with only one level (Dungeon names levels only when there are several).
+ */
+export function dungeonLevelNames(text: string): string[] {
+  const data = vttJson(text);
+  const more = Array.isArray(data?.dungeon_levels) ? (data.dungeon_levels as unknown[]) : [];
+  return [data, ...more].slice(0, MAX_FILE_LEVELS).map((level, i) => {
+    const named = (level as { dungeon?: { levelName?: unknown } } | null)?.dungeon?.levelName;
+    return typeof named === "string" && named.trim() ? named.trim().slice(0, 60) : more.length ? `Level ${i + 1}` : "";
   });
 }
 

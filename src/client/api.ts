@@ -58,6 +58,8 @@ const LIMITS: Record<"map" | "token", { maxDim: number; maxBytes: number }> = {
   map: { maxDim: 6144, maxBytes: 12 * 1024 * 1024 },
   token: { maxDim: 1024, maxBytes: 1.5 * 1024 * 1024 },
 };
+/** The longest map picture kept as it is; a longer one is shrunk (prepareImage). */
+export const MAP_MAX_SIDE = LIMITS.map.maxDim;
 
 const PASSTHROUGH = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"];
 
