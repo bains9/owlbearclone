@@ -109,12 +109,12 @@ describe("recent objects", () => {
 });
 
 describe("the guide", () => {
-  it("has Dungeon's objects third in What's new, with the count the picker shows", async () => {
+  it("has Dungeon's objects fourth in What's new, with the count the picker shows", async () => {
     const { GUIDE } = await import("../src/client/guide");
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[2].title).toBe("Over 2,200 objects from Dungeon in the Build tool (27 October 2026)");
-    expect(news.parts[3].title).toBe("Maps with levels from Dungeon (26 October 2026)");
-    const entry = [...news.parts[2].steps, ...news.parts[2].notes].join("\n");
+    expect(news.parts[3].title).toBe("Over 2,200 objects from Dungeon in the Build tool (27 October 2026)");
+    expect(news.parts[4].title).toBe("Maps with levels from Dungeon (26 October 2026)");
+    const entry = [...news.parts[3].steps, ...news.parts[3].notes].join("\n");
     expect(entry).toContain(`**Search ${OBJECT_COUNT} objects**`);
     expect(entry).toContain(`all ${OBJECT_COUNT}`);
     expect(entry).toContain(`${DUNGEON_PROPS.length.toLocaleString("en")} from Dungeon`);

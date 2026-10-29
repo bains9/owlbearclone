@@ -143,7 +143,13 @@ const TOKEN_FIELDS: Record<string, Validator> = {
   locked: bool,
   rings,
   layer: (v) => (v === "prop" || v === "character" ? v : undefined),
+  character: (v) => (v === null ? null : isSheetId(v) ? v : undefined),
 };
+
+/** A character sheet's id, as a token keeps it (shared/characters.ts). */
+export function isSheetId(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{20,80}$/.test(v);
+}
 
 const DRAWING_FIELDS: Record<string, Validator> = {
   z: (v) => num(v, -1e9, 1e9),
@@ -240,6 +246,7 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       locked: bool(r.locked) ?? false,
       rings: rings(r.rings) ?? [],
       ...(r.layer === "prop" ? { layer: "prop" as const } : {}),
+      ...(isSheetId(r.character) ? { character: r.character } : {}),
     };
   }
   if (r.kind === "drawing") {

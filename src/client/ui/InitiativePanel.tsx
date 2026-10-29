@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { ChevronLeft, ChevronRight, Dices, Plus, Trash, X } from "lucide-preact";
+import { initiativeRoll } from "../../shared/characters";
 import { secureRng } from "../../shared/dice";
 import { randomId } from "../../shared/ids";
 import type { TokenItem } from "../../shared/types";
@@ -136,9 +137,10 @@ export function InitiativePanel() {
           class="btn btn-sm full"
           onClick={() => {
             for (const t of selectedTokens) {
+              // A character rolls their d20 with their sheet's initiative bonus; anyone else starts at 0.
               room.initiativeOp({
                 op: "add",
-                entry: { id: randomId(10), name: t.label || "Token", value: 0, color: t.color, tokenId: t.id },
+                entry: { id: randomId(10), name: t.label || "Token", value: initiativeRoll(room.characterOf(t)), color: t.color, tokenId: t.id },
               });
             }
           }}

@@ -9,6 +9,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
+import { MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, pictureKey, readParty } from "./characters";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -199,6 +200,65 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     return env.VOICE.getByName("table").fetch(new Request(request, { headers }));
   }
 
+  // The party's character sheets (characters.ts): where the GM's script is, and characters' own pictures.
+  if (pathname === "/api/characters/source") {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") return json({ source: await directory.charactersSource() });
+    if (method === "PUT") {
+      const body = await readJson(request);
+      const source = typeof body?.source === "string" ? body.source.trim() : "";
+      if (source && !SCRIPT_URL.test(source)) return fail(400, "That isn't an Apps Script web app's address: it starts https://script.google.com/macros/s/ and ends /exec.");
+      await forgetParty({ directory }, caches.default);
+      await directory.setCharactersSource(source || null);
+      // Read at once, so the GM sees whether it works.
+      return json({ source: source || null, party: await readParty({ directory, files: env.FILES }, caches.default) });
+    }
+    return fail(405, "Method not allowed.");
+  }
+  const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
+  if (pictureMatch) {
+    const key = pictureKey(pictureMatch[1]);
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") {
+      // For anyone at one of the GM's tables: the room's id is the pass, as for voice chat.
+      const roomId = url.searchParams.get("room") ?? "";
+      const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+      if (!known) return fail(404, "Not found.");
+      const obj = await env.FILES.get(key);
+      if (!obj) return fail(404, "No picture.");
+      return new Response(obj.body, {
+        headers: {
+          "Content-Type": obj.httpMetadata?.contentType ?? "application/octet-stream",
+          "Cache-Control": "private, max-age=60",
+          ETag: obj.httpEtag,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+          "Strict-Transport-Security": HSTS,
+        },
+      });
+    }
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    if (method === "PUT") {
+      const declared = Number(request.headers.get("Content-Length") ?? "0");
+      if (declared > MAX_PICTURE_BYTES) return fail(413, `Pictures must be under ${MAX_PICTURE_BYTES / 1024 / 1024} MB.`);
+      const body = await request.arrayBuffer();
+      if (body.byteLength === 0) return fail(400, "The picture was empty.");
+      if (body.byteLength > MAX_PICTURE_BYTES) return fail(413, `Pictures must be under ${MAX_PICTURE_BYTES / 1024 / 1024} MB.`);
+      const type = uploadType("token", new Uint8Array(body, 0, Math.min(64, body.byteLength)));
+      if ("refusal" in type) return fail(415, type.refusal);
+      await env.FILES.put(key, body, { httpMetadata: { contentType: type.mime } });
+      await forgetParty({ directory }, caches.default);
+      return json({ ok: true });
+    }
+    if (method === "DELETE") {
+      await env.FILES.delete(key);
+      await forgetParty({ directory }, caches.default);
+      return json({ ok: true });
+    }
+    return fail(405, "Method not allowed.");
+  }
+
   // Anything that isn't shaped like one of our room ids is turned away here,
   // before a Durable Object is ever involved.
   const roomMatch = pathname.match(new RegExp(`^/api/rooms/(${ROOM_ID})(/[a-z]+)?$`));
@@ -234,6 +294,13 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       headers.delete("X-Tabletop-Display");
       if (key !== null) headers.set("X-Tabletop-Display", "1");
       return stub.fetch(new Request(request, { headers }));
+    }
+
+    // The party, read from their character sheets, for anyone at this table (characters.ts).
+    if (sub === "/characters" && method === "GET") {
+      const directory = env.DIRECTORY.getByName("main");
+      if (!(await directory.listRooms()).some((r) => r.id === roomId)) return fail(404, "Room not found.");
+      return json(await readParty({ directory, files: env.FILES }, caches.default), 200, { "Cache-Control": "no-store" });
     }
 
     if (sub === "/display" && method === "GET") {

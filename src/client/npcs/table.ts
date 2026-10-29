@@ -41,3 +41,19 @@ export const NPC_CLASSES: readonly NpcClass[] = [
   { id: "death-knight", name: "Death Knight", group: "NPC classes", icon: "lorc_dread-skull", color: "#9b2335" },
   { id: "bog-witch", name: "Bog Witch", group: "NPC classes", icon: "lorc_cauldron", color: "#5f8f4a" },
 ];
+
+/** A player character's full-body figure (an icon), by class id or class/subclass. */
+export const PC_FIGURES: Readonly<Record<string, string>> = {
+  "fighter": "cathelineau_swordman",
+  "crusader": "cathelineau_swordwoman",
+  "samurai": "darkzaitzev_running-ninja",
+  "ranger": "lorc_bowman",
+  "cleric": "delapouite_sun-priest",
+  "war-cleric": "lorc_embrassed-energy",
+  "nature-cleric": "delapouite_sun-priest",
+  "rogue": "darkzaitzev_hooded-assassin",
+  "rogue/swashbuckler": "delapouite_fencer",
+  "monk": "delapouite_high-kick",
+  "mage": "lorc_fire-silhouette",
+  "shaman": "lorc_meditation",
+};

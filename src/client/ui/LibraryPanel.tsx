@@ -8,6 +8,7 @@ import { touchedSidecars } from "../importScenes";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
 import { MonstersSection } from "./MonstersSection";
 import { NpcsSection } from "./NpcsSection";
+import { PartySection } from "./PartySection";
 
 export function LibraryPanel() {
   const room = useRoom();
@@ -49,6 +50,8 @@ export function LibraryPanel() {
 
   return (
     <div class="panel-body">
+      {/* The party first: their own tokens, for the GM and players alike. */}
+      <PartySection />
       <h3>Quick token</h3>
       <div class="row">
         <input

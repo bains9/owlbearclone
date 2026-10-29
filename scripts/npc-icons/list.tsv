@@ -30,3 +30,15 @@ class	shaman	Shaman	delapouite_totem	#b07cdb		Classes
 class	necromancer	Necromancer	lorc_evil-book	#7a5ba8		NPC classes
 class	death-knight	Death Knight	lorc_dread-skull	#9b2335		NPC classes
 class	bog-witch	Bog Witch	lorc_cauldron	#5f8f4a		NPC classes
+figure	fighter	Swordsman	cathelineau_swordman	-		Figures
+figure	crusader	Swordwoman	cathelineau_swordwoman	-		Figures
+figure	samurai	Running ninja	darkzaitzev_running-ninja	-		Figures
+figure	ranger	Bowman	lorc_bowman	-		Figures
+figure	cleric	Sun priest	delapouite_sun-priest	-		Figures
+figure	war-cleric	Embraced energy	lorc_embrassed-energy	-		Figures
+figure	nature-cleric	Sun priest	delapouite_sun-priest	-		Figures
+figure	rogue	Hooded assassin	darkzaitzev_hooded-assassin	-		Figures
+figure	rogue/swashbuckler	Fencer	delapouite_fencer	-		Figures
+figure	monk	High kick	delapouite_high-kick	-		Figures
+figure	mage	Fire silhouette	lorc_fire-silhouette	-		Figures
+figure	shaman	Meditation	lorc_meditation	-		Figures

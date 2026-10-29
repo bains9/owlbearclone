@@ -73,9 +73,9 @@ describe("the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
   const text = (p: { steps: string[]; notes: string[] }) => [...p.steps, ...p.notes].join("\n");
 
-  it("has maps with levels fourth in What's new, saying how they come in", () => {
-    expect(news.parts[3].title).toBe("Maps with levels from Dungeon (26 October 2026)");
-    const entry = text(news.parts[3]);
+  it("has maps with levels fifth in What's new, saying how they come in", () => {
+    expect(news.parts[4].title).toBe("Maps with levels from Dungeon (26 October 2026)");
+    const entry = text(news.parts[4]);
     for (const what of ["a scene for each level", "in order", "Old Keep: Cellar", "**New scene**"]) expect(entry).toContain(what);
   });
 });

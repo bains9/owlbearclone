@@ -716,6 +716,160 @@ button:disabled {
   background: var(--panel-3);
 }
 
+/* The party at the top of Tokens & images (PartySection.tsx). */
+.party {
+  margin-bottom: 12px;
+}
+.party-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.party-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.party-place {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.party-place:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.party-preview {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  object-fit: contain;
+}
+.party-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.party-name {
+  font-weight: 600;
+}
+.party-text .small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-gm {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A character token's selection bar with their card over it (CharacterCard.tsx). The stack
+   stands where the bar would and the bar inside it is in the flow, so the bar's sideways
+   scrolling on narrow screens can't clip the card away. */
+.selbar-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 11;
+  max-width: min(760px, calc(100% - 220px));
+}
+.selbar-stack > .selbar {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  max-width: none;
+}
+.character-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 24px));
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: rgba(26, 29, 36, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+.character-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.character-name {
+  font-weight: 700;
+}
+.character-hp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.character-hp-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.character-hp-bar > div {
+  height: 100%;
+}
+.character-hp-bar .ok {
+  background: #4caf50;
+}
+.character-hp-bar .low {
+  background: #e0a030;
+}
+.character-hp-bar .bad {
+  background: #d9534f;
+}
+.character-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+}
+.character-attacks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.character-attacks li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.character-weapon {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .selbar {
   position: absolute;
   left: 50%;
@@ -2554,12 +2708,20 @@ kbd {
     top: auto;
     bottom: 12px;
   }
-  .selbar {
+  .selbar,
+  .selbar-stack {
     left: 60px;
     right: 8px;
     transform: none;
     max-width: none;
     bottom: 8px;
+  }
+  /* The bar starts right of the toolbar, so the card lines up with its right end to stay on screen. */
+  .selbar-stack > .character-card {
+    left: auto;
+    right: 0;
+    transform: none;
+    width: min(340px, calc(100vw - 16px));
   }
   .selbar-label {
     flex: 1;

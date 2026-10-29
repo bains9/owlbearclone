@@ -145,6 +145,8 @@ interface TokenNode {
   selected: boolean;
   cell: number;
   dirty: boolean;
+  /** The HP its character sheet gave when it was drawn ("34/49"), so a new reading redraws it. */
+  hp?: string;
 }
 
 interface DrawingNode {
@@ -1029,7 +1031,7 @@ export class Board implements BoardApi {
       }
       if (this.dragging.has(t.id)) continue;
       const selected = sel.has(t.id);
-      if (force || n.dirty || n.item !== t || n.selected !== selected || n.cell !== cell) {
+      if (force || n.dirty || n.item !== t || n.selected !== selected || n.cell !== cell || (n.hp ?? "") !== this.hpOf(t)) {
         this.buildToken(n, t, selected, cell, gmView);
         this.remoteDrags.delete(t.id);
       }
@@ -1088,6 +1090,12 @@ export class Board implements BoardApi {
       this.fogDirty = true;
       this.fogLayer.batchDraw();
     }
+  }
+
+  /** A token's HP as its character sheet last gave it ("34/49"), or "" (no sheet, no HP read, or a compass). */
+  private hpOf(t: TokenItem): string {
+    const c = t.character && !isCompass(t) ? this.room.characterOf(t) : null;
+    return c && c.hp !== null && c.maxHp ? `${c.hp}/${c.maxHp}` : "";
   }
 
   private buildToken(n: TokenNode, t: TokenItem, selected: boolean, cell: number, gmView: boolean): void {
@@ -1189,9 +1197,23 @@ export class Board implements BoardApi {
         }),
       );
     }
+    // A character's HP, from their sheet: a bar under the token, green, then amber, then red.
+    let below = r + gap * t.rings.length;
+    const hp = this.hpOf(t);
+    if (hp) {
+      const [now, max] = hp.split("/").map(Number);
+      const share = Math.max(0, Math.min(1, now / max));
+      const w = Math.max(18, 2 * r * 0.9);
+      const h = Math.max(4, cell * 0.08);
+      const y = below + gap;
+      g.add(new Konva.Rect({ x: -w / 2, y, width: w, height: h, fill: "rgba(15,17,21,0.85)", cornerRadius: h / 2 }));
+      if (share > 0) g.add(new Konva.Rect({ x: -w / 2, y, width: w * share, height: h, fill: share > 0.5 ? "#4caf50" : share > 0.25 ? "#e0a030" : "#d9534f", cornerRadius: h / 2 }));
+      below = y + h;
+    }
+    n.hp = hp;
     if (t.label && !compass) {
       const fontSize = Math.max(10, Math.min(cell * 0.22, 32));
-      const label = new Konva.Label({ y: r + gap * t.rings.length + fontSize * 0.3 });
+      const label = new Konva.Label({ y: below + fontSize * 0.3 });
       label.add(new Konva.Tag({ fill: "rgba(15,17,21,0.8)", cornerRadius: fontSize * 0.35 }));
       label.add(new Konva.Text({ text: t.label, fontSize, fontFamily: FONT, fill: "#fff", padding: fontSize * 0.28 }));
       label.x(-label.width() / 2);

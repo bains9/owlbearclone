@@ -61,7 +61,11 @@ describe("the races and classes", () => {
     expect(NPC_RACES).toHaveLength(17);
     expect(NPC_CLASSES).toHaveLength(14);
     expect(NPC_RACES.map((r) => ["race", r.id, r.name, r.icon, r.tint, r.size, r.group])).toEqual(rows.slice(1, 18));
-    expect(NPC_CLASSES.map((c) => ["class", c.id, c.name, c.icon, c.color, "", c.group])).toEqual(rows.slice(18));
+    expect(NPC_CLASSES.map((c) => ["class", c.id, c.name, c.icon, c.color, "", c.group])).toEqual(rows.slice(18, 32));
+    // Then the player characters' figures, by class (or class/subclass).
+    const figures = rows.slice(32);
+    expect(figures.every((r) => r[0] === "figure" && r[4] === "-" && r[5] === "" && r[6] === "Figures")).toBe(true);
+    expect(Object.entries(table.PC_FIGURES)).toEqual(figures.map((r) => [r[1], r[3]]));
     // The one table, not a copy kept by hand.
     expect(NPC_RACES).toBe(table.NPC_RACES);
     expect(NPC_CLASSES).toBe(table.NPC_CLASSES);
@@ -176,10 +180,10 @@ describe("the list's pickers", () => {
 });
 
 describe("the icons (generated data)", () => {
-  it("has every head and emblem the races and classes use, and no other", () => {
-    const used = new Set([...NPC_RACES.map((r) => r.icon), ...NPC_CLASSES.map((c) => c.icon)]);
+  it("has every head, emblem and figure the races, classes and characters use, and no other", () => {
+    const used = new Set([...NPC_RACES.map((r) => r.icon), ...NPC_CLASSES.map((c) => c.icon), ...Object.values(table.PC_FIGURES)]);
     expect(Object.keys(NPC_ICONS).sort()).toEqual([...used].sort());
-    expect(Object.keys(NPC_ICONS)).toHaveLength(27);
+    expect(Object.keys(NPC_ICONS)).toHaveLength(38);
     for (const [id, icon] of Object.entries(NPC_ICONS)) expect(icon.source, id).toBe(id.replace("_", "/"));
   });
 
@@ -642,12 +646,12 @@ describe("the guide", () => {
     return [...p.steps, ...p.notes].join("\n");
   };
 
-  it("has the NPCs sixteenth in What's new, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
+  it("has the NPCs seventeenth in What's new, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages and the exact seasons, dated 4 October, and points to the how-to", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[13].title).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news.parts[14].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news.parts[15].title).toBe("NPC tokens by race and class (4 October 2026, later)");
-    const entry = text(news.parts[15].title);
+    expect(news.parts[14].title).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news.parts[15].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news.parts[16].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    const entry = text(news.parts[16].title);
     expect(entry).toContain("**NPCs** tab");
     expect(entry).toContain("campaign handbook");
     expect(entry).toContain("See **NPC tokens by race and class**.");

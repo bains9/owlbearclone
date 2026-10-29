@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { CharacterSheetsSettings } from "./CharacterSheetsSettings";
 import { Copy, Download, Trash, Upload } from "lucide-preact";
 import { isMetric, switchUnits } from "../../shared/units";
 import { api, roomUrl } from "../api";
@@ -117,6 +118,8 @@ export function SettingsPanel() {
         Send everyone in this room to another of your rooms. Their pages switch to it, and voice chat carries on.
       </p>
       <SendEveryone />
+
+      <CharacterSheetsSettings />
 
       <h3>Backup</h3>
       <p class="small muted">

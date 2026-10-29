@@ -1,4 +1,5 @@
 import { useRef } from "preact/hooks";
+import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
 import {
   Armchair,
@@ -16,6 +17,7 @@ import {
   Swords,
   Trash,
 } from "lucide-preact";
+import { initiativeRoll } from "../../shared/characters";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
@@ -147,6 +149,8 @@ function CompassBar(props: { t: TokenItem; gm: boolean; common: ComponentChildre
 }
 
 export function SelectionBar() {
+  // A character token's card follows their sheet as it's read again.
+  useRoomState((s) => s.party);
   const room = useRoom();
   const selection = useRoomState((s) => s.selection);
   const items = useRoomState((s) => s.items);
@@ -188,7 +192,8 @@ export function SelectionBar() {
     const t = tokens[0];
     const can = room.canMoveItem(t);
     const patch = (set: Partial<TokenItem>) => room.change({ patch: [{ id: t.id, set }] });
-    return (
+    const character = room.characterOf(t);
+    const bar = (
       <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
         <CommitInput
           key={t.id}
@@ -271,7 +276,7 @@ export function SelectionBar() {
             }
             room.initiativeOp({
               op: "add",
-              entry: { id: randomId(10), name: t.label || "Token", value: 0, color: t.color, tokenId: t.id },
+              entry: { id: randomId(10), name: t.label || "Token", value: initiativeRoll(character), color: t.color, tokenId: t.id },
             });
             room.setPanel("initiative");
           }}
@@ -284,6 +289,13 @@ export function SelectionBar() {
           </button>
         )}
         {common}
+      </div>
+    );
+    if (!character) return bar;
+    return (
+      <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
+        <CharacterCard c={character} />
+        {bar}
       </div>
     );
   }

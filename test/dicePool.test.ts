@@ -57,10 +57,10 @@ describe("the guide", () => {
   const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Roll dice from the dice tray")!;
   const text = (p: { steps: string[]; notes: string[] }) => [...p.steps, ...p.notes].join("\n");
 
-  it("has rolling several dice tenth in What's new, under the Build tool's library, maps from Dungeon, Dungeon's sign-in, extending maps and voice chat", () => {
-    expect(news.parts[9].title).toBe("Roll several dice at once (25 October 2026)");
+  it("has rolling several dice eleventh in What's new, under the Build tool's library, maps from Dungeon, Dungeon's sign-in, extending maps and voice chat", () => {
+    expect(news.parts[10].title).toBe("Roll several dice at once (25 October 2026)");
     expect(news.intro).toContain("The latest updates came out on 28 October 2026.");
-    const entry = text(news.parts[9]);
+    const entry = text(news.parts[10]);
     for (const what of ["**Roll**", "**−**", "**+**", "**×2**", "critical hit", "**d20**, then **Roll**", "See **Roll dice from the dice tray**"]) expect(entry).toContain(what);
   });
 

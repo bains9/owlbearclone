@@ -18,6 +18,20 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 28 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "The party's own tokens, cards and rolls, from their character sheets (28 October 2026)",
+        "steps": [
+          "Open **Tokens & images**: the party is at the top, each character in their own token, a full-body figure of their class in action. Click one to place them.",
+          "Click a character's token on the map: their card shows their HP, AC, initiative and spell points as their sheet has them now, and each attack as a roll to hit and a roll for damage."
+        ],
+        "notes": [
+          "The party comes from the group's character sheets in Google Sheets, read every minute while the room is open. Change a sheet and Tabletop follows; nothing in the sheets is changed from here.",
+          "A character's token has an HP bar under it, green, then amber, then red.",
+          "**Add selected token** in the initiative list rolls a d20 with the character's initiative bonus from their sheet.",
+          "GM: set it up once in **Room settings** › **Character sheets**. You can give a character a picture of your own instead of their figure, for every room.",
+          "See **Character sheets**."
+        ]
+      },
+      {
         "title": "Maps straight from Dungeon, and updated from it (28 October 2026)",
         "steps": [
           "GM: open **Scenes**, click **New scene**, then **From Dungeon**.",
@@ -823,6 +837,75 @@ export const GUIDE: GuideSection[] = [
           "The two buttons are the curved arrows at the bottom of the toolbar on the left.",
           "Undo only takes back your own changes on the scene you're looking at. The buttons are greyed out when there's nothing of yours to undo or redo there.",
           "Undo remembers up to 200 of your changes, and only in the browser tab where you made them. If you reload the page or close the tab, you can't undo them any more."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "character-sheets",
+    "title": "Character sheets",
+    "audience": "everyone",
+    "intro": "The party's characters come from the group's character sheets in Google Sheets: their tokens, their cards, the HP bars under their tokens, their attack rolls and their initiative. Tabletop reads the sheets every minute while a room is open and never changes them.",
+    "parts": [
+      {
+        "title": "Place your character",
+        "steps": [
+          "Click the **Tokens & images** button in the top bar.",
+          "The **Party** is at the top. Click your character to put them in the middle of your view."
+        ],
+        "notes": [
+          "Each character's token is a full-body figure of their class in action (an archer for a ranger, a fencer for a swashbuckler), in their race's colouring, with their classes' emblems at their feet. A character with a picture the GM chose shows that instead.",
+          "The token is named after them and stands for their sheet: its card, HP bar and rolls come from there.",
+          "Players can place characters when the GM lets players add tokens (**Room settings**)."
+        ]
+      },
+      {
+        "title": "A character's card",
+        "steps": [
+          "Click a character's token on the map.",
+          "Their card shows above the bar at the bottom: HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
+          "Click an attack's first button to roll to hit (a d20 with the sheet's to-hit bonus), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
+          "Click the arrow at the top right to open the character's sheet."
+        ],
+        "notes": [
+          "Click **Initiative** on the card to roll it in the chat.",
+          "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
+        ]
+      },
+      {
+        "title": "Initiative from the sheet",
+        "steps": [
+          "Select the characters' tokens.",
+          "Open **Initiative** and click **Add selected token** (or **Add 2 selected tokens**, and so on)."
+        ],
+        "notes": [
+          "Each character is added with a d20 rolled and their initiative bonus from their sheet added. Other tokens are added at 0, as before.",
+          "The **Add to initiative** button on a character's bar at the bottom does the same."
+        ]
+      },
+      {
+        "title": "Set up the character sheets (GM)",
+        "steps": [
+          "In Google Drive, put the party's character sheets in one folder. Moving a sheet keeps its links working.",
+          "At script.google.com, make a new project and paste in the script from Tabletop's code (scripts/character-sheets.gs). In **Project Settings**, add a script property called FOLDER_ID with the folder's id (the last part of the folder's address).",
+          "Deploy it as a web app that runs as you and that anyone can use, and allow it when Google asks (it calls it unverified because it's your own).",
+          "In Tabletop, open **Room settings**, paste the web app's address under **Character sheets**, and click **Save**. Tabletop reads the sheets at once and says who it found."
+        ],
+        "notes": [
+          "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
+          "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
+          "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
+        ]
+      },
+      {
+        "title": "A character's own picture (GM)",
+        "steps": [
+          "Open **Tokens & images**.",
+          "Beside a character in the **Party**, click the picture button and choose an image (a full-body picture with a see-through background looks best).",
+          "To go back to their figure, click the arrow below it."
+        ],
+        "notes": [
+          "The picture is used in every room, for tokens placed from then on. A token already on the map keeps its picture."
         ]
       }
     ]

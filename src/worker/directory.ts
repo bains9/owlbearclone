@@ -66,6 +66,16 @@ export class Directory extends DurableObject<Env> {
     return true;
   }
 
+  /** Where the party's character sheets are read from: the GM's Apps Script web app (worker/characters.ts), or null. */
+  charactersSource(): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'characters_source'`).toArray()[0]?.value ?? null;
+  }
+
+  setCharactersSource(source: string | null): void {
+    this.sql.exec(`DELETE FROM secrets WHERE name = 'characters_source'`);
+    if (source) this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('characters_source', ?)`, source);
+  }
+
   listRooms(): RoomSummary[] {
     return this.sql
       .exec<{ id: string; name: string; created_at: number; last_used: number }>(

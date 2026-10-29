@@ -188,6 +188,11 @@ export interface TokenItem extends ItemBase {
    * under 4) isn't sent compasses: it would take one for a plain token.
    */
   art?: TokenArt;
+  /**
+   * The character sheet it stands for (its Google Sheets id; shared/characters.ts): its card, HP
+   * bar and rolls come from there. Missing or null on any other token.
+   */
+  character?: string | null;
 }
 
 export type TokenLayer = "character" | "prop";
@@ -290,6 +295,7 @@ export interface MutableFields {
   locked: boolean;
   rings: string[];
   layer: TokenLayer;
+  character: string | null;
   shape: DrawShape | FogShape;
   points: number[];
   width: number;

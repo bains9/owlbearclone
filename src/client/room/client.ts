@@ -2,6 +2,7 @@
 // over a WebSocket, applies the user's own changes immediately (optimistically),
 // reconciles them with what the server confirms, and keeps an undo history.
 
+import type { Character, CharactersReply } from "../../shared/characters";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -140,6 +141,9 @@ export interface AttachDDRequest {
   mode?: "attach" | "check";
 }
 
+/** How often the party's character sheets are read again while the room is open. */
+const PARTY_MS = 60_000;
+
 export interface RoomState {
   status: Status;
   me: Player | null;
@@ -203,6 +207,8 @@ export interface RoomState {
   zoom: number;
   toasts: Toast[];
   uploading: number;
+  /** The party from their character sheets (refreshParty), or null before the first reading. */
+  party: CharactersReply | null;
 }
 
 /** The buttons of Build › Select's bars. */
@@ -482,6 +488,7 @@ export class RoomClient {
       zoom: 1,
       toasts: [],
       uploading: 0,
+      party: null,
     });
   }
 
@@ -632,6 +639,7 @@ export class RoomClient {
 
   dispose(): void {
     this.disposed = true;
+    if (this.partyTimer) clearInterval(this.partyTimer);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);
     document.removeEventListener("visibilitychange", this.onVisibility);
@@ -741,6 +749,7 @@ export class RoomClient {
     switch (msg.t) {
       case "hello": {
         this.attempts = 0;
+        this.startParty();
         this.helloTimeouts = 0;
         const scenes = toMap(msg.scenes);
         const items = toMap(msg.items);
@@ -1286,10 +1295,50 @@ export class RoomClient {
   }
 
   /**
+   * The party from their character sheets (worker/characters.ts): read when the room opens and
+   * every minute after while the page is in view, for tokens' cards, HP bars and rolls. A reading
+   * that fails keeps the last one.
+   */
+  async refreshParty(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const res = await fetch(`/api/rooms/${this.roomId}/characters`, { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return;
+      const party = (await res.json()) as CharactersReply;
+      if (this.disposed || !Array.isArray(party?.characters)) return;
+      // The sheets couldn't be read and the Worker had no last reading to give: keep this page's.
+      const last = this.state.party;
+      if (party.error && !party.characters.length && last?.configured && last.characters.length) {
+        this.store.set({ party: { ...last, error: party.error } });
+        return;
+      }
+      this.store.set({ party });
+    } catch {
+      // Offline: the next reading tries again.
+    }
+  }
+
+  private partyTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startParty(): void {
+    if (this.partyTimer || typeof window === "undefined") return;
+    void this.refreshParty();
+    this.partyTimer = setInterval(() => {
+      if (document.visibilityState === "visible") void this.refreshParty();
+    }, PARTY_MS);
+  }
+
+  /** The character a token stands for, as their sheet was last read; null for any other token. */
+  characterOf(t: Pick<TokenItem, "character">): Character | null {
+    const id = t.character;
+    return id ? (this.state.party?.characters.find((c) => c.id === id) ?? null) : null;
+  }
+
+  /**
    * A new token, centred on `at` (snapped to the grid when the scene snaps, unless `free`:
    * Alt held as it's dropped) or near the middle of the view, clear of other tokens.
    */
-  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point, free = false): TokenItem | null {
+  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden" | "character">>, at?: Point, free = false): TokenItem | null {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !s.room) return null;
@@ -1314,6 +1363,7 @@ export class RoomClient {
       assetId: opts.assetId ?? null,
       color: opts.color ?? s.me.color,
       label: opts.label ?? "",
+      ...(opts.character ? { character: opts.character } : {}),
       // Only the GM hides things from players.
       hidden: this.isGm && Boolean(opts.hidden),
       locked: false,
