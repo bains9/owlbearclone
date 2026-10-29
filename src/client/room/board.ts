@@ -868,6 +868,8 @@ export class Board implements BoardApi {
       // The players' darkness too: the GM sees it dimmed, and whole when looking as players.
       this.sightLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
       this.sightLayer.batchDraw();
+      // The doors' markers are the GM's alone: gone while looking as players.
+      this.uiLayer.batchDraw();
       this.renderedGm = gm;
       this.renderedPreview = preview;
       force = true;
