@@ -884,6 +884,12 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The damage button after a critical hit to hit: the crit's damage. */
+.character-attacks .btn.crit {
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 700;
+}
 
 .selbar {
   position: absolute;
@@ -1669,6 +1675,17 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+/* A character's natural 20 to hit, or natural 2 (shared/characters.ts critOf). */
+.roll-crit {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn);
+  white-space: nowrap;
+}
+.roll-crit.fail {
+  color: var(--danger);
 }
 .roll-dice {
   display: flex;

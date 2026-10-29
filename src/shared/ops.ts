@@ -10,7 +10,7 @@ export type ItemMap = Record<string, Item>;
  * What an optional field means when it's missing, so undoing a change to it (making
  * a token a prop, hiding a note) has a value to go back to.
  */
-const MISSING: Partial<Record<keyof MutableFields, unknown>> = { layer: "character", hidden: false, locked: false };
+const MISSING: Partial<Record<keyof MutableFields, unknown>> = { layer: "character", hidden: false, locked: false, flipped: false };
 
 export function applyOps(items: ItemMap, ops: ItemOps): ItemMap {
   const next = { ...items };

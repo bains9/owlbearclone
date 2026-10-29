@@ -1135,7 +1135,9 @@ export class Board implements BoardApi {
         const k = Math.min((2 * r) / img.naturalWidth, (2 * r) / img.naturalHeight);
         const w = img.naturalWidth * k;
         const h = img.naturalHeight * k;
-        body.add(new Konva.Image({ image: img, x: -w / 2, y: -h / 2, width: w, height: h }));
+        // Flipped: the picture mirrored left to right (before it's turned), so it faces the other way.
+        const flip = t.flipped ? -1 : 1;
+        body.add(new Konva.Image({ image: img, x: (-w / 2) * flip, y: -h / 2, width: w, height: h, scaleX: flip }));
         drawn = true;
       } else if (!imageFailed(url)) {
         body.add(new Konva.Circle({ radius: r * 0.92, fill: t.color, opacity: 0.35 }));

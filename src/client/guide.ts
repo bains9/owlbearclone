@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 29 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Flip a token to face the other way (29 October 2026)",
+        "steps": [
+          "Click a token with a picture to select it.",
+          "Click **Flip** in the bar at the bottom, beside the rotate buttons: its picture is mirrored, so it faces the other way. Click it again to flip it back."
+        ],
+        "notes": [
+          "Only the picture flips; its name, rings and HP bar stay as they are.",
+          "Players can flip the tokens they can move."
+        ]
+      },
+      {
         "title": "The party's own tokens, cards and rolls, from their character sheets (28 October 2026)",
         "steps": [
           "Open **Tokens & images**: the party is at the top, each character in their own token, a full-body figure of their class in action. Click one to place them.",
@@ -26,7 +37,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The party comes from the group's character sheets in Google Sheets, read every minute while the room is open. Change a sheet and Tabletop follows; nothing in the sheets is changed from here.",
           "A character's token has an HP bar under it, green, then amber, then red.",
-          "**Add selected token** in the initiative list rolls a d20 with the character's initiative bonus from their sheet.",
+          "**Add selected token** in the initiative list rolls a d10 with the character's initiative bonus (their INT bonus) from their sheet. Their attacks roll two d10 to hit, with the sheet's to-hit: a natural 20 is a critical hit (the chat says so, and the damage button adds the weapon's die at its most), a natural 2 a critical failure.",
           "GM: set it up once in **Room settings** › **Character sheets**. You can choose a character's figure (their class's, or another, such as a bowwoman), or give them a picture of your own, for every room (29 October).",
           "See **Character sheets**."
         ]
@@ -578,6 +589,7 @@ export const GUIDE: GuideSection[] = [
           "For one token you'll find its **Name**, its size in squares (from ½×½ up to 6×6), a colour for plain coloured tokens, status rings, **Rotate left ([)** and **Rotate right (])**, a button that makes it a prop that sits under characters, **Add to initiative**, **Duplicate (Ctrl+D)**, **Bring to front**, **Send to back** and **Delete (Del)**.",
           "To rename a token, type in the **Name** box, then press Enter or click somewhere else to save it. Press Esc to cancel what you typed.",
           "Each click of **Rotate left** or **Rotate right** turns the token 45°. On the keyboard, [ and ] do the same, and Shift+[ or Shift+] turns it 15°.",
+          "**Flip** (beside the rotate buttons, for a token with a picture) mirrors its picture so it faces the other way. Click it again to flip it back. Its name and rings stay as they are.",
           "Clicking **Add to initiative** for a token that's already in the turn order just opens the **Initiative** panel.",
           "GM only: the eye button hides a token from players or shows it again (H), and the padlock button locks it so players can't move it (L).",
           "For drawings and notes: a colour, **Edit note** for text notes, and (GM only) the eye button.",
@@ -864,11 +876,13 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click a character's token on the map.",
           "Their card shows above the bar at the bottom: HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
-          "Click an attack's first button to roll to hit (a d20 with the sheet's to-hit bonus), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
+          "Click an attack's first button to roll to hit (two d10 with the sheet's to-hit, its DEX bonus and the rest), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
+          "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the weapon's die at its most (a 1d8 weapon adds 8). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
           "Click the arrow at the top right to open the character's sheet."
         ],
         "notes": [
-          "Click **Initiative** on the card to roll it in the chat.",
+          "Click **Initiative** on the card to roll it in the chat (a d10 with their INT bonus).",
+          "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
         ]
       },
@@ -879,7 +893,7 @@ export const GUIDE: GuideSection[] = [
           "Open **Initiative** and click **Add selected token** (or **Add 2 selected tokens**, and so on)."
         ],
         "notes": [
-          "Each character is added with a d20 rolled and their initiative bonus from their sheet added. Other tokens are added at 0, as before.",
+          "Each character is added with a d10 rolled and their initiative bonus (their INT bonus) from their sheet added, as the handbook has it. Other tokens are added at 0, as before.",
           "The **Add to initiative** button on a character's bar at the bottom does the same."
         ]
       },

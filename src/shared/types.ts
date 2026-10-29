@@ -193,6 +193,8 @@ export interface TokenItem extends ItemBase {
    * bar and rolls come from there. Missing or null on any other token.
    */
   character?: string | null;
+  /** Its picture mirrored left to right, so it faces the other way. Missing on tokens that aren't. */
+  flipped?: boolean;
 }
 
 export type TokenLayer = "character" | "prop";
@@ -296,6 +298,7 @@ export interface MutableFields {
   rings: string[];
   layer: TokenLayer;
   character: string | null;
+  flipped: boolean;
   shape: DrawShape | FogShape;
   points: number[];
   width: number;

@@ -144,6 +144,7 @@ const TOKEN_FIELDS: Record<string, Validator> = {
   rings,
   layer: (v) => (v === "prop" || v === "character" ? v : undefined),
   character: (v) => (v === null ? null : isSheetId(v) ? v : undefined),
+  flipped: bool,
 };
 
 /** A character sheet's id, as a token keeps it (shared/characters.ts). */
@@ -247,6 +248,7 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       rings: rings(r.rings) ?? [],
       ...(r.layer === "prop" ? { layer: "prop" as const } : {}),
       ...(isSheetId(r.character) ? { character: r.character } : {}),
+      ...(r.flipped === true ? { flipped: true } : {}),
     };
   }
   if (r.kind === "drawing") {
@@ -316,8 +318,8 @@ export function sanitizeSet(item: Item, raw: unknown): Partial<MutableFields> | 
     if (!shapePointsOk(item.kind, item.shape, out.points as number[])) return null;
   }
   if (item.kind === "terrain" && !terrainFieldsOk(!!item.hidden, out as Partial<MutableFields>)) return null;
-  // A compass stays a compass: a prop, drawn without an image.
-  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null))) {
+  // A compass stays a compass: a prop, drawn without an image, never mirrored.
+  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null) || out.flipped === true)) {
     return null;
   }
   if ("text" in out && !(item.kind === "drawing" && item.shape === "text")) return null;

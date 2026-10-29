@@ -9,6 +9,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  FlipHorizontal2,
   Lock,
   LockOpen,
   RotateCcw,
@@ -231,6 +232,17 @@ export function SelectionBar() {
             <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" onClick={() => rotateSelection(room, 45)}>
               <RotateCw size={18} />
             </button>
+            {t.assetId && (
+              <button
+                class={cx("icon-btn", t.flipped && "active")}
+                title={t.flipped ? "Flipped: facing the other way (click to flip back)" : "Flip: face the other way"}
+                aria-label="Flip"
+                aria-pressed={!!t.flipped}
+                onClick={() => patch({ flipped: !t.flipped })}
+              >
+                <FlipHorizontal2 size={18} />
+              </button>
+            )}
           </>
         )}
         {gm && (

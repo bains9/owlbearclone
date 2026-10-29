@@ -1,16 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  INITIATIVE_DIE,
   TO_HIT_DIE,
   attackLabel,
   attackModifiers,
   characterLabel,
   cleanCharacter,
+  critDamage,
+  critOf,
   damageDice,
   initiativeRoll,
   withModifier,
   type Character,
   type CharactersReply,
 } from "../src/shared/characters";
+import { parseDice } from "../src/shared/dice";
 import { sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
 import { figureFor } from "../src/client/npcs/pcArt";
 import { classFigureOf, classesOf, figureOf, raceOf } from "../src/client/npcs/pcTokens";
@@ -87,7 +91,13 @@ describe("a character from their sheet", () => {
     expect(attackModifiers({ toHit: "+1 · thrown 0", bonus: "dmg +2" })).toEqual({ toHit: 1, damage: 2 });
     expect(attackModifiers({ toHit: "-1", bonus: "dmg -1 · sneak attack 2d6" })).toEqual({ toHit: -1, damage: -1 });
     expect([damageDice({ damage: "1d8" }), damageDice({ damage: "d6" }), damageDice({ damage: "2d6" }), damageDice({ damage: "special" })]).toEqual(["1d8", "1d6", "2d6", null]);
-    expect([withModifier(TO_HIT_DIE, 1), withModifier("1d6", 0), withModifier("1d4", -1)]).toEqual(["1d20+1", "1d6", "1d4-1"]);
+    // To hit is two d10 and the sheet's to-hit; initiative one d10 and its bonus (the group's handbook).
+    expect([withModifier(TO_HIT_DIE, 1), withModifier("1d6", 0), withModifier("1d4", -1)]).toEqual(["2d10+1", "1d6", "1d4-1"]);
+    expect(withModifier(INITIATIVE_DIE, 2)).toBe("1d10+2");
+    // And the chat's dice take them as they are.
+    for (const expr of [withModifier(TO_HIT_DIE, 3), withModifier(TO_HIT_DIE, -2), withModifier(TO_HIT_DIE, 0), withModifier(INITIATIVE_DIE, 1)]) {
+      expect(() => parseDice(expr), expr).not.toThrow();
+    }
   });
 
   it("gives the dice whole, sensible bonuses whatever the sheet says", () => {
@@ -96,10 +106,13 @@ describe("a character from their sheet", () => {
     expect(cleanCharacter({ ...raw, init: "+1.5" })!.init).toBe(2);
     expect(cleanCharacter({ ...raw, init: "-0.4" })!.init).toBe(0);
     expect(cleanCharacter({ ...raw, init: "" })!.init).toBeNull();
-    for (let i = 0; i < 50; i++) {
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) {
       const v = initiativeRoll({ init: 3 });
-      expect(Number.isInteger(v) && v >= 4 && v <= 23).toBe(true);
+      expect(Number.isInteger(v) && v >= 4 && v <= 13, String(v)).toBe(true);
+      seen.add(v);
     }
+    expect(seen.size).toBeGreaterThan(5);
     expect([initiativeRoll(null), initiativeRoll({ init: null })]).toEqual([0, 0]);
   });
 
@@ -109,6 +122,38 @@ describe("a character from their sheet", () => {
     expect(long.length).toBeLessThanOrEqual(60);
     expect(long.startsWith("Abelard: Katana of the Seven")).toBe(true);
     expect(long.endsWith("… damage")).toBe(true);
+    expect(attackLabel("Testa", "Longbow", "crit damage")).toBe("Testa: Longbow crit damage");
+  });
+
+  it("calls a natural 20 to hit a critical hit, and a natural 2 a critical failure", () => {
+    const toHit = (rolls: number[], text = "Testa: Longbow to hit", extra: { dropped?: boolean }[] = []) => ({
+      kind: "roll" as const,
+      text,
+      roll: {
+        expr: "2d10+1",
+        total: rolls.reduce((a, b) => a + b, 1),
+        terms: [
+          { kind: "dice" as const, sign: 1 as const, notation: "2d10", count: 2, sides: 10, rolls: rolls.map((v, i) => ({ v, dropped: extra[i]?.dropped ?? false })), subtotal: rolls.reduce((a, b) => a + b, 0) },
+          { kind: "num" as const, sign: 1 as const, value: 1 },
+        ],
+      },
+    });
+    expect(critOf(toHit([10, 10]))).toBe("hit");
+    expect(critOf(toHit([1, 1]))).toBe("fail");
+    expect(critOf(toHit([10, 9]))).toBeNull();
+    expect(critOf(toHit([1, 2]))).toBeNull();
+    // Not a roll to hit: damage, initiative, or a plain roll in the chat.
+    expect(critOf(toHit([10, 10], "Testa: Longbow damage"))).toBeNull();
+    expect(critOf(toHit([10, 10], ""))).toBeNull();
+    expect(critOf({ kind: "chat", text: "Testa: Longbow to hit" })).toBeNull();
+    // Kept or dropped dice aren't the plain two d10.
+    expect(critOf(toHit([1, 1], "Testa: Longbow to hit", [{ dropped: true }]))).toBeNull();
+    // The crit's damage: one more of the weapon's die at its most.
+    expect(critDamage({ damage: "1d8", bonus: "dmg +2" })).toBe("1d8+10");
+    expect(critDamage({ damage: "2d6", bonus: "no STR bonus" })).toBe("2d6+6");
+    expect(critDamage({ damage: "1d4", bonus: "dmg -1" })).toBe("1d4+3");
+    expect(critDamage({ damage: "special", bonus: "" })).toBeNull();
+    expect(() => parseDice(critDamage({ damage: "1d8", bonus: "dmg +2" })!)).not.toThrow();
   });
 
   it("gets a figure by class, in their race's colouring, unless the GM chose another", () => {
@@ -408,7 +453,7 @@ describe("in Tabletop", () => {
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[0].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
     expect(GUIDE[0].intro).toContain("The latest updates came out on 29 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);

@@ -5,6 +5,7 @@
 // a character is kept.
 
 import { secureRng } from "./dice";
+import type { ChatMessage } from "./types";
 
 /** One of a character's attacks, as the sheet words it. */
 export interface CharacterAttack {
@@ -131,25 +132,31 @@ export function attackModifiers(a: Pick<CharacterAttack, "toHit" | "bonus">): { 
   return { toHit: first(a.toHit), damage: dmg ? bonus(Number(dmg)) : 0 };
 }
 
-/** A token's initiative as it's added to the list: a d20 and the sheet's bonus for a character, 0 for others. */
+/** A token's initiative as it's added to the list: a d10 (INITIATIVE_DIE) and the sheet's bonus for a character, 0 for others. */
 export function initiativeRoll(c: Pick<Character, "init"> | null): number {
-  return c && c.init !== null ? secureRng(20) + 1 + c.init : 0;
+  return c && c.init !== null ? secureRng(10) + 1 + c.init : 0;
 }
 
 /** The chat keeps a roll's label to 60 characters. */
 const LABEL_MAX = 60;
 
 /** An attack roll's label, "Testa: Longbow to hit": a long weapon's name is shortened rather than "to hit". */
-export function attackLabel(who: string, weapon: string, what: "to hit" | "damage"): string {
+export function attackLabel(who: string, weapon: string, what: "to hit" | "damage" | "crit damage"): string {
   const room = LABEL_MAX - `${who}:  ${what}`.length;
   const name = weapon.length > room ? `${weapon.slice(0, Math.max(1, room - 1)).trimEnd()}…` : weapon;
   return `${who}: ${name} ${what}`.slice(0, LABEL_MAX);
 }
 
-/** The die rolled to hit, by the group's handbook (as Table reads it). */
-export const TO_HIT_DIE = "1d20";
+/**
+ * The dice rolled to hit, by the group's handbook: two d10, with the sheet's to-hit added (its
+ * DEX bonus for a weapon the character is proficient with, and the rest the sheet works out).
+ */
+export const TO_HIT_DIE = "2d10";
 
-/** A dice expression with a modifier: "1d20+1", "1d6+2", "1d8". */
+/** The die rolled for initiative, by the group's handbook: one d10, with the sheet's initiative bonus (its INT bonus) added. */
+export const INITIATIVE_DIE = "1d10";
+
+/** A dice expression with a modifier: "2d10+1", "1d6+2", "1d8". */
 export function withModifier(dice: string, mod: number): string {
   return mod > 0 ? `${dice}+${mod}` : mod < 0 ? `${dice}${mod}` : dice;
 }
@@ -158,4 +165,26 @@ export function withModifier(dice: string, mod: number): string {
 export function damageDice(a: Pick<CharacterAttack, "damage">): string | null {
   const m = a.damage.replace(/\s+/g, "").match(/^(\d{0,2})d(\d{1,3})$/i);
   return m ? `${m[1] || "1"}d${m[2]}` : null;
+}
+
+/**
+ * A critical hit's damage, by the group's handbook: the weapon's damage with one more of its die
+ * at its most ("1d8" and dmg +2: 1d8+10); null when the sheet's damage isn't dice.
+ */
+export function critDamage(a: Pick<CharacterAttack, "damage" | "bonus">): string | null {
+  const dice = damageDice(a);
+  return dice ? withModifier(dice, attackModifiers({ toHit: "", bonus: a.bonus }).damage + Number(dice.split("d")[1])) : null;
+}
+
+/**
+ * What a to-hit roll in the chat came to, by the group's handbook: a natural 20 on the two d10 (both
+ * tens) is a critical hit, a natural 2 (both ones) a critical failure. A to-hit roll is one whose
+ * label ends "to hit" (attackLabel) and whose first dice are two d10; anything else is null.
+ */
+export function critOf(m: Pick<ChatMessage, "kind" | "text" | "roll">): "hit" | "fail" | null {
+  const first = m.roll?.terms[0];
+  if (m.kind !== "roll" || !/ to hit$/.test(m.text) || first?.kind !== "dice" || first.sign !== 1 || first.count !== 2 || first.sides !== 10) return null;
+  if (first.rolls.length !== 2 || first.rolls.some((d) => d.dropped)) return null;
+  const natural = first.rolls[0].v + first.rolls[1].v;
+  return natural === 20 ? "hit" : natural === 2 ? "fail" : null;
 }

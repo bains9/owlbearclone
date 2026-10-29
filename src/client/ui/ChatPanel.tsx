@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
+import { critOf } from "../../shared/characters";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
@@ -247,6 +248,8 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
   const m = props.message;
   const r = m.roll;
   if (!r) return null;
+  // A character's roll to hit (CharacterCard): a natural 20 or 2 on the two d10, by the group's handbook.
+  const crit = critOf(m);
   return (
     <div class={cx("roll", props.compact && "compact")}>
       {props.compact && (
@@ -261,6 +264,8 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
           {m.text ? `${m.text} · ` : ""}
           {r.expr}
         </span>
+        {crit === "hit" && <span class="roll-crit">Critical hit!</span>}
+        {crit === "fail" && <span class="roll-crit fail">Critical failure!</span>}
       </div>
       {!props.compact && (
         <div class="roll-dice">
