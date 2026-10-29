@@ -54,6 +54,7 @@ import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, to
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
 import { exploreGrid, exploreSlot, hasCell } from "../../shared/explore";
+import { visionSquares } from "../../shared/units";
 import type { ExploreGrid, Explored } from "../../shared/explore";
 import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isOwnSightToken, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
@@ -1852,7 +1853,8 @@ export class Board implements BoardApi {
       this.exploredShown = explored;
       this.exploredVersion++;
     }
-    const key = `${this.sightGeomVersion}|${look.who}|${this.exploredVersion}|${v.daylight}|${v.partyLight}|${v.sightRange}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
+    const reach = visionSquares(v, scene.grid);
+    const key = `${this.sightGeomVersion}|${look.who}|${this.exploredVersion}|${v.daylight}|${reach.light * scene.grid.size}|${reach.sight * scene.grid.size}|${area.x0},${area.y0},${area.x1},${area.y1}|${viewers.join(",")}`;
     if (key !== this.sightMadeFrom || !this.sightCanvas) {
       this.sightMadeFrom = key;
       this.renderSight(scene, v, geom, viewers, explored, look.who);
@@ -1883,10 +1885,12 @@ export class Board implements BoardApi {
   ): void {
     const area = sceneBounds(scene);
     const w0 = area.x1 - area.x0, h0 = area.y1 - area.y0;
-    // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls.
-    const range = v.sightRange > 0 ? v.sightRange * scene.grid.size : 0;
+    // How far the party sees: the scene's sight distance (fading out at its edge), or to the walls;
+    // and how far its own light reaches. Distances, as squares of this scene's grid.
+    const squares = visionSquares(v, scene.grid);
+    const range = squares.sight > 0 ? squares.sight * scene.grid.size : 0;
     const far = range || Math.hypot(w0, h0);
-    const reach = v.partyLight * scene.grid.size;
+    const reach = squares.light * scene.grid.size;
     const polys: number[][] = [];
     for (let i = 0; i < viewers.length; i += 2) polys.push(sightPolygon(geom.index, viewers[i], viewers[i + 1], far));
 

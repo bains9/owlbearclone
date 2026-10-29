@@ -7,6 +7,7 @@ import { parseUniversalVtt } from "../src/client/mapImport";
 import { SIGHT_RANGE, VISION_LIMITS, sanitizeScene, sanitizeVision } from "../src/shared/sanitize";
 import { terrainId } from "../src/shared/terrain";
 import type { Scene, SceneVision, TerrainItem, TokenItem } from "../src/shared/types";
+import { defaultVisionDistances, distanceIn, distanceSquares, squaresDistance, visionSquares } from "../src/shared/units";
 
 // Lighting and line of sight (Par: "build lighting and line of sight"): walls and shut doors block
 // the party's sight, and in the dark only lights (and the party's own light) show. The geometry,
@@ -129,6 +130,68 @@ describe("a scene's lighting", () => {
     expect(scene.vision?.on).toBe(true);
     expect(sanitizeScene({ id: "Scene1234567", name: "Keep 2" }, scene)!.vision).toEqual(scene.vision);
     expect(sanitizeScene({ id: "Scene1234567", vision: null }, scene)!.vision).toBeUndefined();
+  });
+});
+
+// Par: "do we want to adjust the site distance based on scale rather then squares?" (yes): sight
+// and the party's light are distances, the same however big a square is. The group's handbook
+// measures in metres.
+describe("how far the party sees and its light reaches, as distances", () => {
+  const metres = { unit: 1.5, unitName: "m" }, feet = { unit: 5, unitName: "ft" }, overland = { unit: 10, unitName: "m" };
+
+  it("are squares of the scene's grid, converted between feet and metres, any other unit taken as the grid's", () => {
+    expect(distanceSquares({ d: 18, unit: "m" }, metres)).toBe(12);
+    expect(distanceSquares({ d: 60, unit: "ft" }, feet)).toBe(12);
+    // A room switched between feet and metres: 18 m is 60 ft, still 12 squares.
+    expect(distanceSquares({ d: 18, unit: "m" }, feet)).toBeCloseTo(12);
+    expect(distanceSquares({ d: 60, unit: "ft" }, metres)).toBeCloseTo(12);
+    // A map whose squares are 10 m: 18 m is under two of them.
+    expect(distanceSquares({ d: 18, unit: "m" }, overland)).toBeCloseTo(1.8);
+    expect(distanceSquares({ d: 3, unit: "km" }, { unit: 1, unitName: "mi" })).toBe(3);
+    expect(distanceSquares({ d: 3, unit: "m" }, { unit: 0, unitName: "m" })).toBe(0);
+    expect(distanceIn({ d: 60, unit: "feet" }, "metres")).toBeCloseTo(18);
+  });
+
+  it("come from the distances when a scene has them, else the squares from before, at most the limits", () => {
+    const old = { partyLight: 4, sightRange: 12 };
+    expect(visionSquares(old, overland)).toEqual({ sight: 12, light: 4 });
+    expect(visionSquares({ ...old, sight: { d: 18, unit: "m" }, light: { d: 6, unit: "m" } }, overland)).toEqual({ sight: 1.8, light: 0.6 });
+    expect(visionSquares({ ...old, sight: { d: 0, unit: "m" } }, metres).sight).toBe(0);
+    expect(visionSquares({ ...old, sight: { d: 9000, unit: "m" }, light: { d: 9000, unit: "m" } }, metres)).toEqual({ sight: VISION_LIMITS.sightRange, light: VISION_LIMITS.partyLight });
+  });
+
+  it("begin at 18 m and 6 m (60 ft and 20 ft), or 12 and 4 squares in another unit", () => {
+    expect(defaultVisionDistances(metres)).toEqual({ sight: { d: 18, unit: "m" }, light: { d: 6, unit: "m" } });
+    expect(defaultVisionDistances(feet)).toEqual({ sight: { d: 60, unit: "ft" }, light: { d: 20, unit: "ft" } });
+    expect(defaultVisionDistances({ unit: 2, unitName: "km" })).toEqual({ sight: { d: 24, unit: "km" }, light: { d: 8, unit: "km" } });
+    expect(squaresDistance(12, metres)).toEqual({ d: 18, unit: "m" });
+  });
+
+  it("are kept as sent, and dropped when they aren't distances", () => {
+    const base = { on: true, daylight: false, partyLight: 4, sightRange: 12, walls: [], doors: [], lights: [] };
+    expect(sanitizeVision({ ...base, sight: { d: 18.004, unit: "m" }, light: { d: 6, unit: " m " } })).toMatchObject({ sight: { d: 18, unit: "m" }, light: { d: 6, unit: "m" } });
+    for (const bad of [{ d: -1, unit: "m" }, { d: 18, unit: "" }, { d: NaN, unit: "m" }, { d: "18", unit: "m" }, { d: 2e6, unit: "m" }, "18 m"]) {
+      expect(sanitizeVision({ ...base, sight: bad }), JSON.stringify(bad)).not.toHaveProperty("sight");
+    }
+  });
+
+  it("start as distances on a scene brought in, and stay the GM's (and per-player sight stays) when it's brought in again", () => {
+    const sight = { walls: [], doors: [], lights: [], daylight: true };
+    expect(visionFromSight(sight, 50, undefined, metres)).toMatchObject({ sight: { d: 18, unit: "m" }, light: { d: 6, unit: "m" } });
+    const mine: SceneVision = { ...visionFromSight(sight, 50, undefined, metres), on: true, perPlayer: true, sight: { d: 30, unit: "m" } };
+    expect(visionFromSight(sight, 50, mine, metres)).toMatchObject({ on: true, perPlayer: true, sight: { d: 30, unit: "m" }, light: { d: 6, unit: "m" } });
+    // A scene from before distances keeps its squares.
+    const before: SceneVision = { ...visionFromSight(sight, 50), on: true };
+    expect(visionFromSight(sight, 50, before, metres)).not.toHaveProperty("sight");
+  });
+
+  it("are set in Edit scene in the scene's unit, with the squares beside them", async () => {
+    const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
+    expect(ui).toContain("The party's own light, in {unitName} ({squaresText(squares.light)})");
+    expect(ui).toContain('How far the party sees, in {unitName} ({squares.sight > 0 ? squaresText(squares.sight) : "0: as far as the walls allow"})');
+    expect(ui).toContain("set({ [which]: { d: tenth(Math.min(n, most)), unit: unitName } });");
+    const board = await readFile(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
+    expect(board).toContain("const squares = visionSquares(v, scene.grid);");
   });
 });
 

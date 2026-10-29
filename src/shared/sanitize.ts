@@ -17,6 +17,7 @@ import type {
   SceneVision,
   SceneMapData,
   SceneSeason,
+  VisionDistance,
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
 import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
@@ -443,6 +444,19 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
 export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60, sightRange: 200 };
 /** How far the party sees to begin with, in squares: so sight doesn't run ahead of the fog of war down a long hall. */
 export const SIGHT_RANGE = 12;
+/** How far the party's own light reaches in the dark, to begin with (squares). */
+export const PARTY_LIGHT = 4;
+/** The longest distance a scene's sight or light may be given as, in its unit. */
+const VISION_DISTANCE_MAX = 1_000_000;
+
+/** A distance for sight or light as sent: a number and a unit's name; undefined when it isn't one. */
+function sanitizeDistance(v: unknown): VisionDistance | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const unit = cleanText(r.unit, 12);
+  if (typeof r.d !== "number" || !Number.isFinite(r.d) || r.d < 0 || r.d > VISION_DISTANCE_MAX || !unit) return undefined;
+  return { d: Math.round(r.d * 100) / 100, unit };
+}
 
 /**
  * A scene's lighting and line of sight as sent (SceneVision): null to take it away; undefined when
@@ -483,6 +497,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     if (px === undefined || py === undefined || pr === undefined || pr <= 0) return undefined;
     lights.push({ x: px, y: py, r: pr });
   }
+  const light = sanitizeDistance(r.light), sight = sanitizeDistance(r.sight);
   const openEdges = Array.isArray(r.openEdges)
     ? [...new Set(r.openEdges.filter((k): k is number => typeof k === "number" && Number.isInteger(k) && k >= 0 && k < 2 ** 40))].slice(0, VISION_LIMITS.openEdges)
     : [];
@@ -496,6 +511,8 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     lights,
     ...(openEdges.length ? { openEdges } : {}),
     ...(r.perPlayer === true ? { perPlayer: true } : {}),
+    ...(light ? { light } : {}),
+    ...(sight ? { sight } : {}),
   };
 }
 

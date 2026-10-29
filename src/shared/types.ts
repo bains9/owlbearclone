@@ -87,10 +87,17 @@ export interface SceneVision {
   on: boolean;
   /** Lit all over, as by day. Off, it's dark: only the lights and the party's own light show. */
   daylight: boolean;
-  /** How far the party's own light reaches in the dark, in squares (0: none). */
+  /** How far the party's own light reaches in the dark, in squares (0: none), when `light` isn't set (scenes from before distances). */
   partyLight: number;
-  /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow). */
+  /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow), when `sight` isn't set. */
   sightRange: number;
+  /**
+   * How far the party's own light reaches in the dark as a distance (18 m, 60 ft; 0: none): it's
+   * the same distance whatever a square is (shared/units.ts visionSquares). Wins over partyLight.
+   */
+  light?: VisionDistance;
+  /** How far the party can see as a distance (0: as far as the walls allow). Wins over sightRange. */
+  sight?: VisionDistance;
   /** The map file's walls that block sight: lines, each [x0, y0, x1, y1, ...] in scene units. */
   walls: number[][];
   /** The map file's doors: from one end to the other in scene units, and whether each is open. */
@@ -104,6 +111,12 @@ export interface SceneVision {
    * their character's own explored map. Missing or false: the whole party sees together.
    */
   perPlayer?: boolean;
+}
+
+/** A distance in a unit, as a scene's grid names it ("m", "ft"). */
+export interface VisionDistance {
+  d: number;
+  unit: string;
 }
 
 /** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */

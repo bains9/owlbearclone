@@ -7,17 +7,43 @@
 import { useRef, useState } from "preact/hooks";
 import type { Scene, SceneVision } from "../../shared/types";
 import { exploreGrid, hasCell } from "../../shared/explore";
-import { SIGHT_RANGE, VISION_LIMITS } from "../../shared/sanitize";
-import { PARTY_LIGHT, visionFromSight } from "../importScenes";
+import { PARTY_LIGHT, SIGHT_RANGE, VISION_LIMITS } from "../../shared/sanitize";
+import { defaultVisionDistances, distanceIn, visionSquares } from "../../shared/units";
+import type { GridUnits } from "../../shared/units";
+import { visionFromSight } from "../importScenes";
 import { parseUniversalVttLevels } from "../mapImport";
 import { ConfirmDialog, useRoom, useRoomState } from "./common";
 
-const NONE: SceneVision = { on: false, daylight: true, partyLight: PARTY_LIGHT, sightRange: SIGHT_RANGE, walls: [], doors: [], lights: [] };
+/** A scene's lighting before the GM sets any: off, with the distances it begins with in the scene's unit. */
+const none = (units: GridUnits): SceneVision => ({
+  on: false,
+  daylight: true,
+  partyLight: PARTY_LIGHT,
+  sightRange: SIGHT_RANGE,
+  walls: [],
+  doors: [],
+  lights: [],
+  ...defaultVisionDistances(units),
+});
+
+const tenth = (n: number) => Math.round(n * 10) / 10;
+const squaresText = (n: number) => `${tenth(n)} square${tenth(n) === 1 ? "" : "s"}`;
 
 export function LightingSettings(props: { scene: Scene }) {
   const room = useRoom();
   const s = props.scene;
-  const v = s.vision ?? NONE;
+  const v = s.vision ?? none(s.grid);
+  // Sight and light as distances in the scene's unit (a scene from before distances has squares).
+  const unitName = s.grid.unitName;
+  const squares = visionSquares(v, s.grid);
+  const lightAt = tenth(v.light ? distanceIn(v.light, unitName) : v.partyLight * s.grid.unit);
+  const sightAt = tenth(v.sight ? distanceIn(v.sight, unitName) : v.sightRange * s.grid.unit);
+  const setDistance = (which: "light" | "sight", raw: string) => {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return;
+    const most = (which === "light" ? VISION_LIMITS.partyLight : VISION_LIMITS.sightRange) * s.grid.unit;
+    set({ [which]: { d: tenth(Math.min(n, most)), unit: unitName } });
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [forget, setForget] = useState(false);
@@ -43,7 +69,7 @@ export function LightingSettings(props: { scene: Scene }) {
         return;
       }
       const perSquare = s.mapRect ? s.width / s.mapRect[2] : s.grid.size;
-      const next = visionFromSight(map.sight, perSquare, s.vision);
+      const next = visionFromSight(map.sight, perSquare, s.vision, s.grid);
       room.updateScene(s.id, { vision: next });
       room.toast(`From ${file.name}: ${next.walls.length} walls, ${next.doors.length} doors and ${next.lights.length} lights.`);
     } catch (err) {
@@ -78,30 +104,30 @@ export function LightingSettings(props: { scene: Scene }) {
           </div>
           {!v.daylight && (
             <label class="field">
-              <span>The party's own light (squares)</span>
+              <span>
+                The party's own light, in {unitName} ({squaresText(squares.light)})
+              </span>
               <input
                 type="number"
                 min={0}
-                max={VISION_LIMITS.partyLight}
-                value={v.partyLight}
-                onChange={(e) => {
-                  const n = Math.round(Number(e.currentTarget.value));
-                  if (Number.isFinite(n)) set({ partyLight: Math.max(0, Math.min(VISION_LIMITS.partyLight, n)) });
-                }}
+                step="any"
+                max={VISION_LIMITS.partyLight * s.grid.unit}
+                value={lightAt}
+                onChange={(e) => setDistance("light", e.currentTarget.value)}
               />
             </label>
           )}
           <label class="field">
-            <span>How far the party sees (squares; 0: as far as the walls allow)</span>
+            <span>
+              How far the party sees, in {unitName} ({squares.sight > 0 ? squaresText(squares.sight) : "0: as far as the walls allow"})
+            </span>
             <input
               type="number"
               min={0}
-              max={VISION_LIMITS.sightRange}
-              value={v.sightRange}
-              onChange={(e) => {
-                const n = Math.round(Number(e.currentTarget.value));
-                if (Number.isFinite(n)) set({ sightRange: Math.max(0, Math.min(VISION_LIMITS.sightRange, n)) });
-              }}
+              step="any"
+              max={VISION_LIMITS.sightRange * s.grid.unit}
+              value={sightAt}
+              onChange={(e) => setDistance("sight", e.currentTarget.value)}
             />
           </label>
           <label class="check">

@@ -2,8 +2,8 @@
 // square being 1.5 m (the metric stand-in for 5 ft), and the GM can switch the scenes it
 // already has between the two (5 ft = 1.5 m, so feet x 0.3).
 
-import { DEFAULT_GRID, LIMITS } from "./sanitize";
-import type { GridSettings, RoomSettings } from "./types";
+import { DEFAULT_GRID, LIMITS, PARTY_LIGHT, SIGHT_RANGE, VISION_LIMITS } from "./sanitize";
+import type { GridSettings, RoomSettings, SceneVision, VisionDistance } from "./types";
 
 /** What one square is: its distance and the unit's name. */
 export type GridUnits = Pick<GridSettings, "unit" | "unitName">;
@@ -54,6 +54,48 @@ export function switchUnits(units: GridUnits, toMetric: boolean): GridUnits | nu
   if (!(toMetric ? isFeet(units.unitName) : isMetres(units.unitName))) return null;
   const unit = roundUnit(toMetric ? units.unit * METRES_PER_FOOT : units.unit / METRES_PER_FOOT);
   return unit <= LIMITS.gridUnitMax ? { unit, unitName: toMetric ? "m" : "ft" } : null;
+}
+
+/**
+ * A distance in a grid's unit: as it is in the same unit, converted between feet and metres
+ * (60 ft is 18 m); a distance in any other unit is taken to be in the grid's.
+ */
+export function distanceIn(dist: VisionDistance, unitName: string): number {
+  if (isFeet(dist.unit) && isMetres(unitName)) return dist.d * METRES_PER_FOOT;
+  if (isMetres(dist.unit) && isFeet(unitName)) return dist.d / METRES_PER_FOOT;
+  return dist.d;
+}
+
+/** A distance as squares of a grid (0 on a grid whose squares are no distance at all). */
+export function distanceSquares(dist: VisionDistance, grid: GridUnits): number {
+  return grid.unit > 0 ? distanceIn(dist, grid.unitName) / grid.unit : 0;
+}
+
+/** Squares of a grid as a distance in its unit, to a tenth. */
+export function squaresDistance(squares: number, grid: GridUnits): VisionDistance {
+  return { d: Math.round(squares * grid.unit * 10) / 10, unit: grid.unitName };
+}
+
+/**
+ * How far a scene's party sees (0: as far as the walls allow) and how far its own light reaches,
+ * in squares: from the distances when the scene has them, so they stay the same distance however
+ * big a square is, else the squares kept from before distances.
+ */
+export function visionSquares(v: Pick<SceneVision, "sightRange" | "partyLight" | "sight" | "light">, grid: GridUnits): { sight: number; light: number } {
+  const sight = v.sight ? distanceSquares(v.sight, grid) : v.sightRange;
+  const light = v.light ? distanceSquares(v.light, grid) : v.partyLight;
+  return { sight: Math.min(VISION_LIMITS.sightRange, sight), light: Math.min(VISION_LIMITS.partyLight, light) };
+}
+
+/**
+ * How far the party sees and its own light reaches to begin with: 18 m and 6 m (60 ft and 20 ft),
+ * so sight doesn't run ahead of the fog of war down a long hall; on a scene in any other unit,
+ * SIGHT_RANGE and PARTY_LIGHT squares.
+ */
+export function defaultVisionDistances(grid: GridUnits): { sight: VisionDistance; light: VisionDistance } {
+  if (isFeet(grid.unitName)) return { sight: { d: 60, unit: "ft" }, light: { d: 20, unit: "ft" } };
+  if (isMetres(grid.unitName)) return { sight: { d: 18, unit: "m" }, light: { d: 6, unit: "m" } };
+  return { sight: squaresDistance(SIGHT_RANGE, grid), light: squaresDistance(PARTY_LIGHT, grid) };
 }
 
 /** What one square is in a room's new scenes. */
