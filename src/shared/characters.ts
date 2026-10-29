@@ -168,12 +168,15 @@ export function damageDice(a: Pick<CharacterAttack, "damage">): string | null {
 }
 
 /**
- * A critical hit's damage, by the group's handbook: the weapon's damage with one more of its die
- * at its most ("1d8" and dmg +2: 1d8+10); null when the sheet's damage isn't dice.
+ * A critical hit's damage, by the group's handbook: the weapon's damage with its dice's most added
+ * again, bonuses not doubled ("1d8" and dmg +2: 1d8+10; "2d6": 2d6+12); null when the sheet's
+ * damage isn't dice.
  */
 export function critDamage(a: Pick<CharacterAttack, "damage" | "bonus">): string | null {
   const dice = damageDice(a);
-  return dice ? withModifier(dice, attackModifiers({ toHit: "", bonus: a.bonus }).damage + Number(dice.split("d")[1])) : null;
+  if (!dice) return null;
+  const [count, sides] = dice.split("d").map(Number);
+  return withModifier(dice, attackModifiers({ toHit: "", bonus: a.bonus }).damage + count * sides);
 }
 
 /**

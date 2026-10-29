@@ -148,9 +148,10 @@ describe("a character from their sheet", () => {
     expect(critOf({ kind: "chat", text: "Testa: Longbow to hit" })).toBeNull();
     // Kept or dropped dice aren't the plain two d10.
     expect(critOf(toHit([1, 1], "Testa: Longbow to hit", [{ dropped: true }]))).toBeNull();
-    // The crit's damage: one more of the weapon's die at its most.
+    // The crit's damage: the most the weapon's dice can roll, added again; the bonus only once.
     expect(critDamage({ damage: "1d8", bonus: "dmg +2" })).toBe("1d8+10");
-    expect(critDamage({ damage: "2d6", bonus: "no STR bonus" })).toBe("2d6+6");
+    expect(critDamage({ damage: "2d6", bonus: "no STR bonus" })).toBe("2d6+12");
+    expect(critDamage({ damage: "3d4", bonus: "dmg +1" })).toBe("3d4+13");
     expect(critDamage({ damage: "1d4", bonus: "dmg -1" })).toBe("1d4+3");
     expect(critDamage({ damage: "special", bonus: "" })).toBeNull();
     expect(() => parseDice(critDamage({ damage: "1d8", bonus: "dmg +2" })!)).not.toThrow();

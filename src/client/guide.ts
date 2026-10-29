@@ -37,7 +37,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The party comes from the group's character sheets in Google Sheets, read every minute while the room is open. Change a sheet and Tabletop follows; nothing in the sheets is changed from here.",
           "A character's token has an HP bar under it, green, then amber, then red.",
-          "**Add selected token** in the initiative list rolls a d10 with the character's initiative bonus (their INT bonus) from their sheet. Their attacks roll two d10 to hit, with the sheet's to-hit: a natural 20 is a critical hit (the chat says so, and the damage button adds the weapon's die at its most), a natural 2 a critical failure.",
+          "**Add selected token** in the initiative list rolls a d10 with the character's initiative bonus (their INT bonus) from their sheet. Their attacks roll two d10 to hit, with the sheet's to-hit: a natural 20 is a critical hit (the chat says so, and the damage button adds the most the weapon's dice can roll), a natural 2 a critical failure.",
           "GM: set it up once in **Room settings** › **Character sheets**. You can choose a character's figure (their class's, or another, such as a bowwoman), or give them a picture of your own, for every room (29 October).",
           "See **Character sheets**."
         ]
@@ -877,7 +877,7 @@ export const GUIDE: GuideSection[] = [
           "Click a character's token on the map.",
           "Their card shows above the bar at the bottom: HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
           "Click an attack's first button to roll to hit (two d10 with the sheet's to-hit, its DEX bonus and the rest), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
-          "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the weapon's die at its most (a 1d8 weapon adds 8). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
+          "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the most the weapon's dice can roll, without the bonuses (a 1d8 weapon adds 8, a 2d6 weapon 12). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
           "Click the arrow at the top right to open the character's sheet."
         ],
         "notes": [

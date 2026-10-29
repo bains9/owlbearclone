@@ -100,7 +100,7 @@ export function CharacterCard(props: { c: Character }) {
                 {dmg && (
                   <button
                     class={cx("btn btn-sm", crit && "crit")}
-                    title={crit ? `Critical hit: roll ${crit} damage (the weapon's die at its most added)` : `Roll ${dmg} damage`}
+                    title={crit ? `Critical hit: roll ${crit} damage (the most the weapon's dice can roll, added)` : `Roll ${dmg} damage`}
                     onClick={() => (crit ? roll(crit, attackLabel(who, a.weapon, "crit damage")) : roll(dmg, attackLabel(who, a.weapon, "damage")))}
                   >
                     {crit ? `Crit ${crit}` : dmg}
