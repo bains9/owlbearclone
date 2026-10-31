@@ -393,7 +393,7 @@ export function sanitizeSeason(v: unknown): SceneSeason | null | undefined {
   const level = r.level === 1 || r.level === 2 || r.level === 3 ? r.level : undefined;
   if (!look || !level) return undefined;
   const seed = typeof r.seed === "number" && Number.isInteger(r.seed) && r.seed >= 0 && r.seed <= 65535 ? r.seed : undefined;
-  return { look, level, ...(seed !== undefined ? { seed } : {}) };
+  return { look, level, ...(seed !== undefined ? { seed } : {}), ...(r.pinned === true ? { pinned: true } : {}) };
 }
 
 /**

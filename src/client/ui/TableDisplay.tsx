@@ -9,7 +9,7 @@ import { RoomClient } from "../room/client";
 import { toggleFullscreen } from "./common";
 import { Modal, RoomContext, copyText, cx, useRoom, useRoomState } from "./common";
 import { BoardView } from "./RoomPage";
-import { DateOverlay } from "./CalendarPanel";
+import { DateOverlay, WeatherFx } from "./CalendarPanel";
 
 /** GM: open or copy the display link, and choose what the display shows. */
 export function TableDisplayDialog(props: { onClose: () => void }) {
@@ -171,6 +171,7 @@ function DisplayShell() {
     <div class={cx("display-room", idle && "idle")} onPointerMove={wake} onDblClick={toggleFullscreen}>
       {hasHello && <BoardView />}
       {hasHello && <DateOverlay />}
+      {hasHello && <WeatherFx />}
       {hasHello && !hasScene && <div class="display-empty">Waiting for the GM to show a scene</div>}
       {!hasHello && <div class="display-empty">Connecting…</div>}
       <DisplayTurn />

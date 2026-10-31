@@ -23,7 +23,7 @@ import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
 import { ProblemsDialog } from "./ProblemsDialog";
-import { CalendarPanel, DateChip, DateOverlay } from "./CalendarPanel";
+import { CalendarPanel, DateChip, DateOverlay, WeatherFx } from "./CalendarPanel";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
@@ -266,6 +266,9 @@ function RoomShell() {
       <div class="main">
         <div class="stage-area">
           <BoardView />
+          <Guard name="the weather" retry={(s) => s.calendarVersion}>
+            <WeatherFx />
+          </Guard>
           <Guard name="the toolbar" retry={(s) => s.tool}>
             <Toolbar />
           </Guard>

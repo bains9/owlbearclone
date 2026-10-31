@@ -7,7 +7,7 @@ import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, ke
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
 import { deviceOf, type Problem } from "../../shared/problems";
-import type { Calendar } from "../../shared/calendar";
+import { eventsOn, seasonLookOf, type Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -1519,7 +1519,7 @@ export class RoomClient {
       if (!res.ok) return;
       const got = (await res.json()) as { calendar: Calendar | null; version: number };
       if (this.disposed || typeof got?.version !== "number") return;
-      this.store.set({ calendar: got.calendar ?? null, calendarVersion: got.version });
+      this.takeCalendar(got.calendar ?? null, got.version);
     } catch {
       // Offline: the next reading tries again.
     }
@@ -1527,8 +1527,35 @@ export class RoomClient {
 
   /** GM: the calendar as just changed here, and everyone told to read it again. */
   calendarChanged(calendar: Calendar | null, version: number): void {
+    this.takeCalendar(calendar, version);
+    if (!this.display) this.submit({ t: "calendar.changed", version });
+  }
+
+  /**
+   * The calendar as just read or changed: kept, and acted on. A day moved to is announced with
+   * what's on it (the GM's eyes-only events only to the GM), and on the GM's page scenes with a
+   * season follow the calendar's when it's set to.
+   */
+  private takeCalendar(calendar: Calendar | null, version: number): void {
+    const was = this.state.calendar;
     this.store.set({ calendar, calendarVersion: version });
-    if (this.isGm) this.submit({ t: "calendar.changed", version });
+    if (!calendar) return;
+    if (was && was.today !== calendar.today && !this.display) {
+      const names = eventsOn(calendar, calendar.today, this.isGm).map((e) => e.name);
+      if (names.length) this.toast(`Today: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""}.`);
+    }
+    if (this.isGm && calendar.seasonsFollow) this.followSeasons(calendar);
+  }
+
+  /** GM: every scene with a season, not pinned, takes the calendar's season for the day. */
+  private followSeasons(calendar: Calendar): void {
+    const look = seasonLookOf(calendar, calendar.today);
+    if (!look) return;
+    for (const scene of Object.values(this.state.scenes)) {
+      const season = scene.season;
+      if (!season || season.pinned || season.look === look) continue;
+      this.changeScene(scene.id, { season: { ...season, look } }, {});
+    }
   }
 
   private partyTimer: ReturnType<typeof setInterval> | null = null;

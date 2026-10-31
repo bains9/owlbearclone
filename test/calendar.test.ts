@@ -18,8 +18,13 @@ import {
   newCalendar,
   repeatRule,
   ruleSummary,
+  dayLine,
+  moonlightOf,
+  nextOccurrence,
   sanitizeCalendar,
+  seasonLookOf,
   seasonOf,
+  upcoming,
   weatherOf,
   type Calendar,
 } from "../src/shared/calendar";
@@ -164,6 +169,40 @@ describe("events", () => {
     expect(ruleSummary(c, [["Moons", "0", ["1", "0"]], ["&&"], ["Moons", "0", ["2", "0"]]])).toBe("Big new, Pale new");
     expect(ruleSummary(c, [["Day", "0", ["15"]], ["&&"], ["Month", "0", ["9"]], ["&&"], ["Year", "6", ["1", "0"]]])).toBe("on day 15, in M10, every year");
     expect(ruleSummary(c, [["Season", "0", ["2"]], ["&&"], ["Season", "8", ["1"]]])).toBe("in Summer, on its first day");
+  });
+});
+
+describe("the moons' light, the season's look, what's coming and the day's line", () => {
+  it("light a night by the fullest moon, squared; none when all are new or the GM turns it off", () => {
+    const c = fixture();
+    // Epoch 374: the small moon new, the big one at 34 of 40 (waning), the pale one new.
+    expect(moonlightOf(c, 374)).toBeCloseTo((1 - Math.abs(2 * (34 / 40) - 1)) ** 2, 6);
+    // Epoch 416: the small moon new, the big one at 30 of 40, the pale one at 10 of 24: the pale one is fullest.
+    expect(moonlightOf(c, 416)).toBeCloseTo((1 - Math.abs(2 * (10 / 24) - 1)) ** 2, 6);
+    expect(moonlightOf({ ...c, moonlight: false }, 416)).toBe(0);
+    expect(moonlightOf({ ...c, moons: [] }, 416)).toBe(0);
+    const full = oracle.find((r) => r.moons[0] === 2)!;
+    expect(moonlightOf(c, full.epoch)).toBe(1);
+  });
+
+  it("give a scene the look of the season by its name", () => {
+    const c = fixture();
+    expect([seasonLookOf(c, 418), seasonLookOf(c, 449), seasonLookOf(c, 539), seasonLookOf(c, 629)]).toEqual(["winter", "spring", "summer", "autumn"]);
+    expect(seasonLookOf({ ...c, seasons: [{ name: "The Thaw", transition: 90, duration: 0 }, { name: "Harvest", transition: 270, duration: 0 }] }, 418)).toBeNull();
+    expect(seasonLookOf({ ...c, seasons: [{ name: "The Thaw", transition: 90, duration: 0 }, { name: "Harvest", transition: 270, duration: 0 }] }, 500)).toBe("autumn");
+  });
+
+  it("list what's coming, soonest first and each once, and find an event's next day", () => {
+    const c = fixture();
+    const date = (id: string, day: number, gmOnly = false): typeof c.events[number] => ({ id, name: id, text: "", category: "", gmOnly, when: { kind: "date", year: 2, month: 1, day }, days: 1 });
+    c.events = [date("later", 30), date("secret", 29, true), date("now", 29), { ...date("feast", 1), when: { kind: "rule", conditions: [["Day", "0", ["5"]]], summary: "" } }, date("past", 20)];
+    expect(upcoming(c, 418, 30, true).map((x) => [x.event.id, x.epoch])).toEqual([["secret", 418], ["now", 418], ["later", 419], ["feast", 424]]);
+    expect(upcoming(c, 418, 30, false).map((x) => x.event.id)).toEqual(["now", "later", "feast"]);
+    expect(nextOccurrence(c, c.events[3], 418)).toBe(424);
+    expect(nextOccurrence(c, c.events[4], 418)).toBe(409);
+    expect(nextOccurrence(c, { ...c.events[3], when: { kind: "rule", conditions: [["Era", "0", ["1"]]], summary: "" } }, 418)).toBeNull();
+    expect(dayLine(c)).toMatch(/^A new day: Nineday 29 M2, Year 2. .*°C.$/);
+    expect(dayLine({ ...c, weatherNotes: { "418": "Fog." } })).toBe("A new day: Nineday 29 M2, Year 2. Fog.");
   });
 });
 

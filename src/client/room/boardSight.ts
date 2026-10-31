@@ -27,6 +27,8 @@ const EXPLORED_SHOWN = 0.45;
 const NIGHT_SHOWN = 0.6;
 /** The black and white reaches this much further than nightvision, so no colour shows at its soft edge. */
 const MONO_OUT = 1.15;
+/** How much a full moon shows of what the party sees at night (0 to 1), before the moon's own share. */
+const MOON_SHOWN = 0.55;
 /** How strongly a light's colour tints what it falls on, at its heart. */
 const LIGHT_TINT = 0.3;
 /** The glow of a light that flickers but has no colour of its own: a torch's. */
@@ -154,7 +156,7 @@ export class BoardSight {
    * the geometry (made last by `geometry`), whose explored map it shows (`who`: "" for the
    * party's), and where `viewers` stand. The scene's area.
    */
-  ensure(scene: Scene, v: SceneVision, geom: SightGeometry, who: string, viewers: SightViewers): SceneArea {
+  ensure(scene: Scene, v: SceneVision, geom: SightGeometry, who: string, viewers: SightViewers, moon = 0): SceneArea {
     const area = sceneBounds(scene);
     const explored = this.room.state.explored[exploreSlot(scene.id, who)];
     if (explored !== this.exploredShown) {
@@ -172,10 +174,11 @@ export class BoardSight {
       `${area.x0},${area.y0},${area.x1},${area.y1}`,
       viewers.xy.join(","),
       viewers.night.join(","),
+      moon.toFixed(2),
     ].join("|");
     if (key !== this.madeFrom || !this.canvas) {
       this.madeFrom = key;
-      this.render(scene, v, geom, viewers, explored, who);
+      this.render(scene, v, geom, viewers, explored, who, moon);
     }
     return area;
   }
@@ -205,6 +208,7 @@ export class BoardSight {
     viewers: SightViewers,
     explored: Explored | undefined,
     who: string,
+    moon = 0,
   ): void {
     const area = sceneBounds(scene);
     const w0 = area.x1 - area.x0, h0 = area.y1 - area.y0;
@@ -226,7 +230,8 @@ export class BoardSight {
     // lights and the party's own light show; `night`: how much of what only nightvision sees, if any.
     // `nightOut`: how much further than its reach nightvision is painted (the black and white's
     // edge then lies in the dark, past the edge of what's dimly seen).
-    const paint = (c: CanvasRenderingContext2D, lit = true, night = 1, nightOut = 1) => {
+    // `moonlit`: how much of what the moons light shows (the dark's share; the explore grid takes it whole).
+    const paint = (c: CanvasRenderingContext2D, lit = true, night = 1, nightOut = 1, moonlit = moon * MOON_SHOWN) => {
       const trace = (poly: readonly number[]) => {
         c.beginPath();
         for (let i = 0; i < poly.length; i += 2) {
@@ -269,6 +274,15 @@ export class BoardSight {
             c.beginPath();
             c.arc(x, y, reach, 0, Math.PI * 2);
             c.fill();
+          }
+          // Moonlight: all this token sees, faintly, as bright as the moons are that night.
+          if (moonlit > 0) {
+            c.save();
+            c.globalAlpha = c.globalAlpha * moonlit;
+            c.fillStyle = range ? glow(x, y, range, 0.85) : "#000";
+            trace(seen);
+            c.fill();
+            c.restore();
           }
         }
         const nv = nights[n] * nightOut;
@@ -350,7 +364,7 @@ export class BoardSight {
     sc.clearRect(0, 0, grid.cols, grid.rows);
     sc.setTransform(1 / grid.cell, 0, 0, 1 / grid.cell, -grid.x0 / grid.cell, -grid.y0 / grid.cell);
     sc.globalCompositeOperation = "source-over";
-    paint(sc);
+    paint(sc, true, 1, 1, moon > 0 ? 1 : 0);
     const alpha = sc.getImageData(0, 0, grid.cols, grid.rows).data;
     this.seen = { grid, alpha };
     const cells = grid.cols * grid.rows;

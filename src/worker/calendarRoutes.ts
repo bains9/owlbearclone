@@ -4,7 +4,7 @@
 // its export file (import), keeps a copy (export), or takes it away (DELETE). It lives in the
 // Directory, once for every room, like the party.
 
-import { CALENDAR_LIMITS, forPlayers, fromFantasyCalendar, newCalendar, sanitizeCalendar, type CalEvent, type Calendar } from "../shared/calendar";
+import { CALENDAR_LIMITS, dateOf, forPlayers, fromFantasyCalendar, newCalendar, sanitizeCalendar, type CalEvent, type Calendar } from "../shared/calendar";
 import { cleanText } from "../shared/sanitize";
 import { isGm } from "./auth";
 
@@ -54,6 +54,34 @@ export async function roomCalendar(request: Request, env: Env, roomId: string): 
   const { calendar, version } = await stored(directory);
   const gm = await isGm(request, env);
   return json({ calendar: calendar ? (gm ? calendar : forPlayers(calendar)) : null, version });
+}
+
+/** POST /api/rooms/:id/log: a line in the party's log from anyone at the table, on the day the game is at. */
+export async function roomCalendarLog(request: Request, env: Env, roomId: string): Promise<Response> {
+  const directory = env.DIRECTORY.getByName("main");
+  if (!(await directory.listRooms()).some((r) => r.id === roomId)) return fail(404, "Room not found.");
+  const { calendar } = await stored(directory);
+  if (!calendar) return fail(409, "There's no calendar yet.");
+  const b = await body(request);
+  const text = cleanText(b?.text, CALENDAR_LIMITS.eventName);
+  if (!text) return fail(400, "Nothing to log.");
+  const gm = await isGm(request, env);
+  const by = cleanText(b?.name, 40) || (gm ? "GM" : "a player");
+  if (calendar.events.length >= CALENDAR_LIMITS.events) return fail(413, `A calendar holds at most ${CALENDAR_LIMITS.events} events.`);
+  const d = dateOf(calendar, calendar.today);
+  calendar.events.push({
+    id: `l${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
+    name: text,
+    text: "",
+    category: calendar.logCategory,
+    gmOnly: false,
+    when: { kind: "date", year: d.year, month: d.month, day: d.day },
+    days: 1,
+    by,
+  });
+  const kept = await keep(directory, calendar);
+  if ("error" in kept) return fail(413, kept.error);
+  return json({ ok: true, version: kept.version, calendar: gm ? calendar : forPlayers(calendar) });
 }
 
 /** The GM's calendar routes, or null when the request isn't one. */
@@ -143,6 +171,9 @@ export async function calendarRoute(request: Request, env: Env, pathname: string
     if (typeof b.climate === "string" && c.climates.some((x) => x.name === b.climate)) c.climate = b.climate;
     if (b.newWeather === true) c.weatherSeed = Math.floor(Math.random() * 1e9) + 1;
     if (typeof b.showOnMap === "boolean") c.showOnMap = b.showOnMap;
+    if (typeof b.seasonsFollow === "boolean") c.seasonsFollow = b.seasonsFollow;
+    if (typeof b.weatherOnMap === "boolean") c.weatherOnMap = b.weatherOnMap;
+    if (typeof b.moonlight === "boolean") c.moonlight = b.moonlight;
     const reroll = int(b.reroll);
     if (reroll !== null) c.rerolls[String(reroll)] = Math.min(999, (c.rerolls[String(reroll)] ?? 0) + 1);
     if (b.note && typeof b.note === "object") {

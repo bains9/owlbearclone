@@ -4,12 +4,15 @@
 // only), and brings the calendar in from Fantasy Calendar. The top bar's DateChip shows the date.
 
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { CalendarDays, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudRain, CloudSnow, CloudSun, EyeOff, Pencil, RefreshCw, Snowflake, Sun, Trash2 } from "lucide-preact";
+import { CalendarDays, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudRain, CloudSnow, CloudSun, EyeOff, Pencil, RefreshCw, Search, Snowflake, Sun, Trash2 } from "lucide-preact";
 import {
   dateOf,
   dateText,
+  dayLine,
   epochOf,
   eventsOn,
+  nextOccurrence,
+  upcoming,
   moonPhase,
   moonPhaseName,
   repeatRule,
@@ -20,7 +23,8 @@ import {
   type Calendar,
   type Weather,
 } from "../../shared/calendar";
-import { deleteCalendar, eventId, importCalendar, patchCalendar } from "../calendar";
+import { deleteCalendar, eventId, importCalendar, logLine, patchCalendar } from "../calendar";
+import { NewPartyDay } from "./PartySection";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** The date in the top bar: a click opens the panel. */
@@ -65,6 +69,15 @@ export function DateOverlay() {
       {body}
     </button>
   );
+}
+
+/** Rain or snow falling over the map on a wet day (CSS, styles.css .weather-fx), unless the GM keeps the map dry. */
+export function WeatherFx() {
+  const cal = useRoomState((s) => s.calendar);
+  if (!cal || cal.weatherOnMap === false) return null;
+  const w = weatherOf(cal, cal.today);
+  if (w.precipitation === "none") return null;
+  return <div class={`weather-fx ${w.kind === "rain" ? "rain" : "snow"} ${w.precipitation}`} aria-hidden="true" />;
 }
 
 function WeatherIcon(props: { w: Weather; size: number }) {
@@ -123,6 +136,8 @@ export function CalendarPanel() {
   const [view, setView] = useState<{ year: number; month: number } | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [log, setLog] = useState("");
+  const [find, setFind] = useState("");
+  const party = useRoomState((s) => s.party?.configured === true);
   // The panel opens on today; it follows the day as the GM moves it, until a day is picked.
   useEffect(() => {
     if (!cal) return;
@@ -195,9 +210,30 @@ export function CalendarPanel() {
   const addLog = () => {
     const text = log.trim();
     if (!text) return;
-    const at = dateOf(cal, today);
-    const e: CalEvent = { id: eventId(), name: text.slice(0, 200), text: "", category: cal.logCategory, gmOnly: false, when: { kind: "date", year: at.year, month: at.month, day: at.day }, days: 1 };
-    act(() => patchCalendar(room, { upsert: [e] }), () => setLog(""));
+    act(() => logLine(room, text), () => setLog(""));
+  };
+  // The GM moving the day: a line in the chat says where the game is now.
+  const moveDay = (epoch: number) => act(() => patchCalendar(room, { today: epoch }).then(({ calendar }) => room.sendChat(dayLine(calendar))));
+  const goTo = (epoch: number) => {
+    setPicked(epoch);
+    const at = dateOf(cal, epoch);
+    setView({ year: at.year, month: at.month });
+  };
+  const soon = useMemo(() => upcoming(cal, today, 30, gm).filter((x) => x.epoch !== today).slice(0, 8), [cal, today, gm]);
+  const found = useMemo(() => {
+    const q = find.trim().toLowerCase();
+    if (!q) return [];
+    return cal.events
+      .filter((e) => (gm || !e.gmOnly) && e.name.toLowerCase().includes(q))
+      .slice(0, 12)
+      .map((e) => ({ event: e, epoch: nextOccurrence(cal, e, today) }));
+  }, [cal, find, gm, today]);
+  const dayWord = (epoch: number) => {
+    const n = epoch - today;
+    if (n === 0) return "today";
+    if (n === 1) return "tomorrow";
+    if (n === -1) return "yesterday";
+    return n > 0 ? `in ${n} days` : `${-n} days ago`;
   };
   const dayEvents = byDay.get(shown) ?? eventsOn(cal, shown, gm);
 
@@ -213,10 +249,10 @@ export function CalendarPanel() {
           </div>
           {gm && (
             <span class="cal-day-buttons">
-              <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => act(() => patchCalendar(room, { today: today - 1 }))}>
+              <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => moveDay(today - 1)}>
                 <ChevronLeft size={16} />
               </button>
-              <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => act(() => patchCalendar(room, { today: today + 1 }))}>
+              <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => moveDay(today + 1)}>
                 <ChevronRight size={16} />
               </button>
             </span>
@@ -243,13 +279,62 @@ export function CalendarPanel() {
             })}
           </div>
         )}
-        {gm && <GmDayControls cal={cal} busy={busy} act={act} />}
+        {gm && <GmDayControls cal={cal} busy={busy} act={act} moveDay={moveDay} />}
+        {gm && party && (
+          <div class="cal-party-day">
+            <NewPartyDay />
+          </div>
+        )}
       </section>
 
-      {gm && (
+      {soon.length > 0 && (
+        <section class="cal-soon">
+          <div class="small muted">Coming up</div>
+          <ul class="cal-soon-list">
+            {soon.map(({ epoch, event }) => (
+              <li key={event.id}>
+                <button class="link-btn" onClick={() => goTo(epoch)}>
+                  {event.name}
+                </button>
+                <span class="small muted">
+                  {" "}
+                  {dayWord(epoch)}
+                  {event.gmOnly && <EyeOff size={11} aria-label="The GM's eyes only" />}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section class="cal-find">
+        <label class="cal-log-row">
+          <Search size={14} />
+          <input value={find} placeholder="Find an event" onInput={(e) => setFind(e.currentTarget.value)} />
+        </label>
+        {find.trim() && (
+          <ul class="cal-soon-list">
+            {found.length === 0 && <li class="small muted">Nothing by that name.</li>}
+            {found.map(({ event, epoch }) => (
+              <li key={event.id}>
+                {epoch === null ? (
+                  <span>{event.name}</span>
+                ) : (
+                  <button class="link-btn" onClick={() => goTo(epoch)}>
+                    {event.name}
+                  </button>
+                )}
+                <span class="small muted"> {epoch === null ? "never falls" : `${dateText(cal, epoch)} (${dayWord(epoch)})`}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {(
         <section class="cal-log">
           <label class="field">
-            <span class="small">The party's log for today</span>
+            <span class="small">{gm ? "The party's log for today" : "The party's log for today (your name goes with it)"}</span>
             <span class="cal-log-row">
               <input value={log} placeholder="What happened" maxLength={200} onInput={(e) => setLog(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && addLog()} />
               <button class="btn btn-sm" disabled={busy || !log.trim()} onClick={addLog}>
@@ -329,7 +414,7 @@ export function CalendarPanel() {
                     {e.gmOnly && <EyeOff size={12} aria-label="The GM's eyes only" />}
                   </div>
                   <div class="small muted">
-                    {[cat?.name, e.when.kind === "rule" ? e.when.summary : null, e.days > 1 ? `${e.days} days` : null].filter(Boolean).join(" · ")}
+                    {[cat?.name, e.when.kind === "rule" ? e.when.summary : null, e.days > 1 ? `${e.days} days` : null, e.by ? `by ${e.by}` : null].filter(Boolean).join(" · ")}
                   </div>
                   {e.text && <div class="small cal-event-text">{e.text}</div>}
                 </div>
@@ -354,7 +439,7 @@ export function CalendarPanel() {
   );
 }
 
-function GmDayControls(props: { cal: Calendar; busy: boolean; act: (what: () => Promise<unknown>, then?: () => void) => void }) {
+function GmDayControls(props: { cal: Calendar; busy: boolean; act: (what: () => Promise<unknown>, then?: () => void) => void; moveDay: (epoch: number) => void }) {
   const room = useRoom();
   const { cal, busy, act } = props;
   const d = dateOf(cal, cal.today);
@@ -371,7 +456,7 @@ function GmDayControls(props: { cal: Calendar; busy: boolean; act: (what: () => 
   const go = () => {
     const y = Number(year), dd = Number(day);
     if (!Number.isInteger(y) || !Number.isInteger(dd) || dd < 1) return room.toast("A whole year and day, please.", "error");
-    act(() => patchCalendar(room, { today: epochOf(cal, y, month, Math.min(dd, cal.months[month]?.length ?? dd)) }));
+    props.moveDay(epochOf(cal, y, month, Math.min(dd, cal.months[month]?.length ?? dd)));
   };
   return (
     <details class="cal-gm">
@@ -412,6 +497,18 @@ function GmDayControls(props: { cal: Calendar; busy: boolean; act: (what: () => 
       <label class="check small">
         <input type="checkbox" checked={cal.showOnMap !== false} onChange={(e) => act(() => patchCalendar(room, { showOnMap: e.currentTarget.checked }))} />
         <span>Show the date and weather on every map (table displays too)</span>
+      </label>
+      <label class="check small">
+        <input type="checkbox" checked={cal.weatherOnMap !== false} onChange={(e) => act(() => patchCalendar(room, { weatherOnMap: e.currentTarget.checked }))} />
+        <span>Rain and snow fall on the map on a wet day</span>
+      </label>
+      <label class="check small">
+        <input type="checkbox" checked={cal.moonlight !== false} onChange={(e) => act(() => patchCalendar(room, { moonlight: e.currentTarget.checked }))} />
+        <span>The moons light night scenes (lighting on, night), by their phases</span>
+      </label>
+      <label class="check small">
+        <input type="checkbox" checked={cal.seasonsFollow === true} onChange={(e) => act(() => patchCalendar(room, { seasonsFollow: e.currentTarget.checked }))} />
+        <span>Scenes with a season follow the calendar's (a scene's season can be pinned)</span>
       </label>
       <button class="btn btn-sm" disabled={busy} title="A fresh roll of the weather for every day from here on" onClick={() => act(() => patchCalendar(room, { newWeather: true }))}>
         <RefreshCw size={14} /> New weather for the whole calendar

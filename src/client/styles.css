@@ -3871,3 +3871,89 @@ kbd {
   width: 20px;
   height: 20px;
 }
+
+/* Rain or snow over the map on a wet day: two drifting layers of streaks or flakes, light or heavy. */
+.weather-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  overflow: hidden;
+}
+.weather-fx::before,
+.weather-fx::after {
+  content: "";
+  position: absolute;
+  inset: -20% 0 0 0;
+  height: 140%;
+}
+.weather-fx.rain::before {
+  background: repeating-linear-gradient(100deg, transparent 0 11px, rgba(200, 220, 255, 0.28) 11px 12px, transparent 12px 40px);
+  animation: rain-fall 0.9s linear infinite;
+  opacity: 0.55;
+}
+.weather-fx.rain::after {
+  background: repeating-linear-gradient(100deg, transparent 0 23px, rgba(200, 220, 255, 0.2) 23px 24px, transparent 24px 67px);
+  animation: rain-fall 1.4s linear infinite;
+  opacity: 0.45;
+}
+.weather-fx.rain.heavy::before,
+.weather-fx.rain.heavy::after {
+  opacity: 0.9;
+  animation-duration: 0.6s, 1s;
+}
+.weather-fx.snow::before,
+.weather-fx.snow::after {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 2px, transparent 2.5px), radial-gradient(circle, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 2px);
+  background-size: 120px 120px, 80px 80px;
+  background-position: 0 0, 40px 60px;
+  animation: snow-fall 9s linear infinite;
+  opacity: 0.6;
+}
+.weather-fx.snow::after {
+  background-size: 180px 180px, 60px 60px;
+  animation-duration: 14s;
+  opacity: 0.4;
+}
+.weather-fx.snow.heavy::before,
+.weather-fx.snow.heavy::after {
+  opacity: 0.9;
+  animation-duration: 6s, 10s;
+}
+@keyframes rain-fall {
+  from {
+    transform: translateY(-60px);
+  }
+  to {
+    transform: translateY(60px);
+  }
+}
+@keyframes snow-fall {
+  from {
+    transform: translate(0, -120px);
+  }
+  to {
+    transform: translate(40px, 120px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .weather-fx::before,
+  .weather-fx::after {
+    animation: none;
+  }
+}
+.cal-party-day {
+  margin-top: 8px;
+}
+.cal-soon-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+.cal-find .cal-log-row {
+  margin-top: 0;
+}

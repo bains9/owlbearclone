@@ -102,7 +102,7 @@ export type ClientAction =
   | { t: "explore.reset"; sceneId: string }
   /** GM only: the list of problems on devices (shared/problems.ts) is cleared. */
   | { t: "problems.clear" }
-  /** GM only: the campaign's calendar changed (shared/calendar.ts): everyone reads it again. */
+  /** The campaign's calendar changed (shared/calendar.ts): everyone reads it again. */
   | { t: "calendar.changed"; version: number };
 
 /**

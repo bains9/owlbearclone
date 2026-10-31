@@ -921,7 +921,8 @@ export class Room extends DurableObject<Env> {
         return;
 
       case "calendar.changed": {
-        if (!gm) return this.deny(ws);
+        // Anyone's (a player's log line changes it too), never a display's.
+        if (conn.display) return;
         const version = (msg as { version?: unknown }).version;
         this.broadcast({ t: "calendar", version: typeof version === "number" && Number.isFinite(version) ? version : 0 });
         return;

@@ -33,6 +33,8 @@ export type SeasonLook = (typeof SEASON_LOOKS)[number];
 
 export interface SceneSeason {
   look: SeasonLook;
+  /** Keeps this season when the calendar's changes (shared/calendar.ts seasonsFollow). */
+  pinned?: boolean;
   /** How drastic: 1 light, 2 in season, 3 the most. */
   level: 1 | 2 | 3;
   /**

@@ -24,6 +24,8 @@ export const GUIDE: GuideSection[] = [
           "Click a day in the month to see what's on it; the arrows go a month back or on, and the month's name goes back to today.",
           "GM: the arrows beside the date move the game a day back or on. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
           "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
+          "**Coming up** lists what starts in the next 30 days; **Find an event** jumps to the next day an event falls on. Anyone can add a line to **The party's log for today**: a player's goes in with their name.",
+          "GM: under **Set the date, region and weather**, three more ticks: rain and snow falling on the map on a wet day; the moons lighting night scenes (lighting on, set to night) as bright as they are that night; and scenes with a season following the calendar's, winter when it's winter (pin a scene's season in its **Season** pop-up to keep it). **New day for the party** sits under the date too.",
           "GM: under **Bring in, keep a copy, or take away**, paste a public Fantasy Calendar link and click **Bring it in**: its months, weekdays, moons, seasons, regions, categories and events all come over, and its hidden events stay the GM's eyes only. **Sync** later brings its changes over again and keeps what was made here."
         ],
         "notes": [
@@ -32,6 +34,7 @@ export const GUIDE: GuideSection[] = [
           "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
           "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
           "The date and today's weather show at the top right of every map, table displays included; a click opens the panel. GM: untick **Show the date and weather on every map** to keep them to the panel.",
+          "When the GM moves the day, a line in the chat says where the game is now and what the weather's like, and everyone gets a note of what's on that day (the GM's eyes-only events only to the GM).",
           "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
         ]
       },

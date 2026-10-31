@@ -55,6 +55,8 @@ export interface CalEvent {
   days: number;
   /** Fantasy Calendar's id for it, when it came from there (a sync replaces these, and keeps the rest). */
   fc?: number;
+  /** Who logged it (a player's line in the party's log). */
+  by?: string;
 }
 
 export interface CalCategory {
@@ -94,6 +96,12 @@ export interface Calendar {
   source?: { fc: string; at: number };
   /** The date shown on every map (the top right corner, table displays too); false keeps it to the panel. */
   showOnMap?: boolean;
+  /** Scenes with a season follow the calendar's (a pinned scene keeps its own). */
+  seasonsFollow?: boolean;
+  /** Rain and snow fall on the map on a wet day; false keeps the map dry. */
+  weatherOnMap?: boolean;
+  /** Night scenes lit by the moons as they are that night; false leaves nights as they were. */
+  moonlight?: boolean;
 }
 
 export const CALENDAR_LIMITS = {
@@ -537,6 +545,53 @@ export function eventsOn(c: Calendar, epoch: number, gm: boolean): CalEvent[] {
   });
 }
 
+/**
+ * How bright the moons make a night, 0 (all new, or no moons) to 1 (a full moon): the fullest
+ * moon's share of its cycle lit, squared, so a half moon gives a quarter of the light.
+ */
+export function moonlightOf(c: Pick<Calendar, "moons" | "moonlight">, epoch: number): number {
+  if (c.moonlight === false || !c.moons.length) return 0;
+  let best = 0;
+  for (const m of c.moons) {
+    const f = moonPhase(m, epoch) / Math.max(2, Math.round(m.granularity));
+    best = Math.max(best, 1 - Math.abs(2 * f - 1));
+  }
+  return best * best;
+}
+
+/** The look a scene takes in the calendar's season that day, by the season's name; null when the name says nothing. */
+export function seasonLookOf(c: Pick<Calendar, "seasons" | "seasonOffset">, epoch: number): "spring" | "summer" | "autumn" | "winter" | null {
+  const name = (c.seasons[seasonOf(c, epoch).index]?.name ?? "").toLowerCase();
+  if (/winter/.test(name)) return "winter";
+  if (/spring/.test(name)) return "spring";
+  if (/summer/.test(name)) return "summer";
+  if (/autumn|fall|harvest/.test(name)) return "autumn";
+  return null;
+}
+
+/** What's coming: the events that start within `days` of `from` (that day included), soonest first, each once. */
+export function upcoming(c: Calendar, from: number, days: number, gm: boolean): { epoch: number; event: CalEvent }[] {
+  const out: { epoch: number; event: CalEvent }[] = [];
+  const seen = new Set<string>();
+  for (let epoch = from; epoch < from + days; epoch++) {
+    const facts = dayFacts(c, epoch);
+    for (const e of c.events) {
+      if ((e.gmOnly && !gm) || seen.has(e.id) || !eventStarts(c, e, epoch, facts)) continue;
+      seen.add(e.id);
+      out.push({ epoch, event: e });
+    }
+  }
+  return out;
+}
+
+/** The next day an event starts on, from `from` (that day included), within two years; failing that the last day it did, within a year; else null. */
+export function nextOccurrence(c: Calendar, e: CalEvent, from: number): number | null {
+  if (e.when.kind === "date") return epochOf(c, e.when.year, e.when.month, e.when.day);
+  for (let epoch = from; epoch < from + 730; epoch++) if (eventStarts(c, e, epoch)) return epoch;
+  for (let epoch = from - 1; epoch > from - 366; epoch--) if (eventStarts(c, e, epoch)) return epoch;
+  return null;
+}
+
 /** A rule in plain words, for the list ("every year on 15 Agronos", "when Big Dog and Feyor are new"). */
 export function ruleSummary(c: Pick<Calendar, "weekdays" | "months" | "moons" | "seasons">, conds: unknown[]): string {
   const parts: string[] = [];
@@ -811,6 +866,7 @@ export function sanitizeCalendar(raw: unknown): Calendar | null {
         days: Math.max(1, Math.min(L.days, Math.round(n(x.days, 1)))),
       };
       if (typeof x.fc === "number" && Number.isInteger(x.fc)) out.fc = x.fc;
+      if (typeof x.by === "string" && x.by.trim()) out.by = str(x.by, 40);
       return out;
     })
     .filter((e): e is CalEvent => e !== null)
@@ -847,6 +903,9 @@ export function sanitizeCalendar(raw: unknown): Calendar | null {
     logCategory: str(r.logCategory, 40),
   };
   if (r.showOnMap === false) cal.showOnMap = false;
+  if (r.seasonsFollow === true) cal.seasonsFollow = true;
+  if (r.weatherOnMap === false) cal.weatherOnMap = false;
+  if (r.moonlight === false) cal.moonlight = false;
   if (!cal.climates.some((c) => c.name === cal.climate)) cal.climate = cal.climates[0].name;
   if (!cal.seasons.length) cal.seasons = fresh.seasons;
   if (!seasonsLength(cal)) cal.seasons = cal.seasons.map((s) => ({ ...s, transition: 90 }));
@@ -862,6 +921,11 @@ function plainRule(v: unknown, depth: number): boolean {
 }
 
 /** The calendar as players get it: without the GM's eyes-only events and categories. */
+/** The chat's line for a day the GM moved to: "A new day: Tenday 30 Vanyir, Year 2. Cold and clear, -6 to 6 °C." */
+export function dayLine(c: Calendar): string {
+  return `A new day: ${dateText(c, c.today)}. ${c.weatherNotes[String(c.today)] ?? weatherOf(c, c.today).text}`;
+}
+
 export function forPlayers(c: Calendar): Calendar {
   return { ...c, events: c.events.filter((e) => !e.gmOnly), categories: c.categories.filter((x) => !x.gmOnly), weatherNotes: c.weatherNotes };
 }

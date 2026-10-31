@@ -177,7 +177,7 @@ function PartyRow(props: { c: Character; gm: boolean }) {
  * everyone's spell points back to full on their sheets. It asks first, since it changes every
  * sheet, and can be taken back for half an hour after.
  */
-function NewPartyDay() {
+export function NewPartyDay() {
   const room = useRoom();
   const count = useRoomState((s) => s.party?.characters.length ?? 0);
   const undo = useRoomState((s) => s.newDayUndo);

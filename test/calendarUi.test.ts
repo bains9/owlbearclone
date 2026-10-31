@@ -24,16 +24,21 @@ describe("the calendar on the page", () => {
     const client = read("src/client/room/client.ts");
     expect(client).toContain("void this.refreshCalendar();");
     expect(client).toContain('case "calendar":\n        if (msg.version !== this.state.calendarVersion) void this.refreshCalendar();');
-    expect(client).toContain('if (this.isGm) this.submit({ t: "calendar.changed", version });');
+    expect(client).toContain('if (!this.display) this.submit({ t: "calendar.changed", version });');
     const room = read("src/worker/room.ts");
-    expect(room).toContain('case "calendar.changed": {\n        if (!gm) return this.deny(ws);');
+    expect(room).toContain('case "calendar.changed": {\n        // Anyone\'s (a player\'s log line changes it too), never a display\'s.\n        if (conn.display) return;');
     expect(room).toContain('this.broadcast({ t: "calendar", version:');
   });
 
   it("lets the GM move the day, set the region and weather, log, and add events; players only look", () => {
     const panel = read("src/client/ui/CalendarPanel.tsx");
     for (const words of [
-      'patchCalendar(room, { today: today + 1 })',
+      "onClick={() => moveDay(today + 1)}",
+      "room.sendChat(dayLine(calendar))",
+      "act(() => logLine(room, text), () => setLog(\"\"))",
+      "<NewPartyDay />",
+      "Coming up",
+      'placeholder="Find an event"',
       'patchCalendar(room, { climate: e.currentTarget.value })',
       'patchCalendar(room, { reroll: today, note: { epoch: today, text: null } })',
       'patchCalendar(room, { newWeather: true })',

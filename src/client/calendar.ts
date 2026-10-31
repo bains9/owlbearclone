@@ -14,6 +14,9 @@ export interface CalendarPatch {
   newWeather?: true;
   /** The date on every map, or only in the panel. */
   showOnMap?: boolean;
+  seasonsFollow?: boolean;
+  weatherOnMap?: boolean;
+  moonlight?: boolean;
   /** A day whose weather is rolled again (epoch). */
   reroll?: number;
   /** The GM's own words for a day's weather (null takes them away). */
@@ -38,6 +41,16 @@ export function patchCalendar(room: RoomClient, patch: CalendarPatch): Promise<{
 /** Brings a calendar in from Fantasy Calendar by its link, or from a file's contents (its export, or one from here). */
 export function importCalendar(room: RoomClient, from: { link: string } | { data: unknown }): Promise<{ calendar: Calendar; notes?: string[] }> {
   return fetch("/api/calendar/import", { method: "POST", headers, body: JSON.stringify(from), credentials: "same-origin" }).then((res) => answer(room, res));
+}
+
+/** A line in the party's log from anyone at the table (their name with it), on the day the game is at. */
+export function logLine(room: RoomClient, text: string): Promise<{ calendar: Calendar; version: number }> {
+  return fetch(`/api/rooms/${encodeURIComponent(room.roomId)}/log`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ text, name: room.state.me?.name ?? "" }),
+    credentials: "same-origin",
+  }).then((res) => answer(room, res));
 }
 
 export async function deleteCalendar(room: RoomClient): Promise<void> {

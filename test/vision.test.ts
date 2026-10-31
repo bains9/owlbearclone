@@ -286,7 +286,9 @@ describe("night by moon or starlight, and nightvision", () => {
     // Dim in the dark, whole on the explore grid (it's seen: explored, and its tokens show), and none where a light is.
     const sight = await readFile(new URL("../src/client/room/boardSight.ts", import.meta.url), "utf8");
     expect(sight).toContain("paint(c, true, NIGHT_SHOWN);");
-    expect(sight).toContain("paint(sc);");
+    expect(sight).toContain("paint(sc, true, 1, 1, moon > 0 ? 1 : 0);");
+    // Moonlight: what the party sees at night shows faintly, as bright as the moons are.
+    expect(sight).toContain("c.globalAlpha = c.globalAlpha * moonlit;");
     expect(sight).toContain("paint(mc, false, 1, MONO_OUT);");
     expect(sight).toContain("paint(mc, true, 0);");
     expect(sight).toContain("(range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size)");

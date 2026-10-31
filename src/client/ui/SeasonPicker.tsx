@@ -85,7 +85,7 @@ export function SeasonPicker(props: { scene: Scene }) {
   });
 
   const set = (next: SceneSeason | null) => {
-    const same = next && season && next.look === season.look && next.level === season.level && next.seed === season.seed;
+    const same = next && season && next.look === season.look && next.level === season.level && next.seed === season.seed && !!next.pinned === !!season.pinned;
     if (same || (!next && !season)) return;
     if (next) rememberLevel(next.look, next.level);
     room.changeScene(s.id, { season: next }, {});

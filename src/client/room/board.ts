@@ -57,6 +57,8 @@ import { distanceSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
 import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, toggledDoor } from "./vision";
 import { BoardSight, FOG_CACHE_MAX, drawGlows, type SceneArea, type SightGeometry } from "./boardSight";
+import { moonlightOf } from "../../shared/calendar";
+import type { Calendar } from "../../shared/calendar";
 import {
   BuildEdit,
   BuildRenderer,
@@ -555,6 +557,8 @@ export class Board implements BoardApi {
   private renderedExplored: RoomState["explored"] | null = null;
   private renderedParty: RoomState["party"] = null;
   private renderedLookAs: string | null = null;
+  /** The calendar the dark was last made with (the moons light a night). */
+  private renderedCalendar: Calendar | null = null;
   private itemsDirty = false;
   private needsFit = true;
   private cameras = new Map<string, Camera>();
@@ -1011,7 +1015,8 @@ export class Board implements BoardApi {
       force = true;
     }
 
-    if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs) {
+    if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs || s.calendar !== this.renderedCalendar) {
+      this.renderedCalendar = s.calendar;
       // What the party has explored changed (others' exploring, all of a scene's coming in, or the GM
       // forgetting it), or with per-player sight, whose eyes this page sees with may have.
       this.renderedExplored = s.explored;
@@ -2122,7 +2127,10 @@ export class Board implements BoardApi {
     const geom = this.sightGeometry(scene, v);
     const look = this.sightLook(scene, v);
     this.sightEyes = look.eyes;
-    return this.sight.ensure(scene, v, geom, look.who, this.sightViewers(scene, v, look.eyes));
+    // At night, the moons light what the party sees, as they are that night (the calendar).
+    const calendar = this.room.state.calendar;
+    const moon = v.night && !v.daylight && calendar ? moonlightOf(calendar, calendar.today) : 0;
+    return this.sight.ensure(scene, v, geom, look.who, this.sightViewers(scene, v, look.eyes), moon);
   }
 
   /** The tokens the dark was last made with, with per-player sight (sightLook); null: the party's. */

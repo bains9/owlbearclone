@@ -11,7 +11,7 @@ import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_SPEND } from "../shared/characters";
-import { calendarRoute, roomCalendar } from "./calendarRoutes";
+import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -408,6 +408,7 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     // The party, read from their character sheets, for anyone at this table (characters.ts).
     // The campaign's calendar, for anyone at this table (calendarRoutes.ts).
     if (sub === "/calendar" && method === "GET") return roomCalendar(request, env, roomId);
+    if (sub === "/log" && method === "POST") return roomCalendarLog(request, env, roomId);
 
     if (sub === "/characters" && method === "GET") {
       const directory = env.DIRECTORY.getByName("main");

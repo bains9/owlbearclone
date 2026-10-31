@@ -97,7 +97,7 @@ describe("a page's explored cells", () => {
 describe("the board", () => {
   it("draws the dark again when what's explored changes, or whose eyes it sees with may have", async () => {
     const board = await source("src/client/room/board.ts");
-    const at = board.indexOf("if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs) {");
+    const at = board.indexOf("if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs || s.calendar !== this.renderedCalendar) {");
     expect(at).toBeGreaterThan(0);
     expect(board.slice(at, at + 600)).toContain("if (scene?.vision?.on) this.redrawSight();");
   });
