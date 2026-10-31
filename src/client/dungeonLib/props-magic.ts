@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-magic.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-magic.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, MASONRY, GLASSES, GLOWS, GOLD, cross, vary, family, glowLight, shade, ell, poly, fo, box, cbox, disc, plank, glow, stroke, bookRow, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";

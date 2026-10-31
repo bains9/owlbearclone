@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/library.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
+// Copied from Dungeon (src/render/library.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
 import type { PropDef } from "./propkit";
 import { FURNITURE_PROPS } from "./props-furniture";
 import { CONTAINER_PROPS } from "./props-containers";

@@ -8,7 +8,7 @@ import { MATERIALS } from "../src/client/dungeonLib/textures";
 // must match the copies.
 
 /** The library's files (as scripts/sync-dungeon-library.mjs picks them). */
-const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|props(-[a-z]+)?).ts$/;
+const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|scatter|props(-[a-z]+)?).ts$/;
 
 async function fs() {
   return (await import(/* @vite-ignore */ "node:" + "fs")) as {

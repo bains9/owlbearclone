@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-washroom.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-washroom.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
 import { rr, circle, radial, linear, flame, OUT } from "./propkit";
 import { WOODS, METALS, MASONRY, CLAYS, CLOTHS, GLASSES, GOLD, cross, vary, family, shade, ell, poly, fo, cbox, box, disc, plank, drape, glow, stroke, studs, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";

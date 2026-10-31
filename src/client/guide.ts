@@ -2408,7 +2408,8 @@ export const GUIDE: GuideSection[] = [
           "Each drag is one step for **Undo**. Hold **Alt** and drag to erase objects instead, or pick **Erase**.",
           "On a phone or tablet, drag with one finger to scatter; two fingers move the map. A single tap scatters once, where you tap.",
           "A part of the map 16 by 16 squares holds up to 256 objects. When the brush reaches that, a message says so and it scatters only where there's room.",
-          "Only Dungeon's objects come in groups. With one of Tabletop's own sixteen picked, **Mix** is greyed out and the brush scatters just that one."
+          "Only Dungeon's objects come in groups. With one of Tabletop's own sixteen picked, **Mix** is greyed out and the brush scatters just that one.",
+          "Dungeon has the same brush (its **Objects** tool, **Mode** › **Scatter**), so a forest made in Dungeon and brought in looks like one scattered here."
         ]
       },
       {

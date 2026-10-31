@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-light.ts) by scripts/sync-dungeon-library.mjs, Dungeon 509abc4. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-light.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
 import { flame, radial, linear, circle } from "./propkit";
 import { WOODS, METALS, MASONRY, CLAYS, GLOWS, cross, vary, family, glowLight, ell, poly, fo, cbox, disc, glow, coloredFlame, stroke, scatter, type C, type Glow, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
