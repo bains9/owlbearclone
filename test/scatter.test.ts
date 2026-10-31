@@ -130,8 +130,8 @@ describe("the scatter brush", () => {
 describe("in the guide", () => {
   it("is in What's new under spell effects, naming the bar's controls", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    const entry = JSON.stringify(news.parts[8]);
-    expect(news.parts[8].title).toBe("Scatter forests on the fly (31 October 2026)");
+    const entry = JSON.stringify(news.parts[9]);
+    expect(news.parts[9].title).toBe("Scatter forests on the fly (31 October 2026)");
     for (const label of ["**Scatter**", "**Mix", "**Sparse**", "**Dense**"]) expect(entry).toContain(label);
   });
 

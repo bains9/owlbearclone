@@ -14,6 +14,7 @@ import type {
   RoomSettings,
   Scene,
   SceneDungeon,
+  SceneLevel,
   SceneVision,
   SceneMapData,
   SceneSeason,
@@ -457,6 +458,18 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
   };
 }
 
+/** A scene's level in a map with several (null: none any more; undefined: not one, or not a good one). */
+export function sanitizeSceneLevel(v: unknown): SceneLevel | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  if (typeof r.group !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.group)) return undefined;
+  if (typeof r.index !== "number" || !Number.isInteger(r.index) || r.index < 0 || r.index > 99) return undefined;
+  const name = typeof r.name === "string" ? cleanText(r.name, 60) : "";
+  if (!name) return undefined;
+  return { group: r.group, index: r.index, name };
+}
+
 /** How much of a scene's lighting and line of sight is kept: plenty for a big map from Dungeon. */
 export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60, sightRange: 200 };
 /** How far the party sees to begin with, in squares: so sight doesn't run ahead of the fog of war down a long hall. */
@@ -600,6 +613,9 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const lv = sanitizeDungeonLink(r.dungeon);
   const linked = lv === null ? undefined : (lv ?? (newPicture ? undefined : existing?.dungeon));
   const dungeon = linked && linked.asset === mapAssetId ? linked : undefined;
+  // Its level in a map with several: null takes it away, a change without it keeps the scene's.
+  const lev = sanitizeSceneLevel(r.level);
+  const level = lev === null ? undefined : (lev ?? existing?.level);
   // Lighting and line of sight: null takes it away, a change without it keeps the scene's.
   const vv = sanitizeVision(r.vision);
   const vision = vv === null ? undefined : (vv ?? existing?.vision);
@@ -620,6 +636,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(wallTexture ? { wallTexture } : {}),
     ...(bounds ? { bounds } : {}),
     ...(dungeon ? { dungeon } : {}),
+    ...(level ? { level } : {}),
     ...(vision ? { vision } : {}),
   };
 }

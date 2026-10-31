@@ -10,6 +10,7 @@
 // Nothing of the Dungeondraft parser is loaded here: a project file is only sniffed
 // (its first bytes) for what pairing needs, and read in full by the attach worker.
 
+import { randomId } from "../shared/ids";
 import type { GridType } from "../shared/types";
 import type { VttMeta } from "./dd/extract";
 import type { GridUnits } from "../shared/units";
@@ -18,6 +19,8 @@ import type { GridUnits } from "../shared/units";
 export interface MapFile {
   /** Scene name. */
   name: string;
+  /** One level of a file with several: the file's levels share `group`. */
+  level?: { group: string; index: number; name: string };
   /** The map image, ready to upload. */
   image: File;
   /** Grid cells across and down, when the file (or its name) says. */
@@ -583,12 +586,13 @@ export function parseUniversalVttLevels(text: string, fileName: string): MapFile
   const data = vttJson(text);
   const more = Array.isArray(data?.dungeon_levels) ? (data.dungeon_levels as unknown[]) : [];
   if (!more.length) return [vttMap(data, fileName)];
+  const group = randomId(12);
   return [data, ...more].slice(0, MAX_FILE_LEVELS).map((level, i) => {
     if (typeof level !== "object" || level === null || Array.isArray(level)) throw new Error(`has a level (${i + 1}) that isn't a map.`);
     const named = (level as { dungeon?: { levelName?: unknown } }).dungeon?.levelName;
     const levelName = typeof named === "string" && named.trim() ? named.trim().slice(0, 60) : `Level ${i + 1}`;
     try {
-      return vttMap(level as Record<string, unknown>, fileName, `${vttName(fileName)}: ${levelName}`);
+      return { ...vttMap(level as Record<string, unknown>, fileName, `${vttName(fileName)}: ${levelName}`), level: { group, index: i, name: levelName } };
     } catch (err) {
       throw new Error(`(level ${i + 1}, ${levelName}) ${(err as Error).message}`);
     }

@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "A map's levels as one: up, down, and taking the party (31 October 2026)",
+        "steps": [
+          "A map with levels is now one entry in **Scenes**: click it to open its levels.",
+          "GM: on a level, the bar at the top right of the map says which one, with ▲ and ▼ to look at the level above or below. Players stay where they are.",
+          "On the level players see, **Take the party** ▲ **Up** or ▼ **Down** takes the party's tokens, and the spells on them, to the same squares on that level, and shows it to players. With tokens selected, it takes those instead."
+        ],
+        "notes": [
+          "Each level keeps its own fog, drawings and lighting.",
+          "A map's levels brought in from a file before today are still separate scenes: bring the file in again to have them as one. Maps brought in from Dungeon already are."
+        ]
+      },
+      {
         "title": "Coloured and flickering lights, and walls that stop tokens (31 October 2026)",
         "steps": [
           "With lighting on, players' tokens no longer go through walls or shut doors: dragged into one, a token stops there. The GM's tokens go anywhere.",
@@ -2407,11 +2419,11 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
-          "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not (with a Dungeondraft project file, they only help tell which level the picture shows).",
+          "The picture and the grid are used, and its walls, doors and lights for **Lighting and line of sight** (with a Dungeondraft project file, they also help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
           "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**.",
           "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**.",
-          "A map from Dungeon with levels, exported with every level in one file, makes a scene for each level, in order, named after the map and the level (\"Old Keep: Cellar\")."
+          "A map from Dungeon with levels, exported with every level in one file, makes a scene for each level, in order, named after the map and the level (\"Old Keep: Cellar\"), and listed as one map in **Scenes**. See **A map with levels** under **Scenes**."
         ]
       },
       {
@@ -2726,6 +2738,19 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Press Escape instead of Enter to cancel.",
           "An empty name isn't saved. Names can be up to 60 characters."
+        ]
+      },
+      {
+        "title": "A map with levels",
+        "steps": [
+          "A map brought in with several levels (from Dungeon, or a file with every level in it) is one entry in **Scenes**, with its number of levels. Click it to open or close its levels; each level is a scene of its own.",
+          "On a level, the bar at the top right of the map says which one it is (\"Cellar, 2 of 3\"). Click ▲ or ▼ to look at the level above or below: players stay where they are.",
+          "When the party goes up or down the stairs, go to the level players see and click **Take the party** ▲ **Up** or ▼ **Down**. Their tokens go to the same squares on that level, with the spells on them, and players see that level."
+        ],
+        "notes": [
+          "The party is the characters' tokens and the tokens players put down (not hidden ones or props). Select tokens first to take just those, monsters too.",
+          "Each level keeps its own fog, drawings and lighting. Initiative carries on as it was.",
+          "Show any level to players with **Show to players** on its row, as with any scene."
         ]
       },
       {

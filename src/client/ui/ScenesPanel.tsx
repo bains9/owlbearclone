@@ -1,5 +1,5 @@
 import { useRef, useState } from "preact/hooks";
-import { Check, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
+import { Check, ChevronDown, ChevronRight, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
@@ -17,6 +17,7 @@ import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
 import { FromDungeon } from "./FromDungeon";
+import { levelOf, sceneEntries } from "../levels";
 import { UpdateFromDungeonDialog } from "./UpdateFromDungeon";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
@@ -36,6 +37,63 @@ export function ScenesPanel() {
   const [updating, setUpdating] = useState<string | null>(null);
   const list = Object.values(scenes).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt);
   const editScene = editing ? scenes[editing] : null;
+  // A map's levels, folded or open (open to begin with where you are, or players are).
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+
+  // A scene's row (a level's, under its map, by the level's name).
+  const row = (s: Scene, label?: string) => (
+    <li
+      key={s.id}
+      class={cx("scene-row", view === s.id && "viewing")}
+      onClick={() => room.viewSceneLocally(s.id)}
+      title="View this scene (players don't see it until you show it)"
+    >
+      <div
+        class="scene-thumb"
+        style={{
+          background: s.background,
+          backgroundImage: s.mapAssetId ? `url(${fileUrl(room.roomId, s.mapAssetId)})` : undefined,
+        }}
+      />
+      <div class="scene-info">
+        <span class="scene-title">{label ?? s.name}</span>
+        <span class="small muted">
+          {active === s.id ? <span class="live-tag">Players see this</span> : view === s.id ? "Previewing" : ""}
+        </span>
+      </div>
+      <div class="scene-actions" onClick={(e) => e.stopPropagation()}>
+        {active !== s.id && (
+          <button class="icon-btn" title="Show to players" aria-label="Show to players" onClick={() => room.activateScene(s.id)}>
+            <Play size={16} />
+          </button>
+        )}
+        {isDungeonScene(s) && (
+          <button
+            class="icon-btn"
+            title="Update from Dungeon: the map as it is in Dungeon now, tokens and fog kept"
+            aria-label="Update from Dungeon"
+            onClick={() => setUpdating(s.dungeon.batch)}
+          >
+            <RefreshCw size={16} />
+          </button>
+        )}
+        <button
+          class="icon-btn"
+          title="Edit scene and grid"
+          aria-label="Edit scene"
+          onClick={() => {
+            room.viewSceneLocally(s.id);
+            setEditing(s.id);
+          }}
+        >
+          <SquarePen size={16} />
+        </button>
+        <button class="icon-btn danger" title="Delete scene" aria-label="Delete scene" onClick={() => setDeleting(s)}>
+          <Trash size={16} />
+        </button>
+      </div>
+    </li>
+  );
 
   if (editScene) {
     return <SceneEditor scene={editScene} onDone={() => setEditing(null)} />;
@@ -47,59 +105,23 @@ export function ScenesPanel() {
         <Plus size={16} /> New scene
       </button>
       <ul class="scene-list">
-        {list.map((s) => (
-          <li
-            key={s.id}
-            class={cx("scene-row", view === s.id && "viewing")}
-            onClick={() => room.viewSceneLocally(s.id)}
-            title="View this scene (players don't see it until you show it)"
-          >
-            <div
-              class="scene-thumb"
-              style={{
-                background: s.background,
-                backgroundImage: s.mapAssetId ? `url(${fileUrl(room.roomId, s.mapAssetId)})` : undefined,
-              }}
-            />
-            <div class="scene-info">
-              <span class="scene-title">{s.name}</span>
-              <span class="small muted">
-                {active === s.id ? <span class="live-tag">Players see this</span> : view === s.id ? "Previewing" : ""}
-              </span>
-            </div>
-            <div class="scene-actions" onClick={(e) => e.stopPropagation()}>
-              {active !== s.id && (
-                <button class="icon-btn" title="Show to players" aria-label="Show to players" onClick={() => room.activateScene(s.id)}>
-                  <Play size={16} />
-                </button>
-              )}
-              {isDungeonScene(s) && (
-                <button
-                  class="icon-btn"
-                  title="Update from Dungeon: the map as it is in Dungeon now, tokens and fog kept"
-                  aria-label="Update from Dungeon"
-                  onClick={() => setUpdating(s.dungeon.batch)}
-                >
-                  <RefreshCw size={16} />
-                </button>
-              )}
-              <button
-                class="icon-btn"
-                title="Edit scene and grid"
-                aria-label="Edit scene"
-                onClick={() => {
-                  room.viewSceneLocally(s.id);
-                  setEditing(s.id);
-                }}
-              >
-                <SquarePen size={16} />
+        {sceneEntries(list).map((e) => {
+          if (e.kind === "scene") return row(e.scene);
+          const here = e.levels.some((s) => s.id === view || s.id === active);
+          const shut = folded[e.group] ?? !here;
+          return (
+            <li key={e.group} class="scene-group">
+              <button class="scene-group-head" aria-expanded={!shut} onClick={() => setFolded({ ...folded, [e.group]: !shut })}>
+                {shut ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                <span class="scene-title">{e.name}</span>
+                <span class="small muted">
+                  {e.levels.length} levels{e.levels.some((s) => s.id === active) ? " · players are on one" : ""}
+                </span>
               </button>
-              <button class="icon-btn danger" title="Delete scene" aria-label="Delete scene" onClick={() => setDeleting(s)}>
-                <Trash size={16} />
-              </button>
-            </div>
-          </li>
-        ))}
+              {!shut && <ul class="scene-list scene-levels">{e.levels.map((s) => row(s, levelOf(s)?.name))}</ul>}
+            </li>
+          );
+        })}
       </ul>
       {creating && (
         <NewSceneDialog

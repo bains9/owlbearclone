@@ -581,7 +581,7 @@ describe("the guide", () => {
 
   it("keeps the monsters in What's new, undefined, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons, the NPCs and metres, with the compass and loading entries", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[31]).toBe("Monsters ready to use (3 October 2026, later)");
+    expect(news[32]).toBe("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("A compass for any map (3 October 2026)");
     expect(news).toContain("Maps say when they're loading (3 October 2026)");
   });

@@ -2078,6 +2078,67 @@ button:disabled {
   color: var(--ok);
   font-weight: 600;
 }
+/* A map's levels: one entry in Scenes, its levels inside it. */
+.scene-group {
+  display: flex;
+  flex-direction: column;
+}
+.scene-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.scene-group-head:hover {
+  border-color: var(--muted);
+}
+.scene-group-head .scene-title {
+  flex: 1;
+  min-width: 0;
+}
+.scene-levels {
+  margin: 6px 0 0 14px;
+}
+/* GM, on a map's level: which one, Up and Down, and taking the party up or down. */
+.level-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 11;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 8px;
+  max-width: calc(100% - 120px);
+  background: rgba(26, 29, 36, 0.96);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.level-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.level-take {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.light-bar-title {
+  padding: 0 4px;
+}
 .scene-actions {
   display: flex;
 }

@@ -137,12 +137,12 @@ describe("walls that stop tokens", () => {
 
 describe("in the guide and Edit scene", () => {
   it("leads What's new, and says how to colour a light, make it flicker, and let tokens through", async () => {
-    expect(GUIDE[0].parts[0].title).toBe("Coloured and flickering lights, and walls that stop tokens (31 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("Coloured and flickering lights, and walls that stop tokens (31 October 2026)");
     const lighting = JSON.stringify(GUIDE.find((s) => s.id === "lighting"));
     for (const words of ["Lights (GM)", "**Flickers**", "**Plain**", "Walls stop tokens", "**Walls and shut doors stop players' tokens**"]) expect(lighting).toContain(words);
     const settings = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
     expect(settings).toContain("<span>Walls and shut doors stop players' tokens</span>");
     const bar = await readFile(new URL("../src/client/ui/LightBar.tsx", import.meta.url), "utf8");
-    for (const words of ["<span>Flickers</span>", "Plain", '<span class="selbar-label">Light</span>']) expect(bar).toContain(words);
+    for (const words of ["<span>Flickers</span>", "Plain", '<strong class="light-bar-title">Light</strong>']) expect(bar).toContain(words);
   });
 });

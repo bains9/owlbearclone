@@ -74,6 +74,8 @@ export interface Scene {
   bounds?: [number, number, number, number];
   /** The Dungeon map and level it came from (New scene › From Dungeon), so it can be updated from Dungeon. */
   dungeon?: SceneDungeon;
+  /** One level of a map with several, brought in from one file (from Dungeon, levels go by `dungeon`). */
+  level?: SceneLevel;
   /** Lighting and line of sight: its walls, doors and lights, and whether players see only what the party sees. */
   vision?: SceneVision;
 }
@@ -139,6 +141,13 @@ export interface VisionDistance {
 }
 
 /** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */
+/** A scene's level in a map with several, from one file: the levels' group, its place, and its name. */
+export interface SceneLevel {
+  group: string;
+  index: number;
+  name: string;
+}
+
 export interface SceneDungeon {
   /** The map's id in Dungeon's maps online. */
   map: string;

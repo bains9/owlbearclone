@@ -27,7 +27,7 @@ export function LightBar() {
   };
   return (
     <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
-      <span class="selbar-label">Light</span>
+      <strong class="light-bar-title">Light</strong>
       <Swatches colors={LIGHT_COLORS} value={light.color ?? null} onPick={(color) => set({ color })} size="sm" custom />
       <button class="btn btn-sm" disabled={!light.color} title="Plain light: no colour" onClick={() => set({ color: undefined })}>
         Plain

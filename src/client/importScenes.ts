@@ -314,6 +314,9 @@ export async function importFiles(
       if (fromDungeon) {
         const index = maps.indexOf(d.map);
         scene.dungeon = { map: fromDungeon.map, batch, level: levels[index], index, levels, asset: d.asset.id, ...(fromDungeon.lighting ? { lighting: true } : {}) };
+      } else if (d.map.level) {
+        // One of a file's levels: the file's levels are one map in Scenes, with Up and Down between them.
+        scene.level = d.map.level;
       }
       room.createScene(scene);
       result.scenes.push(scene);
