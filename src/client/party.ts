@@ -3,7 +3,8 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
+import { MAX_PRAYED, characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
+import { castList, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
 import { prepareImage } from "./api";
@@ -182,6 +183,85 @@ export async function setCharacterPlayer(room: RoomClient, c: Character, playing
   room.store.set({
     party: { ...party, characters: party.characters.map(({ players: _p, ...c }) => (players[c.id]?.length ? { ...c, players: players[c.id] } : c)) },
   });
+}
+
+/** Whether this page chooses what a character has prayed for: the GM's, or a browser playing them. */
+export function mayPray(room: RoomClient, c: Character): boolean {
+  return room.isGm || !!c.players?.some((p) => p.userId === room.state.me?.userId);
+}
+
+/**
+ * Their player or the GM: how many casts of a spell (the sheet's name for it) a character has left
+ * today; 0 takes it off. Shown here at once, and on other pages with their next reading.
+ */
+export async function setPrayed(room: RoomClient, c: Character, spell: string, left: number): Promise<void> {
+  const n = Math.max(0, Math.min(MAX_PRAYED, left));
+  const prayed = { ...(c.prayed ?? {}) };
+  if (n) prayed[spell] = n;
+  else delete prayed[spell];
+  showPrayed(room, c.id, prayed);
+  await putPrayed(room, c, { spell, left: n });
+}
+
+/** Their player or the GM: a new day, with nothing prayed for. */
+export async function newPrayerDay(room: RoomClient, c: Character): Promise<void> {
+  showPrayed(room, c.id, {});
+  await putPrayed(room, c, { newDay: true });
+}
+
+function showPrayed(room: RoomClient, id: string, prayed: Record<string, number>): void {
+  const party = room.state.party;
+  if (!party) return;
+  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? { ...x, prayed } : x)) } });
+}
+
+async function putPrayed(room: RoomClient, c: Character, body: { spell: string; left: number } | { newDay: true }): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/prayed?room=${encodeURIComponent(room.roomId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; prayed?: Record<string, number> };
+  if (!res.ok) {
+    // Back to what the Worker has.
+    void room.refreshParty();
+    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  }
+  if (data.prayed) showPrayed(room, c.id, data.prayed);
+}
+
+/** A spell picked from a character's card: the Spells tool, with that spell, cast from their token. */
+export function castAs(room: RoomClient, tokenId: string, spell: string): void {
+  room.store.set({ spellOpts: { ...room.state.spellOpts, spell, caster: tokenId } });
+  room.setTool("spell");
+}
+
+/**
+ * Casting as a character (the Spells tool's caster): who, and the spell as their list has it (none
+ * when they don't have it). Null when no one is being cast as, or their token or sheet is gone.
+ */
+export function castingAs(room: RoomClient, spell: string): { token: TokenItem; character: Character; entry: CastSpell | null } | null {
+  const id = room.state.spellOpts.caster;
+  const token = id ? room.state.items[id] : undefined;
+  if (token?.kind !== "token") return null;
+  const character = room.characterOf(token);
+  if (!character) return null;
+  return { token, character, entry: castList(character).find((s) => s.name === spell) ?? null };
+}
+
+/** Why a character can't cast a spell now (it has to be prayed for, and none are left today), or null. */
+export function cantCast(as: { character: Character; entry: CastSpell | null }): string | null {
+  const e = as.entry;
+  if (!e?.prayer || e.left > 0) return null;
+  return `${characterLabel(as.character)} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. Pray for it on their card.`;
+}
+
+/** After casting as a character: one of the spell's prayers used up (when this page may say so). */
+export function spendPrayer(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+  const e = as.entry;
+  if (!e?.prayer || !mayPray(room, as.character)) return;
+  void setPrayed(room, as.character, e.sheet.name, e.left - 1).catch((err: Error) => room.toast(err.message, "error"));
 }
 
 /** GM: back to their figure. */

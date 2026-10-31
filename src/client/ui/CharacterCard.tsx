@@ -4,12 +4,15 @@
 // to hit with an attack (a critical hit), its damage button rolls the crit's damage until you roll it.
 // A rogue's card has a Sneak attack box: ticked, the next damage roll adds the sheet's sneak attack
 // dice for that weapon (fewer when it's ranged or thrown, as the sheet has them), then unticks.
+// A caster's card lists their spells that can be shown on the map, to cast from their token, with
+// what they've prayed for today.
 
 import { useState } from "preact/hooks";
 import { Dices, ExternalLink } from "lucide-preact";
 import {
   DAMAGE_ROLLS,
   INITIATIVE_DIE,
+  MAX_PRAYED,
   TO_HIT_DIE,
   attackLabel,
   attackWays,
@@ -19,8 +22,9 @@ import {
   withModifier,
   type Character,
 } from "../../shared/characters";
+import { castList } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
-import { setCharacterStrMatched } from "../party";
+import { castAs, mayPray, newPrayerDay, setCharacterStrMatched, setPrayed } from "../party";
 import { cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -38,7 +42,83 @@ function critPending(messages: readonly ChatMessage[], userId: string | undefine
   return false;
 }
 
-export function CharacterCard(props: { c: Character }) {
+/**
+ * A character's spells that the Spells tool can show (from their sheet's Spells tab): a click picks
+ * one to cast from their token. One that has to be prayed for (Pray or Memorize on the sheet) can
+ * be cast as many times as it's been prayed for today: their player or the GM chooses that here,
+ * and each cast uses one up. New day clears them.
+ */
+function CardSpells(props: { c: Character; tokenId: string | null }) {
+  const room = useRoom();
+  const { c, tokenId } = props;
+  const [prayingFor, setPrayingFor] = useState<string | null>(null);
+  const list = castList(c);
+  if (!list.length) return null;
+  const can = mayPray(room, c);
+  const praying = prayingFor === c.id && can;
+  const castable = list.filter((s) => !s.locked);
+  const locked = list.filter((s) => s.locked);
+  // Prayed for by the sheet's name: Light (R) once, though it's cast as Light or its reverse.
+  const prayers = castable.filter((s, i) => s.prayer && castable.findIndex((x) => x.sheet.name === s.sheet.name) === i);
+  const pray = (spell: string, left: number) => void setPrayed(room, c, spell, left).catch((err: Error) => room.toast(err.message, "error"));
+  const who = characterLabel(c);
+  return (
+    <div class="character-spells">
+      <div class="character-spells-head">
+        <span>Spells</span>
+        {can && prayers.length > 0 && (
+          <button class="link-btn" title={praying ? "Back to casting" : `Choose what ${who} has prayed for today, and how many times`} onClick={() => setPrayingFor(praying ? null : c.id)}>
+            {praying ? "Done" : "Pray for today"}
+          </button>
+        )}
+        {can && !praying && Object.keys(c.prayed ?? {}).length > 0 && (
+          <button class="link-btn" title="A new day: nothing prayed for" onClick={() => void newPrayerDay(room, c).catch((err: Error) => room.toast(err.message, "error"))}>
+            New day
+          </button>
+        )}
+      </div>
+      {praying ? (
+        <ul class="character-prayers">
+          {prayers.map((s) => (
+            <li key={s.sheet.name}>
+              <span title={s.sheet.prayer === "Memorize" ? "Memorised" : "Prayed for"}>{s.sheet.name}</span>
+              <button class="icon-btn" aria-label={`One fewer ${s.sheet.name}`} disabled={s.left <= 0} onClick={() => pray(s.sheet.name, s.left - 1)}>
+                −
+              </button>
+              <span class="prayed-count">{s.left}</span>
+              <button class="icon-btn" aria-label={`One more ${s.sheet.name}`} disabled={s.left >= MAX_PRAYED} onClick={() => pray(s.sheet.name, s.left + 1)}>
+                +
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div class="spell-chips">
+          {castable.map((s) => {
+            const out = s.prayer && s.left <= 0;
+            const how = s.prayer ? (out ? "Not prayed for today" : `Prayed for: ${s.left} left today`) : s.sheet.prayer === "Ask DM" ? "Ask the GM" : "";
+            return (
+              <button
+                key={s.name}
+                class={cx("chip spell-chip", out && "out")}
+                disabled={!tokenId || out}
+                title={[`Cast ${s.name} from ${who}`, `${s.sheet.sp} SP`, how].filter(Boolean).join(" · ")}
+                onClick={() => tokenId && castAs(room, tokenId, s.name)}
+              >
+                {s.name}
+                <span class="spell-sp">{s.sheet.sp}</span>
+                {s.prayer && <span class="spell-left">{out ? "–" : `×${s.left}`}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {!praying && locked.length > 0 && <div class="small muted">Not castable yet: {locked.map((s) => s.name).join(", ")}</div>}
+    </div>
+  );
+}
+
+export function CharacterCard(props: { c: Character; tokenId?: string | null }) {
   const room = useRoom();
   const messages = useRoomState((s) => s.messages);
   const me = useRoomState((s) => s.me?.userId);
@@ -146,6 +226,7 @@ export function CharacterCard(props: { c: Character }) {
           })}
         </ul>
       )}
+      <CardSpells c={c} tokenId={props.tokenId ?? null} />
     </div>
   );
 }

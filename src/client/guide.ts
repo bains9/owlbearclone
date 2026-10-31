@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Cast a character's spells from their card, with what they've prayed for (31 October 2026)",
+        "steps": [
+          "Click a caster's token: their card lists their **Spells** that show on the map, from their sheet's Spells tab.",
+          "Click one. The **Spells** tool is picked with it, cast from that character: a bolt or a fan needs only a click on the target."
+        ],
+        "notes": [
+          "Spells the sheet marks Pray or Memorize can be cast as many times as they've been prayed for today. Their player or the GM chooses that on the card with **Pray for today**; each cast uses one up, and **New day** starts again. It's chosen in Tabletop, not on the sheet.",
+          "Spells the sheet says can't be cast yet are listed under the rest, not to be clicked.",
+          "GM: the sheets' script needs its new version for this. See **Set up the character sheets (GM)**."
+        ]
+      },
+      {
         "title": "Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)",
         "steps": [
           "With **Spells** (**S**), the bar now has a look for every spell on the list: Fireball and the other fire bursts, Burning Hands, Snowball Storm, Hail of Stones, Stormvoice, Sunburst; Lightning Bolt, Flame Arrow, Ice Lance, Acid Arrow; Circle of Flame, Acid Rain, Web, Grease, Tiny Hut and the other force domes; and Mirror Image, Blur, Blink and Haste on a token.",
@@ -1072,6 +1084,7 @@ export const GUIDE: GuideSection[] = [
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
+          "A caster's card lists their **Spells** that show on the map: click one to cast it from them. See **Spell effects**.",
           "A bow or crossbow matched to the character's strength adds their STR bonus to its damage, as a melee weapon does. GM: click **STR** beside it on their card to mark it (every room); it lights up, and everyone's card adds the bonus.",
           "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
         ]
@@ -1097,6 +1110,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
+          "A new version of the script (from 31 October 2026) also reads each sheet's Spells tab, for the **Spells** on casters' cards. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
           "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
           "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
         ]
@@ -1538,6 +1552,22 @@ export const GUIDE: GuideSection[] = [
           "Fog, clouds, darkness and the swirling pattern are drawn over tokens; light, plants, spikes, a pit and water under them.",
           "With lighting on: players can't see into or through fog, clouds or darkness; darkness also puts out any light inside it; Light and Moonbeam light the dark around them, and Daylight a 20 m circle.",
           "It's a drawing underneath: drag its dashed outline to move it, and hide it from players (**H**) like any drawing. Players can leave spells when the GM lets them draw."
+        ]
+      },
+      {
+        "title": "Cast from a character's card",
+        "steps": [
+          "Click the character's token. Their card lists their **Spells** that show on the map (spell points beside each).",
+          "Click a spell. The **Spells** tool is picked with it, and the bar says **As** and their name: it's cast from their token, which has a dashed ring.",
+          "Cast it as usual, but a bolt, a fan or a jump needs only a click: on the target, the way it goes, or where they arrive.",
+          "To cast as nobody, click the × beside their name in the bar."
+        ],
+        "notes": [
+          "Their spells come first in the bar's **Spell** list while you cast as them.",
+          "**Prayed for:** a spell the sheet marks Pray or Memorize can be cast as many times as it's been prayed for today (×1, ×2 on the card; – for none). Their player or the GM clicks **Pray for today** on the card and sets each with − and +, then **Done**. Each cast uses one up; with none left it isn't cast. **New day** clears them all.",
+          "What's been prayed for is kept in Tabletop, for every room, not read from the sheet. Spell points aren't taken off: change them on the sheet.",
+          "Spells the sheet says can't be cast yet (\"not castable yet\") are listed under the rest, greyed. Ask DM ones say so when you point at them.",
+          "A spell with nothing to show on the map (Detect Magic, say) isn't on the list."
         ]
       },
       {

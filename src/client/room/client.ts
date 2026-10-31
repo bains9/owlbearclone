@@ -175,8 +175,11 @@ export interface RoomState {
   fogOpts: FogOptions;
   buildOpts: BuildOptions;
   measureOpts: MeasureOptions;
-  /** The Spells tool: the spell it casts (a name in SPELL_FX). */
-  spellOpts: { spell: string };
+  /**
+   * The Spells tool: the spell it casts (a name in SPELL_FX), and the token of the character it's
+   * cast as when it was picked from their card's Spells list (cast from there, using up a prayer).
+   */
+  spellOpts: { spell: string; caster?: string | null };
   /**
    * Set while the GM is lining the grid up by drawing a box on the map: how many
    * squares across the box will cover.

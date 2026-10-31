@@ -2,6 +2,7 @@
 // with their sizes from the character sheets' spell lists (metres). Shared, so the Room can
 // check an effect before passing it on. Every look in the approval doc, and its spells.
 
+import type { Character, CharacterSpell } from "./characters";
 import type { Ephemeral } from "./protocol";
 import { LIMITS } from "./sanitize";
 import type { TokenLook, ZoneLook } from "./zones";
@@ -320,6 +321,67 @@ export const TOKEN_SPELLS: TokenSpell[] = [
 
 export function tokenSpell(name: string): TokenSpell | undefined {
   return TOKEN_SPELLS.find((s) => s.name === name);
+}
+
+/** A spell's name as the sheets and Table might both spell it: lower case, plain quotes, no "(R)" or "(1)" after it. */
+function spellKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/\s*\((r|\d+)\)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+let tableNames: Map<string, string> | null = null;
+
+/**
+ * The Spells tool's spells for one on a character's sheet: its own ("Light (R)" is Light), and for a
+ * reversible one ("(R)") the reverse too, where Table has it (Light (reversed), which is darkness).
+ * None for a spell with nothing to show.
+ */
+export function tableSpellsFor(sheetName: string): string[] {
+  tableNames ??= new Map([...SPELL_FX, ...ZONE_SPELLS, ...CONJURED_SPELLS, ...TOKEN_SPELLS].map((s) => [spellKey(s.name), s.name]));
+  const key = spellKey(sheetName);
+  const out: string[] = [];
+  const own = tableNames.get(key);
+  if (own) out.push(own);
+  const reverse = /\(r\)\s*$/i.test(sheetName) ? tableNames.get(`${key} (reversed)`) : undefined;
+  if (reverse) out.push(reverse);
+  return out;
+}
+
+/** One of a character's spells that the Spells tool can show, for the Spells list on their card. */
+export interface CastSpell {
+  /** The Spells tool's name for it. */
+  name: string;
+  /** The spell on the sheet it comes from. */
+  sheet: CharacterSpell;
+  /** It has to be prayed for (Pray) or memorised (Memorize) each day before it can be cast. */
+  prayer: boolean;
+  /** Casts left today, for one that has to be prayed for. */
+  left: number;
+  /** The sheet says it can't be cast yet ("Level 4: not castable yet"). */
+  locked: boolean;
+}
+
+/**
+ * The spells on a character's sheet that the Spells tool can show, with what's been prayed for
+ * today: the castable ones first, by level, then the ones the sheet says can't be cast yet.
+ */
+export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
+  const out: CastSpell[] = [];
+  const seen = new Set<string>();
+  for (const s of c.spells ?? []) {
+    const prayer = /^(pray|memori[sz]e)$/i.test(s.prayer);
+    const locked = /not castable/i.test(s.note);
+    for (const name of tableSpellsFor(s.name)) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      out.push({ name, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked });
+    }
+  }
+  return out.sort((a, b) => Number(a.locked) - Number(b.locked) || (a.sheet.level ?? 99) - (b.sheet.level ?? 99) || a.name.localeCompare(b.name));
 }
 
 /** A colour the Room passes on: #rrggbb. */

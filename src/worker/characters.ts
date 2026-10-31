@@ -8,7 +8,8 @@
 // own token picture (one the GM chose, instead of the drawn figure) is kept in R2 under
 // characters/<sheet id>, for every room.
 
-import { cleanCharacter, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
+import { MAX_PRAYED, cleanCharacter, isSpellName, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
+import { isId } from "../shared/sanitize";
 
 /** How long a reading of the sheets is used before they're read again. */
 const FRESH_MS = 30_000;
@@ -61,31 +62,34 @@ export interface PartyEnv {
     characterFigures(): Promise<Record<string, string>>;
     characterStrMatched(): Promise<Record<string, string[]>>;
     characterPlayers(): Promise<Record<string, CharacterPlayer[]>>;
+    characterPrayed(): Promise<Record<string, Record<string, number>>>;
   };
   files: Pick<R2Bucket, "head">;
 }
 
 /**
  * The party for a room's pages: the sheets' cards, each with its own picture's version if it has
- * one, and the figure the GM chose for them and who plays them, if anyone (asked each time, so a
- * choice shows at once without reading the sheets again).
+ * one, and the figure the GM chose for them, who plays them, if anyone, and what they've prayed
+ * for today (asked each time, so a choice shows at once without reading the sheets again).
  */
 export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typeof fetch = fetch, now = Date.now()): Promise<CharactersReply> {
   const source = await env.directory.charactersSource();
   if (!source) return { configured: false, characters: [], readAt: now };
   const reading = await readSheets(env, source, cache, fetcher, now);
-  const [figures, matched, players] = await Promise.all([
+  const [figures, matched, players, prayed] = await Promise.all([
     env.directory.characterFigures(),
     env.directory.characterStrMatched(),
     env.directory.characterPlayers(),
+    env.directory.characterPrayed(),
   ]);
   return {
     ...reading,
-    characters: reading.characters.map(({ figure: _f, strMatched: _m, players: _p, ...c }) => ({
+    characters: reading.characters.map(({ figure: _f, strMatched: _m, players: _p, prayed: _r, ...c }) => ({
       ...c,
       ...(figures[c.id] ? { figure: figures[c.id] } : {}),
       ...(matched[c.id]?.length ? { strMatched: matched[c.id] } : {}),
       ...(players[c.id]?.length ? { players: players[c.id] } : {}),
+      ...(prayed[c.id] ? { prayed: prayed[c.id] } : {}),
     })),
   };
 }
@@ -93,6 +97,21 @@ export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typ
 /** A weapon's name as a character's sheet has it, to mark it matched to their strength. */
 export function isWeaponName(v: unknown): v is string {
   return typeof v === "string" && v.trim() === v && v.length >= 1 && v.length <= 60 && !/[\u0000-\u001f\u007f]/.test(v);
+}
+
+/** Whether a browser (its player id) plays a character, and so chooses what they've prayed for. */
+export async function playsCharacter(directory: Pick<PartyEnv["directory"], "characterPlayers">, sheetId: string, userId: string | null): Promise<boolean> {
+  if (!isId(userId)) return false;
+  return !!(await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId);
+}
+
+/** A change to what a character has prayed for today: a spell's casts left (0 to MAX_PRAYED), or a new day. Null when it isn't one. */
+export function prayedChange(body: unknown): { spell: string; left: number } | { newDay: true } | null {
+  const b = body as { spell?: unknown; left?: unknown; newDay?: unknown } | null;
+  if (b?.newDay === true) return { newDay: true };
+  const left = b?.left;
+  if (!isSpellName(b?.spell) || typeof left !== "number" || !Number.isInteger(left) || left < 0 || left > MAX_PRAYED) return null;
+  return { spell: b.spell, left };
 }
 
 async function readSheets(env: PartyEnv, source: string, cache: Cache | null, fetcher: typeof fetch, now: number): Promise<CharactersReply> {

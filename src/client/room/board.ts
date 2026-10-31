@@ -84,6 +84,7 @@ import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../sh
 import { drawZone, inZone, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { prop, propSprite } from "../dungeonLib/props";
+import { cantCast, castingAs, spendPrayer } from "../party";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -2825,25 +2826,25 @@ export class Board implements BoardApi {
    * drawing naming the token, so it's undone, hidden and ended like a zone, and players need
    * the GM's leave to draw.
    */
-  private spellOnToken(t: TokenItem | null): void {
+  private spellOnToken(t: TokenItem | null): boolean {
     const s = this.room.state;
     const scene = this.renderedScene;
     const spell = tokenSpell(s.spellOpts.spell);
     const me = s.me;
-    if (!scene || !me || !spell) return;
+    if (!scene || !me || !spell) return false;
     if (!t) {
       this.room.toast(`Click a token to put ${spell.name} on it.`);
-      return;
+      return false;
     }
-    const already = Object.values(s.items).find((i): i is DrawingItem => i.kind === "drawing" && i.on === t.id && i.spell === spell.name);
+    const already = this.spellOn(t, spell.name);
     if (already) {
       if (canDelete(already, me)) this.room.change({ delete: [already.id] });
       else this.room.toast(`${spell.name} is already on ${t.label || "that token"}. Only the GM or whoever cast it can end it.`);
-      return;
+      return false;
     }
     if (!this.isGm && !s.room?.settings.playersCanDraw) {
       this.room.toast("The GM has turned drawing off, so spells can't be put on tokens.", "error");
-      return;
+      return false;
     }
     const r = (t.size * scene.grid.size) / 2;
     const item: DrawingItem = {
@@ -2862,6 +2863,12 @@ export class Board implements BoardApi {
       on: t.id,
     };
     this.room.change({ upsert: [item] });
+    return true;
+  }
+
+  /** A spell that's on a token now (its drawing), if it is. */
+  private spellOn(t: TokenItem, name: string): DrawingItem | undefined {
+    return Object.values(this.room.state.items).find((i): i is DrawingItem => i.kind === "drawing" && i.on === t.id && i.spell === name);
   }
 
   /**
@@ -2869,14 +2876,14 @@ export class Board implements BoardApi {
    * from its middle out, a rectangle corner to corner). A drawing, so it's undone, erased and
    * hidden like one, and players need the GM's leave to draw.
    */
-  private placeZone(name: string, start: Point, end: Point): void {
+  private placeZone(name: string, start: Point, end: Point): boolean {
     const s = this.room.state;
     const scene = this.renderedScene;
     const spell = zoneSpell(name);
-    if (!scene || !s.me || !spell) return;
+    if (!scene || !s.me || !spell) return false;
     if (!this.isGm && !s.room?.settings.playersCanDraw) {
       this.room.toast("The GM has turned drawing off, so spells can't be left on the map.", "error");
-      return;
+      return false;
     }
     const cell = scene.grid.size;
     const dragged = Math.hypot(end.x - start.x, end.y - start.y) > cell * 0.3;
@@ -2910,6 +2917,7 @@ export class Board implements BoardApi {
       spell: spell.name,
     };
     this.room.change({ upsert: [item] });
+    return true;
   }
 
   /** A spell's size in map pixels: a burst's radius or a cone's length, from its metres. */
@@ -2923,24 +2931,24 @@ export class Board implements BoardApi {
    * where it was let go; a cone points from the caster towards it; a bolt or a jump goes from
    * the caster to it.
    */
-  private castSpell(start: Point, end: Point): void {
+  private castSpell(start: Point, end: Point): boolean {
     const scene = this.renderedScene;
     const name = this.room.state.spellOpts.spell;
-    if (zoneSpell(name)) {
-      this.placeZone(name, start, end);
-      return;
-    }
+    if (zoneSpell(name)) return this.placeZone(name, start, end);
     const spell = spellFx(name);
-    if (!scene || !spell) return;
+    if (!scene || !spell) return false;
     const cast = FX_LOOKS[spell.look].cast;
-    const far = Math.hypot(end.x - start.x, end.y - start.y);
+    // Cast as a character (from their card's Spells list): from their token, so a click on the
+    // target is enough.
+    const from = this.casterPoint() ?? start;
+    const far = Math.hypot(end.x - from.x, end.y - from.y);
     if ((cast === "bolt" || cast === "jump" || cast === "cone") && far < scene.grid.size * 0.3) {
       this.room.toast(cast === "cone" ? "Drag from the caster the way the spell goes." : "Drag from the caster to the target.");
-      return;
+      return false;
     }
     const round = (v: number) => Math.round(v * 100) / 100;
     const area = cast === "burst" || cast === "strike";
-    const a = area ? end : start;
+    const a = area ? end : from;
     const fx: Extract<Ephemeral, { k: "fx" }> = {
       k: "fx",
       sceneId: scene.id,
@@ -2954,6 +2962,14 @@ export class Board implements BoardApi {
     };
     this.playFx(fx);
     this.room.sendEph(fx);
+    return true;
+  }
+
+  /** Where a spell cast as a character comes from: their token, when it's on this scene and shows here. */
+  private casterPoint(): Point | null {
+    const id = this.room.state.spellOpts.caster;
+    const n = id ? this.tokens.get(id) : undefined;
+    return n?.item && n.group.visible() ? n.group.position() : null;
   }
 
   /** Starts an effect playing here. */
@@ -2984,6 +3000,18 @@ export class Board implements BoardApi {
     const g = this.gesture;
     const aiming = g.kind === "spell" ? g : null;
     const at = aiming?.end ?? this.spellHover;
+    const caster = this.casterPoint();
+    if (caster) {
+      const n = this.tokens.get(s.spellOpts.caster ?? "");
+      c.save();
+      c.setLineDash([4 * px, 4 * px]);
+      c.lineWidth = 2 * px;
+      c.strokeStyle = s.me?.color ?? "#ffffff";
+      c.beginPath();
+      c.arc(caster.x, caster.y, (((n?.item?.size ?? 1) * (n?.cell ?? 70)) / 2) * 1.3, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
     if (tokenSpell(s.spellOpts.spell)) {
       const n = at ? this.tokens.get(this.tokenAt(at)?.id ?? "") : undefined;
       if (!n?.item) return;
@@ -3038,8 +3066,8 @@ export class Board implements BoardApi {
       c.arc(at.x, at.y, Math.max(reach, 6 * px), 0, Math.PI * 2);
       c.fill();
       c.stroke();
-    } else if (aiming) {
-      const from = aiming.start;
+    } else if (aiming || caster) {
+      const from = caster ?? aiming!.start;
       if (cast === "cone") {
         const dir = Math.atan2(at.y - from.y, at.x - from.x);
         const h = (((spell.spread ?? 90) / 2) * Math.PI) / 180;
@@ -5136,14 +5164,22 @@ export class Board implements BoardApi {
         }
         return;
       case "spell": {
-        if (tokenSpell(this.room.state.spellOpts.spell)) {
-          this.spellOnToken(this.tokenAt(world));
-          this.uiLayer.batchDraw();
-          return;
+        const name = this.room.state.spellOpts.spell;
+        const target = tokenSpell(name) ? this.tokenAt(world) : null;
+        // Cast as a character (from their card's Spells list): a spell that has to be prayed for
+        // needs a prayer left, and casting it uses one up. Ending one on a token (clicked again)
+        // doesn't.
+        const as = target && this.spellOn(target, name) ? null : castingAs(this.room, name);
+        const why = as && cantCast(as);
+        let cast = false;
+        if (why) this.room.toast(why, "error");
+        else if (tokenSpell(name)) cast = this.spellOnToken(target);
+        else {
+          // Aimed at a token let go over: its middle.
+          const hit = this.pickAt(this.localPos(e));
+          cast = this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
         }
-        // Aimed at a token let go over: its middle.
-        const hit = this.pickAt(this.localPos(e));
-        this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
+        if (cast && as) spendPrayer(this.room, as);
         this.uiLayer.batchDraw();
         return;
       }

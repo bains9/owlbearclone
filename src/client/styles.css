@@ -877,6 +877,71 @@ button:disabled {
   align-items: center;
   gap: 6px;
 }
+/* A caster's spells on their card: each a chip to cast it from their token. */
+.character-spells {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.character-spells-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.spell-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.spell-chip {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+  gap: 5px;
+}
+.spell-chip:hover:not(:disabled) {
+  border-color: var(--accent, #4fd1ff);
+}
+.spell-chip.out,
+.spell-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.spell-sp,
+.spell-left {
+  font-size: 0.8em;
+  opacity: 0.75;
+}
+.spell-left {
+  font-weight: 600;
+}
+.character-prayers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.character-prayers li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.character-prayers li > span:first-child {
+  flex: 1;
+}
+.prayed-count {
+  min-width: 1.4em;
+  text-align: center;
+  font-weight: 600;
+}
 .character-weapon {
   flex: 1;
   min-width: 0;

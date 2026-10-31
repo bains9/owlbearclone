@@ -3,9 +3,10 @@
 //
 // A Google Apps Script web app, run as its owner (the GM), that reads only the spreadsheets in
 // one Drive folder, each a copy of the group's Player's Handbook character sheet, and answers with
-// what Tabletop shows: name, player, race and classes, HP, AC, initiative, spell points and
-// attacks. It changes nothing in the sheets. Numbers are found by their labels on the Character
-// tab ("Current HP", "Combat AC"...), not by cell, so the sheet's layout can change.
+// what Tabletop shows: name, player, race and classes, HP, AC, initiative, spell points,
+// attacks, and the spells on the Spells tab. It changes nothing in the sheets. Numbers are found
+// by their labels on the Character tab ("Current HP", "Combat AC"...), and spells under the
+// Spells tab's heading row, not by cell, so the sheet's layout can change.
 //
 // Set up (once):
 //   1. Put the character sheets in one Drive folder (moving a sheet keeps its links working).
@@ -87,7 +88,29 @@ function card(ss) {
     // Their STR damage bonus, for a bow matched to their strength (the sheet adds it to melee weapons).
     strBonus: at(5, 'Melee damage'),
     attacks: attacks,
+    spells: spellsOf(ss),
   };
+}
+
+/**
+ * The spells on the Spells tab, under its heading row ("Spell (your classes' list)"): each one's
+ * name, level, spell points, how it's had (Free, Pray, Memorize...) and notes. What's been prayed
+ * for today is chosen in Tabletop, not read from here.
+ */
+function spellsOf(ss) {
+  const sheet = ss.getSheetByName('Spells');
+  if (!sheet) return [];
+  const v = sheet.getRange('A1:K400').getDisplayValues();
+  let i = 0;
+  while (i < v.length && String(v[i][0]).trim().indexOf('Spell (') !== 0) i++;
+  const spells = [];
+  for (let j = i + 1; j < v.length; j++) {
+    const r = v[j];
+    const name = String(r[0]).trim();
+    if (!name) continue;
+    spells.push({ name: name, level: r[1], sp: r[2], prayer: r[3], note: r[10] });
+  }
+  return spells;
 }
 
 function reply(o) {

@@ -9,7 +9,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, readParty } from "./characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty } from "./characters";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -261,6 +261,24 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     }
     // Who plays whom now, so the page shows it at once (reading the sheets again can take seconds).
     return json({ ok: true, players: await directory.characterPlayers() });
+  }
+  // What a character has prayed for today, and how many casts each has left: their player or the
+  // GM chooses, and casting one uses one up. For anyone at one of the GM's tables, as above.
+  const prayedMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/prayed$/);
+  if (prayedMatch) {
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const sheetId = prayedMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can choose what they've prayed for.");
+    const change = prayedChange(await readJson(request));
+    if (!change) return fail(400, "That isn't one of their spells.");
+    if ("newDay" in change) await directory.clearCharacterPrayed(sheetId);
+    else await directory.setCharacterPrayed(sheetId, change.spell, change.left);
+    return json({ ok: true, prayed: (await directory.characterPrayed())[sheetId] ?? {} });
   }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {

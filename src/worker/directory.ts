@@ -3,6 +3,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
+import { MAX_PRAYED_SPELLS } from "../shared/characters";
 
 const FAILURE_WINDOW_MS = 15 * 60_000;
 /** Wrong passwords allowed per address (an IPv6 /64 counts as one address) per window. */
@@ -50,6 +51,8 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_str_matched (sheet_id TEXT NOT NULL, weapon TEXT NOT NULL, PRIMARY KEY (sheet_id, weapon))`);
       // Who plays whom: a browser (its player id) and the character it plays, with the name it joined under.
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_players (user_id TEXT PRIMARY KEY, sheet_id TEXT NOT NULL, name TEXT NOT NULL, at INTEGER NOT NULL)`);
+      // The spells a character has prayed for (or memorised) today, and how many casts each has left.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_prayed (sheet_id TEXT NOT NULL, spell TEXT NOT NULL, left INTEGER NOT NULL, PRIMARY KEY (sheet_id, spell))`);
     });
   }
 
@@ -131,6 +134,31 @@ export class Directory extends DurableObject<Env> {
       `DELETE FROM character_players WHERE user_id NOT IN (SELECT user_id FROM character_players ORDER BY at DESC LIMIT ?)`,
       MAX_CHARACTER_PLAYERS,
     );
+  }
+
+  /** The spells each character has prayed for today, by sheet id: casts left, by the sheet's name for the spell. */
+  characterPrayed(): Record<string, Record<string, number>> {
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of this.sql.exec<{ sheet_id: string; spell: string; left: number }>(`SELECT sheet_id, spell, left FROM character_prayed`)) {
+      (out[r.sheet_id] ??= {})[r.spell] = r.left;
+    }
+    return out;
+  }
+
+  /**
+   * How many casts of a spell a character has left today, for every room: none takes it off the
+   * list. At most MAX_PRAYED_SPELLS spells a character.
+   */
+  setCharacterPrayed(sheetId: string, spell: string, left: number): void {
+    this.sql.exec(`DELETE FROM character_prayed WHERE sheet_id = ? AND spell = ?`, sheetId, spell);
+    if (left <= 0) return;
+    const n = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM character_prayed WHERE sheet_id = ?`, sheetId).one().n;
+    if (n < MAX_PRAYED_SPELLS) this.sql.exec(`INSERT INTO character_prayed (sheet_id, spell, left) VALUES (?, ?, ?)`, sheetId, spell, left);
+  }
+
+  /** A new day: nothing prayed for. */
+  clearCharacterPrayed(sheetId: string): void {
+    this.sql.exec(`DELETE FROM character_prayed WHERE sheet_id = ?`, sheetId);
   }
 
   /** Nobody plays a character any more. */

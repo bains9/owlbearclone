@@ -60,8 +60,9 @@ import {
 import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
-import { CONJURED_SPELLS, FX_GROUPS, FX_LOOKS, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, spellFx, tokenSpell, zoneSpell, type FxCast } from "../../shared/spellfx";
+import { CONJURED_SPELLS, FX_GROUPS, FX_LOOKS, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, castList, spellFx, tokenSpell, zoneSpell, type FxCast } from "../../shared/spellfx";
 import { spellChipLabel } from "./spellChips";
+import { characterLabel } from "../../shared/characters";
 import { foldOf } from "./objectGroups";
 import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
 import { FloorPicker, WallPicker } from "./FloorPicker";
@@ -981,6 +982,13 @@ const MEASURE_TOOLS: { id: MeasureShape; label: string; icon: typeof Pencil }[] 
 ];
 
 /** How each kind of spell is cast, as the Spells bar says it. */
+/** Cast as a character: from their token, so a click is enough. */
+const CAST_AS_HINTS: Record<"cone" | "bolt" | "jump", string> = {
+  cone: "Click the way it goes from them.",
+  bolt: "Click the target.",
+  jump: "Click where they arrive.",
+};
+
 const CAST_HINTS: Record<FxCast, string> = {
   burst: "Click where it goes.",
   strike: "Click where it strikes.",
@@ -1026,6 +1034,12 @@ function LastingSpells() {
 function SpellOptions() {
   const room = useRoom();
   const o = useRoomState((s) => s.spellOpts);
+  // Cast as a character (picked from their card's Spells list): their spells first, cast from them.
+  useRoomState((s) => s.party);
+  const casterToken = useRoomState((s) => (s.spellOpts.caster ? s.items[s.spellOpts.caster] : undefined));
+  const as = casterToken?.kind === "token" ? room.characterOf(casterToken) : null;
+  const who = as ? characterLabel(as) : "";
+  const theirs = as ? castList(as).filter((sp) => !sp.locked) : [];
   const spell = spellFx(o.spell);
   const zone = zoneSpell(o.spell);
   const cast = spell ? FX_LOOKS[spell.look].cast : "burst";
@@ -1041,12 +1055,31 @@ function SpellOptions() {
           ? zone.shape === "circle"
             ? `Click to leave it (${zone.size} m radius), or drag from its middle to size it. It stays until it's ended.`
             : `Click to leave it (${zone.size} m square), or drag corner to corner. It stays until it's ended.`
-          : `${CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
+          : `${as && cast !== "burst" && cast !== "strike" ? CAST_AS_HINTS[cast] : CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
   return (
     <div class="tool-options">
+      {as && (
+        <button
+          class="chip spell-zone"
+          title={`Spells go from ${who}'s token, and use up what they've prayed for. Click to stop casting as ${who}`}
+          aria-label={`Stop casting as ${who}`}
+          onClick={() => room.store.set({ spellOpts: { ...o, caster: null } })}
+        >
+          As {who} <X size={12} />
+        </button>
+      )}
       <label class="field inline">
         <span>Spell</span>
         <select value={o.spell} onChange={(e) => room.store.set({ spellOpts: { ...o, spell: e.currentTarget.value } })}>
+          {theirs.length > 0 && (
+            <optgroup label={`${who}'s spells`}>
+              {theirs.map((sp) => (
+                <option key={sp.name} value={sp.name}>
+                  {sp.prayer ? `${sp.name} (${sp.left} left today)` : sp.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
           {FX_GROUPS.map((g) => (
             <optgroup key={g.name} label={g.name}>
               {SPELL_FX.filter((sp) => g.casts.includes(FX_LOOKS[sp.look].cast))

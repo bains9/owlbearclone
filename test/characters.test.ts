@@ -283,7 +283,7 @@ function characterTab(): string[][] {
 }
 
 /** The Apps Script, run here with Google's services played by stand-ins. */
-async function runScript(folderId: string | null, files: { id: string; tab: string[][] | null; trashed?: boolean; broken?: boolean }[]) {
+async function runScript(folderId: string | null, files: { id: string; tab: string[][] | null; spells?: string[][]; trashed?: boolean; broken?: boolean }[]) {
   const code = await source("scripts/character-sheets.gs");
   const services = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => (k === "FOLDER_ID" ? folderId : null) }) },
@@ -310,7 +310,10 @@ async function runScript(folderId: string | null, files: { id: string; tab: stri
           getId: () => id,
           getName: () => "Sheet",
           getUrl: () => `https://docs.google.com/spreadsheets/d/${id}/edit`,
-          getSheetByName: (n: string) => (n === "Character" && f.tab ? { getRange: () => ({ getDisplayValues: () => f.tab }) } : null),
+          getSheetByName: (n: string) => {
+            const tab = n === "Character" ? f.tab : n === "Spells" ? f.spells : null;
+            return tab ? { getRange: () => ({ getDisplayValues: () => tab }) } : null;
+          },
         };
       },
     },
@@ -329,7 +332,8 @@ describe("the GM's Apps Script", () => {
       { id: "1InTheBin0000000000000000000000000", tab: characterTab(), trashed: true },
     ]);
     expect(out.characters).toHaveLength(1);
-    expect(cleanCharacter(out.characters![0])).toEqual(cleanCharacter(raw));
+    // (No Spells tab here: an empty list of spells.)
+    expect(cleanCharacter(out.characters![0])).toEqual({ ...cleanCharacter(raw), spells: [] });
     expect(out.unread).toEqual([]);
   });
 
@@ -343,6 +347,21 @@ describe("the GM's Apps Script", () => {
     expect(cleanCharacter(out.characters![0])!.sneakRank).toBe(4);
     const plain = await runScript("folder1", [{ id: SHEET, tab: characterTab() }]);
     expect(cleanCharacter(plain.characters![0])!.sneakRank).toBeNull();
+  });
+
+  it("reads the spells under the Spells tab's heading, without what the sheet says was prayed for", async () => {
+    const spells = Array.from({ length: 400 }, () => Array<string>(11).fill(""));
+    spells[0] = ["Spells", "Mage spells →", "", "", "", "", "", "Cleric spells →", "", "", "HP 34 / 34"];
+    spells[3] = ["Spell (your classes' list)", "Level", "SP", "Prayer", "Prayed today", "Type", "Kind", "Class", "Quick use", "Component", "Notes"];
+    spells[4] = ["Light (R)", "1", "1+", "Pray", "1", "Utility", "", "Cleric", "Light, or darkness", "None", ""];
+    spells[6] = ["Magic Missile", "1", "1+", "", "", "Damage", "Rune", "Mage", "Darts", "None", ""];
+    spells[7] = ["Earthmaw", "4", "5+", "Pray", "", "Damage", "", "Cleric", "Ground bites", "None", "Level 4: not castable yet"];
+    const out = await runScript("folder1", [{ id: SHEET, tab: characterTab(), spells }]);
+    expect(cleanCharacter(out.characters![0])!.spells).toEqual([
+      { name: "Light (R)", level: 1, sp: "1+", prayer: "Pray", note: "" },
+      { name: "Magic Missile", level: 1, sp: "1+", prayer: "", note: "" },
+      { name: "Earthmaw", level: 4, sp: "5+", prayer: "Pray", note: "Level 4: not castable yet" },
+    ]);
   });
 
   it("says which sheets it couldn't open just now, rather than leaving them out silently", async () => {
@@ -381,12 +400,14 @@ describe("the Worker's reading of the party", () => {
     figures: Record<string, string> = {},
     matched: Record<string, string[]> = {},
     players: Record<string, { userId: string; name: string }[]> = {},
+    prayed: Record<string, Record<string, number>> = {},
   ) => ({
     directory: {
       charactersSource: async () => source,
       characterFigures: async () => figures,
       characterStrMatched: async () => matched,
       characterPlayers: async () => players,
+      characterPrayed: async () => prayed,
     },
     files: { head: async (key: string) => (pictures[key] ? { httpEtag: `"${pictures[key]}"` } : null) },
   });
@@ -583,13 +604,13 @@ describe("in Tabletop", () => {
     expect(library.indexOf("<PartySection />")).toBeLessThan(library.indexOf("<h3>Quick token</h3>"));
     // The card stands beside the bar, not in it: the bar scrolls sideways on phones, which would clip it.
     const bar = await source("src/client/ui/SelectionBar.tsx");
-    expect(bar).toMatch(/<div class="selbar-stack".*\r?\n\s*<CharacterCard c=\{character\} \/>\r?\n\s*\{bar\}/);
+    expect(bar).toMatch(/<div class="selbar-stack".*\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>\r?\n\s*\{bar\}/);
     expect(bar).toContain("value: initiativeRoll(character)");
     expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("value: initiativeRoll(room.characterOf(t))");
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[9].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].parts[10].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
     expect(GUIDE[0].intro).toContain("The latest updates came out on 31 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);

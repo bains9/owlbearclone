@@ -372,7 +372,7 @@ export function SelectionBar() {
     if (!character) return bar;
     return (
       <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
-        <CharacterCard c={character} />
+        <CharacterCard c={character} tokenId={t.id} />
         {bar}
       </div>
     );

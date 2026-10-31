@@ -67,7 +67,32 @@ export interface Character {
    * list, or by the GM (kept by the Worker, for every room). Per-player sight sees through them.
    */
   players?: CharacterPlayer[];
+  /** Their spells, as their sheet's Spells tab lists them (missing from scripts before version 4). */
+  spells?: CharacterSpell[];
+  /**
+   * The spells prayed for (or memorised) today, chosen in Table by their player or the GM: how
+   * many casts each has left, by the sheet's name for it (kept by the Worker, for every room).
+   */
+  prayed?: Record<string, number>;
 }
+
+/** One of a character's spells, as their sheet's Spells tab has it. */
+export interface CharacterSpell {
+  /** As the sheet names it: "Light (R)", "Detect Magic (1)". */
+  name: string;
+  /** 0 for a cantrip; null when the sheet doesn't say. */
+  level: number | null;
+  /** Spell points as the sheet words them: "2", "2+" (it can take more), "7/day" (a cantrip). */
+  sp: string;
+  /** How it's had: "Free", "Freecast", "Pray", "Memorize", "Ask DM", or "" (a mage's own). */
+  prayer: string;
+  /** The sheet's note on it, such as "Level 4: not castable yet". */
+  note: string;
+}
+
+/** How many casts of one spell can be prayed for in a day, and how many spells a character can have prayed for. */
+export const MAX_PRAYED = 9;
+export const MAX_PRAYED_SPELLS = 60;
 
 export interface CharacterPlayer {
   userId: string;
@@ -131,6 +156,22 @@ export function cleanCharacter(raw: unknown): Character | null {
       return { weapon: text(x.weapon, 60), damage: text(x.damage, 30), range: text(x.range, 30), toHit: text(x.toHit, 40), bonus: text(x.bonus, 60) };
     })
     .filter((a) => a.weapon);
+  const spells = Array.isArray(r.spells)
+    ? r.spells
+        .slice(0, 400)
+        .map((s) => {
+          const x = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
+          const level = num(x.level);
+          return {
+            name: text(x.name, 60),
+            level: level === null ? null : Math.max(0, Math.min(9, Math.round(level))),
+            sp: text(x.sp, 12),
+            prayer: text(x.prayer, 16),
+            note: text(x.note, 160),
+          };
+        })
+        .filter((s) => s.name)
+    : null;
   return {
     id,
     name,
@@ -154,7 +195,13 @@ export function cleanCharacter(raw: unknown): Character | null {
     strBonus: str === null ? null : bonus(str),
     // Made from the id, so a card only ever opens that character's own sheet.
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
+    ...(spells ? { spells } : {}),
   };
+}
+
+/** A spell's name as something to pray for: what the sheet calls it, trimmed and not silly. */
+export function isSpellName(v: unknown): v is string {
+  return typeof v === "string" && v.trim() === v && v.length >= 1 && v.length <= 60 && !/[\u0000-\u001f\u007f]/.test(v);
 }
 
 /** A token's label for a character: their first name. */
