@@ -155,8 +155,19 @@ export function LightingSettings(props: { scene: Scene }) {
           </label>
           <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
           <p class="small muted">
-            Click a light's marker (a dot of its colour) to give it a colour, or make it flicker like a torch. A light's colour from Dungeon comes with it.
+            Click a light's marker (a dot of its colour) to give it a colour, make it flicker like a torch, change how far it reaches or remove it; drag the marker to move it. A light's colour from Dungeon comes with it.
           </p>
+          <button
+            class="btn btn-sm"
+            title="Then click the map where it goes"
+            onClick={() => {
+              room.setTool("select");
+              room.store.set({ lightAdd: { sceneId: s.id }, lightPick: null });
+              if (window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
+            }}
+          >
+            Add a light
+          </button>
           <p class="small muted">
             Places the party has seen stay on the map for players, dimmed, without the tokens in them
             {explored > 0 ? ` (${explored < 1 ? "under 1" : Math.round(explored)}% of this scene so far)` : ""}.

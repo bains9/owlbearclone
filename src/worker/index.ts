@@ -9,7 +9,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, spendOnSheet } from "./characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_SPEND } from "../shared/characters";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
@@ -300,6 +300,23 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     const done = await spendOnSheet(source, await directory.charactersKey(), sheetId, spend);
     if ("error" in done) return fail(502, done.error);
     // Every page's next reading reads the sheets again, so the new spell points show.
+    await forgetParty({ directory }, caches.default);
+    return json({ ok: true, sp: done.sp });
+  }
+  // A new day's rest (GM only, at one of the GM's tables): a character's spell points back to full
+  // on their sheet, through the GM's script.
+  const restMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/rest$/);
+  if (restMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    if (!(await isGm(request, env))) return fail(403, "Only the GM can give spell points back.");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const done = await restOnSheet(source, await directory.charactersKey(), restMatch[1]);
+    if ("error" in done) return fail(502, done.error);
     await forgetParty({ directory }, caches.default);
     return json({ ok: true, sp: done.sp });
   }

@@ -158,7 +158,7 @@ describe("a character from their sheet", () => {
     expect([damageRoll(w), damageRoll(w, { sneak: true }), damageRoll(w, { sneak: true, crit: true })]).toEqual(["1d8", "1d8+4d6", "1d8+4d6+8"]);
     expect(damageRoll({ dice: "1d6", damage: 2, sneak: null }, { sneak: true })).toBe("1d6+2");
     for (const expr of ["1d8+4d6", "1d8+4d6+8", "1d4+3d6-1"]) expect(() => parseDice(expr), expr).not.toThrow();
-    expect(attackLabel("Malspar", "Dagger, thrown", "crit sneak damage")).toBe("Malspar: Dagger, thrown crit sneak damage");
+    expect(attackLabel("Testa", "Dagger, thrown", "crit sneak damage")).toBe("Testa: Dagger, thrown crit sneak damage");
     // The rank as the sheet has it.
     expect([cleanCharacter({ ...raw, sneakRank: "4" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "" })!.sneakRank, cleanCharacter({ ...raw, sneakRank: "0" })!.sneakRank]).toEqual([4, null, null]);
   });
@@ -283,7 +283,10 @@ function characterTab(): string[][] {
 }
 
 /** The Apps Script, run here with Google's services played by stand-ins. */
-async function runScript(folderId: string | null, files: { id: string; tab: string[][] | null; spells?: string[][]; trashed?: boolean; broken?: boolean }[]) {
+async function runScript(
+  folderId: string | null,
+  files: { id: string; tab: string[][] | null; spells?: string[][]; tabs?: Record<string, string[][]>; trashed?: boolean; broken?: boolean }[],
+) {
   const code = await source("scripts/character-sheets.gs");
   const services = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => (k === "FOLDER_ID" ? folderId : null) }) },
@@ -311,7 +314,7 @@ async function runScript(folderId: string | null, files: { id: string; tab: stri
           getName: () => "Sheet",
           getUrl: () => `https://docs.google.com/spreadsheets/d/${id}/edit`,
           getSheetByName: (n: string) => {
-            const tab = n === "Character" ? f.tab : n === "Spells" ? f.spells : null;
+            const tab = n === "Character" ? f.tab : n === "Spells" ? f.spells : (f.tabs?.[n] ?? null);
             return tab ? { getRange: () => ({ getDisplayValues: () => tab }) } : null;
           },
         };
@@ -362,6 +365,32 @@ describe("the GM's Apps Script", () => {
       { name: "Magic Missile", level: 1, sp: "1+", prayer: "", note: "" },
       { name: "Earthmaw", level: 4, sp: "5+", prayer: "Pray", note: "Level 4: not castable yet" },
     ]);
+  });
+
+  it("reads a Samurai's ki: the pool for their level from the level table, and the ki abilities they have", async () => {
+    const tab = characterTab();
+    tab[8] = ["Class", "Samurai", "", "", "", "", "", ""];
+    tab[10] = ["Level · XP", "6", "XP", "40,000", "", "", "", ""];
+    tab[11] = ["Second class (optional)", "Cleric", "", "", "", "", "", ""];
+    tab[13] = ["Second class level · XP", "3", "XP", "4,000", "", "", "", ""];
+    const ref = Array.from({ length: 400 }, () => Array<string>(11).fill(""));
+    ref[0] = ["Key", "Class", "Level", "XP", "Hit dice", "Dice", "Flat HP", "Weapon prof gained", "Spell points", "Spell level", "Extra columns"];
+    ref[42] = ["Samurai|5", "Samurai", "5", "", "", "", "", "", "", "", "KI Abilities 2; KI 12"];
+    ref[43] = ["Samurai|6", "Samurai", "6", "", "", "", "", "", "", "", "KI 14"];
+    ref[60] = ["Cleric|3", "Cleric", "3", "", "", "", "", "", "", "", ""];
+    const features = Array.from({ length: 200 }, () => Array<string>(5).fill(""));
+    features[3] = ["Level", "Feature", "From", "Status", "Summary"];
+    features[4] = ["2", "Disarm", "Samurai ki (choose)", "Choose", "Cost: 3 ki. After a successful weapon attack..."];
+    features[5] = ["2", "Ki abilities", "Samurai", "Active", "Gains Omen plus two other Ki abilities of choice and a ki pool (see ki / level table)."];
+    features[6] = ["2", "Omen", "Samurai ki (choose)", "Active", "Cost: 3 ki. Divination: a natural worldly event hints at what the near future may hold."];
+    const out = await runScript("folder1", [{ id: SHEET, tab, tabs: { "Ref Levels": ref, Features: features } }]);
+    expect(cleanCharacter(out.characters![0])!.ki).toEqual({
+      max: 14,
+      abilities: [{ name: "Omen", cost: 3, note: "Cost: 3 ki. Divination: a natural worldly event hints at what the near future may hold." }],
+    });
+    // Another class: no ki.
+    const plain = await runScript("folder1", [{ id: SHEET, tab: characterTab(), tabs: { "Ref Levels": ref, Features: features } }]);
+    expect(cleanCharacter(plain.characters![0])!.ki).toBeUndefined();
   });
 
   it("says which sheets it couldn't open just now, rather than leaving them out silently", async () => {
@@ -617,7 +646,7 @@ describe("in Tabletop", () => {
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[15].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].parts[16].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
     expect(GUIDE[0].intro).toContain("The latest updates came out on 31 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);

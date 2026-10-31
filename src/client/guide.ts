@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)",
+        "steps": [
+          "GM: in **Tokens & images**, under the party, **New day for the party** clears everyone's prayers and fills their ki. Ticked, it also puts everyone's spell points back to full on their sheets.",
+          "A Samurai's card shows their **Ki**: the pool for their level, what's left today, and their ki abilities. Click one to use it: its ki comes off, and a line goes in the chat.",
+          "GM: in **Edit scene** › **Lighting and line of sight**, **Add a light**, then click the map where it goes. Drag a light's marker to move it; its **Light** bar now has **Reach** and **Remove**."
+        ],
+        "notes": [
+          "Ki left today is kept in Tabletop, like what's been prayed for; a new day fills it.",
+          "GM: spell points back to full and ki need the sheets' script's new version (6). See **Set up the character sheets (GM)**.",
+          "To see how smoothly the map runs on a device, add ?fps to the room's link: the frames a second show at the top right (?fps=0 takes it away)."
+        ]
+      },
+      {
         "title": "Tidier bars: spells on the map, the character card, and phones (31 October 2026)",
         "steps": [
           "With more than three spells on the map, the **Spells** bar shows one **On the map** button with how many. Click it for the list, newest first, and click a spell's × to end it.",
@@ -1067,12 +1080,14 @@ export const GUIDE: GuideSection[] = [
         "title": "Lights (GM)",
         "steps": [
           "With lighting on, each light from the map has a marker: a dot of its colour (pale yellow for plain light), dashed round when it flickers.",
-          "Click a marker. The **Light** bar shows: pick a colour, **Plain** for none, and tick **Flickers** for a torch or a fire.",
+          "Click a marker. The **Light** bar shows: pick a colour, **Plain** for none, tick **Flickers** for a torch or a fire, set how far its light **Reach**es, or **Remove** it.",
+          "Drag a marker to move its light.",
+          "To add a light of your own, open **Edit scene** › **Lighting and line of sight**, click **Add a light**, then click the map where it goes (Esc to cancel).",
           "Click anywhere else on the map, or the ×, when you're done."
         ],
         "notes": [
           "In the dark or at night, a coloured light tints what it falls on, only as far as its light goes (never through a wall), and a flickering one wavers. By day they look the same as plain light.",
-          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture. Bringing a map in again from Dungeon keeps the colour and flicker you gave a light in the same spot."
+          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture. Bringing a map in again from Dungeon keeps the colour and flicker you gave a light in the same spot, and the lights you added."
         ]
       },
       {
@@ -1171,7 +1186,9 @@ export const GUIDE: GuideSection[] = [
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
           "A caster's card lists their **Spells**: click one to cast it from them, and its spell points come off their sheet. See **Spell effects**.",
           "A bow or crossbow matched to the character's strength adds their STR bonus to its damage, as a melee weapon does. GM: click **STR** beside it on their card to mark it (every room); it lights up, and everyone's card adds the bonus.",
-          "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
+          "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet.",
+          "**Ki:** a Samurai's card shows the ki pool for their level (from their sheet), what's left today, and the ki abilities they have, each with its cost. Their player or the GM clicks one to use it (its ki comes off, and a line goes in the chat), or sets what's left with − and +. **New day** on the card, or the GM's **New day for the party**, fills it.",
+          "**New day for the party** (GM, in **Tokens & images** under the party): every character's prayers cleared and ki filled, and, ticked, their spell points back to full on their sheets."
         ]
       },
       {
@@ -1196,7 +1213,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
           "The one thing it changes: a character's **Current spell points**, when they cast a spell from their card. Only that cell, never below 0, and never if the sheet works it out with a formula. Tabletop sends a key with each change, which the script keeps the first time (TABLE_KEY in its properties); after that it takes changes from that Tabletop only.",
-          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
+          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
           "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
           "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
         ]

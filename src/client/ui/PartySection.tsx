@@ -5,11 +5,11 @@
 // every room: per-player sight sees through it.
 
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ImagePlus, PersonStanding, Undo2, UserRound, UserRoundCheck } from "lucide-preact";
+import { ImagePlus, PersonStanding, Sunrise, Undo2, UserRound, UserRoundCheck } from "lucide-preact";
 import type { Character, CharacterPlayer } from "../../shared/characters";
 import { classFigureOf, figureOf } from "../npcs/pcTokens";
 import { PC_FIGURE_CHOICES } from "../npcs/table";
-import { characterPictureUrl, clearCharacterPicture, drawCharacter, placeCharacter, setCharacterFigure, setCharacterPicture, setCharacterPlayer } from "../party";
+import { characterPictureUrl, clearCharacterPicture, drawCharacter, newPartyDay, placeCharacter, setCharacterFigure, setCharacterPicture, setCharacterPlayer } from "../party";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** A character's token, small: their picture, or their figure drawn. */
@@ -161,6 +161,37 @@ function PartyRow(props: { c: Character; gm: boolean }) {
   );
 }
 
+/**
+ * GM: a new day for the whole party: nothing prayed for and ki full on every card, and, ticked,
+ * everyone's spell points back to full on their sheets.
+ */
+function NewPartyDay() {
+  const room = useRoom();
+  const [rest, setRest] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setBusy(true);
+    try {
+      const { error } = await newPartyDay(room, rest);
+      if (error) room.toast(error, "error");
+      else room.toast(rest ? "A new day: prayers cleared, ki full, and spell points back to full on the sheets." : "A new day: prayers cleared and ki full.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="party-day">
+      <button class="btn btn-sm" disabled={busy} title="Every character: nothing prayed for, and ki full" onClick={() => void go()}>
+        <Sunrise size={14} /> New day for the party
+      </button>
+      <label class="check small">
+        <input type="checkbox" checked={rest} onChange={(e) => setRest(e.currentTarget.checked)} />
+        <span>and spell points back to full on their sheets</span>
+      </label>
+    </div>
+  );
+}
+
 export function PartySection() {
   const party = useRoomState((s) => s.party);
   const gm = useRoomState((s) => s.me?.role === "gm");
@@ -178,11 +209,14 @@ export function PartySection() {
       <h3>Party</h3>
       {party.error && <p class="small error-text">{party.error}</p>}
       {party.characters.length ? (
-        <ul class="party-list">
-          {party.characters.map((c) => (
-            <PartyRow key={c.id} c={c} gm={gm} />
-          ))}
-        </ul>
+        <>
+          <ul class="party-list">
+            {party.characters.map((c) => (
+              <PartyRow key={c.id} c={c} gm={gm} />
+            ))}
+          </ul>
+          {gm && <NewPartyDay />}
+        </>
       ) : (
         !party.error && <p class="small muted">No character sheets in the folder yet.</p>
       )}

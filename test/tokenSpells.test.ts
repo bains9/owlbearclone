@@ -443,9 +443,9 @@ describe("in the guide", () => {
   const section = GUIDE.find((s) => s.id === "spells")!;
 
   it("is in What's new under every spell look, above the zones", () => {
-    expect(news.parts[6].title).toBe("Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)");
-    expect(news.parts[7].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
-    expect(news.parts[8].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
+    expect(news.parts[7].title).toBe("Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)");
+    expect(news.parts[8].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
+    expect(news.parts[9].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
   });
 
   it("names every spell, and says how to put one on, conjure one and end one", () => {

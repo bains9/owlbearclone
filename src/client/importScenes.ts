@@ -100,7 +100,7 @@ export function visionFromSight(sight: MapSight, perSquare: number, keep?: Scene
       // The GM's colour and flicker for a light in the same spot are kept.
       const was = keep?.lights.find((o) => o.x === light.x && o.y === light.y);
       return was?.color || was?.flicker ? { ...light, ...(was.color ? { color: was.color } : {}), ...(was.flicker ? { flicker: true } : {}) } : light;
-    }),
+    }).concat((keep?.lights ?? []).filter((l) => l.own)),
     ...(keep?.openEdges?.length ? { openEdges: keep.openEdges } : {}),
     ...(keep
       ? {

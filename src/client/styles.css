@@ -905,6 +905,21 @@ button:disabled {
 .corner-tr > .level-bar {
   pointer-events: auto;
 }
+/* The frame-rate readout (?fps): top right, amber when the board runs slow. */
+.fps-meter {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fps-meter.slow {
+  color: var(--warn);
+  border-color: var(--warn);
+}
 .selbar-stack {
   position: absolute;
   left: 50%;
@@ -1087,6 +1102,14 @@ button:disabled {
 }
 .character-prayers li > span:first-child {
   flex: 1;
+}
+/* GM, under the party: a new day for everyone. */
+.party-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
 }
 .prayed-count {
   min-width: 1.4em;

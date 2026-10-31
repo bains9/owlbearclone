@@ -179,9 +179,9 @@ describe("the guide", () => {
   const text = (p: { steps: string[]; notes: string[] }) => [...p.steps, ...p.notes].join("\n");
 
   it("has Dungeon's sign-in tenth in What's new, under the Build tool's library and maps from Dungeon, pointing to the how-to", () => {
-    expect(news.parts[22].title).toBe("Dungeon signs in with Tabletop (26 October 2026)");
-    expect(news.parts[23].title).toBe("Extend a map past its edges (26 October 2026)");
-    const entry = text(news.parts[22]);
+    expect(news.parts[23].title).toBe("Dungeon signs in with Tabletop (26 October 2026)");
+    expect(news.parts[24].title).toBe("Extend a map past its edges (26 October 2026)");
+    const entry = text(news.parts[23]);
     for (const what of ["**Dungeon**", "**Table**", "**More** › **Dungeon, the map maker**", "See **Open Dungeon, the map maker**"]) expect(entry).toContain(what);
     expect(all.some((p) => p.title === "Open Dungeon, the map maker")).toBe(true);
     expect(all.some((p) => p.title === "Dungeon uses this sign-in")).toBe(true);

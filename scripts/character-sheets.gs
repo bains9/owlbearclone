@@ -4,13 +4,14 @@
 // A Google Apps Script web app, run as its owner (the GM), that reads only the spreadsheets in
 // one Drive folder, each a copy of the group's Player's Handbook character sheet, and answers with
 // what Tabletop shows: name, player, race and classes, HP, AC, initiative, spell points,
-// attacks, and the spells on the Spells tab. Numbers are found by their labels on the Character
+// attacks, the spells on the Spells tab, and a Samurai's ki (the pool for their level, from the
+// sheet's level table, and their ki abilities). Numbers are found by their labels on the Character
 // tab ("Current HP", "Combat AC"...), and spells under the Spells tab's heading row, not by cell,
 // so the sheet's layout can change.
 //
 // The one thing it changes: a character's Current spell points, when they cast a spell in
-// Tabletop (doPost). Only that cell, only on a sheet in the folder, never below 0, and never when
-// the sheet works it out with a formula. Tabletop sends a key with each change: the first time,
+// Tabletop, or back to their Maximum for a new day (doPost). Only that cell, only on a sheet in
+// the folder, never below 0, and never when the sheet works it out with a formula. Tabletop sends a key with each change: the first time,
 // the script keeps it (script property TABLE_KEY), and from then on takes changes with that key
 // only. To let a different Tabletop make changes, delete TABLE_KEY.
 //
@@ -95,7 +96,43 @@ function card(ss) {
     strBonus: at(5, 'Melee damage'),
     attacks: attacks,
     spells: spellsOf(ss),
+    ki: kiOf(ss, [[at(0, 'Class'), at(0, 'Level · XP')], [at(0, 'Second class (optional)'), at(0, 'Second class level · XP')]]),
   };
+}
+
+/**
+ * A character's ki, or null: the pool for their level of a class whose levels give ki (the "KI n"
+ * in Ref Levels' Extra columns, as for the Samurai), and the ki abilities they have (the Features
+ * tab's Active rows from a "ki" source with a "Cost: n ki" summary).
+ */
+function kiOf(ss, classes) {
+  const ref = ss.getSheetByName('Ref Levels');
+  if (!ref) return null;
+  const rows = ref.getRange('A1:K400').getDisplayValues();
+  let max = 0;
+  classes.forEach(function (c) {
+    if (!c[0] || !c[1]) return;
+    const key = String(c[0]).trim() + '|' + String(c[1]).trim();
+    for (let i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() !== key) continue;
+      const m = /KI (\d+)/.exec(String(rows[i][10]));
+      if (m) max = Math.max(max, Number(m[1]));
+      break;
+    }
+  });
+  if (!max) return null;
+  const abilities = [];
+  const features = ss.getSheetByName('Features');
+  if (features) {
+    const v = features.getRange('A1:E200').getDisplayValues();
+    for (let i = 0; i < v.length; i++) {
+      const r = v[i];
+      if (!/ki/i.test(String(r[2])) || String(r[3]).trim() !== 'Active') continue;
+      const cost = /Cost:\s*(\d+)\s*ki/i.exec(String(r[4]));
+      if (cost) abilities.push({ name: String(r[1]).trim(), cost: Number(cost[1]), note: String(r[4]).trim().slice(0, 300) });
+    }
+  }
+  return { max: max, abilities: abilities };
 }
 
 /**
@@ -120,8 +157,9 @@ function spellsOf(ss) {
 }
 
 /**
- * Spends a character's spell points on a spell cast in Tabletop: POST {key, id, spend}. Answers
- * with their spell points now, or why not (and then changes nothing).
+ * Spends a character's spell points on a spell cast in Tabletop: POST {key, id, spend}; or, for a
+ * new day, puts them back to their Maximum spell points: POST {key, id, rest: true}. Answers with
+ * their spell points now, or why not (and then changes nothing).
  */
 function doPost(e) {
   let body;
@@ -137,8 +175,9 @@ function doPost(e) {
     key = body.key;
   }
   if (!key || body.key !== key) return reply({ error: 'Tabletop’s key doesn’t match the one the script keeps (TABLE_KEY in its properties).' });
+  const rest = body.rest === true;
   const spend = Number(body.spend);
-  if (!Number.isInteger(spend) || spend < 1 || spend > 100) return reply({ error: 'That isn’t a number of spell points.' });
+  if (!rest && (!Number.isInteger(spend) || spend < 1 || spend > 100)) return reply({ error: 'That isn’t a number of spell points.' });
   let file;
   try {
     file = DriveApp.getFileById(String(body.id));
@@ -155,13 +194,23 @@ function doPost(e) {
   try {
     const sheet = SpreadsheetApp.openById(file.getId()).getSheetByName('Character');
     if (!sheet) return reply({ error: 'That isn’t a character sheet.' });
-    const v = sheet.getRange('A1:A160').getDisplayValues();
+    const v = sheet.getRange('A1:B160').getDisplayValues();
     let row = 0;
-    for (let i = 0; i < v.length && !row; i++) if (String(v[i][0]).trim() === 'Current spell points') row = i + 1;
+    let most = NaN;
+    for (let i = 0; i < v.length; i++) {
+      const label = String(v[i][0]).trim();
+      if (label === 'Current spell points' && !row) row = i + 1;
+      if (label === 'Maximum spell points') most = Number(v[i][1]);
+    }
     if (!row) return reply({ error: 'Their sheet has no Current spell points.' });
     const cell = sheet.getRange(row, 2);
     if (cell.getFormula()) return reply({ error: 'Their sheet works out Current spell points itself, so it isn’t changed.' });
     const now = Number(cell.getValue()) || 0;
+    if (rest) {
+      if (!Number.isFinite(most) || most < 0) return reply({ error: 'Their sheet has no Maximum spell points.' });
+      if (now !== most) cell.setValue(most);
+      return reply({ sp: most });
+    }
     if (spend > now) return reply({ error: 'Not enough spell points.', sp: now });
     cell.setValue(now - spend);
     return reply({ sp: now - spend });

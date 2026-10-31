@@ -273,13 +273,14 @@ describe("spell points", () => {
 });
 
 /** The GM's Apps Script's doPost, run here with Google's services played by stand-ins. */
-async function runPost(body: unknown, sheet: { value: number; formula?: string; inFolder?: boolean; trashed?: boolean; key?: string | null }) {
+async function runPost(body: unknown, sheet: { value: number; most?: number; formula?: string; inFolder?: boolean; trashed?: boolean; key?: string | null }) {
   const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
   const code = fs.readFileSync(new URL("../scripts/character-sheets.gs", import.meta.url), "utf8");
   const props: Record<string, string> = { FOLDER_ID: "folder1", ...(sheet.key ? { TABLE_KEY: sheet.key } : {}) };
   const written: number[] = [];
   const labels = Array.from({ length: 160 }, () => [""]);
-  labels[22] = ["Current spell points"];
+  labels[22] = ["Current spell points", String(sheet.value)];
+  if (sheet.most !== undefined) labels[23] = ["Maximum spell points", String(sheet.most)];
   const services = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => props[k] ?? null, setProperty: (k: string, v: string) => void (props[k] = v) }) },
     DriveApp: {
@@ -445,6 +446,20 @@ describe("a spell with nothing on the map", () => {
 describe("the GM's script, changing spell points", () => {
   const KEY = "k".repeat(43);
 
+  it("puts them back to the sheet's Maximum for a new day, never over a formula", async () => {
+    const rest = await runPost({ key: KEY, id: SHEET, rest: true }, { value: 4, most: 15, key: KEY });
+    expect(rest.out).toEqual({ sp: 15 });
+    expect(rest.written).toEqual([15]);
+    // Full already: nothing written.
+    expect((await runPost({ key: KEY, id: SHEET, rest: true }, { value: 15, most: 15, key: KEY })).written).toEqual([]);
+    for (const sheet of [{ value: 4, most: 15, key: KEY, formula: "=B24" }, { value: 4, key: KEY }]) {
+      const { out, written } = await runPost({ key: KEY, id: SHEET, rest: true }, sheet);
+      expect(out.error).toMatch(/works out Current spell points|no Maximum spell points/);
+      expect(written).toEqual([]);
+    }
+    expect((await runPost({ key: "x".repeat(43), id: SHEET, rest: true }, { value: 4, most: 15, key: KEY })).out.error).toMatch(/key doesn.t match/);
+  });
+
   it("keeps the first key it's sent, takes the points off, and then wants that key", async () => {
     const first = await runPost({ key: KEY, id: SHEET, spend: 3 }, { value: 12 });
     expect(first.out).toEqual({ sp: 9 });
@@ -476,9 +491,9 @@ describe("the GM's script, changing spell points", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and says how to cast from a card, pray for spells, what spell points come off, levels, rounds and the chat", async () => {
-    expect(GUIDE[0].parts[3].title).toBe("Every spell on a caster's card, even with nothing to show on the map (31 October 2026)");
-    expect(GUIDE[0].parts[4].title).toBe("Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)");
-    expect(GUIDE[0].parts[5].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
+    expect(GUIDE[0].parts[4].title).toBe("Every spell on a caster's card, even with nothing to show on the map (31 October 2026)");
+    expect(GUIDE[0].parts[5].title).toBe("Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)");
+    expect(GUIDE[0].parts[6].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
     const text = JSON.stringify(GUIDE.find((s) => s.id === "spells"));
     for (const words of ["**Pray for today**", "**New day**", "**Spells**", "**Spell points:**", "**A higher level:**", "**Lasts:**", "**In the chat:**", "**Nothing on the map:**", "**Cast**"]) expect(text).toContain(words);
     const bar = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };

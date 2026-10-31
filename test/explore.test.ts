@@ -149,12 +149,12 @@ describe("per-player sight's explored maps", () => {
       id: "t", sceneId: "Scene1234567", kind: "token", z: 0, owner: GM_OWNER, x: 0, y: 0, size: 1, rotation: 0,
       assetId: null, color: "#fff", label: "", hidden: false, locked: false, rings: [], ...extra,
     });
-    const malspar = token({ character: SHEET }), nancael = token({ character: OTHER }), mine = token({ owner: "user1" }), theirs = token({ owner: "user2" });
-    expect([malspar, nancael, mine, theirs].map((t) => isOwnSightToken(t, SHEET, "user1"))).toEqual([true, false, true, false]);
+    const hero = token({ character: SHEET }), companion = token({ character: OTHER }), mine = token({ owner: "user1" }), theirs = token({ owner: "user2" });
+    expect([hero, companion, mine, theirs].map((t) => isOwnSightToken(t, SHEET, "user1"))).toEqual([true, false, true, false]);
     // A character's token is its character's, whoever put it down.
     expect(isOwnSightToken(token({ character: OTHER, owner: "user1" }), SHEET, "user1")).toBe(false);
     // Looking as a character (the GM): only theirs; a hidden token or a prop never.
-    expect([malspar, mine].map((t) => isOwnSightToken(t, SHEET, null))).toEqual([true, false]);
+    expect([hero, mine].map((t) => isOwnSightToken(t, SHEET, null))).toEqual([true, false]);
     expect(isOwnSightToken(token({ character: SHEET, hidden: true }), SHEET, "user1")).toBe(false);
     expect(isOwnSightToken(token({ owner: "user1", layer: "prop" }), SHEET, "user1")).toBe(false);
 

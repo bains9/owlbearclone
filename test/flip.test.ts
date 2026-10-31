@@ -10,7 +10,7 @@ import type { Item, TokenItem } from "../src/shared/types";
 const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
 const source = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const token = { id: "tok1", sceneId: "scene1", kind: "token", x: 10, y: 10, size: 1, assetId: "asset1", color: "#ff0000", label: "Nancael" };
+const token = { id: "tok1", sceneId: "scene1", kind: "token", x: 10, y: 10, size: 1, assetId: "asset1", color: "#ff0000", label: "Testa" };
 
 describe("a flipped token", () => {
   it("keeps being flipped, and isn't marked when it isn't", () => {
@@ -38,7 +38,7 @@ describe("a flipped token", () => {
     expect(bar).toContain('aria-label="Flip"');
     expect(bar).toContain("patch({ flipped: !t.flipped })");
     expect(await source("src/client/room/board.ts")).toContain("scaleX: flip");
-    expect(GUIDE[0].parts[14].title).toBe("Flip a token to face the other way (29 October 2026)");
-    expect(GUIDE[0].parts[14].steps.join(" ")).toContain("**Flip**");
+    expect(GUIDE[0].parts[15].title).toBe("Flip a token to face the other way (29 October 2026)");
+    expect(GUIDE[0].parts[15].steps.join(" ")).toContain("**Flip**");
   });
 });

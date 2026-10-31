@@ -28,7 +28,7 @@ import {
 } from "../../shared/characters";
 import { castList, highestLevel, type CastSpell } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
-import { castAs, castFromCard, castLevel, castingCost, mayPray, newPrayerDay, setCharacterStrMatched, setPrayed } from "../party";
+import { castAs, castFromCard, castLevel, castingCost, kiLeft, mayPray, newPrayerDay, setCharacterStrMatched, setKi, setPrayed, spendKi } from "../party";
 import { NARROW, cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -122,8 +122,8 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
             {praying ? "Done" : "Pray for today"}
           </button>
         )}
-        {can && !praying && Object.keys(c.prayed ?? {}).length > 0 && (
-          <button class="link-btn" title="A new day: nothing prayed for" onClick={() => void newPrayerDay(room, c).catch((err: Error) => room.toast(err.message, "error"))}>
+        {can && !praying && (Object.keys(c.prayed ?? {}).length > 0 || c.kiLeft !== undefined) && (
+          <button class="link-btn" title="A new day: nothing prayed for, and ki full" onClick={() => void newPrayerDay(room, c).catch((err: Error) => room.toast(err.message, "error"))}>
             New day
           </button>
         )}
@@ -178,6 +178,55 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
         />
       )}
       {!praying && locked.length > 0 && <div class="small muted">Not castable yet: {locked.map((s) => s.name).join(", ")}</div>}
+    </div>
+  );
+}
+
+/**
+ * A Samurai's ki: how much is left today, which their player or the GM can change, and their ki
+ * abilities, each a chip that uses it (its cost off, a line in the chat). A new day fills it.
+ */
+function CardKi(props: { c: Character }) {
+  const room = useRoom();
+  const { c } = props;
+  if (!c.ki) return null;
+  const can = mayPray(room, c);
+  const left = kiLeft(c);
+  const set = (n: number) => void setKi(room, c, n).catch((err: Error) => room.toast(err.message, "error"));
+  return (
+    <div class="character-spells character-ki">
+      <div class="character-spells-head">
+        <span>Ki</span>
+        {can && (
+          <button class="icon-btn" aria-label="One less ki" disabled={left <= 0} onClick={() => set(left - 1)}>
+            −
+          </button>
+        )}
+        <span class="prayed-count" title="Ki left today (a new day fills it)">
+          {left} / {c.ki.max}
+        </span>
+        {can && (
+          <button class="icon-btn" aria-label="One more ki" disabled={left >= c.ki.max} onClick={() => set(left + 1)}>
+            +
+          </button>
+        )}
+      </div>
+      {c.ki.abilities.length > 0 && (
+        <div class="spell-chips">
+          {c.ki.abilities.map((a) => (
+            <button
+              key={a.name}
+              class={cx("chip spell-chip", a.cost > left && "out")}
+              disabled={!can || a.cost > left}
+              title={[can ? `Use ${a.name}: ${a.cost} ki, and a line in the chat` : `Only the GM or ${characterLabel(c)}'s player can use it`, a.note].filter(Boolean).join(" · ")}
+              onClick={() => spendKi(room, c, a)}
+            >
+              {a.name}
+              <span class="spell-sp">{a.cost} ki</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -275,6 +324,11 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
             SP {c.sp} / {c.maxSp}
           </span>
         )}
+        {c.ki && (
+          <span title="Ki left today">
+            Ki {kiLeft(c)} / {c.ki.max}
+          </span>
+        )}
       </div>
       {!folded && ways.some((w) => w.sneak) && (
         <label class="character-sneak" title="Tick it for a hit that's a sneak attack: the damage roll adds the sneak attack dice from the sheet, then it unticks">
@@ -331,6 +385,7 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
         </ul>
       )}
       {!folded && <CardSpells c={c} tokenId={props.tokenId ?? null} />}
+      {!folded && <CardKi c={c} />}
     </div>
   );
 }

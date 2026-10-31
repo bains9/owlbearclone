@@ -531,6 +531,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
       r: pr,
       ...(typeof x.color === "string" && /^#[0-9a-f]{6}$/i.test(x.color) ? { color: x.color.toLowerCase() } : {}),
       ...(x.flicker === true ? { flicker: true } : {}),
+      ...(x.own === true ? { own: true } : {}),
     });
   }
   const light = sanitizeDistance(r.light), sight = sanitizeDistance(r.sight);

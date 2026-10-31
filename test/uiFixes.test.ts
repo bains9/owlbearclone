@@ -71,7 +71,7 @@ describe("a bar that fails to draw", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and the card and spell parts say how to fold and open", () => {
-    expect(GUIDE[0].parts[0].title).toBe("Tidier bars: spells on the map, the character card, and phones (31 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("Tidier bars: spells on the map, the character card, and phones (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     expect(all).toContain("Click the arrow beside it to fold the card");
     expect(all).toContain("With more than three, click **On the map** first");

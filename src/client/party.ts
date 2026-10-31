@@ -3,7 +3,7 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
+import { KI_KEY, MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer, type KiAbility } from "../shared/characters";
 import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
@@ -203,19 +203,92 @@ export async function setPrayed(room: RoomClient, c: Character, spell: string, l
   await putPrayed(room, c, { spell, left: n });
 }
 
-/** Their player or the GM: a new day, with nothing prayed for. */
+/** Their player or the GM: a new day, with nothing prayed for and their ki full. */
 export async function newPrayerDay(room: RoomClient, c: Character): Promise<void> {
-  showPrayed(room, c.id, {});
+  showPrayed(room, c.id, {}, null);
   await putPrayed(room, c, { newDay: true });
 }
 
-function showPrayed(room: RoomClient, id: string, prayed: Record<string, number>): void {
+/**
+ * A character's day shown here at once: what's been prayed for, and (when given) the ki they have
+ * left, null for full.
+ */
+function showPrayed(room: RoomClient, id: string, prayed: Record<string, number>, kiLeft?: number | null): void {
   const party = room.state.party;
   if (!party) return;
-  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? { ...x, prayed } : x)) } });
+  const day = (x: Character): Character => {
+    const out: Character = { ...x, prayed };
+    if (kiLeft === null) delete out.kiLeft;
+    else if (kiLeft !== undefined) out.kiLeft = kiLeft;
+    return out;
+  };
+  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? day(x) : x)) } });
 }
 
-async function putPrayed(room: RoomClient, c: Character, body: { spell: string; left: number } | { newDay: true }): Promise<void> {
+/** The ki a character has left today: full when none has been used (0 without a ki pool). */
+export function kiLeft(c: Pick<Character, "ki" | "kiLeft">): number {
+  return c.ki ? Math.max(0, Math.min(c.ki.max, c.kiLeft ?? c.ki.max)) : 0;
+}
+
+/** Their player or the GM: the ki a character has left today. Shown here at once. */
+export async function setKi(room: RoomClient, c: Character, left: number): Promise<void> {
+  const n = Math.max(0, Math.min(c.ki?.max ?? 0, Math.round(left)));
+  showPrayed(room, c.id, c.prayed ?? {}, n);
+  await putPrayed(room, c, { ki: n });
+}
+
+/** The chat's line for a ki ability used: "Hana uses Omen (3 ki, 11 left)." */
+export function kiLine(c: Character, a: KiAbility, left: number): string {
+  return `${characterLabel(c)} uses ${a.name} (${a.cost} ki, ${left} left).`;
+}
+
+/**
+ * A ki ability used from a character's card (on the GM's page, or their player's): its cost off
+ * their ki today, and a line in the chat. False when it can't be (and a toast says why).
+ */
+export function spendKi(room: RoomClient, c: Character, a: KiAbility): boolean {
+  if (!mayPray(room, c)) return false;
+  const left = kiLeft(c);
+  if (a.cost > left) {
+    room.toast(`${characterLabel(c)} has ${left} ki left, and ${a.name} costs ${a.cost}.`, "error");
+    return false;
+  }
+  room.sendChat(kiLine(c, a, left - a.cost));
+  void setKi(room, c, left - a.cost).catch((err: Error) => room.toast(err.message, "error"));
+  return true;
+}
+
+/**
+ * GM: a new day for the whole party: nothing prayed for and ki full, and, with `rest`, their spell
+ * points back to full on their sheets (through the GM's script). How many were done, and the
+ * first thing that went wrong, if anything.
+ */
+export async function newPartyDay(room: RoomClient, rest: boolean): Promise<{ done: number; error: string | null }> {
+  const party = room.state.party?.characters ?? [];
+  const results = await Promise.allSettled(
+    party.map(async (c) => {
+      await newPrayerDay(room, c);
+      if (rest && c.maxSp !== null) await restSpellPoints(room, c);
+    }),
+  );
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  void room.refreshParty();
+  return { done: results.length - (failed ? results.filter((r) => r.status === "rejected").length : 0), error: failed ? (failed.reason as Error).message : null };
+}
+
+/** GM: a character's spell points back to full on their sheet. */
+async function restSpellPoints(room: RoomClient, c: Character): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/rest?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "X-Tabletop-User": room.profileInfo.uid },
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
+  if (!res.ok || typeof data.sp !== "number") throw new Error(data.error ?? `${characterLabel(c)}'s spell points couldn't be filled up (${res.status}).`);
+  showSpellPoints(room, c.id, data.sp);
+}
+
+async function putPrayed(room: RoomClient, c: Character, body: { spell: string; left: number } | { newDay: true } | { ki: number }): Promise<void> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/prayed?room=${encodeURIComponent(room.roomId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
@@ -228,7 +301,10 @@ async function putPrayed(room: RoomClient, c: Character, body: { spell: string; 
     void room.refreshParty();
     throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
   }
-  if (data.prayed) showPrayed(room, c.id, data.prayed);
+  if (data.prayed) {
+    const { [KI_KEY]: ki, ...prayed } = data.prayed;
+    showPrayed(room, c.id, prayed, ki ?? null);
+  }
 }
 
 /** A spell picked from a character's card: the Spells tool, with that spell, cast from their token at its own level. */

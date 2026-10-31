@@ -74,7 +74,36 @@ export interface Character {
    * many casts each has left, by the sheet's name for it (kept by the Worker, for every room).
    */
   prayed?: Record<string, number>;
+  /**
+   * A Samurai's ki: the pool for their level (the sheet's level table) and the ki abilities they
+   * have, each with its cost (missing from scripts before version 6, and for other classes).
+   */
+  ki?: CharacterKi;
+  /** The ki they have left today, when some has been used (kept by the Worker, like prayers): full when missing. */
+  kiLeft?: number;
 }
+
+export interface CharacterKi {
+  max: number;
+  abilities: KiAbility[];
+}
+
+/** A ki ability a character has (Active on their sheet's Features tab). */
+export interface KiAbility {
+  name: string;
+  /** Its cost in ki, as the sheet starts it ("Cost: 3 ki"): some take more for more. */
+  cost: number;
+  /** The sheet's summary of it. */
+  note: string;
+}
+
+/**
+ * Where the ki left today is kept, with what's been prayed for: under a name no spell has, so a new
+ * day (which clears the prayers) fills it up again.
+ */
+export const KI_KEY = "__ki";
+/** The most ki a pool can hold (the handbook's table stops at 44). */
+export const MAX_KI = 99;
 
 /** One of a character's spells, as their sheet's Spells tab has it. */
 export interface CharacterSpell {
@@ -156,6 +185,7 @@ export function cleanCharacter(raw: unknown): Character | null {
       return { weapon: text(x.weapon, 60), damage: text(x.damage, 30), range: text(x.range, 30), toHit: text(x.toHit, 40), bonus: text(x.bonus, 60) };
     })
     .filter((a) => a.weapon);
+  const ki = cleanKi(r.ki);
   const spells = Array.isArray(r.spells)
     ? r.spells
         .slice(0, 400)
@@ -196,7 +226,24 @@ export function cleanCharacter(raw: unknown): Character | null {
     // Made from the id, so a card only ever opens that character's own sheet.
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
     ...(spells ? { spells } : {}),
+    ...(ki ? { ki } : {}),
   };
+}
+
+/** A character's ki from the script, or null (none, or not a ki pool). */
+function cleanKi(raw: unknown): CharacterKi | null {
+  const k = (raw && typeof raw === "object" ? raw : null) as Record<string, unknown> | null;
+  const max = num(k?.max);
+  if (!k || max === null || max < 1) return null;
+  const abilities = (Array.isArray(k.abilities) ? k.abilities : [])
+    .slice(0, 30)
+    .map((a) => {
+      const x = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
+      const cost = num(x.cost);
+      return { name: text(x.name, 60), cost: cost === null ? 0 : Math.max(0, Math.min(MAX_KI, Math.round(cost))), note: text(x.note, 300) };
+    })
+    .filter((a) => a.name && a.cost > 0);
+  return { max: Math.min(MAX_KI, Math.round(max)), abilities };
 }
 
 /** The most spell points one cast can spend (a 9th-level spell's cost, by the handbook). */

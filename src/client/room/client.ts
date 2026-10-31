@@ -231,6 +231,8 @@ export interface RoomState {
   tokenSnap: boolean;
   /** GM, lighting on: the light picked on the map (its marker clicked), for its colour and flicker. */
   lightPick: { sceneId: string; index: number } | null;
+  /** GM: Add a light was clicked (Edit scene › Lighting): the next click on that scene's map places one. */
+  lightAdd: { sceneId: string } | null;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -275,6 +277,8 @@ export interface BoardApi {
   clearBuildSelection(): void;
   /** Loads the scene's map picture again after it was given up on (the Try again button). */
   retryMap(): void;
+  /** How long the board's layers took to draw since this was last asked, and how many draws (for ?fps). */
+  drawStats(): { ms: number; draws: number };
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -516,6 +520,7 @@ export class RoomClient {
       measureOpts: { shape: "ruler", keep: false },
       spellOpts: { spell: "Magic Missile" },
       lightPick: null,
+      lightAdd: null,
       textPrompt: null,
       mapImport: null,
       attachDD: null,

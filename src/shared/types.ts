@@ -132,6 +132,8 @@ export interface SceneLight {
   color?: string;
   /** It flickers, as a torch or a fire does. */
   flicker?: boolean;
+  /** The GM put it there (Add a light), rather than the map file: bringing the map in again keeps it. */
+  own?: boolean;
 }
 
 /** A distance in a unit, as a scene's grid names it ("m", "ft"). */

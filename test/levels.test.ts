@@ -165,7 +165,7 @@ describe("taking the party to another level", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and Scenes says how to go up and down and take the party", () => {
-    expect(GUIDE[0].parts[1].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
+    expect(GUIDE[0].parts[2].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
     const scenes = GUIDE.find((s) => s.id === "scenes")!;
     const part = scenes.parts.find((p) => p.title === "A map with levels");
     expect(part).toBeDefined();

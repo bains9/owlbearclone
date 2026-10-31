@@ -38,6 +38,7 @@ import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
 import { voiceLink } from "../room/voiceLink";
 import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
+import { FpsMeter } from "./FpsMeter";
 import { LevelBar } from "./LevelBar";
 import { LightBar } from "./LightBar";
 import { CardDock, SelectionBar } from "./SelectionBar";
@@ -263,6 +264,9 @@ function RoomShell() {
           <Guard name="the grid banner" retry={(s) => s.gridAlign}>
             <GridAlignBanner />
           </Guard>
+          <Guard name="the light banner" retry={(s) => s.lightAdd}>
+            <LightAddBanner />
+          </Guard>
           {/* Each edge of the map stacks what's there, so nothing lands on anything else. */}
           <BottomBars>
             {/* A phone's "Only you can see this scene" (a bigger screen has it in the top bar). */}
@@ -288,6 +292,7 @@ function RoomShell() {
             </Guard>
           </div>
           <TopRight>
+            <FpsMeter />
             <Guard name="the level bar" retry={(s) => s.viewSceneId}>
               <LevelBar />
             </Guard>
@@ -575,6 +580,21 @@ function SidePanel(props: { panel: PanelId }) {
       </div>
       {body}
     </aside>
+  );
+}
+
+/** GM, after Add a light: where to click, and Cancel. */
+function LightAddBanner() {
+  const room = useRoom();
+  const adding = useRoomState((s) => !!s.lightAdd && s.lightAdd.sceneId === s.viewSceneId);
+  if (!adding) return null;
+  return (
+    <div class="preview-banner align-banner">
+      <span>Click the map where the light goes.</span>
+      <button class="btn btn-sm" onClick={() => room.store.set({ lightAdd: null })}>
+        Cancel
+      </button>
+    </div>
   );
 }
 

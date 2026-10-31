@@ -8,7 +8,7 @@
 // own token picture (one the GM chose, instead of the drawn figure) is kept in R2 under
 // characters/<sheet id>, for every room.
 
-import { MAX_PRAYED, cleanCharacter, isSpellName, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
+import { KI_KEY, MAX_KI, MAX_PRAYED, cleanCharacter, isSpellName, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
 import { isId } from "../shared/sanitize";
 
 /** How long a reading of the sheets is used before they're read again. */
@@ -86,6 +86,32 @@ export async function spendOnSheet(
   return typeof body.sp === "number" && Number.isFinite(body.sp) ? { sp: body.sp } : { error: "The character sheets' script didn't say how many spell points are left." };
 }
 
+/**
+ * A new day's rest (GM): a character's spell points back to full on their sheet, through the GM's
+ * script (version 6 on): POST {key, id, rest: true}. Their spell points now, or why not.
+ */
+export async function restOnSheet(source: string, key: string, sheetId: string, fetcher: typeof fetch = fetch): Promise<{ sp: number } | { error: string }> {
+  let res: Response;
+  try {
+    res = await fetcher(source, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, id: sheetId, rest: true }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(SCRIPT_MS),
+    });
+  } catch {
+    return { error: "The character sheets didn't answer in time, so the spell points weren't filled up. Change them on the sheet." };
+  }
+  const body = (await res.json().catch(() => null)) as { sp?: unknown; error?: unknown } | null;
+  // A script before version 6 takes the rest for a spend of nothing, and says it isn't a number.
+  if (!res.ok || !body || (typeof body.error === "string" && /number of spell points/.test(body.error))) {
+    return { error: "The character sheets' script can't fill spell points up yet: the GM needs to update it (Room settings › Character sheets)." };
+  }
+  if (typeof body.error === "string") return { error: `The spell points weren't filled up: ${body.error.slice(0, 200)}` };
+  return typeof body.sp === "number" && Number.isFinite(body.sp) ? { sp: body.sp } : { error: "The character sheets' script didn't say how many spell points they have." };
+}
+
 export interface PartyEnv {
   directory: {
     charactersSource(): Promise<string | null>;
@@ -119,9 +145,16 @@ export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typ
       ...(figures[c.id] ? { figure: figures[c.id] } : {}),
       ...(matched[c.id]?.length ? { strMatched: matched[c.id] } : {}),
       ...(players[c.id]?.length ? { players: players[c.id] } : {}),
-      ...(prayed[c.id] ? { prayed: prayed[c.id] } : {}),
+      ...dayOf(prayed[c.id]),
     })),
   };
+}
+
+/** A character's day as the Worker keeps it, for their card: what's been prayed for, and the ki left. */
+function dayOf(kept: Record<string, number> | undefined): Pick<Character, "prayed" | "kiLeft"> {
+  if (!kept) return {};
+  const { [KI_KEY]: kiLeft, ...prayed } = kept;
+  return { ...(Object.keys(prayed).length ? { prayed } : {}), ...(kiLeft !== undefined ? { kiLeft } : {}) };
 }
 
 /** A weapon's name as a character's sheet has it, to mark it matched to their strength. */
@@ -135,10 +168,17 @@ export async function playsCharacter(directory: Pick<PartyEnv["directory"], "cha
   return !!(await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId);
 }
 
-/** A change to what a character has prayed for today: a spell's casts left (0 to MAX_PRAYED), or a new day. Null when it isn't one. */
+/**
+ * A change to a character's day: a spell's casts left (0 to MAX_PRAYED), the ki they have left
+ * (kept as KI_KEY), or a new day (nothing prayed for, ki full). Null when it isn't one.
+ */
 export function prayedChange(body: unknown): { spell: string; left: number } | { newDay: true } | null {
-  const b = body as { spell?: unknown; left?: unknown; newDay?: unknown } | null;
+  const b = body as { spell?: unknown; left?: unknown; newDay?: unknown; ki?: unknown } | null;
   if (b?.newDay === true) return { newDay: true };
+  if (b && "ki" in b) {
+    const ki = b.ki;
+    return typeof ki === "number" && Number.isInteger(ki) && ki >= 0 && ki <= MAX_KI ? { spell: KI_KEY, left: ki } : null;
+  }
   const left = b?.left;
   if (!isSpellName(b?.spell) || typeof left !== "number" || !Number.isInteger(left) || left < 0 || left > MAX_PRAYED) return null;
   return { spell: b.spell, left };

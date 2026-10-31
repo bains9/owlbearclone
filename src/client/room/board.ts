@@ -148,6 +148,8 @@ const ZONE_FRAME_MS = 30;
 const WALL_GAP = 0.05;
 /** How strongly a light's colour tints what it falls on, at its heart. */
 const LIGHT_TINT = 0.3;
+/** How far a light the GM adds reaches to begin with, in squares. */
+const OWN_LIGHT_SQUARES = 6;
 /** The glow of a light that flickers but has no colour of its own: a torch's. */
 const TORCH_LIGHT = "#ffb060";
 /** The fog is drawn once into an image at most this many pixels on its long side. */
@@ -237,6 +239,8 @@ type Gesture =
       at: Map<string, Point>;
     }
   | { kind: "marquee"; pointerId: number; start: Point; node: Konva.Rect; additive: boolean }
+  /** GM, lighting on: a light's marker pressed (it's picked); dragged, the light moves. */
+  | { kind: "light-drag"; pointerId: number; index: number; start: Point; moved: boolean }
   | {
       kind: "draw";
       pointerId: number;
@@ -765,8 +769,30 @@ export class Board implements BoardApi {
     );
     this.cleanup.push(room.onEph(this.onEph));
 
+    // Each layer's drawing timed, for the frame-rate readout (?fps, FpsMeter).
+    for (const layer of this.stage.getLayers()) {
+      let from = 0;
+      layer.on("beforeDraw", () => {
+        from = performance.now();
+      });
+      layer.on("draw", () => {
+        this.drawMs += performance.now() - from;
+        this.draws++;
+      });
+    }
+
     room.board = this;
     this.sync();
+  }
+
+  private drawMs = 0;
+  private draws = 0;
+
+  drawStats(): { ms: number; draws: number } {
+    const out = { ms: this.drawMs, draws: this.draws };
+    this.drawMs = 0;
+    this.draws = 0;
+    return out;
   }
 
   destroy(): void {
@@ -2504,8 +2530,10 @@ export class Board implements BoardApi {
     }
     // The lights: a dot of each one's colour (pale yellow for plain light), dashed round when it flickers.
     const picked = this.room.state.lightPick;
-    v.lights.forEach((l, i) => {
+    v.lights.forEach((l0, i) => {
       const on = picked?.sceneId === scene.id && picked.index === i;
+      // One being dragged is drawn where it's going.
+      const l = this.lightDragAt?.index === i ? { ...l0, x: this.lightDragAt.x, y: this.lightDragAt.y } : l0;
       c.beginPath();
       c.arc(l.x, l.y, r * 0.8, 0, Math.PI * 2);
       c.fillStyle = l.color ?? "#fff6c8";
@@ -2520,8 +2548,11 @@ export class Board implements BoardApi {
     c.restore();
   }
 
-  /** GM, lighting on: a click on a light's marker picks it, to set its colour and flicker (true if it did). */
-  private lightClick(world: Point): boolean {
+  /**
+   * GM, lighting on: a light's marker pressed picks it, to set its colour, flicker and reach, and
+   * a drag from there moves it (true if one was pressed).
+   */
+  private lightDown(pointerId: number, pos: Point, world: Point): boolean {
     const scene = this.renderedScene;
     const v = scene?.vision;
     if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return false;
@@ -2529,8 +2560,23 @@ export class Board implements BoardApi {
     if (i < 0) return false;
     this.room.select([]);
     this.room.store.set({ lightPick: { sceneId: scene.id, index: i } });
+    this.gesture = { kind: "light-drag", pointerId, index: i, start: pos, moved: false };
     this.uiLayer.batchDraw();
     return true;
+  }
+
+  /** Where a light being dragged is now (its marker's drawn there; the light moves when it's let go). */
+  private lightDragAt: { index: number; x: number; y: number } | null = null;
+
+  /** GM: a light of their own where the map was clicked (Add a light), picked so its look can be set. */
+  private addLight(scene: Scene, world: Point): void {
+    const v = scene.vision;
+    this.room.store.set({ lightAdd: null });
+    if (!v) return;
+    const light: SceneLight = { x: round2(world.x), y: round2(world.y), r: scene.grid.size * OWN_LIGHT_SQUARES, own: true };
+    this.room.updateScene(scene.id, { vision: { ...v, lights: [...v.lights, light] } });
+    this.room.select([]);
+    this.room.store.set({ lightPick: { sceneId: scene.id, index: v.lights.length } });
   }
 
   /** GM, lighting on: a click on a door's marker opens or shuts it (true if it did). */
@@ -3402,6 +3448,11 @@ export class Board implements BoardApi {
     const world = this.toWorld(pos);
     const s = this.room.state;
     const scene = this.renderedScene;
+    // GM: Add a light (Edit scene › Lighting): the light goes where the map's clicked, whatever the tool.
+    if (s.lightAdd && this.isGm && scene && s.lightAdd.sceneId === scene.id) {
+      this.addLight(scene, world);
+      return;
+    }
     if (s.gridAlign && this.isGm) {
       const node = new Konva.Rect({
         x: world.x,
@@ -3419,8 +3470,10 @@ export class Board implements BoardApi {
     }
     switch (s.tool) {
       case "select":
-        // GM, lighting on: a click on a door's marker (not on a token) opens or shuts it; on a light's, picks it.
-        if (this.isGm && !this.pickAt(pos) && (this.doorClick(world) || this.lightClick(world))) return;
+        // GM, lighting on: a click on a door's marker opens or shuts it; on a light's, picks it, and a
+        // drag moves it. A token there is picked instead; a drawing (a spell's zone, say) isn't, as
+        // the small marker is what was aimed at.
+        if (this.isGm && this.pickAt(pos)?.kind !== "token" && (this.doorClick(world) || this.lightDown(e.pointerId, pos, world))) return;
         if (s.lightPick) {
           this.room.store.set({ lightPick: null });
           this.uiLayer.batchDraw();
@@ -5074,6 +5127,13 @@ export class Board implements BoardApi {
         }
         return;
       }
+      case "light-drag": {
+        if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        g.moved = true;
+        this.lightDragAt = { index: g.index, x: world.x, y: world.y };
+        this.uiLayer.batchDraw();
+        return;
+      }
       case "grid-align": {
         // Kept square: grid cells are square.
         const side = Math.max(Math.abs(world.x - g.start.x), Math.abs(world.y - g.start.y));
@@ -5281,6 +5341,15 @@ export class Board implements BoardApi {
       case "pan":
         if (!g.moved) g.onClick?.();
         return;
+      case "light-drag": {
+        this.lightDragAt = null;
+        this.uiLayer.batchDraw();
+        const v = scene.vision;
+        if (!g.moved || !v?.lights[g.index]) return;
+        const lights = v.lights.map((l, i) => (i === g.index ? { ...l, x: round2(world.x), y: round2(world.y) } : l));
+        this.room.updateScene(scene.id, { vision: { ...v, lights } });
+        return;
+      }
       case "grid-align": {
         g.node.destroy();
         this.uiLayer.batchDraw();
@@ -5529,6 +5598,10 @@ export class Board implements BoardApi {
     const g = this.gesture;
     this.gesture = { kind: "none" };
     switch (g.kind) {
+      case "light-drag":
+        this.lightDragAt = null;
+        this.uiLayer.batchDraw();
+        return;
       case "drag-items": {
         for (const id of g.origs.keys()) {
           this.dragging.delete(id);
@@ -5932,6 +6005,7 @@ export class Board implements BoardApi {
     switch (key) {
       case "Escape":
         if (room.state.gridAlign && this.gesture.kind === "none") room.store.set({ gridAlign: null });
+        else if (room.state.lightAdd && this.gesture.kind === "none") room.store.set({ lightAdd: null });
         else if (this.wallPath && this.gesture.kind === "none") this.cancelWallPath();
         else if (this.poly) this.cancelPoly();
         else if (this.gesture.kind !== "none") this.cancelGesture();
