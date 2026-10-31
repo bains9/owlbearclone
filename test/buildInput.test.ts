@@ -286,6 +286,16 @@ describe("the controls along the bottom", () => {
     ]);
   });
 
+  it("says a drag erases with Erase picked in Objects, and that Alt erases while placing", () => {
+    expect(keys(buildHints({ ...OPTS, stampMode: "remove" }, { objects: 0, doors: 0 }, env("auto"))).slice(0, 2)).toEqual([
+      "Click an object erase",
+      "Drag erase all it passes",
+    ]);
+    for (const wheel of ["auto", "never"] as WheelPref[]) {
+      expect(keys(buildHints(OPTS, { objects: 0, doors: 0 }, env(wheel)))).toContain("Alt+click, Alt+drag erase");
+    }
+  });
+
   it("offers X in every other mode", () => {
     for (const mode of ["building", "walls", "doors", "terrain"] as const) {
       expect(keys(buildHints({ ...OPTS, mode }, { objects: 0, doors: 0 }, env("auto")))).toContain("X select");

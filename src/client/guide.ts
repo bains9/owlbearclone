@@ -15,8 +15,19 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 29 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Erasing what you built (31 October 2026)",
+        "steps": [
+          "GM: in the Build tool's **Objects**, pick **Erase** (it was **Remove**) and drag over objects to erase every one the drag passes over, such as a row of trees. A click still erases just the one on top. With a mouse, holding **Alt** does the same while you place objects.",
+          "The floor under them stays. To erase floors too, use **Erase** in **Building**; for grass, water and lava, **Erase** in **Terrain**."
+        ],
+        "notes": [
+          "The toolbar's **Eraser** (**E**) is for drawings, notes and tokens, and never takes what was built. If you drag it over built floors or objects, a message now says where the Build tool's eraser is.",
+          "These work on anything built, from any session. **Undo** only reaches back to when the page was opened."
+        ]
+      },
       {
         "title": "Lighting and line of sight (29 October 2026)",
         "steps": [
@@ -1261,7 +1272,8 @@ export const GUIDE: GuideSection[] = [
           "Locked tokens aren't erased; you'll see a message saying so. Unlock one first (select it, then the lock button or **L**) if you really want it gone.",
           "Players can only erase their own drawings and their own unlocked tokens.",
           "Each drag is one step for **Undo**, which brings everything back.",
-          "You can also select something and press **Delete**."
+          "You can also select something and press **Delete**.",
+          "GM: it leaves alone what was built with the **Build** tool: floors, walls, doors and objects such as trees. Erase those with **Erase** in the Build tool (**B**), in **Building**, **Terrain** or **Objects**."
         ]
       },
       {
@@ -2282,6 +2294,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "In **Building**, erasing takes rooms: their floor, and the walls, doors and objects on it. Terrain stays where it was. In **Terrain**, it takes only the grass, water and lava: walls, doors and objects stay.",
           "Unlike Dungeondraft, cutting out part of a room also takes the objects on those squares.",
+          "To erase only objects (trees on an uploaded map, say) and leave the floor, use **Erase** in **Objects**: see **Place objects**.",
+          "The **Eraser** in the toolbar (**E**) doesn't take anything built here: it's for drawings, notes and tokens.",
           "**Clear build** removes everything built on the scene, after asking you. Undo brings it back."
         ]
       },
@@ -2346,7 +2360,7 @@ export const GUIDE: GuideSection[] = [
           "Each 16 by 16 squares of the map holds up to 256 objects.",
           "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
           "Objects are drawn in three layers, as in Dungeon: what lies on the floor (rugs, flowers, a trapdoor, a magic circle) is always under what stands on it, and treetops, tents, market stalls and chandeliers are over both. Within a layer, the one put down last is on top; clicking where they overlap picks the top one first. Tabletop's own sixteen all stand on the floor, so maps built before stay as they were.",
-          "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
+          "To take objects away, pick **Erase** in the bar (or hold **Alt**): click an object to erase the one on top there, or drag over several to erase every object the drag passes over. The floor under them stays. Each click or drag is one step for **Undo**.",
           "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
         ]
       },
@@ -2381,7 +2395,7 @@ export const GUIDE: GuideSection[] = [
           "Undo only takes back what that step changed. If you build in two tabs at once (a laptop and a tablet, say), undoing in one never wipes what you built in the other.",
           "What you build is saved with the scene straight away, and it's included in the room's backups.",
           "Changing the grid's size or offset in **Edit scene** moves the build along with it.",
-          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
+          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead, except with **Erase** picked in **Objects**, when a drag erases. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
         ]
       }
     ]

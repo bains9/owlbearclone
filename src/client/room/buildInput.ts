@@ -291,7 +291,7 @@ export function buildHints(
         select,
       ];
     case "stamps":
-      if (o.stampMode === "remove") return [["Click an object", "remove"], pan, zoom, select];
+      if (o.stampMode === "remove") return [["Click an object", "erase"], ["Drag", "erase all it passes"], pan, zoom, select];
       return turns
         ? [
             ["Click", "place"],
@@ -300,7 +300,7 @@ export function buildHints(
             zoom,
             ["Right-click", "turn 90°"],
             ["Z+wheel", "turn 5°"],
-            ["Alt+click", "remove"],
+            ["Alt+click, Alt+drag", "erase"],
             select,
           ]
         : [
@@ -310,7 +310,7 @@ export function buildHints(
             ["Wheel", "zoom"],
             ["Right-click", "turn 90°"],
             ["[ ]", "turn 15°"],
-            ["Alt+click", "remove"],
+            ["Alt+click, Alt+drag", "erase"],
             select,
           ];
     case "select": {
@@ -349,7 +349,7 @@ export const TOUCH_HINTS: Record<BuildMode, string> = {
   terrain: "Drag to paint.",
   walls: "Drag along grid lines, or tap one.",
   doors: "Tap a wall.",
-  stamps: "Tap to place. To move, turn or delete objects, use Select.",
+  stamps: "Tap to place. To erase objects, pick Erase; to move or turn them, use Select.",
   select: "Tap an object or door to select it. Drag a selected object to move it; drag elsewhere to select with a box.",
 };
 
@@ -373,6 +373,8 @@ export const BUILD_TOASTS = {
   nothingToPaste: "Nothing to paste: select objects and press Ctrl+C first.",
   pasteMode: "To paste objects, press X for Select first.",
   doorDrag: "Doors can't be moved: delete this one and place a new one with Doors.",
+  eraserBuilt:
+    "This eraser takes drawings, notes and tokens. To erase floors, walls or objects you built, use Erase in the Build tool (B): in Building, Terrain or Objects.",
   tooMany: "That's too many to copy at once: 256 objects at most.",
   copied: (n: number) => `Copied ${n} object${n === 1 ? "" : "s"}.`,
 };

@@ -216,7 +216,8 @@ type Gesture =
       points: number[];
       node: Konva.Shape;
     }
-  | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean }
+  /** Built: (GM) it passed over floor or objects built with the Build tool, which it doesn't take. */
+  | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean; built: boolean }
   | { kind: "fog-rect"; pointerId: number; start: Point; end: Point; node: Konva.Rect }
   | { kind: "fog-lasso"; pointerId: number; points: number[]; node: Konva.Line }
   | { kind: "fog-paint"; pointerId: number; points: number[]; pieces: number[][]; width: number; node: Konva.Line }
@@ -234,9 +235,14 @@ type Gesture =
       alt?: boolean;
       /** Build tool, with a mouse: the object under the pointer, which a drag moves. */
       grab?: StampHit;
-      /** Build tool: a finger or a pen (which reaches a little further round an object). */
-      touch?: boolean;
     }
+  /**
+   * Build › Objects › Erase (or Alt with a mouse): the objects a drag passes over, from the
+   * last point, hidden until it's let go and then taken away as one undo step. Pad: how far
+   * round an object a finger reaches. Until it's moved, it's a click, which takes only the
+   * object on top.
+   */
+  | { kind: "build-erase-objects"; pointerId: number; refs: StampRef[]; start: Point; moved: boolean; last: Point; pad: number }
   /** Build tool: painting floor with the brush (from the last point), or dragging out a rectangle or oval of it. */
   | { kind: "build-paint"; pointerId: number; last: Point; erase: boolean }
   | { kind: "build-rect"; pointerId: number; start: Cell; end: Cell; erase: boolean; circle: boolean }
@@ -455,6 +461,8 @@ export class Board implements BoardApi {
   private zDown = false;
   /** Alt+wheel has sized the next object while Alt is held: Alt+click then places it rather than removing one. */
   private altScaled = false;
+  /** The GM has been told once that the eraser leaves built floors and objects to the Build tool. */
+  private builtEraseHinted = false;
   private wheelSteps = new WheelSteps(isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? ""));
   /** Objects copied in Build › Select, where they stood, in the order they're drawn. */
   private clip: Placed[] | null = null;
@@ -2703,7 +2711,7 @@ export class Board implements BoardApi {
         this.drawDown(e.pointerId, world);
         return;
       case "erase":
-        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set(), warned: false };
+        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set(), warned: false, built: false };
         this.eraseAt(this.gesture, pos);
         return;
       case "fog":
@@ -2917,6 +2925,7 @@ export class Board implements BoardApi {
   private eraseAt(g: Extract<Gesture, { kind: "erase" }>, pos: Point): void {
     const me = this.room.state.me;
     if (!me) return;
+    if (this.isGm && !g.built) g.built = this.builtAt(this.toWorld(pos));
     // Sample a small cross so thin lines are easy to hit on a touch screen.
     const r = 6;
     for (const p of [pos, { x: pos.x + r, y: pos.y }, { x: pos.x - r, y: pos.y }, { x: pos.x, y: pos.y + r }, { x: pos.x, y: pos.y - r }]) {
@@ -2950,6 +2959,14 @@ export class Board implements BoardApi {
       this.drawings.get(item.id)?.shape.hide();
       this.drawLayer.batchDraw();
     }
+  }
+
+  /** Whether floor, terrain or an object made with the Build tool is at a point on the map. */
+  private builtAt(p: Point): boolean {
+    const scene = this.renderedScene;
+    if (!scene || isHex(scene.grid)) return false;
+    const { u, v } = this.cellsAt(p);
+    return this.build.model.cell(Math.floor(u), Math.floor(v)) !== EMPTY || !!this.build.model.stampAtPoint(u, v, 0);
   }
 
   private fogDown(pointerId: number, world: Point): void {
@@ -3066,8 +3083,19 @@ export class Board implements BoardApi {
         // (otherwise a drag moves the map). A click always places a new one.
         const mouse = e.pointerType === "mouse";
         const { u, v } = this.cellsAt(world);
-        const grab = mouse && !alt && o.stampMode === "place" ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
-        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", alt, grab, touch: !mouse };
+        if (o.stampMode === "remove" || (alt && !this.altScaled)) {
+          // Erasing: a click takes the object drawn on top there, a drag every object it passes over.
+          const pad = mouse ? 0 : Math.min(0.5, 12 / (this.cam.scale * scene.grid.size));
+          const hit = this.build.model.stampAtPoint(u, v, pad);
+          const refs = hit ? [refOf(hit)] : [];
+          this.gesture = { kind: "build-erase-objects", pointerId, refs, start: pos, moved: false, last: world, pad };
+          this.build.hideStamps(refs);
+          this.setHover(null);
+          this.bgLayer.batchDraw();
+          return;
+        }
+        const grab = mouse && !alt ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
+        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", grab };
         return;
       }
       case "select": {
@@ -3412,22 +3440,51 @@ export class Board implements BoardApi {
   }
 
   /**
-   * Objects: a click places the next object, even on top of another (a chair at a table);
-   * with Alt (or Remove), it takes away the object drawn on top there.
+   * Objects › Erase: every object under the drag from its last point to this one is hidden,
+   * to be taken away when it's let go. A sample every quarter of a square, so a quick drag
+   * doesn't jump over a small object.
    */
-  private stampTap(world: Point, alt: boolean, touch: boolean): void {
+  private eraseObjectsAlong(g: Extract<Gesture, { kind: "build-erase-objects" }>, world: Point): void {
+    const a = this.cellsAt(g.last);
+    const b = this.cellsAt(world);
+    g.last = world;
+    const n = Math.min(400, Math.max(1, Math.ceil(Math.hypot(b.u - a.u, b.v - a.v) / 0.25)));
+    let added = false;
+    for (let i = 1; i <= n; i++) {
+      const u = a.u + ((b.u - a.u) * i) / n;
+      const v = a.v + ((b.v - a.v) * i) / n;
+      for (const hit of this.build.model.stampsAtPoint(u, v, g.pad)) {
+        if (g.refs.some((r) => sameRef(r, hit))) continue;
+        g.refs.push(refOf(hit));
+        added = true;
+      }
+    }
+    if (!added) return;
+    this.build.hideStamps(g.refs);
+    this.bgLayer.batchDraw();
+  }
+
+  /** Takes away the objects an erasing drag (or click) picked out, as one undo step. */
+  private eraseObjects(refs: StampRef[]): void {
+    const scene = this.renderedScene;
+    if (scene && refs.length) {
+      const edit = new BuildEdit(this.room.state.items, scene.id);
+      if (edit.removeRefs(refs)) this.applyBuild(edit);
+    }
+    // Shown again only now, with them gone: no frame shows them back for a moment.
+    this.build.hideStamps([]);
+    this.bgLayer.batchDraw();
+  }
+
+  /**
+   * Objects: a click places the next object, even on top of another (a chair at a table).
+   * (Erasing them is a drag of its own: see eraseObjectsAlong.)
+   */
+  private stampTap(world: Point): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const o = this.room.state.buildOpts;
     const edit = new BuildEdit(this.room.state.items, scene.id);
-    if ((alt && !this.altScaled) || o.stampMode === "remove") {
-      const { u, v } = this.cellsAt(world);
-      const pad = touch ? Math.min(0.5, 12 / (this.cam.scale * scene.grid.size)) : 0;
-      const hit = this.build.model.stampAtPoint(u, v, pad);
-      if (!hit || !edit.removeRefs([refOf(hit)])) return;
-      this.applyBuild(edit);
-      return;
-    }
     const r = edit.addPlaced({ id: o.stamp, ...this.stampAnchor(world, stampBlock(o.stampSize)), deg: o.stampDeg, size: o.stampSize });
     if (!r.ok) {
       this.room.toast(r.reason === "same" ? BUILD_TOASTS.samePlace : BUILD_TOASTS.full, "error");
@@ -4281,6 +4338,11 @@ export class Board implements BoardApi {
       case "erase":
         this.eraseAt(g, pos);
         return;
+      case "build-erase-objects":
+        if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        g.moved = true;
+        this.eraseObjectsAlong(g, world);
+        return;
       case "build-paint":
         this.paintBrush(g.last, world, g.erase);
         g.last = world;
@@ -4434,7 +4496,7 @@ export class Board implements BoardApi {
             this.doorTap(g.world, !!g.alt);
             break;
           case "stamp":
-            this.stampTap(g.world, !!g.alt, !!g.touch);
+            this.stampTap(g.world);
             break;
           case "wallpoint":
             this.wallPointClick(g.world);
@@ -4446,6 +4508,11 @@ export class Board implements BoardApi {
             break;
           }
         }
+        return;
+      case "build-erase-objects":
+        // Where the pointer let go, in case its last move wasn't sent on its own.
+        if (g.moved) this.eraseObjectsAlong(g, world);
+        this.eraseObjects(g.refs);
         return;
       case "build-paint":
       case "build-rect":
@@ -4558,6 +4625,12 @@ export class Board implements BoardApi {
         return;
       case "erase":
         if (g.ids.size) this.room.change({ delete: [...g.ids] });
+        // The GM tried it on what the Build tool made: say where that tool's own eraser is
+        // (once with other things erased, every time it took nothing).
+        if (g.built && (!g.ids.size || !this.builtEraseHinted)) {
+          this.builtEraseHinted = true;
+          this.room.toast(BUILD_TOASTS.eraserBuilt);
+        }
         return;
       case "fog-rect": {
         g.node.destroy();
@@ -4664,6 +4737,10 @@ export class Board implements BoardApi {
         this.build.hideStamps([]);
         this.bgLayer.batchDraw();
         this.uiLayer.batchDraw();
+        break;
+      case "build-erase-objects":
+        this.build.hideStamps([]);
+        this.bgLayer.batchDraw();
         break;
       case "build-box":
         g.node.destroy();
@@ -4902,7 +4979,9 @@ export class Board implements BoardApi {
     if (mod) {
       const k = key.toLowerCase();
       const g = this.gesture.kind;
-      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select")) this.cancelGesture();
+      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select" || g === "build-erase-objects")) {
+        this.cancelGesture();
+      }
       if (k === "z") {
         e.preventDefault();
         if (e.shiftKey) this.room.redo();

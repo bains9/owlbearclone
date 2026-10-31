@@ -575,11 +575,21 @@ function BuildOptions() {
       {o.mode === "stamps" && (
         <>
           <div class="seg">
-            <button class={cx("seg-btn wide", o.stampMode === "place" && "active")} onClick={() => set({ stampMode: "place" })}>
+            <button
+              class={cx("seg-btn wide", o.stampMode === "place" && "active")}
+              title="Place objects: click the map"
+              aria-pressed={o.stampMode === "place"}
+              onClick={() => set({ stampMode: "place" })}
+            >
               Place
             </button>
-            <button class={cx("seg-btn wide", o.stampMode === "remove" && "active")} onClick={() => set({ stampMode: "remove" })}>
-              Remove
+            <button
+              class={cx("seg-btn wide", o.stampMode === "remove" && "active")}
+              title="Erase objects: click one, or drag over several (or hold Alt while you click or drag)"
+              aria-pressed={o.stampMode === "remove"}
+              onClick={() => set({ stampMode: "remove" })}
+            >
+              <Eraser size={14} /> Erase
             </button>
           </div>
           <StampPicker
@@ -669,7 +679,7 @@ function BuildOptions() {
         <SelectOptions sel={sel} clip={clip} back={backLabel(o.selectReturn)} act={(a) => room.board?.buildAction(a)} />
       )}
       <span class="hint build-touch-hint">
-        {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object to remove it." : TOUCH_HINTS[o.mode]}
+        {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object, or drag over several, to erase them." : TOUCH_HINTS[o.mode]}
       </span>
       {live && <span class="hint build-live">Players see this scene as you build.</span>}
       <ImportDungeondraft />
