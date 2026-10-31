@@ -139,6 +139,11 @@ const TRAIL_MS = 900;
 const POINTER_HOLD_MS = 200;
 /** How long a ping (a click with the pointer) pulses. */
 const PING_MS = 3500;
+/**
+ * Spells that move (drifting fog, a flyer's bob) are drawn again at most this often: about 30 times
+ * a second, half a screen's rate, and half the work for a tablet.
+ */
+const ZONE_FRAME_MS = 30;
 /** The fog is drawn once into an image at most this many pixels on its long side. */
 const FOG_CACHE_MAX = 2560;
 /** The dark where the party can't see (lighting and line of sight). */
@@ -405,12 +410,18 @@ export class Board implements BoardApi {
   private stage: Konva.Stage;
   private bgLayer = new Konva.Layer({ listening: false });
   private drawLayer = new Konva.Layer();
+  /**
+   * The tokens, with the spell effects that stay on the map (drawings with fx) under them (ground)
+   * and over them (air): one canvas for the three, as the fewer a page has, the lighter it runs.
+   */
   private tokenLayer = new Konva.Layer();
-  /** Spell effects that stay on the map (drawings with fx): under the tokens (ground) and over them (air). */
-  private groundFxLayer = new Konva.Layer({ listening: false });
-  private airFxLayer = new Konva.Layer({ listening: false });
-  /** Keeps those layers drawing while a moving one (fog, vines, water...) is on the map. */
+  private tokenGroup = new Konva.Group();
+  private groundFx = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "ground") });
+  private airFx = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "air") });
+  /** Keeps the token layer drawing while a moving spell (fog, vines, water, a flyer...) is on the map. */
   private zoneAnim: Konva.Animation;
+  /** When the moving spells were last drawn. */
+  private zoneFrameAt = 0;
   /** The spell zones that change the lighting, as last given to the dark: when they change, it's made again. */
   private zoneSightKey = "";
   /** The spells on each token of the scene drawn (drawings with `on`), by the token's id. */
@@ -650,21 +661,16 @@ export class Board implements BoardApi {
     this.sightLayer.add(this.sightNode);
     this.monoLayer.add(this.monoNode);
     this.uiLayer.add(this.previewGroup, this.rulerGroup, this.fxNode, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
-    this.groundFxLayer.add(new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "ground") }));
-    this.airFxLayer.add(new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "air") }));
-    this.stage.add(this.bgLayer, this.drawLayer, this.groundFxLayer, this.tokenLayer, this.airFxLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    this.tokenLayer.add(this.groundFx, this.tokenGroup, this.airFx);
+    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
     // A zone follows its drawing: whenever the drawings are drawn (moved, dragged, changed), so are the zones.
-    this.drawLayer.on("draw", () => {
-      this.groundFxLayer.batchDraw();
-      this.airFxLayer.batchDraw();
-    });
-    // And a spell on a token follows the token.
-    this.tokenLayer.on("draw", () => {
-      if (!this.spellsOn.size) return;
-      this.groundFxLayer.batchDraw();
-      this.airFxLayer.batchDraw();
-    });
-    this.zoneAnim = new Konva.Animation(() => this.animateTokens(), [this.groundFxLayer, this.airFxLayer]);
+    // (A spell on a token follows the token: they're drawn together.)
+    this.drawLayer.on("draw", () => this.tokenLayer.batchDraw());
+    this.zoneAnim = new Konva.Animation((frame) => {
+      if (frame && frame.time - this.zoneFrameAt < ZONE_FRAME_MS) return false;
+      this.zoneFrameAt = frame?.time ?? 0;
+      this.animateTokens();
+    }, this.tokenLayer);
     // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
     this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
 
@@ -1181,7 +1187,7 @@ export class Board implements BoardApi {
       if (!n) {
         n = { group: new Konva.Group(), item: null, selected: false, cell: 0, dirty: true };
         n.group.setAttr("itemId", t.id);
-        this.tokenLayer.add(n.group);
+        this.tokenGroup.add(n.group);
         this.tokens.set(t.id, n);
       }
       if (this.dragging.has(t.id)) continue;
@@ -1240,14 +1246,11 @@ export class Board implements BoardApi {
       const shape = this.drawings.get(d.id)?.shape;
       if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
+    // Moving spells, flying tokens' bob and blinking ones' flicker: the token layer is drawn again and again then.
     const moving = drawings.some((d) => d.fx && spellLookMoves(d.fx));
-    // Flying tokens bob and blinking ones flicker: the tokens are drawn again every frame then.
-    const astir = [...this.spellsOn.values()].some((list) => list.some((d) => d.fx === "flying" || d.fx === "blink"));
-    this.zoneAnim.setLayers(astir ? [this.groundFxLayer, this.airFxLayer, this.tokenLayer] : [this.groundFxLayer, this.airFxLayer]);
     if (moving && !this.zoneAnim.isRunning()) this.zoneAnim.start();
     else if (!moving && this.zoneAnim.isRunning()) this.zoneAnim.stop();
-    this.groundFxLayer.batchDraw();
-    this.airFxLayer.batchDraw();
+    this.tokenLayer.batchDraw();
     const sightKey = this.zoneSightKeyOf(drawings);
     if (sightKey !== this.zoneSightKey) {
       this.zoneSightKey = sightKey;
