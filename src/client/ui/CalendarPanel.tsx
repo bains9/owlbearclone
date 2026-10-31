@@ -7,8 +7,10 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import { CalendarDays, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudRain, CloudSnow, CloudSun, EyeOff, Pencil, RefreshCw, Search, Snowflake, Sun, Trash2 } from "lucide-preact";
 import {
   dateOf,
+  TIMES_OF_DAY,
   dateText,
   dayLine,
+  timeLine,
   epochOf,
   eventsOn,
   nextOccurrence,
@@ -21,6 +23,7 @@ import {
   weatherOf,
   type CalEvent,
   type Calendar,
+  type TimeOfDay,
   type Weather,
 } from "../../shared/calendar";
 import { deleteCalendar, eventId, importCalendar, logLine, patchCalendar } from "../calendar";
@@ -28,13 +31,19 @@ import { NewPartyDay } from "./PartySection";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** The date in the top bar: a click opens the panel. */
+/** The scene on show's own weather region, if it has one. */
+function useSceneRegion(): string | undefined {
+  return useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId]?.region : undefined));
+}
+
 export function DateChip() {
   const room = useRoom();
   const cal = useRoomState((s) => s.calendar);
   const panel = useRoomState((s) => s.panel);
+  const region = useSceneRegion();
   if (!cal) return null;
   const d = dateOf(cal, cal.today);
-  const w = weatherOf(cal, cal.today);
+  const w = weatherOf(cal, cal.today, region);
   return (
     <button class={cx("btn btn-sm date-chip hide-narrow", panel === "calendar" && "active")} title={`${dateText(cal, cal.today)} · ${cal.weatherNotes[String(cal.today)] ?? w.text}`} onClick={() => room.setPanel(panel === "calendar" ? null : "calendar")}>
       <CalendarDays size={14} /> {d.day} {cal.months[d.month]?.name}, Y{d.year} <WeatherIcon w={w} size={14} />
@@ -49,15 +58,16 @@ export function DateChip() {
 export function DateOverlay() {
   const room = useRoom();
   const cal = useRoomState((s) => s.calendar);
+  const region = useSceneRegion();
   if (!cal || cal.showOnMap === false) return null;
   const d = dateOf(cal, cal.today);
-  const w = weatherOf(cal, cal.today);
-  const note = cal.weatherNotes[String(cal.today)];
+  const w = weatherOf(cal, cal.today, region);
+  const note = region ? undefined : cal.weatherNotes[String(cal.today)];
   const body = (
     <>
       <CalendarDays size={14} />
       <span class="date-overlay-day">
-        {cal.weekdays[d.weekday - 1]} {d.day} {cal.months[d.month]?.name}, Year {d.year}
+        {cal.weekdays[d.weekday - 1]} {d.day} {cal.months[d.month]?.name}, Year {d.year} · {cal.timeOfDay ?? "morning"}
       </span>
       <WeatherIcon w={w} size={14} />
       <span class="date-overlay-weather muted">{note ?? w.text}</span>
@@ -71,11 +81,52 @@ export function DateOverlay() {
   );
 }
 
+/**
+ * A table display's day at a glance, for a minute after the day changes: the date and time, the
+ * weather, the moons and what's on, big enough to read across the table.
+ */
+export function DayCard() {
+  const cal = useRoomState((s) => s.calendar);
+  const until = useRoomState((s) => s.dayCardUntil);
+  const region = useSceneRegion();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (until <= Date.now()) return;
+    const t = setTimeout(() => setNow(Date.now()), until - Date.now() + 50);
+    return () => clearTimeout(t);
+  }, [until]);
+  if (!cal || until <= now) return null;
+  const w = weatherOf(cal, cal.today, region);
+  const events = eventsOn(cal, cal.today, false);
+  return (
+    <div class="day-card" aria-live="polite">
+      <div class="day-card-date">{dateText(cal, cal.today)}</div>
+      <div class="day-card-line">
+        <WeatherIcon w={w} size={28} /> <span>{cal.weatherNotes[String(cal.today)] ?? w.text}</span>
+      </div>
+      {cal.moons.length > 0 && (
+        <div class="day-card-moons">
+          {cal.moons.map((m) => {
+            const phase = moonPhase(m, cal.today);
+            return (
+              <span key={m.name} class="cal-moon">
+                <MoonIcon phase={phase} granularity={m.granularity} color={m.color} size={28} /> {m.name}, {moonPhaseName(phase, m.granularity)}
+              </span>
+            );
+          })}
+        </div>
+      )}
+      {events.length > 0 && <div class="day-card-events">{events.map((e) => e.name).join(" · ")}</div>}
+    </div>
+  );
+}
+
 /** Rain or snow falling over the map on a wet day (CSS, styles.css .weather-fx), unless the GM keeps the map dry. */
 export function WeatherFx() {
   const cal = useRoomState((s) => s.calendar);
+  const region = useSceneRegion();
   if (!cal || cal.weatherOnMap === false) return null;
-  const w = weatherOf(cal, cal.today);
+  const w = weatherOf(cal, cal.today, region);
   if (w.precipitation === "none") return null;
   return <div class={`weather-fx ${w.kind === "rain" ? "rain" : "snow"} ${w.precipitation}`} aria-hidden="true" />;
 }
@@ -94,7 +145,7 @@ function WeatherIcon(props: { w: Weather; size: number }) {
 }
 
 /** A moon as it looks that night: the lit part by its phase (0 new, half way round full). */
-function MoonIcon(props: { phase: number; granularity: number; color: string; size?: number }) {
+export function MoonIcon(props: { phase: number; granularity: number; color: string; size?: number }) {
   const r = 9;
   const f = props.phase / Math.max(2, props.granularity);
   const rx = r * Math.abs(Math.cos(2 * Math.PI * f));
@@ -214,6 +265,10 @@ export function CalendarPanel() {
   };
   // The GM moving the day: a line in the chat says where the game is now.
   const moveDay = (epoch: number) => act(() => patchCalendar(room, { today: epoch }).then(({ calendar }) => room.sendChat(dayLine(calendar))));
+  const setTime = (time: TimeOfDay) => {
+    if ((cal.timeOfDay ?? "morning") === time) return;
+    act(() => patchCalendar(room, { timeOfDay: time }).then(() => room.sendChat(timeLine(time))));
+  };
   const goTo = (epoch: number) => {
     setPicked(epoch);
     const at = dateOf(cal, epoch);
@@ -244,7 +299,7 @@ export function CalendarPanel() {
           <div>
             <div class="cal-date">{dateText(cal, today)}</div>
             <div class="small muted">
-              {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.climate}
+              {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.timeOfDay ?? "morning"} · {cal.climate}
             </div>
           </div>
           {gm && (
@@ -277,6 +332,15 @@ export function CalendarPanel() {
                 </span>
               );
             })}
+          </div>
+        )}
+        {gm && (
+          <div class="seg full cal-times" role="group" aria-label="Time of day">
+            {TIMES_OF_DAY.map((t) => (
+              <button key={t} class={cx("seg-btn", (cal.timeOfDay ?? "morning") === t && "active")} disabled={busy} onClick={() => setTime(t)}>
+                {t}
+              </button>
+            ))}
           </div>
         )}
         {gm && <GmDayControls cal={cal} busy={busy} act={act} moveDay={moveDay} />}
@@ -646,6 +710,9 @@ function CalendarSettings(props: { cal: Calendar; busy: boolean; act: (what: () 
       <div class="cal-form-row">
         <a class="btn btn-sm" href="/api/calendar/export" download>
           Keep a copy (a file)
+        </a>
+        <a class="btn btn-sm" href="/api/calendar/export?format=fc" download title="In Fantasy Calendar's own shape, with the events and log made here, to import there">
+          A copy for Fantasy Calendar
         </a>
         {sure ? (
           <span class="cal-log-row">

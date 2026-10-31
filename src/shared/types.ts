@@ -49,6 +49,8 @@ export interface Scene {
   name: string;
   order: number;
   mapAssetId: string | null;
+  /** This scene's own weather region (a climate's name in the calendar); none: the party's. */
+  region?: string;
   width: number;
   height: number;
   background: string;
@@ -97,6 +99,8 @@ export interface SceneVision {
    * nightvision see as well, in black and white (shared/characters.ts nightvisionOf).
    */
   night?: boolean;
+  /** Day and night follow the calendar's time of day (shared/calendar.ts): daylight by day, night at night. */
+  followsDay?: boolean;
   /** How far the party's own light reaches in the dark, in squares (0: none), when `light` isn't set (scenes from before distances). */
   partyLight: number;
   /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow), when `sight` isn't set. */

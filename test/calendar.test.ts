@@ -21,9 +21,12 @@ import {
   dayLine,
   moonlightOf,
   nextOccurrence,
+  isNight,
   sanitizeCalendar,
   seasonLookOf,
   seasonOf,
+  timeLine,
+  toFantasyCalendar,
   upcoming,
   weatherOf,
   type Calendar,
@@ -206,6 +209,49 @@ describe("the moons' light, the season's look, what's coming and the day's line"
   });
 });
 
+describe("the time of day, and a scene's own weather", () => {
+  it("is morning unless set; night is night", () => {
+    const c = fixture();
+    expect(isNight(c)).toBe(false);
+    expect(isNight({ ...c, timeOfDay: "night" })).toBe(true);
+    expect(sanitizeCalendar(JSON.parse(JSON.stringify({ ...c, timeOfDay: "evening" })))!.timeOfDay).toBe("evening");
+    expect("timeOfDay" in sanitizeCalendar(JSON.parse(JSON.stringify({ ...c, timeOfDay: "morning" })))!).toBe(false);
+    expect("timeOfDay" in sanitizeCalendar(JSON.parse(JSON.stringify({ ...c, timeOfDay: "teatime" })))!).toBe(false);
+    expect(timeLine("night")).toBe("Night falls.");
+  });
+
+  it("rolls a scene's own region when it has one", () => {
+    const c = fixture();
+    expect(weatherOf(c, 418, "Hot desert").high).toBeGreaterThan(weatherOf(c, 418).high);
+    expect(weatherOf(c, 418, "Nowhere")).toEqual(weatherOf(c, 418));
+  });
+});
+
+describe("a copy for Fantasy Calendar", () => {
+  it("has Fantasy Calendar's shape, its own data when it came from there, the day, and every event in its category", () => {
+    const c = fixture();
+    c.timeOfDay = "evening";
+    c.categories = [{ id: "fc7", name: "Party", color: "#f76b15", gmOnly: false }, { id: "log", name: "Party log", color: "#f0a63a", gmOnly: false }];
+    c.fcCategories = [{ id: 7, name: "Party" }];
+    c.fcStatic = { year_data: { marker: true } };
+    c.events = [
+      { id: "fc10", name: "Met", text: "One & two\n\nThree\nfour", category: "fc7", gmOnly: false, when: { kind: "date", year: 2, month: 1, day: 29 }, days: 1, fc: 10 },
+      { id: "own", name: "Ours", text: "", category: "log", gmOnly: true, when: { kind: "rule", conditions: [["Day", "0", ["5"]]], summary: "" }, days: 3, by: "Pat" },
+    ];
+    const out = toFantasyCalendar(c) as { static_data: unknown; dynamic_data: Record<string, unknown>; events: Record<string, unknown>[]; event_categories: Record<string, unknown>[] };
+    expect(out.static_data).toEqual({ year_data: { marker: true } });
+    expect(out.dynamic_data).toMatchObject({ year: 2, timespan: 1, day: 29, epoch: 418, hour: 18 });
+    expect(out.event_categories.map((x) => x.id)).toEqual([7, 900001]);
+    expect(out.events[0]).toMatchObject({ id: 10, event_category_id: 7, description: "<p>One &amp; two</p><p>Three<br>four</p>", data: { conditions: [["Date", "0", [2, 1, 29]]], date: [2, 1, 29], has_duration: false }, settings: { hide: false } });
+    expect(out.events[1]).toMatchObject({ id: 900001, event_category_id: 900001, data: { conditions: [["Day", "0", ["5"]]], has_duration: true, duration: 3 }, settings: { hide: true }, creator_name: "Pat" });
+    // Without Fantasy Calendar's data, its own months, weekdays, moons and seasons are made.
+    const made = toFantasyCalendar({ ...c, fcStatic: undefined }) as { static_data: { year_data: { timespans: unknown[]; global_week: string[] }; moons: unknown[] } };
+    expect(made.static_data.year_data.timespans).toHaveLength(12);
+    expect(made.static_data.year_data.global_week).toEqual(c.weekdays);
+    expect(made.static_data.moons).toHaveLength(3);
+  });
+});
+
 describe("from Fantasy Calendar", () => {
   const fc = () => ({
     name: "A world",
@@ -259,6 +305,9 @@ describe("from Fantasy Calendar", () => {
     expect(c.events[0].text).toBe("Crossed at dawn.\n\n• one\n• two");
     expect(c.events[2].when).toMatchObject({ summary: "in Cold, on its first day" });
     expect(c.source?.fc).toBe("c59352efd833e0789e966cf8c13805b4");
+    // Its own data is kept, for a copy that goes back.
+    expect((c.fcStatic as { year_data?: unknown })?.year_data).toBeTruthy();
+    expect(c.fcCategories).toHaveLength(2);
     expect(notes).toEqual(["1 event has no date or rule, so it won't show on any day."]);
     // Luna's phase on the current day, as the moon maths has it.
     expect(moonPhase(c.moons[0], 32)).toBe(moonPhase({ name: "", cycle: 30, shift: 14, granularity: 24, color: "" }, 32));

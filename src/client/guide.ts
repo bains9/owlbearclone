@@ -26,6 +26,7 @@ export const GUIDE: GuideSection[] = [
           "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
           "**Coming up** lists what starts in the next 30 days; **Find an event** jumps to the next day an event falls on. Anyone can add a line to **The party's log for today**: a player's goes in with their name.",
           "GM: under **Set the date, region and weather**, three more ticks: rain and snow falling on the map on a wet day; the moons lighting night scenes (lighting on, set to night) as bright as they are that night; and scenes with a season following the calendar's, winter when it's winter (pin a scene's season in its **Season** pop-up to keep it). **New day for the party** sits under the date too.",
+          "GM: the **time of day** (morning, midday, evening, night) sits under the date; a new day starts in the morning. A scene whose lighting has **Day and night follow the calendar's time of day** ticked (Edit scene › Lighting) turns to day or night with it, and the moons light it at night. In **Edit scene**, **Weather region** gives a scene weather of its own place.",
           "GM: under **Bring in, keep a copy, or take away**, paste a public Fantasy Calendar link and click **Bring it in**: its months, weekdays, moons, seasons, regions, categories and events all come over, and its hidden events stay the GM's eyes only. **Sync** later brings its changes over again and keeps what was made here."
         ],
         "notes": [
@@ -34,6 +35,7 @@ export const GUIDE: GuideSection[] = [
           "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
           "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
           "The date and today's weather show at the top right of every map, table displays included; a click opens the panel. GM: untick **Show the date and weather on every map** to keep them to the panel.",
+          "A table display shows the day at a glance for a minute when the day changes: the date, the weather, the moons and what's on. **A copy for Fantasy Calendar** (under Bring in, keep a copy, or take away) is a file in Fantasy Calendar's own shape, with the events and log made here, for importing there.",
           "When the GM moves the day, a line in the chat says where the game is now and what the weather's like, and everyone gets a note of what's on that day (the GM's eyes-only events only to the GM).",
           "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
         ]

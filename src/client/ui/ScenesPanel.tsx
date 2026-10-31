@@ -25,6 +25,27 @@ import type { Pending } from "./ddText";
 import { SeasonPicker } from "./SeasonPicker";
 import { LightingSettings } from "./LightingSettings";
 
+/** The scene's own weather region, when it's somewhere else than the party: the calendar's regions to choose from. */
+function SceneRegion(props: { scene: Scene }) {
+  const room = useRoom();
+  const cal = useRoomState((st) => st.calendar);
+  if (!cal) return null;
+  const s = props.scene;
+  return (
+    <label class="field inline">
+      <span>Weather region</span>
+      <select value={s.region ?? ""} onChange={(e) => room.updateScene(s.id, { region: e.currentTarget.value || null })}>
+        <option value="">The party's ({cal.climate})</option>
+        {cal.climates.map((c) => (
+          <option key={c.name} value={c.name}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function ScenesPanel() {
   const room = useRoom();
   const scenes = useRoomState((s) => s.scenes);
@@ -747,6 +768,7 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <span>Background</span>
         <input type="color" value={s.background} onChange={(e) => update({ background: e.currentTarget.value })} />
       </label>
+      <SceneRegion scene={s} />
 
       <h3>Extend the map</h3>
       <ExtendRow scene={s} />

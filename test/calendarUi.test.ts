@@ -64,6 +64,12 @@ describe("the calendar at the Worker", () => {
     // An event from Fantasy Calendar keeps its link to it through a change here.
     expect(routes).toContain("if (old?.fc !== undefined) e.fc = old.fc;");
     expect(read("src/worker/directory.ts")).toContain("setCalendar(json: string): number {");
+    // Time of day, a scene following it, a scene's own region, the day card on a display, a copy for Fantasy Calendar.
+    expect(read("src/client/ui/LightingSettings.tsx")).toContain("Day and night follow the calendar's time of day");
+    expect(read("src/client/room/client.ts")).toContain("if (this.isGm) this.followDayNight(calendar);");
+    expect(read("src/client/ui/ScenesPanel.tsx")).toContain("<SceneRegion scene={s} />");
+    expect(read("src/client/ui/TableDisplay.tsx")).toContain("{hasHello && <DayCard />}");
+    expect(read("src/worker/calendarRoutes.ts")).toContain('new URL(request.url).searchParams.get("format") === "fc"');
     // A scene's season can be pinned against the calendar's, in its Season pop-up.
     expect(read("src/client/ui/SeasonPicker.tsx")).toContain("<span>Keep this season when the calendar's changes</span>");
     expect(read("src/shared/sanitize.ts")).toContain("...(r.pinned === true ? { pinned: true } : {})");

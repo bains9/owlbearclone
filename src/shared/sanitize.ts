@@ -550,6 +550,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     ...(r.perPlayer === true ? { perPlayer: true } : {}),
     ...(r.passWalls === true ? { passWalls: true } : {}),
     ...(r.night === true ? { night: true } : {}),
+    ...(r.followsDay === true ? { followsDay: true } : {}),
     ...(light ? { light } : {}),
     ...(sight ? { sight } : {}),
   };
@@ -604,6 +605,8 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const mapRect = rv === null ? undefined : (rv ?? (newPicture ? undefined : existing?.mapRect));
   // The walls' texture: null goes back to plain walls, one Dungeon doesn't have keeps the scene's.
   const wallTexture = r.wallTexture === null ? undefined : isWallTexture(r.wallTexture) ? r.wallTexture : existing?.wallTexture;
+  // The scene's own weather region: null goes back to the party's.
+  const region = r.region === null ? undefined : typeof r.region === "string" && r.region.trim() ? r.region.trim().slice(0, 40) : existing?.region;
   // The scene's area: a change may set it (null: back to the picture's own). It always keeps
   // the picture inside, so a new picture of another size still fits.
   const bv = sanitizeBounds(r.bounds);
@@ -635,6 +638,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(mapData ? { mapData } : {}),
     ...(mapRect ? { mapRect } : {}),
     ...(wallTexture ? { wallTexture } : {}),
+    ...(region ? { region } : {}),
     ...(bounds ? { bounds } : {}),
     ...(dungeon ? { dungeon } : {}),
     ...(level ? { level } : {}),

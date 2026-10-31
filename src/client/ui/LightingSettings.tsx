@@ -153,6 +153,10 @@ export function LightingSettings(props: { scene: Scene }) {
             <input type="checkbox" checked={!v.passWalls} onChange={(e) => set({ passWalls: e.currentTarget.checked ? undefined : true })} />
             <span>Walls and shut doors stop players' tokens</span>
           </label>
+          <label class="check">
+            <input type="checkbox" checked={!!v.followsDay} onChange={(e) => set({ followsDay: e.currentTarget.checked ? true : undefined })} />
+            <span>Day and night follow the calendar's time of day (an outdoor scene)</span>
+          </label>
           <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
           <p class="small muted">
             Click a light's marker (a dot of its colour) to give it a colour, make it flicker like a torch, change how far it reaches or remove it; drag the marker to move it. A light's colour from Dungeon comes with it.

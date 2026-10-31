@@ -62,8 +62,10 @@ export interface ItemOps {
  * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
  * a mapData or mapRect of null removes it).
  */
-export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds" | "dungeon">> & {
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds" | "dungeon" | "region">> & {
   id: string;
+  /** null: the party's region again. */
+  region?: string | null;
   /** null: no longer linked to Dungeon. */
   dungeon?: SceneDungeon | null;
   season?: SceneSeason | null;

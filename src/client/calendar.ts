@@ -3,11 +3,12 @@
 // from Fantasy Calendar. Each answers with the calendar as kept, shown here at once and told to
 // everyone in the room.
 
-import type { CalEvent, Calendar } from "../shared/calendar";
+import type { CalEvent, Calendar, TimeOfDay } from "../shared/calendar";
 import type { RoomClient } from "./room/client";
 
 export interface CalendarPatch {
   today?: number;
+  timeOfDay?: TimeOfDay;
   name?: string;
   climate?: string;
   /** A new seed: the weather from here on rolled afresh. */

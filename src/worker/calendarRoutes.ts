@@ -4,7 +4,7 @@
 // its export file (import), keeps a copy (export), or takes it away (DELETE). It lives in the
 // Directory, once for every room, like the party.
 
-import { CALENDAR_LIMITS, dateOf, forPlayers, fromFantasyCalendar, newCalendar, sanitizeCalendar, type CalEvent, type Calendar } from "../shared/calendar";
+import { CALENDAR_LIMITS, TIMES_OF_DAY, dateOf, forPlayers, fromFantasyCalendar, newCalendar, sanitizeCalendar, toFantasyCalendar, type CalEvent, type Calendar, type TimeOfDay } from "../shared/calendar";
 import { cleanText } from "../shared/sanitize";
 import { isGm } from "./auth";
 
@@ -93,8 +93,11 @@ export async function calendarRoute(request: Request, env: Env, pathname: string
   if (pathname === "/api/calendar/export" && method === "GET") {
     const { calendar } = await stored(directory);
     if (!calendar) return fail(404, "There's no calendar yet.");
-    return new Response(JSON.stringify(calendar, null, 1), {
-      headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${calendar.name.replace(/[^A-Za-z0-9 _-]/g, "")}.tabletop-calendar.json"` },
+    // ?format=fc: in Fantasy Calendar's shape, to take back there.
+    const fc = new URL(request.url).searchParams.get("format") === "fc";
+    const name = calendar.name.replace(/[^A-Za-z0-9 _-]/g, "");
+    return new Response(JSON.stringify(fc ? toFantasyCalendar(calendar) : calendar, null, 1), {
+      headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${name}.${fc ? "fantasy-calendar" : "tabletop-calendar"}.json"` },
     });
   }
 
@@ -166,7 +169,12 @@ export async function calendarRoute(request: Request, env: Env, pathname: string
     const c: Calendar = had ?? newCalendar();
     const int = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
     const today = int(b.today);
-    if (today !== null) c.today = Math.max(-1e8, Math.min(1e8, today));
+    if (today !== null && today !== c.today) {
+      c.today = Math.max(-1e8, Math.min(1e8, today));
+      // A day begins in the morning, unless the change says when.
+      delete c.timeOfDay;
+    }
+    if (TIMES_OF_DAY.includes(b.timeOfDay as TimeOfDay)) c.timeOfDay = b.timeOfDay as TimeOfDay;
     if (typeof b.name === "string") c.name = cleanText(b.name, CALENDAR_LIMITS.name) || c.name;
     if (typeof b.climate === "string" && c.climates.some((x) => x.name === b.climate)) c.climate = b.climate;
     if (b.newWeather === true) c.weatherSeed = Math.floor(Math.random() * 1e9) + 1;

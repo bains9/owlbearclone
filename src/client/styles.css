@@ -3957,3 +3957,50 @@ kbd {
 .cal-find .cal-log-row {
   margin-top: 0;
 }
+
+.cal-times {
+  margin-top: 8px;
+}
+.cal-times .seg-btn {
+  text-transform: capitalize;
+}
+/* A table display's day at a glance: a minute after the day changes, in the middle, big. */
+.day-card {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(80vw, 900px);
+  padding: 22px 32px;
+  border-radius: 18px;
+  background: rgba(26, 29, 36, 0.94);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  font-size: 24px;
+  animation: toast-in 0.4s ease-out;
+}
+.day-card-date {
+  font-size: 40px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.day-card-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.day-card-moons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  margin-top: 14px;
+  font-size: 20px;
+}
+.day-card-events {
+  margin-top: 14px;
+  color: var(--accent);
+}

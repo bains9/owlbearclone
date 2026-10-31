@@ -102,6 +102,25 @@ export interface Calendar {
   weatherOnMap?: boolean;
   /** Night scenes lit by the moons as they are that night; false leaves nights as they were. */
   moonlight?: boolean;
+  /** The time of day the game is at (morning when a day begins). Scenes set to follow it turn to day or night. */
+  timeOfDay?: TimeOfDay;
+  /** Fantasy Calendar's own data as it came in, kept so a copy for it has everything (leap days, eras) this calendar doesn't use. */
+  fcStatic?: unknown;
+  fcDynamic?: unknown;
+  fcCategories?: unknown[];
+}
+
+export const TIMES_OF_DAY = ["morning", "midday", "evening", "night"] as const;
+export type TimeOfDay = (typeof TIMES_OF_DAY)[number];
+
+/** Whether it's night by the calendar's time of day. */
+export function isNight(c: Pick<Calendar, "timeOfDay">): boolean {
+  return c.timeOfDay === "night";
+}
+
+/** The chat's line for a time of day the GM moved to. */
+export function timeLine(time: TimeOfDay): string {
+  return { morning: "Morning comes.", midday: "It's midday.", evening: "Evening comes.", night: "Night falls." }[time];
 }
 
 export const CALENDAR_LIMITS = {
@@ -323,9 +342,9 @@ function drift(seed: number, epoch: number, salt: number): number {
 
 const WINDS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
-/** The weather on a day, rolled from the calendar's seed (the same every time it's asked), in the party's region. */
-export function weatherOf(c: Calendar, epoch: number): Weather {
-  const climate = c.climates.find((x) => x.name === c.climate) ?? c.climates[0] ?? CLIMATES[0];
+/** The weather on a day, rolled from the calendar's seed (the same every time it's asked), in the party's region, or in `region` (a scene's own). */
+export function weatherOf(c: Calendar, epoch: number, region?: string | null): Weather {
+  const climate = (region ? c.climates.find((x) => x.name === region) : undefined) ?? c.climates.find((x) => x.name === c.climate) ?? c.climates[0] ?? CLIMATES[0];
   const s = seasonOf(c, epoch);
   const n = Math.max(1, climate.seasons.length);
   const now = climate.seasons[s.index % n];
@@ -820,6 +839,10 @@ export function fromFantasyCalendar(raw: unknown, keep?: Calendar | null, source
   out.events = events.slice(0, CALENDAR_LIMITS.events);
   if (unknown) notes.push(`${unknown} event${unknown === 1 ? " has" : "s have"} no date or rule, so ${unknown === 1 ? "it" : "they"} won't show on any day.`);
   if (source) out.source = { fc: source, at: Date.now() };
+  // Fantasy Calendar's own data, for a copy that goes back to it.
+  if (s && typeof s === "object" && Object.keys(s).length) out.fcStatic = s;
+  if (d.dynamic_data && typeof d.dynamic_data === "object") out.fcDynamic = d.dynamic_data;
+  if (fcCats.length) out.fcCategories = fcCats;
   return { calendar: out, notes };
 }
 
@@ -903,6 +926,10 @@ export function sanitizeCalendar(raw: unknown): Calendar | null {
     logCategory: str(r.logCategory, 40),
   };
   if (r.showOnMap === false) cal.showOnMap = false;
+  if (TIMES_OF_DAY.includes(r.timeOfDay as TimeOfDay) && r.timeOfDay !== "morning") cal.timeOfDay = r.timeOfDay as TimeOfDay;
+  if (r.fcStatic && typeof r.fcStatic === "object" && !Array.isArray(r.fcStatic)) cal.fcStatic = r.fcStatic;
+  if (r.fcDynamic && typeof r.fcDynamic === "object" && !Array.isArray(r.fcDynamic)) cal.fcDynamic = r.fcDynamic;
+  if (Array.isArray(r.fcCategories)) cal.fcCategories = r.fcCategories.slice(0, L.categories);
   if (r.seasonsFollow === true) cal.seasonsFollow = true;
   if (r.weatherOnMap === false) cal.weatherOnMap = false;
   if (r.moonlight === false) cal.moonlight = false;
@@ -921,6 +948,70 @@ function plainRule(v: unknown, depth: number): boolean {
 }
 
 /** The calendar as players get it: without the GM's eyes-only events and categories. */
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The calendar as a file for Fantasy Calendar, in the shape its own reading of a calendar has
+ * (name, static_data, dynamic_data, events, event_categories): its own data where it came from
+ * there, else made from this calendar; the day the game is at; and every event, those made here
+ * with ids of their own, in their categories, hidden when the GM's eyes only.
+ */
+export function toFantasyCalendar(c: Calendar): Record<string, unknown> {
+  const d = dateOf(c, c.today);
+  const hour = { morning: 8, midday: 12, evening: 18, night: 23 }[c.timeOfDay ?? "morning"];
+  const static_data = c.fcStatic ?? {
+    year_data: {
+      first_day: c.firstDay,
+      overflow: true,
+      global_week: c.weekdays,
+      timespans: c.months.map((m) => ({ name: m.name, type: "month", length: m.length, interval: 1, offset: 0 })),
+      leap_days: [],
+    },
+    moons: c.moons.map((m) => ({ name: m.name, cycle: m.cycle, shift: m.shift, granularity: m.granularity, color: m.color, shadow_color: "#292b4a", hidden: false, custom_phase: false, cycle_rounding: "round" })),
+    seasons: {
+      global_settings: { season_offset: c.seasonOffset, weather_offset: 0, seed: c.weatherSeed, temp_sys: "metric", wind_sys: "metric", cinematic: false, enable_weather: false, periodic_seasons: true, color_enabled: false, preset_order: c.seasons.map((_, i) => i) },
+      data: c.seasons.map((s) => ({ name: s.name, transition_length: s.transition, duration: s.duration, time: { sunrise: { hour: 6, minute: 0 }, sunset: { hour: 18, minute: 0 } } })),
+      locations: [],
+    },
+    eras: [],
+    cycles: { format: "Cycle {{}}", data: [] },
+    clock: { enabled: false, render: false, hours: 24, minutes: 60, offset: 0, crowding: 0 },
+    settings: { layout: "grid", year_zero_exists: c.yearZero, add_month_number: true, add_year_day_number: true, hide_events: false, hide_moons: false, hide_clock: true, hide_eras: true, hide_all_weather: true },
+  };
+  const dynamic_data = { ...((c.fcDynamic as Record<string, unknown> | undefined) ?? {}), year: d.year, timespan: d.month, day: d.day, epoch: c.today, hour, minute: 0 };
+  const catId = (id: string): number | null => (/^fc\d+$/.test(id) ? Number(id.slice(2)) : id ? 900000 + Math.max(0, c.categories.findIndex((x) => x.id === id)) : null);
+  // Its categories as they came (when they did), and the rest made here, in its colours' names.
+  const raw = ((c.fcCategories as { id?: unknown }[] | undefined) ?? []).filter((x) => x && typeof x === "object");
+  const rawIds = new Set(raw.map((x) => Number(x.id)));
+  const colorName = (hex: string) => Object.entries(FC_COLORS).find(([, v]) => v.toLowerCase() === hex.toLowerCase())?.[0] ?? "Dark-Solid";
+  const event_categories = [
+    ...raw,
+    ...c.categories
+      .filter((x) => !rawIds.has(catId(x.id) ?? -1))
+      .map((x) => ({ id: catId(x.id), name: x.name, category_settings: { hide: false, player_usable: false }, event_settings: { color: colorName(x.color), text: "text", hide: x.gmOnly, print: false } })),
+  ];
+  const events = c.events.map((e, i) => {
+    const conditions = e.when.kind === "date" ? [["Date", "0", [e.when.year, e.when.month, e.when.day]]] : e.when.conditions;
+    const date = e.when.kind === "date" ? [e.when.year, e.when.month, e.when.day] : undefined;
+    return {
+      id: e.fc ?? 900000 + i,
+      name: e.name,
+      description: e.text
+        ? e.text
+            .split(/\n{2,}/)
+            .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+            .join("")
+        : "",
+      event_category_id: catId(e.category),
+      data: { conditions, ...(date ? { date } : {}), has_duration: e.days > 1, duration: e.days, show_first_last: false, limited_repeat: false, limited_repeat_num: 1, connected_events: [], search_distance: 0, overrides: { moons: [] } },
+      settings: { color: "Dark-Solid", text: "text", hide: e.gmOnly, hide_full: false, print: false },
+      sort_by: i,
+      ...(e.by ? { creator_name: e.by } : {}),
+    };
+  });
+  return { name: c.name, static_data, dynamic_data, events, event_categories, categories: event_categories };
+}
+
 /** The chat's line for a day the GM moved to: "A new day: Tenday 30 Vanyir, Year 2. Cold and clear, -6 to 6 °C." */
 export function dayLine(c: Calendar): string {
   return `A new day: ${dateText(c, c.today)}. ${c.weatherNotes[String(c.today)] ?? weatherOf(c, c.today).text}`;

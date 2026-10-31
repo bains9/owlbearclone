@@ -7,7 +7,7 @@ import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, ke
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
 import { deviceOf, type Problem } from "../../shared/problems";
-import { eventsOn, seasonLookOf, type Calendar } from "../../shared/calendar";
+import { eventsOn, isNight, seasonLookOf, type Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -160,6 +160,8 @@ export interface AttachDDRequest {
 
 /** How often the party's character sheets are read again while the room is open. */
 const PARTY_MS = 60_000;
+/** How long a table display shows the day at a glance after the day changes. */
+const DAY_CARD_MS = 60_000;
 
 export interface RoomState {
   status: Status;
@@ -248,6 +250,8 @@ export interface RoomState {
   /** The campaign's calendar (shared/calendar.ts), as this page may see it; null before the GM makes one. */
   calendar: Calendar | null;
   calendarVersion: number;
+  /** A table display: the day at a glance shows until this time (ms), after the day changes. */
+  dayCardUntil: number;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -541,6 +545,7 @@ export class RoomClient {
       problems: [],
       calendar: null,
       calendarVersion: 0,
+      dayCardUntil: 0,
       textPrompt: null,
       mapImport: null,
       attachDD: null,
@@ -1540,11 +1545,26 @@ export class RoomClient {
     const was = this.state.calendar;
     this.store.set({ calendar, calendarVersion: version });
     if (!calendar) return;
-    if (was && was.today !== calendar.today && !this.display) {
-      const names = eventsOn(calendar, calendar.today, this.isGm).map((e) => e.name);
-      if (names.length) this.toast(`Today: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""}.`);
+    if (was && was.today !== calendar.today) {
+      if (this.display) this.store.set({ dayCardUntil: Date.now() + DAY_CARD_MS });
+      else {
+        const names = eventsOn(calendar, calendar.today, this.isGm).map((e) => e.name);
+        if (names.length) this.toast(`Today: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""}.`);
+      }
     }
     if (this.isGm && calendar.seasonsFollow) this.followSeasons(calendar);
+    if (this.isGm) this.followDayNight(calendar);
+  }
+
+  /** GM: every scene whose lighting follows the calendar's time of day turns to day or night with it. */
+  private followDayNight(calendar: Calendar): void {
+    const night = isNight(calendar);
+    for (const scene of Object.values(this.state.scenes)) {
+      const v = scene.vision;
+      if (!v?.on || !v.followsDay) continue;
+      if (v.daylight === !night && !!v.night === night) continue;
+      this.updateScene(scene.id, { vision: { ...v, daylight: !night, ...(night ? { night: true } : { night: undefined }) } });
+    }
   }
 
   /** GM: every scene with a season, not pinned, takes the calendar's season for the day. */
