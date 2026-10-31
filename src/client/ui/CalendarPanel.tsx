@@ -8,8 +8,10 @@ import { CalendarDays, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog,
 import {
   dateOf,
   TIMES_OF_DAY,
+  INDOORS,
   dateText,
   dayLine,
+  isIndoors,
   timeLine,
   epochOf,
   eventsOn,
@@ -28,12 +30,22 @@ import {
 } from "../../shared/calendar";
 import { deleteCalendar, eventId, importCalendar, logLine, patchCalendar } from "../calendar";
 import { NewPartyDay } from "./PartySection";
+import { outdoorKey } from "../room/seasons";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** The date in the top bar: a click opens the panel. */
-/** The scene on show's own weather region, if it has one. */
+/** The scene on show's own weather region, if it has one (INDOORS: no weather there). */
 function useSceneRegion(): string | undefined {
   return useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId]?.region : undefined));
+}
+
+/** Whether the scene on show is indoors or underground, where no rain or snow falls (shared/calendar.ts isIndoors). */
+function useIndoors(): boolean {
+  return useRoomState((s) => {
+    const scene = s.viewSceneId ? s.scenes[s.viewSceneId] : undefined;
+    const share = scene?.mapAssetId ? s.mapOutdoor[outdoorKey(scene.mapAssetId, scene.mapData ? { assetId: scene.mapData.assetId } : undefined)] : undefined;
+    return isIndoors(scene, share);
+  });
 }
 
 export function DateChip() {
@@ -43,7 +55,7 @@ export function DateChip() {
   const region = useSceneRegion();
   if (!cal) return null;
   const d = dateOf(cal, cal.today);
-  const w = weatherOf(cal, cal.today, region);
+  const w = weatherOf(cal, cal.today, region === INDOORS ? undefined : region);
   return (
     <button class={cx("btn btn-sm date-chip hide-narrow", panel === "calendar" && "active")} title={`${dateText(cal, cal.today)} · ${cal.weatherNotes[String(cal.today)] ?? w.text}`} onClick={() => room.setPanel(panel === "calendar" ? null : "calendar")}>
       <CalendarDays size={14} /> {d.day} {cal.months[d.month]?.name}, Y{d.year} <WeatherIcon w={w} size={14} />
@@ -59,10 +71,11 @@ export function DateOverlay() {
   const room = useRoom();
   const cal = useRoomState((s) => s.calendar);
   const region = useSceneRegion();
+  const indoors = useIndoors();
   if (!cal || cal.showOnMap === false) return null;
   const d = dateOf(cal, cal.today);
-  const w = weatherOf(cal, cal.today, region);
-  const note = region ? undefined : cal.weatherNotes[String(cal.today)];
+  const w = weatherOf(cal, cal.today, region === INDOORS ? undefined : region);
+  const note = indoors ? "indoors" : region ? undefined : cal.weatherNotes[String(cal.today)];
   const body = (
     <>
       <CalendarDays size={14} />
@@ -88,7 +101,8 @@ export function DateOverlay() {
 export function DayCard() {
   const cal = useRoomState((s) => s.calendar);
   const until = useRoomState((s) => s.dayCardUntil);
-  const region = useSceneRegion();
+  const picked = useSceneRegion();
+  const region = picked === INDOORS ? undefined : picked;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (until <= Date.now()) return;
@@ -125,7 +139,8 @@ export function DayCard() {
 export function WeatherFx() {
   const cal = useRoomState((s) => s.calendar);
   const region = useSceneRegion();
-  if (!cal || cal.weatherOnMap === false) return null;
+  const indoors = useIndoors();
+  if (!cal || cal.weatherOnMap === false || indoors) return null;
   const w = weatherOf(cal, cal.today, region);
   if (w.precipitation === "none") return null;
   return <div class={`weather-fx ${w.kind === "rain" ? "rain" : "snow"} ${w.precipitation}`} aria-hidden="true" />;

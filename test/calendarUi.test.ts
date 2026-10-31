@@ -68,6 +68,8 @@ describe("the calendar at the Worker", () => {
     expect(read("src/client/ui/LightingSettings.tsx")).toContain("Day and night follow the calendar's time of day");
     expect(read("src/client/room/client.ts")).toContain("if (this.isGm) this.followDayNight(calendar);");
     expect(read("src/client/ui/ScenesPanel.tsx")).toContain("<SceneRegion scene={s} />");
+    expect(read("src/client/ui/ScenesPanel.tsx")).toContain("<option value={INDOORS}>Indoors or underground: no weather</option>");
+    expect(read("src/client/ui/CalendarPanel.tsx")).toContain("if (!cal || cal.weatherOnMap === false || indoors) return null;");
     expect(read("src/client/ui/TableDisplay.tsx")).toContain("{hasHello && <DayCard />}");
     expect(read("src/worker/calendarRoutes.ts")).toContain('new URL(request.url).searchParams.get("format") === "fc"');
     // A scene's season can be pinned against the calendar's, in its Season pop-up.

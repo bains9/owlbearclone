@@ -1,5 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import { Check, ChevronDown, ChevronRight, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
+import { INDOORS } from "../../shared/calendar";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
@@ -36,6 +37,7 @@ function SceneRegion(props: { scene: Scene }) {
       <span>Weather region</span>
       <select value={s.region ?? ""} onChange={(e) => room.updateScene(s.id, { region: e.currentTarget.value || null })}>
         <option value="">The party's ({cal.climate})</option>
+        <option value={INDOORS}>Indoors or underground: no weather</option>
         {cal.climates.map((c) => (
           <option key={c.name} value={c.name}>
             {c.name}

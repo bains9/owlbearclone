@@ -1012,6 +1012,23 @@ export function toFantasyCalendar(c: Calendar): Record<string, unknown> {
   return { name: c.name, static_data, dynamic_data, events, event_categories, categories: event_categories };
 }
 
+/** A scene's Weather region set to this: indoors or underground, so no weather reaches it. */
+export const INDOORS = "indoors";
+
+/**
+ * Whether a scene is indoors or underground, where no rain or snow falls: it says so (its Weather
+ * region is INDOORS), its lighting is dark rather than by day or night (underground), or its map
+ * is mostly indoors (`outdoorShare`, Table's guess from a Dungeondraft map: the share of it that's
+ * outside, when known).
+ */
+export function isIndoors(scene: { region?: string; vision?: { on: boolean; daylight: boolean; night?: boolean } } | null | undefined, outdoorShare?: number): boolean {
+  if (!scene) return false;
+  if (scene.region === INDOORS) return true;
+  if (scene.region) return false;
+  if (scene.vision?.on && !scene.vision.daylight && !scene.vision.night) return true;
+  return outdoorShare !== undefined && outdoorShare < 0.08;
+}
+
 /** The chat's line for a day the GM moved to: "A new day: Tenday 30 Vanyir, Year 2. Cold and clear, -6 to 6 °C." */
 export function dayLine(c: Calendar): string {
   return `A new day: ${dateText(c, c.today)}. ${c.weatherNotes[String(c.today)] ?? weatherOf(c, c.today).text}`;

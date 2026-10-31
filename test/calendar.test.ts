@@ -21,6 +21,8 @@ import {
   dayLine,
   moonlightOf,
   nextOccurrence,
+  INDOORS,
+  isIndoors,
   isNight,
   sanitizeCalendar,
   seasonLookOf,
@@ -218,6 +220,17 @@ describe("the time of day, and a scene's own weather", () => {
     expect("timeOfDay" in sanitizeCalendar(JSON.parse(JSON.stringify({ ...c, timeOfDay: "morning" })))!).toBe(false);
     expect("timeOfDay" in sanitizeCalendar(JSON.parse(JSON.stringify({ ...c, timeOfDay: "teatime" })))!).toBe(false);
     expect(timeLine("night")).toBe("Night falls.");
+  });
+
+  it("keeps rain and snow out of dungeons: a scene that says indoors, dark lighting, or a map mostly inside", () => {
+    expect(isIndoors({ region: INDOORS })).toBe(true);
+    expect(isIndoors({ vision: { on: true, daylight: false } })).toBe(true);
+    expect(isIndoors({ vision: { on: true, daylight: false, night: true } })).toBe(false);
+    expect(isIndoors({ vision: { on: false, daylight: false } })).toBe(false);
+    expect(isIndoors({}, 0.02)).toBe(true);
+    expect(isIndoors({}, 0.5)).toBe(false);
+    expect(isIndoors({ region: "Hot desert", vision: { on: true, daylight: false } }, 0.02)).toBe(false);
+    expect(isIndoors(null)).toBe(false);
   });
 
   it("rolls a scene's own region when it has one", () => {
