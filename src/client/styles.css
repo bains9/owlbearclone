@@ -1115,6 +1115,25 @@ button:disabled {
   gap: 6px 10px;
   margin-top: 8px;
 }
+/* Asking before a new day: what it will do, and the two buttons under it. */
+.party-day-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
+.party-day-buttons {
+  display: flex;
+  gap: 6px;
+}
+/* GM: a character's spell points back to full, beside them on the card. */
+.character-stats .sp-full {
+  padding: 0 2px;
+  vertical-align: -2px;
+}
 .prayed-count {
   min-width: 1.4em;
   text-align: center;
@@ -2669,6 +2688,36 @@ button:disabled {
   height: 7px;
   border-radius: 50%;
   background: #5bba6f;
+}
+/* GM: something failed on someone's device (More › Problems on devices). */
+.problem-dot {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a63a;
+}
+.problems-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.problems-list li {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.problem-message {
+  font-family: ui-monospace, monospace;
+  word-break: break-word;
+  margin: 4px 0;
 }
 
 .import-kinds {

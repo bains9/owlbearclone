@@ -103,10 +103,15 @@ const noRetry = () => 0;
 /**
  * Its children, or nothing while they fail to draw (a bug, or a sheet with something unexpected in
  * it), so one bar or card failing never takes the rest of the page with it. The error goes to the
- * console; it tries again when what `retry` picks from the room's state changes.
+ * console, and to the GM (More › Problems on devices); it tries again when what `retry` picks from
+ * the room's state changes.
  */
 export function Guard(props: { name: string; retry?: (s: RoomState) => unknown; children: ComponentChildren }) {
-  const [error, reset] = useErrorBoundary((err) => console.error(`Tabletop: ${props.name} couldn't be shown.`, err));
+  const room = useRoom();
+  const [error, reset] = useErrorBoundary((err) => {
+    console.error(`Tabletop: ${props.name} couldn't be shown.`, err);
+    room.reportProblem(props.name, err);
+  });
   const key = useRoomState(props.retry ?? noRetry);
   const shown = useRef(key);
   useEffect(() => {

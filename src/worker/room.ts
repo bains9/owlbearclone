@@ -12,6 +12,8 @@ import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
+import { PROBLEM_LIMITS, addProblem } from "../shared/problems";
+import type { Problem } from "../shared/problems";
 import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
@@ -126,6 +128,9 @@ interface Change {
 const HISTORY_KEEP = 300;
 const HELLO_MESSAGES = 150;
 const MAX_SCENES = 100;
+/** Each tab may tell of this many problems (shared/problems.ts) in PROBLEM_WINDOW_MS, so one stuck page can't flood the list. */
+const MAX_PROBLEMS_PER_WINDOW = 5;
+const PROBLEM_WINDOW_MS = 10 * 60 * 1000;
 /** A scene can hold LIMITS.itemsPerScene items, so one message may clear them all. */
 const MAX_OPS_PER_MESSAGE = LIMITS.itemsPerScene;
 /**
@@ -189,6 +194,10 @@ export class Room extends DurableObject<Env> {
   private lastPlayerInitiative = "";
   private assets = new Map<string, Asset>();
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
+  /** What failed on people's devices, newest first, for the GM (shared/problems.ts). */
+  private problems: Problem[] = [];
+  /** How many problems each connection has told of lately (by connId). */
+  private problemCounts = new Map<string, { n: number; since: number }>();
   /**
    * The part of the live scene the GM last showed table displays, for a display that
    * connects later. Only in memory: if it's lost, displays show the whole scene.
@@ -322,6 +331,7 @@ export class Room extends DurableObject<Env> {
     this.info = meta.has("info") ? (JSON.parse(meta.get("info")!) as RoomInfo) : null;
     this.activeSceneId = meta.has("active") ? (JSON.parse(meta.get("active")!) as string | null) : null;
     if (meta.has("initiative")) this.initiative = JSON.parse(meta.get("initiative")!) as Initiative;
+    this.problems = meta.has("problems") ? (JSON.parse(meta.get("problems")!) as Problem[]) : [];
     this.scenes.clear();
     for (const r of this.sql.exec<{ data: string }>(`SELECT data FROM scenes`)) {
       const s = JSON.parse(r.data) as Scene;
@@ -550,6 +560,7 @@ export class Room extends DurableObject<Env> {
     else if (build !== BUILD_ID) this.send(server, { t: "outdated" });
     if ([...this.items.values()].some((i) => this.withheld(conn, i))) this.warnOutdated(server, conn);
     if (role === "gm") this.tellAboutOutdatedDisplays(server);
+    if (role === "gm" && !display && this.problems.length) this.send(server, { t: "problems", problems: this.problems });
     if (display && this.displayView && this.displayView.sceneId === this.activeSceneId) {
       this.send(server, { t: "eph", from: "", e: this.displayView });
     }
@@ -573,8 +584,8 @@ export class Room extends DurableObject<Env> {
       return;
     }
     if (!msg || typeof msg !== "object") return;
-    // A table display only watches.
-    if (conn.display) return;
+    // A table display only watches (but tells the GM what it couldn't show).
+    if (conn.display && msg.t !== "problem") return;
     const raw = msg.t === "eph" ? undefined : (msg as { seq?: unknown }).seq;
     const seq = typeof raw === "number" && Number.isSafeInteger(raw) && raw > 0 ? raw : undefined;
     if (seq !== undefined) {
@@ -903,6 +914,17 @@ export class Room extends DurableObject<Env> {
 
       case "eph":
         this.handleEph(ws, conn, msg.e);
+        return;
+
+      case "problem":
+        this.addProblem(conn, msg);
+        return;
+
+      case "problems.clear":
+        if (!gm) return this.deny(ws);
+        this.problems = [];
+        this.setMeta("problems", this.problems);
+        this.sendProblems();
         return;
 
       case "room.goto": {
@@ -1655,6 +1677,29 @@ export class Room extends DurableObject<Env> {
 
   private broadcastAsset(asset: Asset): void {
     this.broadcast({ t: "asset.upsert", asset }, (c) => canSeeAsset(asset, c));
+  }
+
+  /** Something that failed on a device, kept for the GM: the same again counts up, and each tab may tell of only a few. */
+  private addProblem(conn: Conn, msg: Extract<ClientMsg, { t: "problem" }>): void {
+    const now = Date.now();
+    const seen = this.problemCounts.get(conn.connId);
+    const count = seen && now - seen.since < PROBLEM_WINDOW_MS ? seen : { n: 0, since: now };
+    if (count.n >= MAX_PROBLEMS_PER_WINDOW) return;
+    count.n++;
+    if (this.problemCounts.size > 200) this.problemCounts.clear();
+    this.problemCounts.set(conn.connId, count);
+    const where = cleanText(msg.where, PROBLEM_LIMITS.where);
+    const message = cleanText(msg.message, PROBLEM_LIMITS.message);
+    if (!where || !message) return;
+    const device = cleanText(msg.device, PROBLEM_LIMITS.device) || "a device";
+    this.problems = addProblem(this.problems, { at: now, name: conn.display ? "Table display" : conn.name, device, where, message });
+    this.setMeta("problems", this.problems);
+    this.sendProblems();
+  }
+
+  /** The problems list to the GM's pages (not a table display). */
+  private sendProblems(): void {
+    this.broadcast({ t: "problems", problems: this.problems }, (c) => c.role === "gm" && !c.display);
   }
 
   private broadcast(msg: ServerMsg, filter?: (c: Player) => boolean): void {

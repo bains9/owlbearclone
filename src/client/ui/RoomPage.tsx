@@ -14,11 +14,14 @@ import {
   RotateCw,
   Settings,
   Swords,
+  TriangleAlert,
   WifiOff,
   X,
 } from "lucide-preact";
 import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
+import { watchPageErrors } from "../pageErrors";
+import { ProblemsDialog } from "./ProblemsDialog";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
@@ -140,6 +143,8 @@ function openRoom(roomId: string, profile: Profile): RoomClient {
   room.connect();
   // The table's voice chat stays connected from room to room; its messages show here.
   const detach = attachVoice(room);
+  // Errors on the page go to the GM, as a bar that fails does.
+  const unwatchErrors = watchPageErrors(room);
   room.onGoto = (to) => {
     // Already there (or on the way): nothing to do.
     if (to.id === room.roomId || location.pathname === `/r/${to.id}`) return;
@@ -163,6 +168,7 @@ function openRoom(roomId: string, profile: Profile): RoomClient {
   closers.set(room, () => {
     unwatch();
     detach();
+    unwatchErrors();
     room.dispose();
   });
   return room;
@@ -370,6 +376,8 @@ function TopBar() {
   const outdated = useRoomState((s) => s.outdated);
   const [help, setHelp] = useState(false);
   const [display, setDisplay] = useState(false);
+  const problems = useRoomState((s) => s.problems.length);
+  const [problemsOpen, setProblemsOpen] = useState(false);
   // Marks the top bar while "Only you can see this scene" is in it, for the room it makes (CSS).
   const previewing = usePreview().view !== null;
 
@@ -420,6 +428,8 @@ function TopBar() {
       <MoreMenu
         gm={gm}
         displays={displays}
+        problems={gm ? problems : 0}
+        onProblems={() => setProblemsOpen(true)}
         onCopy={async () => {
           if (await copyText(roomUrl(room.roomId))) room.toast("Invite link copied.");
           else room.toast(`Invite link: ${roomUrl(room.roomId)}`);
@@ -443,16 +453,26 @@ function TopBar() {
       ))}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
       {display && <TableDisplayDialog onClose={() => setDisplay(false)} />}
+      {problemsOpen && <ProblemsDialog onClose={() => setProblemsOpen(false)} />}
     </header>
   );
 }
 
 /**
  * The top bar's More (the three dots): what's used now and then, kept out of the bar so it stays
- * short. Copy invite link and Help & shortcuts for everyone; Table display and Dungeon for the GM.
+ * short. Copy invite link and Help & shortcuts for everyone; Table display and Dungeon for the GM,
+ * and Problems on devices when something has failed on someone's (an amber dot on the button).
  * On a phone, where the bar has room for little, it's how to reach them at all.
  */
-function MoreMenu(props: { gm: boolean; displays: number; onCopy: () => void; onDisplay: () => void; onHelp: () => void }) {
+function MoreMenu(props: {
+  gm: boolean;
+  displays: number;
+  problems: number;
+  onCopy: () => void;
+  onDisplay: () => void;
+  onProblems: () => void;
+  onHelp: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -498,6 +518,7 @@ function MoreMenu(props: { gm: boolean; displays: number; onCopy: () => void; on
       >
         <Ellipsis size={18} />
         {props.displays > 0 && <span class="live-dot" />}
+        {props.problems > 0 && <span class="problem-dot" />}
       </button>
       {open && (
         <div class="more-pop" role="menu" aria-label="More">
@@ -525,6 +546,12 @@ function MoreMenu(props: { gm: boolean; displays: number; onCopy: () => void; on
             >
               <Castle size={16} /> Dungeon, the map maker
             </a>
+          )}
+          {props.problems > 0 && (
+            <button class="more-item" role="menuitem" onClick={pick(props.onProblems)}>
+              <TriangleAlert size={16} /> Problems on devices
+              <span class="small muted">{props.problems}</span>
+            </button>
           )}
           <button class="more-item" role="menuitem" onClick={pick(props.onHelp)}>
             <CircleQuestionMark size={16} /> Help & shortcuts

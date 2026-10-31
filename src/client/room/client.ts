@@ -5,6 +5,8 @@
 import type { Character, CharactersReply } from "../../shared/characters";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
+import type { NewDayUndo } from "../party";
+import { deviceOf, type Problem } from "../../shared/problems";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -238,6 +240,10 @@ export interface RoomState {
    * bars stack as on a phone, the character card in the selection bar's stack (useStageNarrow).
    */
   stageNarrow: boolean;
+  /** GM: what the last new day for the party changed, to take it back (for NEW_DAY_UNDO_MS: undoNewDay). */
+  newDayUndo: NewDayUndo | null;
+  /** GM: what failed on people's devices, newest first (shared/problems.ts). */
+  problems: Problem[];
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -527,6 +533,8 @@ export class RoomClient {
       lightPick: null,
       lightAdd: null,
       stageNarrow: false,
+      newDayUndo: null,
+      problems: [],
       textPrompt: null,
       mapImport: null,
       attachDD: null,
@@ -797,6 +805,31 @@ export class RoomClient {
     return true;
   }
 
+  /** Problems this page has told of already (each once a page), by where and message. */
+  private problemsTold = new Set<string>();
+
+  /**
+   * Tells the GM that something couldn't be shown on this device (a bar or panel, the page):
+   * each problem once a page, and only while connected. A table display tells too.
+   */
+  reportProblem(where: string, err: unknown): void {
+    const message = (err instanceof Error ? err.message || err.name : String(err)).slice(0, 300) || "An error with no message";
+    const key = `${where}|${message}`;
+    if (this.problemsTold.has(key) || this.problemsTold.size >= 20) return;
+    if (!this.ready || this.ws?.readyState !== WebSocket.OPEN) return;
+    this.problemsTold.add(key);
+    const touch = typeof navigator !== "undefined" && navigator.maxTouchPoints > 1;
+    const device = deviceOf(typeof navigator !== "undefined" ? navigator.userAgent : "", touch);
+    this.ws.send(JSON.stringify({ t: "problem", where, message, device }));
+  }
+
+  /** GM: the list of problems on devices is cleared, for everyone. */
+  clearProblems(): void {
+    if (!this.isGm) return;
+    this.store.set({ problems: [] });
+    this.submit({ t: "problems.clear" });
+  }
+
   sendEph(e: Ephemeral): void {
     if (this.display) return;
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "eph", e }));
@@ -984,6 +1017,10 @@ export class RoomClient {
 
       case "error":
         this.toast(msg.message, "error");
+        return;
+
+      case "problems":
+        this.store.set({ problems: msg.problems });
         return;
 
       case "outdated":

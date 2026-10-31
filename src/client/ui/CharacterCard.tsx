@@ -10,7 +10,7 @@
 // cast from their token with the Spells tool, any other from the card itself, as a line in the chat.
 
 import { useState } from "preact/hooks";
-import { ChevronDown, ChevronUp, Dices, ExternalLink } from "lucide-preact";
+import { BatteryFull, ChevronDown, ChevronUp, Dices, ExternalLink } from "lucide-preact";
 import {
   DAMAGE_ROLLS,
   INITIATIVE_DIE,
@@ -28,7 +28,7 @@ import {
 } from "../../shared/characters";
 import { castList, highestLevel, type CastSpell } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
-import { castAs, castFromCard, castLevel, castingCost, kiLeft, mayPray, newPrayerDay, setCharacterStrMatched, setKi, setPrayed, spendKi } from "../party";
+import { castAs, castFromCard, castLevel, castingCost, kiLeft, mayPray, newPrayerDay, restSpellPoints, setCharacterStrMatched, setKi, setPrayed, spendKi } from "../party";
 import { NARROW, cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -273,6 +273,15 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
   const sneak = sneakFor === c.id;
   const [folded, setFolded] = useCardFolded();
   const more = c.attacks.length > 0 || (c.spells?.length ?? 0) > 0;
+  // GM: this one character's spell points back to full on their sheet (a rest of their own).
+  const [filling, setFilling] = useState(false);
+  const fillUp = () => {
+    setFilling(true);
+    restSpellPoints(room, c)
+      .then(() => room.toast(`${who}'s spell points are back to full on their sheet.`))
+      .catch((err: Error) => room.toast(err.message, "error"))
+      .finally(() => setFilling(false));
+  };
   return (
     <div class={cx("character-card", folded && "folded")} onPointerDown={(e) => e.stopPropagation()}>
       <div class="character-head">
@@ -322,6 +331,17 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
         {c.sp !== null && c.maxSp !== null && (
           <span title="Spell points">
             SP {c.sp} / {c.maxSp}
+            {gm && c.sp < c.maxSp && (
+              <button
+                class="link-btn sp-full"
+                disabled={filling}
+                title="Spell points back to full on their sheet"
+                aria-label="Spell points back to full on their sheet"
+                onClick={fillUp}
+              >
+                <BatteryFull size={14} />
+              </button>
+            )}
           </span>
         )}
         {c.ki && (

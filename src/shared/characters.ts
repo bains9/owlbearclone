@@ -129,10 +129,18 @@ export interface CharacterPlayer {
 }
 
 /** What the Worker answers for the party. */
+/**
+ * The newest version of the GM's character sheets script (scripts/character-sheets.gs, its VERSION):
+ * the GM is told when theirs is older.
+ */
+export const SCRIPT_VERSION = 7;
+
 export interface CharactersReply {
   /** Whether the GM has set up the character sheets (Room settings › Character sheets). */
   configured: boolean;
   characters: Character[];
+  /** The sheets' script's version, as it says (version 7 on; none from an older one). */
+  scriptVersion?: number;
   /** When the sheets were read (ms). */
   readAt: number;
   /** Why they couldn't be read just now, in plain words. */

@@ -38,14 +38,14 @@ async function cacheKey(source: string): Promise<Request> {
  * The script's answer, read and checked: the characters, or why there are none, and the ids of
  * any sheets it found but couldn't open just now (`unread`).
  */
-export async function askScript(source: string, fetcher: typeof fetch = fetch): Promise<{ characters: Character[]; unread?: string[]; error?: string }> {
+export async function askScript(source: string, fetcher: typeof fetch = fetch): Promise<{ characters: Character[]; unread?: string[]; version?: number; error?: string }> {
   let res: Response;
   try {
     res = await fetcher(source, { redirect: "follow", signal: AbortSignal.timeout(SCRIPT_MS) });
   } catch {
     return { characters: [], error: "The character sheets didn't answer in time. Try again in a moment." };
   }
-  const body = (await res.json().catch(() => null)) as { characters?: unknown; unread?: unknown; error?: unknown } | null;
+  const body = (await res.json().catch(() => null)) as { characters?: unknown; unread?: unknown; version?: unknown; error?: unknown } | null;
   if (!res.ok || !body) {
     return { characters: [], error: "The character sheets' script didn't answer properly. Check its address in Room settings › Character sheets." };
   }
@@ -53,7 +53,9 @@ export async function askScript(source: string, fetcher: typeof fetch = fetch): 
   const list = Array.isArray(body.characters) ? body.characters.slice(0, 40) : [];
   const characters = list.map(cleanCharacter).filter((c): c is Character => c !== null);
   const unread = (Array.isArray(body.unread) ? body.unread.slice(0, 40) : []).filter((id): id is string => typeof id === "string" && SHEET_ID.test(id));
-  return unread.length ? { characters, unread } : { characters };
+  // Version 7 on says which it is.
+  const version = typeof body.version === "number" && Number.isInteger(body.version) && body.version > 0 && body.version < 1000 ? body.version : undefined;
+  return { characters, ...(unread.length ? { unread } : {}), ...(version ? { version } : {}) };
 }
 
 /**
@@ -188,7 +190,7 @@ async function readSheets(env: PartyEnv, source: string, cache: Cache | null, fe
   const key = await cacheKey(source);
   const kept = await keptReading(cache, key);
   if (kept && now - kept.readAt < FRESH_MS) return kept;
-  const { characters, unread, error } = await askScript(source, fetcher);
+  const { characters, unread, version, error } = await askScript(source, fetcher);
   // The sheets couldn't be read: the last good reading, with why, so tokens keep their cards.
   // A failure isn't kept: the next page to ask tries again.
   if (error) return kept ? { ...kept, error } : { configured: true, characters: [], readAt: now, error };
@@ -206,7 +208,7 @@ async function readSheets(env: PartyEnv, source: string, cache: Cache | null, fe
       else delete c.picture;
     }),
   );
-  const reply: CharactersReply = { configured: true, characters, readAt: now };
+  const reply: CharactersReply = { configured: true, characters, readAt: now, ...(version ? { scriptVersion: version } : {}) };
   await keep(cache, key, reply);
   return reply;
 }

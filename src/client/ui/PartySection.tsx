@@ -6,10 +6,21 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ImagePlus, PersonStanding, Sunrise, Undo2, UserRound, UserRoundCheck } from "lucide-preact";
-import type { Character, CharacterPlayer } from "../../shared/characters";
+import { SCRIPT_VERSION, type Character, type CharacterPlayer } from "../../shared/characters";
 import { classFigureOf, figureOf } from "../npcs/pcTokens";
 import { PC_FIGURE_CHOICES } from "../npcs/table";
-import { characterPictureUrl, clearCharacterPicture, drawCharacter, newPartyDay, placeCharacter, setCharacterFigure, setCharacterPicture, setCharacterPlayer } from "../party";
+import {
+  NEW_DAY_UNDO_MS,
+  characterPictureUrl,
+  clearCharacterPicture,
+  drawCharacter,
+  newPartyDay,
+  placeCharacter,
+  setCharacterFigure,
+  setCharacterPicture,
+  setCharacterPlayer,
+  undoNewDay,
+} from "../party";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** A character's token, small: their picture, or their figure drawn. */
@@ -163,13 +174,24 @@ function PartyRow(props: { c: Character; gm: boolean }) {
 
 /**
  * GM: a new day for the whole party: nothing prayed for and ki full on every card, and, ticked,
- * everyone's spell points back to full on their sheets.
+ * everyone's spell points back to full on their sheets. It asks first, since it changes every
+ * sheet, and can be taken back for half an hour after.
  */
 function NewPartyDay() {
   const room = useRoom();
+  const count = useRoomState((s) => s.party?.characters.length ?? 0);
+  const undo = useRoomState((s) => s.newDayUndo);
   const [rest, setRest] = useState(true);
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Undo goes when its half hour is up.
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => room.store.set({ newDayUndo: null }), Math.max(0, undo.at + NEW_DAY_UNDO_MS - Date.now()));
+    return () => clearTimeout(t);
+  }, [undo, room]);
   const go = async () => {
+    setAsking(false);
     setBusy(true);
     try {
       const { error } = await newPartyDay(room, rest);
@@ -179,15 +201,46 @@ function NewPartyDay() {
       setBusy(false);
     }
   };
+  const back = async () => {
+    setBusy(true);
+    try {
+      const error = await undoNewDay(room);
+      room.toast(error ?? "The new day is taken back: prayers, ki and spell points as they were.", error ? "error" : undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const who = `${count} character${count === 1 ? "" : "s"}`;
   return (
     <div class="party-day">
-      <button class="btn btn-sm" disabled={busy} title="Every character: nothing prayed for, and ki full" onClick={() => void go()}>
-        <Sunrise size={14} /> New day for the party
-      </button>
+      {asking ? (
+        <div class="party-day-ask" role="group" aria-label="Start a new day?">
+          <span class="small">
+            A new day for {who}: prayers cleared and ki full{rest ? ", and spell points back to full on their sheets" : ""}.
+          </span>
+          <span class="party-day-buttons">
+            <button class="btn btn-sm btn-primary" onClick={() => void go()}>
+              Start the new day
+            </button>
+            <button class="btn btn-sm" onClick={() => setAsking(false)}>
+              Cancel
+            </button>
+          </span>
+        </div>
+      ) : (
+        <button class="btn btn-sm" disabled={busy || !count} title="Every character: nothing prayed for, and ki full" onClick={() => setAsking(true)}>
+          <Sunrise size={14} /> New day for the party
+        </button>
+      )}
       <label class="check small">
         <input type="checkbox" checked={rest} onChange={(e) => setRest(e.currentTarget.checked)} />
         <span>and spell points back to full on their sheets</span>
       </label>
+      {undo && !asking && (
+        <button class="btn btn-sm" disabled={busy} title="Prayers, ki and spell points as they were before it" onClick={() => void back()}>
+          <Undo2 size={14} /> Undo the new day ({new Date(undo.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})
+        </button>
+      )}
     </div>
   );
 }
@@ -208,6 +261,12 @@ export function PartySection() {
     <div class="party">
       <h3>Party</h3>
       {party.error && <p class="small error-text">{party.error}</p>}
+      {gm && !party.error && (party.scriptVersion ?? 0) < SCRIPT_VERSION && (
+        <p class="small muted script-old">
+          The character sheets' script is {party.scriptVersion ? `version ${party.scriptVersion}` : "an older version"}; version {SCRIPT_VERSION} is out. Put the new one in
+          (Help › Set up the character sheets) for everything on the cards to work.
+        </p>
+      )}
       {party.characters.length ? (
         <>
           <ul class="party-list">

@@ -25,6 +25,9 @@
 //   5. Copy the web app's address (…/exec) into Tabletop: Room settings › Character sheets.
 // A new character: make a copy of a sheet in that folder; Tabletop finds it within a minute or two.
 
+// This script's version: Tabletop tells the GM when a newer one is out (shared/characters.ts SCRIPT_VERSION).
+const VERSION = 7;
+
 function doGet() {
   const folderId = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
   if (!folderId) return reply({ error: 'FOLDER_ID is not set in the script’s properties.' });
@@ -48,7 +51,7 @@ function doGet() {
       unread.push(file.getId());
     }
   }
-  return reply({ characters: characters, unread: unread });
+  return reply({ version: VERSION, characters: characters, unread: unread });
 }
 
 /** One character's card from their sheet's Character tab, or null if it isn't a character sheet. */

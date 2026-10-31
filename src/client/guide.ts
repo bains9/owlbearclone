@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)",
+        "steps": [
+          "GM: **New day for the party** now says what it's about to do, and to how many characters. Click **Start the new day** to go ahead, or **Cancel**.",
+          "For half an hour after, **Undo the new day** puts everyone's prayers and ki back as they were, and takes the spell points it added back off their sheets (a spell cast since still counts).",
+          "GM: when a character is short of spell points, the battery beside **SP** on their card puts theirs alone back to full on their sheet.",
+          "GM: if something couldn't be shown on someone's screen (their card, a bar), an amber dot appears on **More**. Open **More** › **Problems on devices** to see who, on what device, and what went wrong, and **Clear the list** when it's dealt with."
+        ],
+        "notes": [
+          "Whatever failed is left out and the rest of the page carries on; a reload often fixes it. The list helps find what keeps going wrong, on a player's tablet say.",
+          "The sheets' script's version 7 says which it is, so the party in **Tokens & images** tells the GM when a newer one is out."
+        ]
+      },
+      {
         "title": "A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)",
         "steps": [
           "GM: in **Tokens & images**, under the party, **New day for the party** clears everyone's prayers and fills their ki. Ticked, it also puts everyone's spell points back to full on their sheets.",
@@ -1214,7 +1227,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
           "The one thing it changes: a character's **Current spell points**, when they cast a spell from their card. Only that cell, never below 0, and never if the sheet works it out with a formula. Tabletop sends a key with each change, which the script keeps the first time (TABLE_KEY in its properties); after that it takes changes from that Tabletop only.",
-          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
+          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**, and version 7 says which it is, so the party in **Tokens & images** tells you when a newer one is out. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
           "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
           "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
         ]

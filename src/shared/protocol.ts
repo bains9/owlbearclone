@@ -2,6 +2,7 @@
 
 import type { TemplateShape } from "./geometry";
 import type { InitOp } from "./initiative";
+import type { Problem } from "./problems";
 import type { FxLook } from "./spellfx";
 import type {
   Asset,
@@ -98,7 +99,9 @@ export type ClientAction =
    */
   | { t: "explore"; sceneId: string; key: string; cells: number[]; who?: string; lit?: number[] }
   /** GM only: the party forgets what it's explored of a scene. */
-  | { t: "explore.reset"; sceneId: string };
+  | { t: "explore.reset"; sceneId: string }
+  /** GM only: the list of problems on devices (shared/problems.ts) is cleared. */
+  | { t: "problems.clear" };
 
 /**
  * Every change carries a seq that counts up within one browser tab (the `sid` the
@@ -106,7 +109,11 @@ export type ClientAction =
  * after a reconnect the tab resends only what the server never got, and a change
  * that arrives twice (once late on the old connection, once resent) applies once.
  */
-export type ClientMsg = (ClientAction & { seq: number }) | { t: "eph"; e: Ephemeral };
+export type ClientMsg =
+  | (ClientAction & { seq: number })
+  | { t: "eph"; e: Ephemeral }
+  /** Something this tab couldn't show, for the GM (shared/problems.ts): a table display's too. */
+  | { t: "problem"; where: string; message: string; device: string };
 
 export type ServerMsg =
   | {
@@ -162,6 +169,8 @@ export type ServerMsg =
   | { t: "error"; message: string }
   /** The tab is running an older build than the server: it should reload. */
   | { t: "outdated" }
+  /** To the GM: what failed on people's devices, newest first (on joining, and as it changes). */
+  | { t: "problems"; problems: Problem[] }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

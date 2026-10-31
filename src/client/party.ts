@@ -261,23 +261,68 @@ export function spendKi(room: RoomClient, c: Character, a: KiAbility): boolean {
 /**
  * GM: a new day for the whole party: nothing prayed for and ki full, and, with `rest`, their spell
  * points back to full on their sheets (through the GM's script). How many were done, and the
- * first thing that went wrong, if anything.
+ * first thing that went wrong, if anything. What it changed is kept for a while (newDayUndo), so
+ * the GM can take it back.
  */
 export async function newPartyDay(room: RoomClient, rest: boolean): Promise<{ done: number; error: string | null }> {
   const party = room.state.party?.characters ?? [];
+  const undo: NewDayUndo = { at: Date.now(), characters: [] };
   const results = await Promise.allSettled(
     party.map(async (c) => {
+      const was: NewDayUndo["characters"][number] = { id: c.id, prayed: { ...(c.prayed ?? {}) }, added: 0 };
+      if (c.kiLeft !== undefined) was.kiLeft = c.kiLeft;
+      undo.characters.push(was);
       await newPrayerDay(room, c);
-      if (rest && c.maxSp !== null) await restSpellPoints(room, c);
+      if (rest && c.maxSp !== null) was.added = await restSpellPoints(room, c);
     }),
   );
   const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  room.store.set({ newDayUndo: undo });
   void room.refreshParty();
   return { done: results.length - (failed ? results.filter((r) => r.status === "rejected").length : 0), error: failed ? (failed.reason as Error).message : null };
 }
 
-/** GM: a character's spell points back to full on their sheet. */
-async function restSpellPoints(room: RoomClient, c: Character): Promise<void> {
+/** How long the GM can take a new day back. */
+export const NEW_DAY_UNDO_MS = 30 * 60 * 1000;
+
+/**
+ * What a new day for the party changed, to take it back: each character's prayers and ki as they
+ * were, and the spell points the new day put on their sheet (`added`).
+ */
+export interface NewDayUndo {
+  at: number;
+  characters: { id: string; prayed: Record<string, number>; kiLeft?: number; added: number }[];
+}
+
+/**
+ * GM: takes the last new day back: each character's prayers and ki as they were, and the spell
+ * points it put on their sheet taken off again (no more than they have now, so a spell cast since
+ * still counts). The first thing that went wrong, if anything.
+ */
+export async function undoNewDay(room: RoomClient): Promise<string | null> {
+  const undo = room.state.newDayUndo;
+  if (!undo) return null;
+  room.store.set({ newDayUndo: null });
+  const results = await Promise.allSettled(
+    undo.characters.map(async (was) => {
+      const c = room.state.party?.characters.find((x) => x.id === was.id);
+      if (!c) return;
+      for (const [spell, left] of Object.entries(was.prayed)) await putPrayed(room, c, { spell, left });
+      if (was.kiLeft !== undefined) await putPrayed(room, c, { ki: was.kiLeft });
+      const back = Math.min(was.added, c.sp ?? 0);
+      if (back > 0) showSpellPoints(room, c.id, await spendOnSheet(room, c, back));
+    }),
+  );
+  void room.refreshParty();
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  return failed ? (failed.reason as Error).message || "The new day couldn't all be taken back: check the sheets." : null;
+}
+
+/**
+ * GM: a character's spell points back to full on their sheet: shown here at once. How many it
+ * added (from their spell points as last read).
+ */
+export async function restSpellPoints(room: RoomClient, c: Character): Promise<number> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/rest?room=${encodeURIComponent(room.roomId)}`, {
     method: "POST",
     headers: { "X-Tabletop-User": room.profileInfo.uid },
@@ -286,6 +331,20 @@ async function restSpellPoints(room: RoomClient, c: Character): Promise<void> {
   const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
   if (!res.ok || typeof data.sp !== "number") throw new Error(data.error ?? `${characterLabel(c)}'s spell points couldn't be filled up (${res.status}).`);
   showSpellPoints(room, c.id, data.sp);
+  return Math.max(0, data.sp - (c.sp ?? data.sp));
+}
+
+/** Takes spell points off a character's sheet (their player or the GM): how many they have now. Fails with the reason, if the Worker gave one. */
+async function spendOnSheet(room: RoomClient, c: Character, spend: number): Promise<number> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/spend?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ spend }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
+  if (!res.ok || typeof data.sp !== "number") throw new Error(data.error ?? "");
+  return data.sp;
 }
 
 async function putPrayed(room: RoomClient, c: Character, body: { spell: string; left: number } | { newDay: true } | { ki: number }): Promise<void> {
@@ -438,18 +497,9 @@ export function spendSpellPoints(room: RoomClient, as: Pick<Casting, "character"
     room.toast(why ?? "The spell points couldn't be taken off the sheet. Change them there.", "error");
     void room.refreshParty();
   };
-  void fetch(`/api/characters/${encodeURIComponent(c.id)}/spend?room=${encodeURIComponent(room.roomId)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
-    body: JSON.stringify({ spend: cost }),
-    credentials: "same-origin",
-  })
-    .then(async (res) => {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
-      if (!res.ok || typeof data.sp !== "number") failed(data.error);
-      else showSpellPoints(room, c.id, data.sp);
-    })
-    .catch(() => failed());
+  spendOnSheet(room, c, cost)
+    .then((sp) => showSpellPoints(room, c.id, sp))
+    .catch((err: Error) => failed(err.message || undefined));
 }
 
 function showSpellPoints(room: RoomClient, id: string, sp: number): void {
