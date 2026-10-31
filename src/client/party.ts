@@ -3,7 +3,7 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { MAX_PRAYED, characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
+import { MAX_PRAYED, characterLabel, spellCost, type Character, type CharacterPlayer } from "../shared/characters";
 import { castList, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
@@ -250,11 +250,58 @@ export function castingAs(room: RoomClient, spell: string): { token: TokenItem; 
   return { token, character, entry: castList(character).find((s) => s.name === spell) ?? null };
 }
 
-/** Why a character can't cast a spell now (it has to be prayed for, and none are left today), or null. */
+/**
+ * Why a character can't cast a spell now, or null: it has to be prayed for and none are left today,
+ * or it costs more spell points than their sheet has left.
+ */
 export function cantCast(as: { character: Character; entry: CastSpell | null }): string | null {
   const e = as.entry;
-  if (!e?.prayer || e.left > 0) return null;
-  return `${characterLabel(as.character)} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. Pray for it on their card.`;
+  const c = as.character;
+  const who = characterLabel(c);
+  if (e?.prayer && e.left <= 0) return `${who} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. Pray for it on their card.`;
+  const cost = e ? spellCost(e.sheet.sp) : 0;
+  if (e && cost && c.sp !== null && cost > c.sp) return `${who} has ${c.sp} spell point${c.sp === 1 ? "" : "s"} left, and ${e.name} costs ${cost}.`;
+  return null;
+}
+
+/** After casting as a character: a prayer used up, and the spell points off their sheet. */
+export function payForCast(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+  spendPrayer(room, as);
+  spendSpellPoints(room, as);
+}
+
+/**
+ * After casting as a character: the spell's cost at its own level off their sheet's spell points
+ * (when this page may spend them: the GM's, or their player's). Shown here at once, and on other
+ * pages with their next reading.
+ */
+export function spendSpellPoints(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+  const c = as.character;
+  const cost = as.entry ? spellCost(as.entry.sheet.sp) : 0;
+  if (!cost || c.sp === null || !mayPray(room, c)) return;
+  showSpellPoints(room, c.id, Math.max(0, c.sp - cost));
+  const failed = (why?: string) => {
+    room.toast(why ?? "The spell points couldn't be taken off the sheet. Change them there.", "error");
+    void room.refreshParty();
+  };
+  void fetch(`/api/characters/${encodeURIComponent(c.id)}/spend?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ spend: cost }),
+    credentials: "same-origin",
+  })
+    .then(async (res) => {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
+      if (!res.ok || typeof data.sp !== "number") failed(data.error);
+      else showSpellPoints(room, c.id, data.sp);
+    })
+    .catch(() => failed());
+}
+
+function showSpellPoints(room: RoomClient, id: string, sp: number): void {
+  const party = room.state.party;
+  if (!party) return;
+  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? { ...x, sp } : x)) } });
 }
 
 /** After casting as a character: one of the spell's prayers used up (when this page may say so). */

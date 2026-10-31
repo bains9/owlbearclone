@@ -1,11 +1,12 @@
 // A character's Spells list on their card (31 October 2026): their sheet's spells that the Spells
 // tool can show, matched by name; what they've prayed for today, chosen in Table by their player or
-// the GM (not read from the sheet); casting from their token; and a cast using a prayer up.
+// the GM (not read from the sheet); casting from their token; and a cast using a prayer and its
+// spell points up (the points on the sheet itself, through the GM's script).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { cantCast, castAs, castingAs, mayPray, newPrayerDay, setPrayed, spendPrayer } from "../src/client/party";
+import { cantCast, castAs, castingAs, mayPray, newPrayerDay, setPrayed, spendPrayer, spendSpellPoints } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
-import { MAX_PRAYED, cleanCharacter, type Character, type CharactersReply } from "../src/shared/characters";
+import { MAX_PRAYED, MAX_SPEND, cleanCharacter, spellCost, type Character, type CharactersReply } from "../src/shared/characters";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
 import { castList, tableSpellsFor } from "../src/shared/spellfx";
 import type { Player, Scene, TokenItem } from "../src/shared/types";
@@ -14,6 +15,7 @@ interface Party {
   readParty(env: unknown, cache: Cache | null, fetcher: typeof fetch, now?: number): Promise<CharactersReply>;
   playsCharacter(directory: unknown, sheetId: string, userId: string | null): Promise<boolean>;
   prayedChange(body: unknown): unknown;
+  spendOnSheet(source: string, key: string, sheetId: string, spend: number, fetcher: typeof fetch): Promise<{ sp: number } | { error: string }>;
 }
 const party = (await import(/* @vite-ignore */ "../src/worker/" + "characters")) as Party;
 
@@ -202,11 +204,155 @@ describe("on a page", () => {
   });
 });
 
+describe("spell points", () => {
+  it("cost what the sheet's SP says at the spell's own level, and a cantrip nothing", () => {
+    expect(spellCost("2")).toBe(2);
+    expect(spellCost("2+")).toBe(2);
+    expect(spellCost("5+")).toBe(5);
+    expect(spellCost("7/day")).toBe(0);
+    expect(spellCost("")).toBe(0);
+    expect(spellCost("99")).toBe(MAX_SPEND);
+  });
+
+  it("stop a spell the character can't afford", () => {
+    const room = page(theirPlayer);
+    room.store.set({ party: { ...room.state.party!, characters: [{ ...room.state.party!.characters[0], sp: 1, prayed: { Moonbeam: 1 } }] } });
+    castAs(room, "tok1", "Moonbeam");
+    expect(cantCast(castingAs(room, "Moonbeam")!)).toBe("Testa has 1 spell point left, and Moonbeam costs 2.");
+    expect(cantCast(castingAs(room, "Faerie Fire")!)).toBeNull();
+  });
+
+  it("come off the sheet when the character's player casts, shown at once", async () => {
+    const room = page(theirPlayer);
+    castAs(room, "tok1", "Moonbeam");
+    const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, sp: 9 }));
+    spendSpellPoints(room, castingAs(room, "Moonbeam")!);
+    expect(room.state.party!.characters[0].sp).toBe(10);
+    const [url, init] = sent.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/characters/${SHEET}/spend?room=AbCdEf123456`);
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["X-Tabletop-User"]).toBe("player1abcdef");
+    expect(JSON.parse(String(init.body))).toEqual({ spend: 2 });
+    await vi.waitFor(() => expect(room.state.party!.characters[0].sp).toBe(9));
+  });
+
+  it("say so when the sheet couldn't be changed, and read it again", async () => {
+    const room = page(gm);
+    castAs(room, "tok1", "Faerie Fire");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ error: "The script can't change spell points yet." }, { status: 502 }));
+    const reread = vi.spyOn(room, "refreshParty").mockImplementation(async () => {});
+    spendSpellPoints(room, castingAs(room, "Faerie Fire")!);
+    await vi.waitFor(() => expect(reread).toHaveBeenCalled());
+    expect(room.state.toasts.at(-1)).toMatchObject({ kind: "error", text: "The script can't change spell points yet." });
+  });
+
+  it("aren't spent by another player's page, or for a cantrip", () => {
+    const sent = vi.spyOn(globalThis, "fetch");
+    const other = page(otherPlayer);
+    castAs(other, "tok1", "Faerie Fire");
+    spendSpellPoints(other, castingAs(other, "Faerie Fire")!);
+    const theirs = page(theirPlayer);
+    castAs(theirs, "tok1", "Faerie Fire");
+    spendSpellPoints(theirs, { ...castingAs(theirs, "Faerie Fire")!, entry: { ...castingAs(theirs, "Faerie Fire")!.entry!, sheet: { name: "Spark", level: 0, sp: "7/day", prayer: "", note: "" } } });
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("are sent to the GM's script with Tabletop's key, and its answer read", async () => {
+    const fetcher = vi.fn(async () => Response.json({ sp: 7 }));
+    expect(await party.spendOnSheet("https://script.example/exec", "k".repeat(43), SHEET, 3, fetcher as unknown as typeof fetch)).toEqual({ sp: 7 });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://script.example/exec");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ key: "k".repeat(43), id: SHEET, spend: 3 });
+    const says = vi.fn(async () => Response.json({ error: "Not enough spell points.", sp: 1 }));
+    expect(await party.spendOnSheet("https://script.example/exec", "k", SHEET, 3, says as unknown as typeof fetch)).toEqual({ error: "The spell points weren't taken off: Not enough spell points." });
+    const old = vi.fn(async () => new Response("<html>Script function not found: doPost</html>", { status: 200 }));
+    expect(await party.spendOnSheet("https://script.example/exec", "k", SHEET, 3, old as unknown as typeof fetch)).toMatchObject({ error: expect.stringContaining("needs to update it") });
+  });
+});
+
+/** The GM's Apps Script's doPost, run here with Google's services played by stand-ins. */
+async function runPost(body: unknown, sheet: { value: number; formula?: string; inFolder?: boolean; trashed?: boolean; key?: string | null }) {
+  const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+  const code = fs.readFileSync(new URL("../scripts/character-sheets.gs", import.meta.url), "utf8");
+  const props: Record<string, string> = { FOLDER_ID: "folder1", ...(sheet.key ? { TABLE_KEY: sheet.key } : {}) };
+  const written: number[] = [];
+  const labels = Array.from({ length: 160 }, () => [""]);
+  labels[22] = ["Current spell points"];
+  const services = {
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => props[k] ?? null, setProperty: (k: string, v: string) => void (props[k] = v) }) },
+    DriveApp: {
+      getFileById: (id: string) => {
+        if (id !== SHEET) throw new Error("not found");
+        const parents = [{ getId: () => (sheet.inFolder === false ? "elsewhere" : "folder1") }];
+        let i = 0;
+        return { getId: () => id, isTrashed: () => sheet.trashed === true, getParents: () => ({ hasNext: () => i < parents.length, next: () => parents[i++] }) };
+      },
+    },
+    LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+    SpreadsheetApp: {
+      openById: () => ({
+        getSheetByName: (n: string) =>
+          n === "Character"
+            ? {
+                getRange: (a: string | number, col?: number) =>
+                  typeof a === "string"
+                    ? { getDisplayValues: () => labels }
+                    : {
+                        getFormula: () => (a === 23 && col === 2 ? (sheet.formula ?? "") : ""),
+                        getValue: () => sheet.value,
+                        setValue: (v: number) => void written.push(v),
+                      },
+              }
+            : null,
+      }),
+    },
+    MimeType: { GOOGLE_SHEETS: "sheets" },
+    ContentService: { MimeType: { JSON: "json" }, createTextOutput: (s: string) => ({ setMimeType: () => JSON.parse(s) }) },
+  };
+  const run = new Function(...Object.keys(services), "e", `${code}\nreturn doPost(e);`);
+  const out = run(...Object.values(services), { postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }) as { sp?: number; error?: string };
+  return { out, written, props };
+}
+
+describe("the GM's script, changing spell points", () => {
+  const KEY = "k".repeat(43);
+
+  it("keeps the first key it's sent, takes the points off, and then wants that key", async () => {
+    const first = await runPost({ key: KEY, id: SHEET, spend: 3 }, { value: 12 });
+    expect(first.out).toEqual({ sp: 9 });
+    expect(first.written).toEqual([9]);
+    expect(first.props.TABLE_KEY).toBe(KEY);
+    const stranger = await runPost({ key: "x".repeat(43), id: SHEET, spend: 3 }, { value: 12, key: KEY });
+    expect(stranger.out.error).toMatch(/key doesn.t match/);
+    expect(stranger.written).toEqual([]);
+    expect((await runPost({ key: "short", id: SHEET, spend: 1 }, { value: 12 })).out.error).toMatch(/key doesn.t match/);
+  });
+
+  it("changes nothing for a sheet outside the folder, a formula, too few points or a silly amount", async () => {
+    for (const [body, sheet, why] of [
+      [{ key: KEY, id: SHEET, spend: 1 }, { value: 12, key: KEY, inFolder: false }, /isn.t in the character sheets/],
+      [{ key: KEY, id: SHEET, spend: 1 }, { value: 12, key: KEY, trashed: true }, /isn.t in the character sheets/],
+      [{ key: KEY, id: "1Unknown0000000000000000", spend: 1 }, { value: 12, key: KEY }, /can.t be opened/],
+      [{ key: KEY, id: SHEET, spend: 1 }, { value: 12, key: KEY, formula: "=B24-3" }, /works out Current spell points/],
+      [{ key: KEY, id: SHEET, spend: 5 }, { value: 4, key: KEY }, /Not enough/],
+      [{ key: KEY, id: SHEET, spend: 0 }, { value: 4, key: KEY }, /number of spell points/],
+      [{ key: KEY, id: SHEET, spend: 1.5 }, { value: 4, key: KEY }, /number of spell points/],
+      ["not json", { value: 4, key: KEY }, /isn.t a change/],
+    ] as const) {
+      const { out, written } = await runPost(body, sheet);
+      expect(out.error, JSON.stringify(body)).toMatch(why);
+      expect(written, JSON.stringify(body)).toEqual([]);
+    }
+  });
+});
+
 describe("in the guide", () => {
-  it("leads What's new, and says how to cast from a card and pray for spells", async () => {
-    expect(GUIDE[0].parts[0].title).toBe("Cast a character's spells from their card, with what they've prayed for (31 October 2026)");
+  it("leads What's new, and says how to cast from a card, pray for spells and what spell points come off", async () => {
+    expect(GUIDE[0].parts[0].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
     const text = JSON.stringify(GUIDE.find((s) => s.id === "spells"));
-    for (const words of ["**Pray for today**", "**New day**", "**Spells**"]) expect(text).toContain(words);
+    for (const words of ["**Pray for today**", "**New day**", "**Spells**", "**Spell points:**"]) expect(text).toContain(words);
+    expect(JSON.stringify(GUIDE.find((s) => s.id === "character-sheets"))).toContain("TABLE_KEY");
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const card = fs.readFileSync(new URL("../src/client/ui/CharacterCard.tsx", import.meta.url), "utf8");
     for (const words of ["Pray for today", "New day", "<span>Spells</span>"]) expect(card).toContain(words);

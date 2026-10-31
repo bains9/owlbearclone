@@ -65,6 +65,18 @@ export class Directory extends DurableObject<Env> {
   }
 
   /**
+   * The key Tabletop sends with a change to a character sheet (spell points spent): the GM's
+   * script keeps the first it's sent and takes changes with that key only. Made once.
+   */
+  charactersKey(): string {
+    const row = this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'characters_key'`).toArray()[0];
+    if (row) return row.value;
+    const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('characters_key', ?)`, value);
+    return value;
+  }
+
+  /**
    * Spends one of Dungeon's one-time sign-in codes (dungeon.ts): false if it was spent
    * already. A code lasts a minute, so its row only has to outlive that.
    */

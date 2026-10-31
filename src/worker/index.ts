@@ -9,7 +9,8 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty } from "./characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, spendOnSheet } from "./characters";
+import { MAX_SPEND } from "../shared/characters";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -279,6 +280,28 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     if ("newDay" in change) await directory.clearCharacterPrayed(sheetId);
     else await directory.setCharacterPrayed(sheetId, change.spell, change.left);
     return json({ ok: true, prayed: (await directory.characterPrayed())[sheetId] ?? {} });
+  }
+  // A spell cast from a character's card: its spell points come off their sheet (through the GM's
+  // script). Their player or the GM, at one of the GM's tables, as above.
+  const spendMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/spend$/);
+  if (spendMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const sheetId = spendMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can spend their spell points.");
+    const spend = (await readJson(request))?.spend;
+    if (typeof spend !== "number" || !Number.isInteger(spend) || spend < 1 || spend > MAX_SPEND) return fail(400, "That isn't a number of spell points.");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const done = await spendOnSheet(source, await directory.charactersKey(), sheetId, spend);
+    if ("error" in done) return fail(502, done.error);
+    // Every page's next reading reads the sheets again, so the new spell points show.
+    await forgetParty({ directory }, caches.default);
+    return json({ ok: true, sp: done.sp });
   }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {

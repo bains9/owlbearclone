@@ -13,6 +13,7 @@ import {
   DAMAGE_ROLLS,
   INITIATIVE_DIE,
   MAX_PRAYED,
+  spellCost,
   TO_HIT_DIE,
   attackLabel,
   attackWays,
@@ -95,19 +96,22 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
       ) : (
         <div class="spell-chips">
           {castable.map((s) => {
-            const out = s.prayer && s.left <= 0;
-            const how = s.prayer ? (out ? "Not prayed for today" : `Prayed for: ${s.left} left today`) : s.sheet.prayer === "Ask DM" ? "Ask the GM" : "";
+            const cost = spellCost(s.sheet.sp);
+            const broke = cost > 0 && c.sp !== null && cost > c.sp;
+            const out = (s.prayer && s.left <= 0) || broke;
+            const how = s.prayer ? (s.left <= 0 ? "Not prayed for today" : `Prayed for: ${s.left} left today`) : s.sheet.prayer === "Ask DM" ? "Ask the GM" : "";
+            const pays = cost ? (broke ? `Costs ${cost} SP: not enough left` : `${cost} SP off their sheet`) : `${s.sheet.sp || "No"} SP`;
             return (
               <button
                 key={s.name}
                 class={cx("chip spell-chip", out && "out")}
                 disabled={!tokenId || out}
-                title={[`Cast ${s.name} from ${who}`, `${s.sheet.sp} SP`, how].filter(Boolean).join(" · ")}
+                title={[`Cast ${s.name} from ${who}`, pays, how].filter(Boolean).join(" · ")}
                 onClick={() => tokenId && castAs(room, tokenId, s.name)}
               >
                 {s.name}
                 <span class="spell-sp">{s.sheet.sp}</span>
-                {s.prayer && <span class="spell-left">{out ? "–" : `×${s.left}`}</span>}
+                {s.prayer && <span class="spell-left">{s.left <= 0 ? "–" : `×${s.left}`}</span>}
               </button>
             );
           })}

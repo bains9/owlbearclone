@@ -56,6 +56,36 @@ export async function askScript(source: string, fetcher: typeof fetch = fetch): 
   return unread.length ? { characters, unread } : { characters };
 }
 
+/**
+ * Takes a character's spell points off their sheet for a spell they cast, through the GM's script
+ * (version 5 on, which changes only Current spell points). With `key`, Tabletop's own: the script
+ * keeps the first it's sent and takes changes with that one only. Their spell points now, or why not.
+ */
+export async function spendOnSheet(
+  source: string,
+  key: string,
+  sheetId: string,
+  spend: number,
+  fetcher: typeof fetch = fetch,
+): Promise<{ sp: number } | { error: string }> {
+  let res: Response;
+  try {
+    res = await fetcher(source, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, id: sheetId, spend }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(SCRIPT_MS),
+    });
+  } catch {
+    return { error: "The character sheets didn't answer in time, so the spell points weren't taken off. Change them on the sheet." };
+  }
+  const body = (await res.json().catch(() => null)) as { sp?: unknown; error?: unknown } | null;
+  if (!res.ok || !body) return { error: "The character sheets' script can't change spell points yet: the GM needs to update it (Room settings › Character sheets)." };
+  if (typeof body.error === "string") return { error: `The spell points weren't taken off: ${body.error.slice(0, 200)}` };
+  return typeof body.sp === "number" && Number.isFinite(body.sp) ? { sp: body.sp } : { error: "The character sheets' script didn't say how many spell points are left." };
+}
+
 export interface PartyEnv {
   directory: {
     charactersSource(): Promise<string | null>;

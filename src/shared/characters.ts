@@ -199,6 +199,19 @@ export function cleanCharacter(raw: unknown): Character | null {
   };
 }
 
+/** The most spell points one cast can spend (a 9th-level spell's cost, by the handbook). */
+export const MAX_SPEND = 55;
+
+/**
+ * What a spell costs to cast at its own level, from the sheet's SP column: "2" and "2+" (it can
+ * take more) are 2; a cantrip ("7/day") and anything without a number cost nothing.
+ */
+export function spellCost(sp: string): number {
+  if (/\/\s*day/i.test(sp)) return 0;
+  const n = Number(sp.match(/^\s*(\d+)/)?.[1] ?? 0);
+  return Math.max(0, Math.min(MAX_SPEND, n));
+}
+
 /** A spell's name as something to pray for: what the sheet calls it, trimmed and not silly. */
 export function isSpellName(v: unknown): v is string {
   return typeof v === "string" && v.trim() === v && v.length >= 1 && v.length <= 60 && !/[\u0000-\u001f\u007f]/.test(v);

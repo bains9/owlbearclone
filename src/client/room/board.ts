@@ -84,7 +84,7 @@ import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../sh
 import { drawZone, inZone, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { prop, propSprite } from "../dungeonLib/props";
-import { cantCast, castingAs, spendPrayer } from "../party";
+import { cantCast, castingAs, payForCast } from "../party";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -5166,9 +5166,9 @@ export class Board implements BoardApi {
       case "spell": {
         const name = this.room.state.spellOpts.spell;
         const target = tokenSpell(name) ? this.tokenAt(world) : null;
-        // Cast as a character (from their card's Spells list): a spell that has to be prayed for
-        // needs a prayer left, and casting it uses one up. Ending one on a token (clicked again)
-        // doesn't.
+        // Cast as a character (from their card's Spells list): a spell needs a prayer left (if it
+        // has to be prayed for) and the spell points, and casting it uses them up. Ending one on a
+        // token (clicked again) doesn't.
         const as = target && this.spellOn(target, name) ? null : castingAs(this.room, name);
         const why = as && cantCast(as);
         let cast = false;
@@ -5179,7 +5179,7 @@ export class Board implements BoardApi {
           const hit = this.pickAt(this.localPos(e));
           cast = this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
         }
-        if (cast && as) spendPrayer(this.room, as);
+        if (cast && as) payForCast(this.room, as);
         this.uiLayer.batchDraw();
         return;
       }

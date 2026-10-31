@@ -4,9 +4,15 @@
 // A Google Apps Script web app, run as its owner (the GM), that reads only the spreadsheets in
 // one Drive folder, each a copy of the group's Player's Handbook character sheet, and answers with
 // what Tabletop shows: name, player, race and classes, HP, AC, initiative, spell points,
-// attacks, and the spells on the Spells tab. It changes nothing in the sheets. Numbers are found
-// by their labels on the Character tab ("Current HP", "Combat AC"...), and spells under the
-// Spells tab's heading row, not by cell, so the sheet's layout can change.
+// attacks, and the spells on the Spells tab. Numbers are found by their labels on the Character
+// tab ("Current HP", "Combat AC"...), and spells under the Spells tab's heading row, not by cell,
+// so the sheet's layout can change.
+//
+// The one thing it changes: a character's Current spell points, when they cast a spell in
+// Tabletop (doPost). Only that cell, only on a sheet in the folder, never below 0, and never when
+// the sheet works it out with a formula. Tabletop sends a key with each change: the first time,
+// the script keeps it (script property TABLE_KEY), and from then on takes changes with that key
+// only. To let a different Tabletop make changes, delete TABLE_KEY.
 //
 // Set up (once):
 //   1. Put the character sheets in one Drive folder (moving a sheet keeps its links working).
@@ -111,6 +117,57 @@ function spellsOf(ss) {
     spells.push({ name: name, level: r[1], sp: r[2], prayer: r[3], note: r[10] });
   }
   return spells;
+}
+
+/**
+ * Spends a character's spell points on a spell cast in Tabletop: POST {key, id, spend}. Answers
+ * with their spell points now, or why not (and then changes nothing).
+ */
+function doPost(e) {
+  let body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return reply({ error: 'That isn’t a change Tabletop sends.' });
+  }
+  const props = PropertiesService.getScriptProperties();
+  let key = props.getProperty('TABLE_KEY');
+  if (!key && typeof body.key === 'string' && body.key.length >= 32) {
+    props.setProperty('TABLE_KEY', body.key);
+    key = body.key;
+  }
+  if (!key || body.key !== key) return reply({ error: 'Tabletop’s key doesn’t match the one the script keeps (TABLE_KEY in its properties).' });
+  const spend = Number(body.spend);
+  if (!Number.isInteger(spend) || spend < 1 || spend > 100) return reply({ error: 'That isn’t a number of spell points.' });
+  let file;
+  try {
+    file = DriveApp.getFileById(String(body.id));
+  } catch (err) {
+    return reply({ error: 'That sheet can’t be opened.' });
+  }
+  let inFolder = false;
+  const parents = file.getParents();
+  while (parents.hasNext()) if (parents.next().getId() === props.getProperty('FOLDER_ID')) inFolder = true;
+  if (!inFolder || file.isTrashed()) return reply({ error: 'That sheet isn’t in the character sheets’ folder.' });
+  // One change at a time, so two casts at once both come off.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sheet = SpreadsheetApp.openById(file.getId()).getSheetByName('Character');
+    if (!sheet) return reply({ error: 'That isn’t a character sheet.' });
+    const v = sheet.getRange('A1:A160').getDisplayValues();
+    let row = 0;
+    for (let i = 0; i < v.length && !row; i++) if (String(v[i][0]).trim() === 'Current spell points') row = i + 1;
+    if (!row) return reply({ error: 'Their sheet has no Current spell points.' });
+    const cell = sheet.getRange(row, 2);
+    if (cell.getFormula()) return reply({ error: 'Their sheet works out Current spell points itself, so it isn’t changed.' });
+    const now = Number(cell.getValue()) || 0;
+    if (spend > now) return reply({ error: 'Not enough spell points.', sp: now });
+    cell.setValue(now - spend);
+    return reply({ sp: now - spend });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function reply(o) {
