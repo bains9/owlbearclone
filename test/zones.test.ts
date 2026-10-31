@@ -118,9 +118,9 @@ describe("drawing a zone", () => {
 });
 
 describe("in the guide", () => {
-  it("leads What's new, and says how to leave and end a spell", () => {
+  it("is in What's new under spells on tokens, and says how to leave and end a spell", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[0].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
+    expect(news.parts[1].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
     const section = GUIDE.find((s) => s.id === "spells")!;
     const titles = section.parts.map((p) => p.title);
     expect(titles).toContain("Leave a spell on the map");
@@ -134,6 +134,6 @@ describe("in the guide", () => {
     const read = (p: string) => fs.readFileSync(new URL(p, import.meta.url), "utf8");
     expect(read("../src/client/ui/SelectionBar.tsx")).toContain("End spell");
     expect(read("../src/client/ui/Toolbar.tsx")).toContain("On the map:");
-    expect(read("../src/client/ui/Toolbar.tsx")).toContain('label="Zones that stay"');
+    expect(read("../src/client/ui/Toolbar.tsx")).toContain('["Zones that stay", ZONE_SPELLS]');
   });
 });

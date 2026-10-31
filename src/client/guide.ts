@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Spells on tokens, and conjured things (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), pick a spell under **On a token** in the bar: Faerie Fire, Invisibility, Mage Armor, Sanctuary, Barkskin, Heat Metal, Ice Blade, Hold Person, Slow, Fly, Treeform, Summon Insects, Spectral animal and more.",
+          "Click a token to put it on. It goes where the token goes until it's ended; click the token again to end it."
+        ],
+        "notes": [
+          "Invisibility and the like hide the token from everyone but the GM and its owner, who see it faint. Faerie Fire on it shows it to everyone.",
+          "Fly lifts the token's picture above its shadow, Treeform draws the token as a tree, and a spectral creature is see-through and leaves an after-image as it moves.",
+          "Under **Things that appear**: Spiritual Weapon (a glowing mace its caster drags round), Moonbridge, Shimmering Stairs and Plant Door.",
+          "A selected token lists the spells on it, each with an × that ends it. The GM can end any spell; a player, the ones they cast. See **Spell effects**."
+        ]
+      },
+      {
         "title": "Spells that stay: fog, darkness, light and more (31 October 2026)",
         "steps": [
           "With **Spells** (**S**), pick a spell under **Zones that stay** in the bar: Fog Cloud, Wall of Fog, Acid Cloud, Darkness, Light, Moonbeam, Entangle, Spike Growth, Pit, Silence and more.",
@@ -39,7 +52,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Sizes come from the spell lists on the character sheets: Cloudburst rains on a 5 m radius, Frost Hands is a 2 m fan.",
           "Press on a token to cast from it, and let go on a token to aim at it.",
-          "Spells that stay on the map came the same day (above). Ones that change a token's look come next. See **Spell effects**."
+          "Spells that stay on the map, and spells on tokens, came the same day (above). See **Spell effects**."
         ]
       },
       {
@@ -1445,7 +1458,7 @@ export const GUIDE: GuideSection[] = [
     "id": "spells",
     "title": "Spell effects",
     "audience": "everyone",
-    "intro": "The **Spells** tool shows a spell on the map for everyone in the room. Most go off once: a fan of frost, darts of force, rain, lightning from the sky. Some stay until they're ended: fog, darkness, light, plants, a pit. Nothing is rolled: the dice and the GM decide what a spell does.",
+    "intro": "The **Spells** tool shows a spell on the map for everyone in the room. Most go off once: a fan of frost, darts of force, rain, lightning from the sky. Some stay until they're ended: fog, darkness, light, plants, a pit, a bridge; others go on a token: a glowing outline, a shell, flames along a blade, wings. Nothing is rolled: the dice and the GM decide what a spell does.",
     "parts": [
       {
         "title": "Cast a spell",
@@ -1470,7 +1483,35 @@ export const GUIDE: GuideSection[] = [
           "**Bolts and rays:** Magic Missile, Chromatic Orb, Ball Lightning, Divine bolt, Paralysis Bolt.",
           "**Comings and goings:** Portal I and Misty Step, a puff of mist where someone leaves and another where they arrive. Move the token yourself.",
           "**Zones that stay:** Fog Cloud, Wall of Fog, Stinking Cloud, Acid Cloud, Darkness, Blackness, Light, Lasting flame, Continual Light, Daylight, Moonbeam, Entangle, Plant Growth, Briartangle, Spike Growth, Pit, Wall of Water, Create Spring, Hypnotic Pattern, and marked areas for Silence, Battle Song, Zone of Truth, Prayer and Hallucinatory Forest (a dashed outline with the spell's name).",
-          "Spells that change how a token looks come next."
+          "**On a token:** Faerie Fire, Aura fire and Brightmantle (a glowing outline); Invisibility, Chameleon, Camouflage, Meld into Stone and Fireform (unseen); Mage Armor, Shield, Improved Shield, Sanctuary, Shield of Faith, Divine Armour, Barkskin, Shellskin and Plant Armour (a shell: blue for force, gold for holy, brown for bark, green for leaves); Flame Blade, Bladefire, Blazing Sword, Ice Blade and Ice Claws (a burning or icy blade); Heat Metal (red-hot); Hold Person, Hold animal, Hold Undead and Slow (bound); Fly, Levitate and Feather Fall (flying); Treeform (a tree); Summon Insects (a swarm); Spectral animal, Fire Phantom, Raging Griffon, Guardian and Phantom Steed (spectral).",
+          "**Things that appear:** Spiritual Weapon, Moonbridge, Shimmering Stairs and Plant Door."
+        ]
+      },
+      {
+        "title": "Put a spell on a token",
+        "steps": [
+          "Pick **Spells** in the toolbar, or press **S**.",
+          "Under **On a token** in **Spell**, choose the spell. A dashed ring shows which token it would go on.",
+          "Click the token. The spell's look goes with it wherever it's moved, until the spell is ended."
+        ],
+        "notes": [
+          "**Unseen** (Invisibility and the like): the GM and the token's owner see it faint; nobody else sees it or can pick it. Faerie Fire on it too shows it, faint, to everyone.",
+          "**Flying:** the token's picture floats and bobs above its shadow; its rings and name stay on the ground.",
+          "**Treeform:** the token is drawn as a tree. **Spectral:** see-through, glowing, with an after-image as it moves.",
+          "For a spectral creature, put a creature's token on the map first, then the spell on it.",
+          "Players can put spells on any token they can see, when the GM lets them draw."
+        ]
+      },
+      {
+        "title": "Conjure a weapon, a bridge or a path",
+        "steps": [
+          "Under **Things that appear** in **Spell**, choose the spell.",
+          "**Spiritual Weapon:** click where it appears. Drag it round by its middle with **Move & select**, like a token.",
+          "**Moonbridge**, **Shimmering Stairs** or **Plant Door:** click to lay one across the map at the spell's size, or drag corner to corner to set its length and which way it goes."
+        ],
+        "notes": [
+          "A bridge and a path are drawn under tokens, so tokens stand on them; the weapon floats over them.",
+          "They're ended like any spell that stays (below)."
         ]
       },
       {
@@ -1490,11 +1531,12 @@ export const GUIDE: GuideSection[] = [
         "title": "End a spell",
         "steps": [
           "With **Spells** picked, click the × beside a spell under **On the map** in the bar.",
-          "Or select the spell (click its dashed outline with **Move & select**) and click **End spell**."
+          "Or select the spell (click its dashed outline with **Move & select**) and click **End spell**.",
+          "A spell on a token: select the token and click the × on the spell in its bar, or click the token again with the same spell picked."
         ],
         "notes": [
           "The GM can end any spell; a player, only the ones they cast.",
-          "**Undo** (Ctrl+Z) brings an ended spell back. The **Eraser** ends one too."
+          "**Undo** (Ctrl+Z) brings an ended spell back. The **Eraser** ends one that stays on the map. Deleting a token ends the spells on it."
         ]
       }
     ]

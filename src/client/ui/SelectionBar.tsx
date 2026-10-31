@@ -18,6 +18,7 @@ import {
   SendToBack,
   Swords,
   Trash,
+  X,
 } from "lucide-preact";
 import { initiativeRoll } from "../../shared/characters";
 import { randomId } from "../../shared/ids";
@@ -178,6 +179,40 @@ function CompassBar(props: { t: TokenItem; gm: boolean; common: ComponentChildre
   );
 }
 
+/**
+ * The spells on a token (Faerie Fire, Mage Armor...), each a chip with an End for whoever may end
+ * it (the GM, or its caster); the others are listed without one.
+ */
+function SpellsOn({ token }: { token: TokenItem }) {
+  const room = useRoom();
+  const items = useRoomState((s) => s.items);
+  const me = useRoomState((s) => s.me);
+  if (!me) return null;
+  const spells = Object.values(items).filter((i): i is DrawingItem => i.kind === "drawing" && i.on === token.id && !!i.fx);
+  if (!spells.length) return null;
+  return (
+    <span class="spell-zones">
+      {spells.map((d) =>
+        canDelete(d, me) ? (
+          <button
+            key={d.id}
+            class="chip spell-zone"
+            title={`End ${d.spell ?? "this spell"} (Undo brings it back)`}
+            aria-label={`End ${d.spell ?? "this spell"}`}
+            onClick={() => room.change({ delete: [d.id] })}
+          >
+            {d.spell ?? "Spell"} <X size={12} />
+          </button>
+        ) : (
+          <span key={d.id} class="chip" title="Only the GM or whoever cast it can end it">
+            {d.spell ?? "Spell"}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
 export function SelectionBar() {
   // A character token's card follows their sheet as it's read again.
   useRoomState((s) => s.party);
@@ -331,6 +366,7 @@ export function SelectionBar() {
           </button>
         )}
         {common}
+        <SpellsOn token={t} />
       </div>
     );
     if (!character) return bar;

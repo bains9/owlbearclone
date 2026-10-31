@@ -21,7 +21,7 @@ import type {
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
 import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
-import { isZoneLook } from "./zones";
+import { isTokenLook, isZoneLook, type SpellLook } from "./zones";
 
 export const LIMITS = {
   coord: 1_000_000,
@@ -279,9 +279,13 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       item.text = text;
     }
     if (r.hidden === true) item.hidden = true;
-    // A spell effect that stays: only on a circle or a rectangle.
-    if (isZoneLook(r.fx) && (shape === "ellipse" || shape === "rect")) {
-      item.fx = r.fx;
+    // A spell effect that stays: a zone only on a circle or a rectangle, a token's look only on
+    // a circle naming its token.
+    const zone = isZoneLook(r.fx) && (shape === "ellipse" || shape === "rect");
+    const onToken = isTokenLook(r.fx) && shape === "ellipse" && isId(r.on);
+    if (zone || onToken) {
+      item.fx = r.fx as SpellLook;
+      if (onToken) item.on = r.on as string;
       const spell = cleanText(r.spell, LIMITS.spellName);
       if (spell) item.spell = spell;
     }

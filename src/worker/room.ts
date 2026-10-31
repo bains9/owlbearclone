@@ -21,6 +21,7 @@ import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } 
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
 import { cleanFx } from "../shared/spellfx";
+import { lookVersion } from "../shared/zones";
 import {
   DEFAULT_SETTINGS,
   GM_OWNER,
@@ -106,6 +107,9 @@ function versionFor(item: Item): number {
     if (!stampsOnGrid(item.stamps)) return FREE_VERSION;
     return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
   }
+  // Spells on tokens and conjured things need code from 31 October 2026 (7): older code has no
+  // drawing for their looks, and would stop drawing the map at one.
+  if (item.kind === "drawing" && item.fx) return lookVersion(item.fx);
   return isCompass(item) ? COMPASS_VERSION : 1;
 }
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";

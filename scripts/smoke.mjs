@@ -572,6 +572,23 @@ async function main() {
       gm.msgs.filter((m) => m.t === "eph" && m.e.k === "fx").length === 1,
     "a spell effect reaches everyone, and one the Room doesn't know doesn't",
   );
+  // A spell on a token (protocol 7): a tab on new code gets it; Alice, on code from before it, doesn't.
+  const gm7 = connect(room.id, { cookie, uid: "gm7" + rid(), name: "GM tab", v: 7, b: gmHello.build });
+  const vera = connect(room.id, { uid: "vera" + rid(), name: "Vera", v: 7, b: gmHello.build });
+  await gm7.waitFor((m) => m.t === "hello");
+  await vera.waitFor((m) => m.t === "hello");
+  alice.clear();
+  const onFighter = { id: "fx" + rid(), sceneId, kind: "drawing", z: 1, shape: "ellipse", points: [0, 0, 70, 70], color: "#c77dff", width: 2, fill: false, fx: "outline", spell: "Faerie Fire", on: visible.id };
+  gm7.items({ upsert: [onFighter] });
+  const spellEcho = await gm7.waitFor((m) => m.t === "items" && m.seq === gm7.seq);
+  const spellGot = await vera.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === onFighter.id));
+  await sleep(300);
+  check(
+    spellEcho && !spellEcho.refused && spellGot?.upsert.find((i) => i.id === onFighter.id)?.on === visible.id && !alice.msgs.some((m) => JSON.stringify(m).includes(onFighter.id)),
+    "a spell on a token reaches a tab on new code, and not one from before it",
+  );
+  gm7.ws.close();
+  vera.ws.close();
 
   alice.clear();
   bob.clear();

@@ -60,7 +60,8 @@ import {
 import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
-import { FX_GROUPS, FX_LOOKS, SPELL_FX, ZONE_SPELLS, spellFx, zoneSpell, type FxCast } from "../../shared/spellfx";
+import { CONJURED_SPELLS, FX_GROUPS, FX_LOOKS, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, spellFx, tokenSpell, zoneSpell, type FxCast } from "../../shared/spellfx";
+import { spellChipLabel } from "./spellChips";
 import { foldOf } from "./objectGroups";
 import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
 import { FloorPicker, WallPicker } from "./FloorPicker";
@@ -989,8 +990,9 @@ const CAST_HINTS: Record<FxCast, string> = {
 };
 
 /**
- * The spells left on the scene being looked at (zones), each with an End: the GM can end any
- * of them, a player the ones they cast. Ending is a change like any other: Undo brings it back.
+ * The spells left on the scene being looked at (zones, and spells on tokens), each with an End:
+ * the GM can end any of them, a player the ones they cast. Ending is a change like any other:
+ * Undo brings it back.
  */
 function LastingSpells() {
   const room = useRoom();
@@ -1013,7 +1015,7 @@ function LastingSpells() {
           aria-label={`End ${z.spell ?? "this spell"}`}
           onClick={() => room.change({ delete: [z.id] })}
         >
-          {z.spell ?? "Spell"} <X size={12} />
+          {spellChipLabel(z, items)} <X size={12} />
         </button>
       ))}
     </span>
@@ -1028,11 +1030,18 @@ function SpellOptions() {
   const zone = zoneSpell(o.spell);
   const cast = spell ? FX_LOOKS[spell.look].cast : "burst";
   const size = spell?.size ? (spell.spread ? `${spell.size} m, ${spell.spread}°` : `${spell.size} m radius`) : "";
-  const hint = zone
-    ? zone.shape === "circle"
-      ? `Click to leave it (${zone.size} m radius), or drag from its middle to size it. It stays until it's erased.`
-      : `Click to leave it (${zone.size} m square), or drag corner to corner. It stays until it's erased.`
-    : `${CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
+  const onToken = tokenSpell(o.spell);
+  const hint = onToken
+    ? "Click a token to put it on; it goes where the token goes. Click the token again to end it."
+    : zone?.look === "spirit-weapon"
+      ? "Click to put it on the map; drag it round by its middle with Move & select. It stays until it's ended."
+      : zone?.width
+        ? `Click to lay it across the map (${zone.size} m by ${zone.width} m), or drag corner to corner. It stays until it's ended.`
+        : zone
+          ? zone.shape === "circle"
+            ? `Click to leave it (${zone.size} m radius), or drag from its middle to size it. It stays until it's ended.`
+            : `Click to leave it (${zone.size} m square), or drag corner to corner. It stays until it's ended.`
+          : `${CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
   return (
     <div class="tool-options">
       <label class="field inline">
@@ -1049,15 +1058,23 @@ function SpellOptions() {
                 ))}
             </optgroup>
           ))}
-          <optgroup label="Zones that stay">
-            {[...ZONE_SPELLS]
-              .sort((x, y) => x.name.localeCompare(y.name))
-              .map((sp) => (
-                <option key={sp.name} value={sp.name}>
-                  {sp.name}
-                </option>
-              ))}
-          </optgroup>
+          {(
+            [
+              ["Zones that stay", ZONE_SPELLS],
+              ["On a token", TOKEN_SPELLS],
+              ["Things that appear", CONJURED_SPELLS],
+            ] as const
+          ).map(([label, list]) => (
+            <optgroup key={label} label={label}>
+              {[...list]
+                .sort((x, y) => x.name.localeCompare(y.name))
+                .map((sp) => (
+                  <option key={sp.name} value={sp.name}>
+                    {sp.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
         </select>
       </label>
       <span class="hint">{hint}</span>

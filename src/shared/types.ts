@@ -2,7 +2,7 @@
 // All coordinates are in "world" units: pixels of the scene's map image.
 
 import type { Stamp } from "./terrain";
-import type { ZoneLook } from "./zones";
+import type { SpellLook } from "./zones";
 
 export type Role = "gm" | "player";
 
@@ -293,11 +293,17 @@ export interface DrawingItem extends ItemBase {
   hidden?: boolean;
   /**
    * A spell effect that stays on the map (the Spells tool): an ellipse or a rect drawn with this
-   * look instead of an outline. Older pages show the plain shape.
+   * look instead of an outline, or with a token's look (an ellipse, with `on`). Pages from before
+   * a look aren't sent it (lookVersion).
    */
-  fx?: ZoneLook;
+  fx?: SpellLook;
   /** The spell it's from, as its name ("Fog Cloud"), shown on marked zones. fx only. */
   spell?: string;
+  /**
+   * A token's look only: the token the spell is on. The look is drawn on that token wherever it
+   * goes (the drawing's own points stay where it was cast), and goes with it when it's deleted.
+   */
+  on?: string;
 }
 
 /** rect: two corners. poly: a closed outline. stroke: a brush stroke along the points. */

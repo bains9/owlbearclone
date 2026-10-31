@@ -10,7 +10,7 @@ import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
 import { applyOps, inverseOps, isEmptyOps, isPatchOnly, mergePatches } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
-import { canMove } from "../../shared/permissions";
+import { canDelete, canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, PROTOCOL_VERSION } from "../../shared/protocol";
 import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
@@ -1081,6 +1081,7 @@ export class RoomClient {
    */
   change(ops: ItemOps, undoable = true, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
+    ops = this.withSpellsOn(ops);
     if (undoable) {
       const sceneId = this.sceneOf(ops);
       const now = Date.now();
@@ -1110,6 +1111,23 @@ export class RoomClient {
     }
     this.applyLocal(ops);
     this.refreshUndoFlags();
+  }
+
+  /**
+   * Deleting tokens deletes the spells on them too (those this page may delete): a spell is
+   * nothing without its token.
+   */
+  private withSpellsOn(ops: ItemOps): ItemOps {
+    const del = ops.delete;
+    const me = this.state.me;
+    if (!del?.length || !me) return ops;
+    const gone = new Set(del.filter((id) => this.state.items[id]?.kind === "token"));
+    if (!gone.size) return ops;
+    const taken = new Set(del);
+    const spells = Object.values(this.state.items)
+      .filter((i) => i.kind === "drawing" && !!i.on && gone.has(i.on) && !taken.has(i.id) && canDelete(i, me))
+      .map((i) => i.id);
+    return spells.length ? { ...ops, delete: [...del, ...spells] } : ops;
   }
 
   /**

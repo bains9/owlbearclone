@@ -4,7 +4,7 @@
 
 import type { Ephemeral } from "./protocol";
 import { LIMITS } from "./sanitize";
-import type { ZoneLook } from "./zones";
+import type { TokenLook, ZoneLook } from "./zones";
 
 /** How a look is cast: where it's aimed from and to. */
 export type FxCast =
@@ -95,6 +95,8 @@ export interface ZoneSpell {
   shape: "circle" | "square";
   /** Metres: a circle's radius, or a square's side, as the spell list has it at its lowest level. */
   size: number;
+  /** Metres: a rectangle this narrow instead of a square (a bridge), `size` long, across the map. */
+  width?: number;
 }
 
 /**
@@ -129,8 +131,77 @@ export const ZONE_SPELLS: ZoneSpell[] = [
   { name: "Hallucinatory Forest", look: "marked", shape: "square", size: 8 },
 ];
 
+/**
+ * Spells that put something new on the map, as zones: a glowing weapon its caster drags round,
+ * a bridge or stairs of light, a path opening through plants (a click lays one across the map,
+ * a drag corner to corner sets which way it goes).
+ */
+export const CONJURED_SPELLS: ZoneSpell[] = [
+  { name: "Spiritual Weapon", look: "spirit-weapon", shape: "circle", size: 0.75 },
+  { name: "Moonbridge", look: "bridge", shape: "square", size: 9, width: 1.5 },
+  { name: "Shimmering Stairs", look: "bridge", shape: "square", size: 6, width: 1.5 },
+  { name: "Plant Door", look: "path", shape: "square", size: 9, width: 1.5 },
+];
+
 export function zoneSpell(name: string): ZoneSpell | undefined {
-  return ZONE_SPELLS.find((s) => s.name === name);
+  return ZONE_SPELLS.find((s) => s.name === name) ?? CONJURED_SPELLS.find((s) => s.name === name);
+}
+
+/** A spell put on a token: its look follows the token until the spell is ended. */
+export interface TokenSpell {
+  name: string;
+  look: TokenLook;
+  /** The look's colour: a shell's (blue for force, gold for holy), an outline's, a weapon's flames. */
+  color: string;
+}
+
+/**
+ * The party's spells that change how a token looks, and the others that look the same (the
+ * approval doc's section 4). Faerie Fire also shows an unseen token; a weapon is fire or ice by
+ * its colour.
+ */
+export const TOKEN_SPELLS: TokenSpell[] = [
+  { name: "Faerie Fire", look: "outline", color: "#c77dff" },
+  { name: "Aura fire", look: "outline", color: "#ff7a2a" },
+  { name: "Brightmantle", look: "outline", color: "#ffd86a" },
+  { name: "Invisibility", look: "unseen", color: "#ffffff" },
+  { name: "Chameleon", look: "unseen", color: "#ffffff" },
+  { name: "Camouflage", look: "unseen", color: "#ffffff" },
+  { name: "Meld into Stone", look: "unseen", color: "#ffffff" },
+  { name: "Fireform", look: "unseen", color: "#ffffff" },
+  { name: "Mage Armor", look: "shell", color: "#5aa8ff" },
+  { name: "Shield", look: "shell", color: "#5aa8ff" },
+  { name: "Improved Shield", look: "shell", color: "#5aa8ff" },
+  { name: "Sanctuary", look: "shell", color: "#ffd65a" },
+  { name: "Shield of Faith", look: "shell", color: "#ffd65a" },
+  { name: "Divine Armour", look: "shell", color: "#ffd65a" },
+  { name: "Barkskin", look: "shell", color: "#9a6a3a" },
+  { name: "Shellskin", look: "shell", color: "#9a6a3a" },
+  { name: "Plant Armour", look: "shell", color: "#5cbf4a" },
+  { name: "Flame Blade", look: "weapon", color: "#ff7a2a" },
+  { name: "Bladefire", look: "weapon", color: "#ff7a2a" },
+  { name: "Blazing Sword", look: "weapon", color: "#ff7a2a" },
+  { name: "Ice Blade", look: "weapon", color: "#8fd8ff" },
+  { name: "Ice Claws", look: "weapon", color: "#8fd8ff" },
+  { name: "Heat Metal", look: "red-hot", color: "#ff4a1a" },
+  { name: "Hold Person", look: "held", color: "#8fa8c8" },
+  { name: "Hold animal", look: "held", color: "#8fa8c8" },
+  { name: "Hold Undead", look: "held", color: "#8fa8c8" },
+  { name: "Slow", look: "slowed", color: "#8fa8c8" },
+  { name: "Fly", look: "flying", color: "#ffffff" },
+  { name: "Levitate", look: "flying", color: "#ffffff" },
+  { name: "Feather Fall", look: "flying", color: "#ffffff" },
+  { name: "Treeform", look: "treeform", color: "#3e7a2e" },
+  { name: "Summon Insects", look: "swarm", color: "#2a2a1a" },
+  { name: "Spectral animal", look: "spectral", color: "#9fe8ff" },
+  { name: "Fire Phantom", look: "spectral", color: "#ff9a4a" },
+  { name: "Raging Griffon", look: "spectral", color: "#9fe8ff" },
+  { name: "Guardian", look: "spectral", color: "#9fe8ff" },
+  { name: "Phantom Steed", look: "spectral", color: "#9fe8ff" },
+];
+
+export function tokenSpell(name: string): TokenSpell | undefined {
+  return TOKEN_SPELLS.find((s) => s.name === name);
 }
 
 /** A colour the Room passes on: #rrggbb. */

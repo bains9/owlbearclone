@@ -443,8 +443,8 @@ describe("the room's undo for bursts, and X", () => {
 });
 
 describe("the protocol version", () => {
-  it("is 6, and the browser sends it", async () => {
-    expect(PROTOCOL_VERSION).toBe(6);
+  it("is 7, and the browser sends it", async () => {
+    expect(PROTOCOL_VERSION).toBe(7);
     // Node's fs, which the tests' types leave out (they check browser and Worker code).
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const src = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");
@@ -457,8 +457,8 @@ describe("erasing what's built", () => {
   const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
 
   it("is in What's new under placing things anywhere, with the bar's word for it", () => {
-    expect(news.parts[4].title).toBe("Erasing what you built (31 October 2026)");
-    expect(news.parts[4].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
+    expect(news.parts[5].title).toBe("Erasing what you built (31 October 2026)");
+    expect(news.parts[5].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
   });
 
   it("is in the guide where the eraser and objects are explained", () => {

@@ -215,7 +215,7 @@ describe("New scene › From Dungeon", () => {
   it("is in What's new and the guide's new-scene steps", () => {
     const news = GUIDE[0];
     const text = JSON.stringify(GUIDE);
-    expect(news.parts[8].title).toBe("Maps straight from Dungeon, and updated from it (28 October 2026)");
+    expect(news.parts[9].title).toBe("Maps straight from Dungeon, and updated from it (28 October 2026)");
     expect(text).not.toContain("ready for vision");
     expect(text).toContain("Choose **Upload a map**, **Uploaded maps** or **From Dungeon**.");
     const part = GUIDE.find((s) => s.id === "adding-maps")!.parts.find((p) => p.title === "Maps from Dungeon")!;

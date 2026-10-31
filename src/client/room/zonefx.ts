@@ -1,6 +1,7 @@
 // Spell effects that stay on the map (DrawingItem.fx), as the board draws them each frame: fog
 // and clouds drifting, darkness, light, moonbeam, plants, spikes, a pit, water, a swirling
-// pattern, and a marked zone with its spell's name. In map pixels, sized by the grid square
+// pattern, a marked zone with its spell's name; and conjured things: a glowing weapon, a bridge
+// of light, a path through plants. In map pixels, sized by the grid square
 // (`cell`); their details drawn from a seed (the drawing's id), so every screen shows the same.
 
 import { ZONE_LOOKS, type ZoneLook } from "../../shared/zones";
@@ -125,7 +126,8 @@ function puff(): HTMLCanvasElement | null {
   return cv;
 }
 
-function rgba(hex: string, a: number): string {
+/** A #rrggbb colour at an opacity, for canvas. */
+export function rgba(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, a)).toFixed(3)})`;
 }
@@ -316,6 +318,107 @@ export function drawZone(c: CanvasRenderingContext2D, z: Zone, now: number, cell
         c.stroke();
       });
       c.restore();
+      break;
+    }
+    case "spirit-weapon": {
+      // A glowing mace that hovers, bobs and swings a little.
+      const r = Math.max(z.rx, z.ry);
+      const turn = (z.seed % 628) / 100;
+      c.translate(z.x, z.y + Math.sin(now / 600 + turn) * r * 0.12);
+      c.globalCompositeOperation = "lighter";
+      const glow = c.createRadialGradient(0, 0, 0, 0, 0, r * 1.3);
+      glow.addColorStop(0, "rgba(255, 236, 170, 0.45)");
+      glow.addColorStop(1, "rgba(255, 220, 120, 0)");
+      c.fillStyle = glow;
+      c.beginPath();
+      c.arc(0, 0, r * 1.3, 0, Math.PI * 2);
+      c.fill();
+      c.rotate(-0.7 + Math.sin(now / 900 + turn) * 0.35);
+      c.lineCap = "round";
+      c.strokeStyle = "rgba(255, 246, 214, 0.9)";
+      c.lineWidth = r * 0.12;
+      c.beginPath();
+      c.moveTo(0, r * 0.85);
+      c.lineTo(0, -r * 0.3);
+      c.stroke();
+      const hy = -r * 0.5;
+      const h = r * 0.26;
+      c.fillStyle = "rgba(255, 240, 190, 0.85)";
+      c.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = (k * Math.PI) / 3;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        c.moveTo(ca * h * 1.5, hy + sa * h * 1.5);
+        c.lineTo(-sa * h * 0.4, hy + ca * h * 0.4);
+        c.lineTo(sa * h * 0.4, hy - ca * h * 0.4);
+        c.closePath();
+      }
+      c.arc(0, hy, h, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = "rgba(255, 210, 110, 0.9)";
+      c.lineWidth = Math.max(px, r * 0.04);
+      c.stroke();
+      break;
+    }
+    case "bridge": {
+      // A pale glowing deck along the rectangle's long side, with planks across and rails.
+      const across = z.rx >= z.ry;
+      c.fillStyle = "rgba(190, 205, 245, 0.32)";
+      zonePath(c, z);
+      c.fill();
+      c.lineCap = "round";
+      const len = across ? z.rx : z.ry;
+      const half = across ? z.ry : z.rx;
+      const line = (a: number, b: number, d: number, e: number) => {
+        // From (a along, b across) to (d, e), turned to the bridge's way.
+        c.beginPath();
+        if (across) {
+          c.moveTo(z.x + a, z.y + b);
+          c.lineTo(z.x + d, z.y + e);
+        } else {
+          c.moveTo(z.x + b, z.y + a);
+          c.lineTo(z.x + e, z.y + d);
+        }
+        c.stroke();
+      };
+      c.strokeStyle = "rgba(235, 242, 255, 0.5)";
+      c.lineWidth = Math.max(px, cell * 0.025);
+      for (let s = -len + cell * 0.2; s < len; s += cell * 0.35) line(s, -half * 0.85, s, half * 0.85);
+      for (const side of [-1, 1]) {
+        c.strokeStyle = "rgba(170, 190, 255, 0.25)";
+        c.lineWidth = cell * 0.2;
+        line(-len, side * half, len, side * half);
+        c.strokeStyle = "rgba(240, 246, 255, 0.9)";
+        c.lineWidth = Math.max(px, cell * 0.06);
+        line(-len, side * half, len, side * half);
+      }
+      break;
+    }
+    case "path": {
+      // Bare earth, and plants pushed back along both long sides.
+      const across = z.rx >= z.ry;
+      c.fillStyle = "rgba(120, 92, 58, 0.6)";
+      zonePath(c, z);
+      c.fill();
+      const len = across ? z.rx : z.ry;
+      const half = across ? z.ry : z.rx;
+      const rand = seeded(z.seed);
+      for (const side of [-1, 1]) {
+        for (let s = -len; s <= len; s += cell * 0.22) {
+          const a = s + (rand() - 0.5) * cell * 0.15;
+          const b = side * (half + (rand() - 0.2) * cell * 0.18);
+          const [lx, ly] = across ? [z.x + a, z.y + b] : [z.x + b, z.y + a];
+          const lean = across ? (side > 0 ? Math.PI / 2 : -Math.PI / 2) : side > 0 ? 0 : Math.PI;
+          for (let k = 0; k < 3; k++) {
+            const t = lean + (rand() - 0.5) * 1.6;
+            const l = cell * (0.12 + 0.12 * rand());
+            c.fillStyle = rand() < 0.5 ? "#3e7a2e" : "#5c9a3a";
+            c.beginPath();
+            c.ellipse(lx + Math.cos(t) * l * 0.6, ly + Math.sin(t) * l * 0.6, l * 0.6, l * 0.25, t, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+      }
       break;
     }
     case "marked": {
