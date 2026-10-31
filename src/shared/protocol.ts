@@ -23,9 +23,10 @@ import type {
  * any 5 degrees and sized in quarter squares. 4: compass roses (tokens with art "compass").
  * 5: Dungeon's objects and textures in built maps (stamps "d:<id>"; a chunk's tex and pal).
  * 6: objects off the grid (a stamp's column and row in sixteenths of a square), and up to 256
- * objects in a chunk. 7: spells on tokens, and conjured things (zones.ts lookVersion).
+ * objects in a chunk. 7: spells on tokens, and conjured things (zones.ts lookVersion). 8: the
+ * rest of the spell looks (lookVersion, and spellfx.ts fxVersion for effects played once).
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
 export type MeasureShape = "ruler" | TemplateShape;

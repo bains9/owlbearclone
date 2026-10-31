@@ -20,7 +20,7 @@ import type { InitOp } from "../shared/initiative";
 import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } from "../shared/permissions";
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
-import { cleanFx } from "../shared/spellfx";
+import { cleanFx, fxVersion } from "../shared/spellfx";
 import { lookVersion } from "../shared/zones";
 import {
   DEFAULT_SETTINGS,
@@ -1297,8 +1297,10 @@ export class Room extends DurableObject<Env> {
     let forPlayers: string | null | undefined;
     for (const target of this.ctx.getWebSockets()) {
       if (target === ws) continue;
-      const c = target.deserializeAttachment() as Player | null;
+      const c = target.deserializeAttachment() as Conn | null;
       if (!c) continue;
+      // A spell effect whose look a tab's code doesn't know isn't sent to it: it couldn't draw it.
+      if (clean.k === "fx" && (c.v ?? 1) < fxVersion(clean.look)) continue;
       if (c.role === "gm") {
         forGm ??= JSON.stringify({ t: "eph", from: conn.connId, e: clean } satisfies ServerMsg);
         this.sendRaw(target, forGm);

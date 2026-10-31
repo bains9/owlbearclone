@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), the bar now has a look for every spell on the list: Fireball and the other fire bursts, Burning Hands, Snowball Storm, Hail of Stones, Stormvoice, Sunburst; Lightning Bolt, Flame Arrow, Ice Lance, Acid Arrow; Circle of Flame, Acid Rain, Web, Grease, Tiny Hut and the other force domes; and Mirror Image, Blur, Blink and Haste on a token.",
+          "Cast them as before: click for a burst, drag from the caster for a bolt, click or drag for a spell that stays, and click a token for a spell on a token."
+        ],
+        "notes": [
+          "Circle of Flame lights up the dark around it when lighting is on. Acid Arrow's splash keeps bubbling for a couple of seconds.",
+          "The looks already there got the rest of their spells too: Smoke Sphere, Dancing Lights, Lightning Ball, Healing word, Dispel Magic and more. See **Spell effects**."
+        ]
+      },
+      {
         "title": "Spells on tokens, and conjured things (31 October 2026)",
         "steps": [
           "With **Spells** (**S**), pick a spell under **On a token** in the bar: Faerie Fire, Invisibility, Mage Armor, Sanctuary, Barkskin, Heat Metal, Ice Blade, Hold Person, Slow, Fly, Treeform, Summon Insects, Spectral animal and more.",
@@ -1479,11 +1490,12 @@ export const GUIDE: GuideSection[] = [
         "title": "The spells so far",
         "steps": [],
         "notes": [
-          "**Bursts:** Cloudburst, Earthmaw, Needlestorm, Splinter Wood, Bless, Cure wounds (a sparkle), Call lightning (from the sky), Frost Hands and Colour Spray (fans from the caster).",
-          "**Bolts and rays:** Magic Missile, Chromatic Orb, Ball Lightning, Divine bolt, Paralysis Bolt.",
-          "**Comings and goings:** Portal I and Misty Step, a puff of mist where someone leaves and another where they arrive. Move the token yourself.",
-          "**Zones that stay:** Fog Cloud, Wall of Fog, Stinking Cloud, Acid Cloud, Darkness, Blackness, Light, Lasting flame, Continual Light, Daylight, Moonbeam, Entangle, Plant Growth, Briartangle, Spike Growth, Pit, Wall of Water, Create Spring, Hypnotic Pattern, and marked areas for Silence, Battle Song, Zone of Truth, Prayer and Hallucinatory Forest (a dashed outline with the spell's name).",
-          "**On a token:** Faerie Fire, Aura fire and Brightmantle (a glowing outline); Invisibility, Chameleon, Camouflage, Meld into Stone and Fireform (unseen); Mage Armor, Shield, Improved Shield, Sanctuary, Shield of Faith, Divine Armour, Barkskin, Shellskin and Plant Armour (a shell: blue for force, gold for holy, brown for bark, green for leaves); Flame Blade, Bladefire, Blazing Sword, Ice Blade and Ice Claws (a burning or icy blade); Heat Metal (red-hot); Hold Person, Hold animal, Hold Undead and Slow (bound); Fly, Levitate and Feather Fall (flying); Treeform (a tree); Summon Insects (a swarm); Spectral animal, Fire Phantom, Raging Griffon, Guardian and Phantom Steed (spectral).",
+          "**Bursts:** fire: Fireball, Elemental Burst, Fire burst, Fiery Cube, Fire Rain; freezing mist: Frost bolt, Snowball Storm; falling stones: Hail of Stones, Scatterspray; a thunderclap: Stormvoice, Breath of Bewilderment, Battering Ram; a holy flash: Sunburst, Return to earth; rain: Cloudburst; the ground biting: Earthmaw; flying needles or splinters: Needlestorm, Splinter Wood; a sparkle: Bless, Cure wounds, Healing word; from the sky: Call lightning.",
+          "**Fans from the caster:** Burning Hands (fire), Frost Hands (frost), Colour Spray.",
+          "**Bolts and rays:** darts: Magic Missile, Magic Fist, Bladeleap; an orb: Chromatic Orb, Ball Lightning, Lightning Ball, Fog bolt; lightning: Lightning Bolt, Lightning Strike, Lightning Lance, Static Shock; fire: Flame Arrow, Fire Arrows, Fire Lance, Minute Meteors, Scorcher; a shard of ice: Ice bolt, Ice Lance, Ice knife; acid: Acid Arrow (its splash bubbles on the target for a couple of seconds); holy: Divine bolt, Retribution, Fist of retribution; rays: Paralysis Bolt, Ray of Fatigue, Ray of clumsiness, Ray of weakness.",
+          "**Comings and goings:** Portal I, Misty Step, Teleport Object and Dispel Magic: a puff of mist where it starts and another where it ends. Move the token yourself.",
+          "**Zones that stay:** fog and smoke: Fog Cloud, Wall of Fog, Magic Mist, Smoke Sphere, Create Smoke, Inkwater, Pyrotechnics; poison cloud: Stinking Cloud, Acid Cloud; darkness: Darkness, Blackness, Chilling Darkness, Light (reversed), Lasting Light (reversed); light: Light, Light (cantrip), Lasting flame, Lasting Light, Continual Light, Daylight, Dancing Lights, Glowing Globe, Enchanted Torch, Forge fire, Flare, Banner; moonlight: Moonbeam, Wall of Moonlight, Beam of Light; a ring of fire, which lights the dark too: Circle of Flame, Affect Fires; plants: Entangle, Plant Growth, Briartangle, Hold Plant, Earthen Grasp; spikes: Spike Growth, Foothold; a pit: Pit, Entomb, Soften earth and stone; acid: Acid Rain, Corrosive Solvent; a web over whoever's in it: Web, Mystic Rope; slippery ground: Grease, Lubricity; water: Wall of Water, Create Spring, Spring, Lower Water, Still Water; a force dome or wall: Force Umbrella, Tiny Hut, Minor Ward, Magic Circle, Protection from Spirits, Ward against Undead, Spell Vortex, Forceward, Line of defence; swirling colours: Hypnotic Pattern, Minor Illusion; a dashed outline with the spell's name: Silence, Battle Song, Zone of Truth, Prayer, Hallucinatory Forest, Sound Bubble.",
+          "**On a token:** Faerie Fire, Aura fire and Brightmantle (a glowing outline); Invisibility, Chameleon, Camouflage, Meld into Stone and Fireform (unseen); Mage Armor, Shield, Improved Shield, Sanctuary, Shield of Faith, Divine Armour, Barkskin, Shellskin and Plant Armour (a shell: blue for force, gold for holy, brown for bark, green for leaves); Flame Blade, Bladefire, Blazing Sword, Ice Blade and Ice Claws (a burning or icy blade); Heat Metal (red-hot); Hold Person, Hold animal, Hold Undead and Slow (bound); Fly, Levitate and Feather Fall (flying); Treeform (a tree); Summon Insects (a swarm); Spectral animal, Fire Phantom, Raging Griffon, Guardian and Phantom Steed (spectral); Mirror Image (copies round it); Blur, Displace Self and Duplicate self (a blurred copy); Blink and Shadow Blink (it flickers out and back); Haste (after-images and speed lines as it moves).",
           "**Things that appear:** Spiritual Weapon, Moonbridge, Shimmering Stairs and Plant Door."
         ]
       },
@@ -1498,6 +1510,7 @@ export const GUIDE: GuideSection[] = [
           "**Unseen** (Invisibility and the like): the GM and the token's owner see it faint; nobody else sees it or can pick it. Faerie Fire on it too shows it, faint, to everyone.",
           "**Flying:** the token's picture floats and bobs above its shadow; its rings and name stay on the ground.",
           "**Treeform:** the token is drawn as a tree. **Spectral:** see-through, glowing, with an after-image as it moves.",
+          "**Mirror Image** and **Blur:** faint copies of the token round it. **Blink:** the token flickers out and back. **Haste:** golden arcs round it, and after-images and speed lines as it moves.",
           "For a spectral creature, put a creature's token on the map first, then the spell on it.",
           "Players can put spells on any token they can see, when the GM lets them draw."
         ]

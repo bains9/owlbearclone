@@ -587,8 +587,20 @@ async function main() {
     spellEcho && !spellEcho.refused && spellGot?.upsert.find((i) => i.id === onFighter.id)?.on === visible.id && !alice.msgs.some((m) => JSON.stringify(m).includes(onFighter.id)),
     "a spell on a token reaches a tab on new code, and not one from before it",
   );
-  gm7.ws.close();
-  vera.ws.close();
+  // The last looks (protocol 8): an effect a tab's code can't play isn't sent to it.
+  const nina = connect(room.id, { uid: "nina" + rid(), name: "Nina", v: 8, b: gmHello.build });
+  const omar = connect(room.id, { uid: "omar" + rid(), name: "Omar", v: 8, b: gmHello.build });
+  await nina.waitFor((m) => m.t === "hello");
+  await omar.waitFor((m) => m.t === "hello");
+  vera.clear();
+  nina.send({ t: "eph", e: { k: "fx", sceneId, look: "fire-burst", a: [100, 100], b: [100, 100], r: 70, seed: 5 } });
+  const burst = await omar.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  await sleep(300);
+  check(
+    burst?.e.look === "fire-burst" && !vera.msgs.some((m) => m.t === "eph" && m.e.k === "fx"),
+    "a Fireball reaches a tab on new code, and not one from before its look",
+  );
+  for (const t of [gm7, vera, nina, omar]) t.ws.close();
 
   alice.clear();
   bob.clear();

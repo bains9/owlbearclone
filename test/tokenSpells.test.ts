@@ -1,15 +1,16 @@
-// Spells on tokens and conjured things (the Spells tool, 31 October 2026): the spell lists, how
-// the Room keeps a spell on a token, that tabs too old to draw one aren't sent it, how each look
-// is drawn, that deleting a token takes its spells, and the guide.
+// Spells on tokens and conjured things (the Spells tool, 31 October 2026), and the doc's last
+// looks: the spell lists, how the Room keeps a spell on a token, that tabs too old to draw a
+// look aren't sent it, how each look is drawn, that deleting a token takes its spells, and the
+// guide.
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
 import { RoomClient } from "../src/client/room/client";
-import { AFTER_IMAGE_MS, drawTokenLook, flyLift, tokenLookLayer } from "../src/client/room/tokenfx";
+import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer } from "../src/client/room/tokenfx";
 import { drawZone, seedOf, zoneOf } from "../src/client/room/zonefx";
 import { prop } from "../src/client/dungeonLib/props";
 import { spellChipLabel } from "../src/client/ui/spellChips";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER, sanitizeItem } from "../src/shared/sanitize";
-import { CONJURED_SPELLS, FX_COLOR, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, tokenSpell, zoneSpell } from "../src/shared/spellfx";
+import { CONJURED_SPELLS, FX_COLOR, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, fxVersion, tokenSpell, zoneSpell } from "../src/shared/spellfx";
 import type { DrawingItem, Item, Player, Scene, TokenItem } from "../src/shared/types";
 import { TOKEN_LOOKS, isTokenLook, isZoneLook, lookVersion, spellLookMoves, type TokenLook } from "../src/shared/zones";
 
@@ -133,6 +134,7 @@ interface RoomInside {
   itemBytes: Map<string, number>;
   countBytes(owner: string, bytes: number): void;
   handleItems(ws: Sock, conn: Conn, msg: { t: "items"; upsert?: unknown[] }, seq: number | undefined): void;
+  handleEph(ws: Sock, conn: Conn, e: unknown): void;
   hello(conn: Conn): { items: Item[] };
 }
 let RoomClass: { prototype: object };
@@ -191,6 +193,42 @@ function serverRoom(items: Item[], socks: Sock[]): RoomInside {
 }
 
 const player = (v: number, id: string): Conn => ({ connId: `${id}c`, userId: id, name: id, color: "#00ff00", role: "player", sid: `${id}sid`, v });
+
+describe("the last looks (protocol 8)", () => {
+  it("need code from after spells on tokens", () => {
+    for (const look of ["fire-ring", "acid", "web", "grease", "force-dome", "mirror", "blur", "blink", "haste"] as const) expect(lookVersion(look), look).toBe(8);
+    expect(lookVersion("spectral")).toBe(7);
+    for (const look of ["fire-burst", "flame-fan", "cold-burst", "falling-stones", "thunderclap", "holy-flash", "lightning", "fire-bolt", "ice-shard", "acid-arrow"] as const) {
+      expect(fxVersion(look), look).toBe(8);
+    }
+    expect(fxVersion("orb")).toBe(1);
+  });
+
+  it("aren't played on a tab whose code doesn't know them; the first looks still are", () => {
+    const caster = sock(player(8, "alice"));
+    const old = sock(player(7, "olda"));
+    const now = sock(player(8, "nowa"));
+    const r = serverRoom([], [caster, old, now]);
+    const fx = (look: string) => ({ k: "fx", sceneId: "scene1", look, a: [10, 10], b: [200, 100], r: 70, seed: 3 });
+    r.handleEph(caster, caster.conn, fx("fire-burst"));
+    r.handleEph(caster, caster.conn, fx("orb"));
+    const looks = (s: Sock) => s.sent.filter((m) => m.t === "eph").map((m) => (m as unknown as { e: { look: string } }).e.look);
+    expect(looks(now)).toEqual(["fire-burst", "orb"]);
+    expect(looks(old)).toEqual(["orb"]);
+  });
+
+  it("blink a token out for a moment each time round, and back", () => {
+    const seen = Array.from({ length: 180 }, (_, i) => blinkFade(i * 10, 7));
+    expect(Math.min(...seen)).toBeLessThan(0.2);
+    expect(seen.filter((v) => v === 1).length).toBeGreaterThan(seen.length * 0.7);
+    expect(seen.every((v) => v >= 0.1 && v <= 1)).toBe(true);
+  });
+
+  it("put copies and after-images under the token, the rest over it", () => {
+    for (const look of ["mirror", "blur", "haste"] as const) expect(tokenLookLayer(look), look).toBe("ground");
+    expect(tokenLookLayer("blink")).toBe("air");
+  });
+});
 
 describe("tabs too old to draw a spell on a token", () => {
   const faerie = { ...(sanitizeItem(onGoblin(), "alice") as DrawingItem), owner: "alice" };
@@ -338,9 +376,10 @@ describe("in the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
   const section = GUIDE.find((s) => s.id === "spells")!;
 
-  it("leads What's new, above the zones", () => {
-    expect(news.parts[0].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
-    expect(news.parts[1].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
+  it("is in What's new under every spell look, above the zones", () => {
+    expect(news.parts[0].title).toBe("Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)");
+    expect(news.parts[1].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
+    expect(news.parts[2].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
   });
 
   it("names every spell, and says how to put one on, conjure one and end one", () => {

@@ -79,10 +79,10 @@ import {
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
-import { FX_LOOKS, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
+import { FX_LOOKS, isFxLook, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
 import { drawZone, inZone, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
-import { AFTER_IMAGE_MS, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
+import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { prop, propSprite } from "../dungeonLib/props";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
@@ -178,6 +178,8 @@ interface TokenNode {
   gone?: boolean;
   /** Flying: its picture, lifted above its place and bobbing (with the spell's seed). */
   lifted?: { body: Konva.Group; seed: number };
+  /** Blink: its picture, flickering out and back (with the spell's seed, and its own opacity). */
+  blink?: { body: Konva.Group; seed: number; base: number };
   /** Its picture as drawn, for a spectral token's after-image. */
   picture?: OnToken["picture"];
 }
@@ -661,7 +663,7 @@ export class Board implements BoardApi {
       this.groundFxLayer.batchDraw();
       this.airFxLayer.batchDraw();
     });
-    this.zoneAnim = new Konva.Animation(() => this.bobFlyers(), [this.groundFxLayer, this.airFxLayer]);
+    this.zoneAnim = new Konva.Animation(() => this.animateTokens(), [this.groundFxLayer, this.airFxLayer]);
     // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
     this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
 
@@ -1168,7 +1170,7 @@ export class Board implements BoardApi {
       else this.spellsOn.set(d.on, [d]);
     }
     for (const id of this.ghostTrails.keys()) {
-      if (!this.spellsOn.get(id)?.some((d) => d.fx === "spectral")) this.ghostTrails.delete(id);
+      if (!this.spellsOn.get(id)?.some((d) => d.fx === "spectral" || d.fx === "haste")) this.ghostTrails.delete(id);
     }
 
     const seenTokens = new Set<string>();
@@ -1238,9 +1240,9 @@ export class Board implements BoardApi {
       if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
     const moving = drawings.some((d) => d.fx && spellLookMoves(d.fx));
-    // Flying tokens bob: the tokens are drawn again every frame while one is in the air.
-    const flying = [...this.spellsOn.values()].some((list) => list.some((d) => d.fx === "flying"));
-    this.zoneAnim.setLayers(flying ? [this.groundFxLayer, this.airFxLayer, this.tokenLayer] : [this.groundFxLayer, this.airFxLayer]);
+    // Flying tokens bob and blinking ones flicker: the tokens are drawn again every frame then.
+    const astir = [...this.spellsOn.values()].some((list) => list.some((d) => d.fx === "flying" || d.fx === "blink"));
+    this.zoneAnim.setLayers(astir ? [this.groundFxLayer, this.airFxLayer, this.tokenLayer] : [this.groundFxLayer, this.airFxLayer]);
     if (moving && !this.zoneAnim.isRunning()) this.zoneAnim.start();
     else if (!moving && this.zoneAnim.isRunning()) this.zoneAnim.stop();
     this.groundFxLayer.batchDraw();
@@ -1279,6 +1281,7 @@ export class Board implements BoardApi {
     n.gone = unseen === "gone";
     n.looks = this.looksOn(t.id);
     n.lifted = undefined;
+    n.blink = undefined;
     n.picture = null;
     g.opacity((t.hidden ? 0.5 : 1) * (unseen === "faint" ? 0.4 : 1));
     // In "Player view" the GM sees what players do: hidden tokens aren't there.
@@ -1381,6 +1384,8 @@ export class Board implements BoardApi {
       n.lifted = { body, seed: seedOf(flyer.id) };
       body.y(-flyLift(r, performance.now(), n.lifted.seed));
     }
+    const blinker = spells.find((d) => d.fx === "blink");
+    if (blinker) n.blink = { body, seed: seedOf(blinker.id), base: body.opacity() };
 
     const gap = Math.max(2, cell * 0.05);
     const ringWidth = Math.max(2, cell * 0.04);
@@ -2748,9 +2753,11 @@ export class Board implements BoardApi {
         const look = d.fx as TokenLook;
         if (tokenLookLayer(look) !== layer) continue;
         const on: OnToken = { look, x: p.x, y: p.y - up, r, color: d.color, seed: seedOf(d.id) };
-        if (look === "spectral") {
-          on.trail = this.ghostTrail(id, p, now);
+        // After-images (spectral, haste) need where it's been; copies (mirror, blur) its picture.
+        if (look === "spectral" || look === "haste") on.trail = this.ghostTrail(id, p, now);
+        if (look === "spectral" || look === "haste" || look === "mirror" || look === "blur") {
           on.picture = n.picture;
+          on.disc = t.color;
         }
         c.save();
         if (d.hidden) c.globalAlpha = 0.5;
@@ -2773,11 +2780,12 @@ export class Board implements BoardApi {
     return trail;
   }
 
-  /** Each frame while a spell keeps moving: flying tokens' pictures bob. */
-  private bobFlyers(): void {
+  /** Each frame while a spell keeps moving: flying tokens' pictures bob, blinking ones flicker. */
+  private animateTokens(): void {
     const now = performance.now();
     for (const n of this.tokens.values()) {
       if (n.lifted && n.item) n.lifted.body.y(-flyLift((n.item.size * n.cell) / 2, now, n.lifted.seed));
+      if (n.blink) n.blink.body.opacity(n.blink.base * blinkFade(now, n.blink.seed));
     }
   }
 
@@ -2951,7 +2959,7 @@ export class Board implements BoardApi {
   /** Starts an effect playing here. */
   private playFx(e: Extract<Ephemeral, { k: "fx" }>): void {
     const grid = this.renderedScene?.grid;
-    if (!grid || this.fxPlays.length > 40) return;
+    if (!grid || !isFxLook(e.look) || this.fxPlays.length > 40) return;
     this.fxPlays.push({
       look: e.look,
       a: { x: e.a[0], y: e.a[1] },

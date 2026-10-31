@@ -163,16 +163,19 @@ export function drawFx(c: CanvasRenderingContext2D, fx: FxPlay, now: number, px:
   c.save();
   switch (fx.look) {
     case "frost-fan":
+    case "flame-fan":
     case "colour-spray": {
       const reach = fx.r * easeOut(t / 0.35);
       const alpha = envelope(t, 0.05, 0.55);
-      if (fx.look === "frost-fan") {
+      const fire = fx.look === "flame-fan";
+      if (fx.look === "frost-fan" || fire) {
         const g = c.createRadialGradient(a.x, a.y, 0, a.x, a.y, Math.max(1, reach));
-        g.addColorStop(0, rgba("#ffffff", 0.95 * alpha));
-        g.addColorStop(0.45, rgba("#cdeeff", 0.75 * alpha));
-        g.addColorStop(1, rgba("#5aa8e0", 0));
+        g.addColorStop(0, rgba(fire ? "#fff6c0" : "#ffffff", 0.95 * alpha));
+        g.addColorStop(0.45, rgba(fire ? "#ffa030" : "#cdeeff", 0.75 * alpha));
+        g.addColorStop(1, rgba(fire ? "#d0300a" : "#5aa8e0", 0));
         c.fillStyle = g;
-        wedge(c, a, dir, fx.spread, reach);
+        // Flames lick from side to side; frost holds still.
+        wedge(c, a, dir + (fire ? Math.sin(now / 70) * 0.06 : 0), fx.spread, reach);
         c.fill();
       } else {
         const cols = ["#ff4d4d", "#ffb23a", "#fff35a", "#5ee26a", "#4fb4ff", "#9b6bff"];
@@ -184,15 +187,19 @@ export function drawFx(c: CanvasRenderingContext2D, fx: FxPlay, now: number, px:
           c.fill();
         });
       }
-      // Sparks flying out across the fan.
+      // Sparks (embers, for fire) flying out across the fan.
       const ps = particles(fx, 70, 4);
-      c.fillStyle = rgba("#ffffff", alpha);
+      c.fillStyle = rgba(fire ? "#ffd06a" : "#ffffff", alpha);
       for (const [r0, r1, r2, r3] of ps) {
         const ang = dir + (((r0 - 0.5) * fx.spread) / 180) * Math.PI;
         const d = fx.r * (0.2 + 0.9 * r1) * easeOut(t / (0.3 + 0.4 * r2));
         if (d > reach) continue;
         const tw = 0.6 + 0.4 * Math.sin(now / 60 + r3 * 20);
-        star(c, a.x + d * Math.cos(ang), a.y + d * Math.sin(ang), cell * 0.06 * tw);
+        if (fire) {
+          c.beginPath();
+          c.arc(a.x + d * Math.cos(ang), a.y + d * Math.sin(ang), cell * 0.05 * tw, 0, Math.PI * 2);
+          c.fill();
+        } else star(c, a.x + d * Math.cos(ang), a.y + d * Math.sin(ang), cell * 0.06 * tw);
       }
       break;
     }
@@ -444,6 +451,284 @@ export function drawFx(c: CanvasRenderingContext2D, fx: FxPlay, now: number, px:
         c.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - dist * 0.35, b.x, b.y);
         c.stroke();
         c.setLineDash([]);
+      }
+      break;
+    }
+    case "fire-burst":
+    case "cold-burst": {
+      // A ball of fire (or freezing mist) blooms and rolls out to the edge, embers (or ice
+      // crystals) flying, and fades; fire leaves a little smoke.
+      const fire = fx.look === "fire-burst";
+      const size = Math.max(fx.r, cell * 0.5);
+      const R = size * easeOut(t / 0.35);
+      const alpha = envelope(t, 0.02, 0.45);
+      if (R > 0) {
+        const g = c.createRadialGradient(a.x, a.y, 0, a.x, a.y, R);
+        g.addColorStop(0, rgba(fire ? "#fff3c0" : "#ffffff", 0.95 * alpha));
+        g.addColorStop(0.4, rgba(fire ? "#ffb23a" : "#d8f2ff", 0.85 * alpha));
+        g.addColorStop(0.8, rgba(fire ? "#e0401a" : "#7ab8e8", 0.6 * alpha));
+        g.addColorStop(1, rgba(fire ? "#5a1a0a" : "#5aa8e0", 0));
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(a.x, a.y, R, 0, Math.PI * 2);
+        c.fill();
+      }
+      const ps = particles(fx, 60, 4);
+      for (const [r0, r1, r2] of ps.slice(0, 24)) {
+        const ang = r0 * Math.PI * 2;
+        const d = R * (0.7 + 0.25 * r1);
+        glow(c, a.x + d * Math.cos(ang), a.y + d * Math.sin(ang), cell * (0.3 + 0.35 * r2) * easeOut(t / 0.35), fire ? "#ff8a2a" : "#e8f6ff", 0.55 * alpha);
+      }
+      c.fillStyle = rgba(fire ? "#ffd06a" : "#ffffff", 1 - t);
+      for (const [r0, r1, r2, r3] of ps.slice(24)) {
+        const ang = r0 * Math.PI * 2;
+        const d = size * (0.3 + 0.9 * r1) * easeOut(t / (0.5 + 0.3 * r2));
+        const x = a.x + d * Math.cos(ang), y = a.y + d * Math.sin(ang);
+        if (fire) {
+          c.beginPath();
+          c.arc(x, y, cell * 0.045, 0, Math.PI * 2);
+          c.fill();
+        } else star(c, x, y, cell * 0.05 * (0.5 + 0.5 * Math.sin(now / 70 + r3 * 20)));
+      }
+      if (fire && t > 0.35) {
+        for (const [r0, r1, r2] of ps.slice(0, 10)) {
+          const ang = r0 * Math.PI * 2;
+          glow(c, a.x + R * 0.5 * r1 * Math.cos(ang), a.y + R * 0.5 * r1 * Math.sin(ang) - t * cell * 0.5, cell * (0.4 + 0.3 * r2), "#6a6a6a", 0.3 * (1 - t));
+        }
+      }
+      break;
+    }
+    case "falling-stones": {
+      // Stones drop onto their shadows one after another, kick up dust, and lie there a moment.
+      const alpha = envelope(t, 0.02, 0.8);
+      for (const [r0, r1, r2, r3] of particles(fx, 36, 4)) {
+        const ang = r0 * Math.PI * 2;
+        const d = fx.r * Math.sqrt(r1);
+        const x = a.x + d * Math.cos(ang), y = a.y + d * Math.sin(ang);
+        const land = 0.05 + 0.5 * r2;
+        const k = cell * (0.06 + 0.07 * r3);
+        if (t < land) {
+          if (land - t > 0.18) continue;
+          const fall = 1 - (land - t) / 0.18;
+          c.fillStyle = rgba("#000000", 0.3 * fall * alpha);
+          c.beginPath();
+          c.ellipse(x, y, k * fall, k * 0.5 * fall, 0, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = rgba("#9a9184", alpha);
+          c.beginPath();
+          c.arc(x, y - cell * 1.2 * (1 - fall), k, 0, Math.PI * 2);
+          c.fill();
+          continue;
+        }
+        const since = (t - land) / 0.25;
+        if (since < 1) ring(c, { x, y }, k * (1 + 3 * since), line * 0.7, "#c8b89a", 0.6 * (1 - since) * alpha);
+        c.fillStyle = rgba("#8a8174", alpha);
+        c.strokeStyle = rgba("#4a443c", alpha);
+        c.lineWidth = Math.max(px, cell * 0.012);
+        c.beginPath();
+        c.arc(x, y, k, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+      }
+      break;
+    }
+    case "thunderclap": {
+      // Rings of force race out from the middle, throwing dust.
+      const R = Math.max(fx.r, cell * 0.5);
+      glow(c, a.x, a.y, R * 0.5, "#ffffff", 0.7 * clamp01(1 - t / 0.2));
+      for (let i = 0; i < 3; i++) {
+        const k = (t - i * 0.12) / 0.6;
+        if (k <= 0 || k >= 1) continue;
+        ring(c, a, R * easeOut(k), line * (2.2 - i * 0.5), "#e8f0ff", 0.85 * (1 - k));
+      }
+      c.fillStyle = rgba("#b8a890", 0.7 * (1 - t));
+      for (const [r0, r1, r2] of particles(fx, 50, 3)) {
+        const ang = r0 * Math.PI * 2;
+        const d = R * (0.2 + 0.85 * r1 * easeOut(t / 0.5));
+        c.beginPath();
+        c.arc(a.x + d * Math.cos(ang), a.y + d * Math.sin(ang), cell * (0.03 + 0.05 * r2), 0, Math.PI * 2);
+        c.fill();
+      }
+      break;
+    }
+    case "holy-flash": {
+      // A blinding white-gold flash over the area, rays turning out from it, fading fast.
+      const R = Math.max(fx.r, cell * 0.5);
+      c.fillStyle = rgba("#fffbe8", 0.75 * clamp01(1 - t / 0.35));
+      c.beginPath();
+      c.arc(a.x, a.y, R, 0, Math.PI * 2);
+      c.fill();
+      glow(c, a.x, a.y, R * (0.6 + 0.6 * easeOut(t / 0.2)), "#ffe9a0", 0.9 * (1 - t));
+      c.strokeStyle = rgba("#fff3c0", 0.8 * (1 - t));
+      c.lineWidth = line * 1.2;
+      c.lineCap = "round";
+      for (let i = 0; i < 16; i++) {
+        const ang = (i / 16) * Math.PI * 2 + t * 0.6;
+        const out = R * (0.6 + 0.6 * easeOut(t / 0.3)) * (i % 2 ? 0.7 : 1);
+        c.beginPath();
+        c.moveTo(a.x + R * 0.15 * Math.cos(ang), a.y + R * 0.15 * Math.sin(ang));
+        c.lineTo(a.x + out * Math.cos(ang), a.y + out * Math.sin(ang));
+        c.stroke();
+      }
+      break;
+    }
+    case "lightning": {
+      // A jagged bolt along the line from the caster, flickering twice, then gone.
+      const flashes = [
+        [0, 0.16],
+        [0.26, 0.4],
+        [0.52, 0.62],
+      ];
+      const lit = flashes.findIndex(([s, e]) => t >= s && t < e);
+      glow(c, b.x, b.y, cell * 0.9, fx.color, 0.5 * (1 - t));
+      if (lit >= 0) {
+        c.lineJoin = "round";
+        c.lineCap = "round";
+        const steps = Math.max(6, Math.min(40, Math.round(dist / (cell * 0.5))));
+        for (const [w, col] of [
+          [cell * 0.32, rgba(fx.color, 0.35)],
+          [cell * 0.11, rgba(fx.color, 0.95)],
+          [cell * 0.035, "#ffffff"],
+        ] as const) {
+          jagged(c, a, b, steps, cell * 0.35, seeded(fx.seed + lit * 7919));
+          c.strokeStyle = col;
+          c.lineWidth = Math.max(w, px);
+          c.stroke();
+        }
+        glow(c, a.x, a.y, cell * 0.5, "#ffffff", 0.6);
+        glow(c, b.x, b.y, cell * 0.8, "#ffffff", 0.8);
+      }
+      break;
+    }
+    case "fire-bolt": {
+      // A streak of fire dropping embers, bursting into a small fireball on the target.
+      const flight = 0.4;
+      const p = t / flight;
+      const pos = (u: number) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u });
+      if (p < 1) {
+        streak(c, pos, p, 0.5, cell * 0.16, fx.color, 1);
+        c.fillStyle = rgba("#ffd06a", 0.8);
+        for (const [r0, r1, r2] of particles(fx, 20, 3)) {
+          const u = p - 0.45 * r0;
+          if (u < 0) continue;
+          const q = pos(u);
+          c.beginPath();
+          c.arc(q.x + (r1 - 0.5) * cell * 0.3, q.y + (r2 - 0.5) * cell * 0.3 + r0 * cell * 0.2, cell * 0.035 * (1 - r0), 0, Math.PI * 2);
+          c.fill();
+        }
+      } else {
+        const k = clamp01((t - flight) / (1 - flight));
+        const R = cell * (0.4 + 0.6 * easeOut(k / 0.4));
+        const g = c.createRadialGradient(b.x, b.y, 0, b.x, b.y, R);
+        g.addColorStop(0, rgba("#fff3c0", 0.95 * (1 - k)));
+        g.addColorStop(0.45, rgba("#ffb23a", 0.85 * (1 - k)));
+        g.addColorStop(0.85, rgba("#e0401a", 0.5 * (1 - k)));
+        g.addColorStop(1, rgba("#5a1a0a", 0));
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(b.x, b.y, R, 0, Math.PI * 2);
+        c.fill();
+        glow(c, b.x, b.y - k * cell * 0.4, cell * 0.6, "#6a6a6a", 0.3 * (1 - k));
+      }
+      break;
+    }
+    case "ice-shard": {
+      // A spinning shard of ice leaving a trail of frost, shattering on the target.
+      const flight = 0.42;
+      const p = t / flight;
+      const pos = (u: number) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u });
+      const ps = particles(fx, 26, 3);
+      if (p < 1) {
+        for (const [r0, r1, r2] of ps) {
+          const u = p - 0.6 * r0;
+          if (u < 0) continue;
+          const q = pos(u);
+          c.fillStyle = rgba("#ffffff", 0.9 * (1 - r0));
+          star(c, q.x + (r1 - 0.5) * cell * 0.35, q.y + (r2 - 0.5) * cell * 0.35, cell * 0.04 * (1 - r0));
+        }
+        const h = pos(p);
+        glow(c, h.x, h.y, cell * 0.45, fx.color, 0.6);
+        const spin = Math.abs(Math.cos(now / 45));
+        const L = cell * 0.45, W = cell * (0.05 + 0.08 * spin);
+        const ux = Math.cos(dir), uy = Math.sin(dir);
+        c.beginPath();
+        c.moveTo(h.x + ux * L, h.y + uy * L);
+        c.lineTo(h.x - uy * W, h.y + ux * W);
+        c.lineTo(h.x - ux * L * 0.6, h.y - uy * L * 0.6);
+        c.lineTo(h.x + uy * W, h.y - ux * W);
+        c.closePath();
+        c.fillStyle = rgba("#eaf8ff", 0.95);
+        c.fill();
+        c.strokeStyle = rgba("#7ab8e8", 0.9);
+        c.lineWidth = Math.max(px, cell * 0.015);
+        c.stroke();
+      } else {
+        const k = clamp01((t - flight) / (1 - flight));
+        glow(c, b.x, b.y, cell * (0.5 + 0.7 * k), "#dff4ff", 0.85 * (1 - k));
+        ring(c, b, cell * (0.2 + 0.9 * k), line, "#ffffff", 1 - k);
+        c.strokeStyle = rgba("#ffffff", 1 - k);
+        c.lineWidth = Math.max(px, cell * 0.02);
+        c.beginPath();
+        for (const [r0, r1] of ps.slice(0, 14)) {
+          const ang = r0 * Math.PI * 2;
+          const d = cell * (0.2 + 0.8 * r1 * easeOut(k));
+          c.moveTo(b.x + d * Math.cos(ang), b.y + d * Math.sin(ang));
+          c.lineTo(b.x + (d + cell * 0.15) * Math.cos(ang), b.y + (d + cell * 0.15) * Math.sin(ang));
+        }
+        c.stroke();
+      }
+      break;
+    }
+    case "acid-arrow": {
+      // A green arrow; its acid splashes on the target and keeps bubbling for a while.
+      const flight = 0.14;
+      const p = t / flight;
+      const pos = (u: number) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u });
+      const ps = particles(fx, 16, 3);
+      if (p < 1) {
+        streak(c, pos, p, 0.35, cell * 0.06, fx.color, 0.8);
+        const h = pos(p);
+        const ux = Math.cos(dir), uy = Math.sin(dir);
+        c.strokeStyle = "#d8c8a0";
+        c.lineWidth = Math.max(px, cell * 0.03);
+        c.beginPath();
+        c.moveTo(h.x - ux * cell * 0.5, h.y - uy * cell * 0.5);
+        c.lineTo(h.x, h.y);
+        c.stroke();
+        c.fillStyle = fx.color;
+        c.beginPath();
+        c.moveTo(h.x + ux * cell * 0.14, h.y + uy * cell * 0.14);
+        c.lineTo(h.x - uy * cell * 0.07, h.y + ux * cell * 0.07);
+        c.lineTo(h.x + uy * cell * 0.07, h.y - ux * cell * 0.07);
+        c.closePath();
+        c.fill();
+      } else {
+        const k = clamp01((t - flight) / (1 - flight));
+        const alpha = k < 0.8 ? 1 : (1 - k) / 0.2;
+        if (k < 0.2) {
+          c.fillStyle = rgba(fx.color, 1 - k / 0.2);
+          for (const [r0, r1] of ps) {
+            const ang = r0 * Math.PI * 2;
+            const d = cell * (0.2 + 0.8 * r1 * easeOut(k / 0.2));
+            c.beginPath();
+            c.arc(b.x + d * Math.cos(ang), b.y + d * Math.sin(ang), cell * 0.04, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+        c.fillStyle = rgba("#4f8a1a", 0.5 * alpha);
+        c.beginPath();
+        c.arc(b.x, b.y, cell * 0.45 * easeOut(k / 0.1), 0, Math.PI * 2);
+        c.fill();
+        c.lineWidth = Math.max(px, cell * 0.015);
+        for (const [r0, r1, r2] of ps) {
+          const ph = (now / 600 + r0) % 1;
+          const ang = r1 * Math.PI * 2;
+          const d = cell * 0.35 * Math.sqrt(r2);
+          c.strokeStyle = rgba("#c8f070", alpha * (1 - ph));
+          c.beginPath();
+          c.arc(b.x + d * Math.cos(ang), b.y + d * Math.sin(ang), cell * 0.07 * ph, 0, Math.PI * 2);
+          c.stroke();
+        }
       }
       break;
     }

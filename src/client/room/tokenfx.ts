@@ -1,7 +1,8 @@
 // Spells on tokens (a drawing with a token's look and `on`), as the board draws them each frame on
 // the token they're on, wherever it is: a glowing outline, a shell, a burning or icy weapon, a
 // red-hot glow, binding rings, a buzzing swarm, a ghostly glow and after-image, the shimmer of
-// an unseen token, a flyer's shadow. In map pixels, sized by the token; their details drawn
+// an unseen token, a flyer's shadow, mirror images, a blur, a blink, haste's speed. In map
+// pixels, sized by the token; their details drawn
 // from a seed (the drawing's id), so every screen shows the same. What a look does to the token
 // itself (unseen, see-through, lifted, a tree) the board does when it builds the token.
 
@@ -19,16 +20,47 @@ export interface OnToken {
   seed: number;
   /** Spectral: where the token was lately, oldest first, with when (performance.now()). */
   trail?: readonly { x: number; y: number; t: number }[];
-  /** Spectral: the token's picture, to leave behind as it moves. */
+  /** Spectral, haste, mirror, blur: the token's picture, for its after-images and copies. */
   picture?: { img: CanvasImageSource; w: number; h: number; flip: boolean } | null;
+  /** The token's own colour: its copies are discs of it when it has no picture. */
+  disc?: string;
 }
 
 /** How long a spectral token's after-image lasts, ms. */
 export const AFTER_IMAGE_MS = 650;
 
-/** Which layer a look is drawn in: a flyer's shadow under the tokens, everything else over them. */
+/**
+ * Which layer a look is drawn in: a flyer's shadow, copies and after-images under the tokens,
+ * everything else over them.
+ */
 export function tokenLookLayer(look: TokenLook): "ground" | "air" {
-  return look === "flying" ? "ground" : "air";
+  return look === "flying" || look === "mirror" || look === "blur" || look === "haste" ? "ground" : "air";
+}
+
+/** How much of a blinking token shows now: all of it, but gone for a moment each time round. */
+export function blinkFade(now: number, seed: number): number {
+  const period = 1800;
+  const p = ((((now + (seed % 1000)) % period) + period) % period) / period;
+  if (p < 0.8) return 1;
+  return 0.1 + 0.9 * Math.abs(Math.cos(((p - 0.8) / 0.2) * Math.PI));
+}
+
+/** A copy of the token (its picture, or a disc of its colour) at a point, at an opacity. */
+function copyAt(c: CanvasRenderingContext2D, t: OnToken, x: number, y: number, alpha: number): void {
+  if (alpha <= 0) return;
+  c.save();
+  c.globalAlpha *= alpha;
+  const pic = t.picture;
+  if (pic) {
+    c.translate(x, y);
+    if (pic.flip) c.scale(-1, 1);
+    c.drawImage(pic.img, -pic.w / 2, -pic.h / 2, pic.w, pic.h);
+  } else {
+    c.fillStyle = t.disc ?? t.color;
+    circle(c, x, y, t.r * 0.92);
+    c.fill();
+  }
+  c.restore();
 }
 
 /** How far above its place a flying token's picture floats now, bobbing gently (map pixels). */
@@ -260,6 +292,69 @@ export function drawTokenLook(c: CanvasRenderingContext2D, t: OnToken, now: numb
       c.fillStyle = g;
       circle(c, x, y, r * 1.45);
       c.fill();
+      break;
+    }
+    case "mirror": {
+      // Three faint copies drifting round the token, slowly changing places.
+      for (let i = 0; i < 3; i++) {
+        const a = phase + (i / 3) * Math.PI * 2 + now / 2600;
+        const d = r * (0.6 + 0.12 * Math.sin(now / 700 + i * 2));
+        copyAt(c, t, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, 0.38);
+      }
+      break;
+    }
+    case "blur": {
+      // A blurred copy that won't hold still: a little off the token, shaking.
+      const a = phase + Math.sin(now / 900) * 1.2;
+      const d = r * (0.22 + 0.06 * Math.sin(now / 75));
+      copyAt(c, t, x + Math.cos(a) * d, y + Math.sin(a) * d, 0.3);
+      copyAt(c, t, x - Math.cos(a) * d * 0.6, y - Math.sin(a) * d * 0.6, 0.18);
+      break;
+    }
+    case "blink": {
+      // A ring where it was while it's gone for a moment (the board fades the token itself).
+      const gone = 1 - blinkFade(now, t.seed);
+      circle(c, x, y, r * (1 + 0.15 * gone));
+      c.strokeStyle = rgba(color, 0.2 + 0.7 * gone);
+      c.lineWidth = Math.max(px, r * (0.04 + 0.06 * gone));
+      c.setLineDash([r * 0.18, r * 0.12]);
+      c.lineDashOffset = now / 30;
+      c.stroke();
+      break;
+    }
+    case "haste": {
+      // Fading copies where it was a moment ago, speed lines behind it as it goes, and quick
+      // golden arcs round it.
+      const trail = t.trail ?? [];
+      for (const p of trail) {
+        const age = (now - p.t) / AFTER_IMAGE_MS;
+        if (age <= 0.05 || age >= 1) continue;
+        copyAt(c, t, p.x, p.y, 0.3 * (1 - age));
+      }
+      const from = trail[0];
+      if (from && Math.hypot(x - from.x, y - from.y) > r * 0.3) {
+        const a = Math.atan2(y - from.y, x - from.x);
+        const ux = Math.cos(a), uy = Math.sin(a);
+        c.lineCap = "round";
+        c.strokeStyle = rgba(color, 0.6);
+        c.lineWidth = Math.max(px, r * 0.05);
+        c.beginPath();
+        for (const k of [-0.6, 0, 0.6]) {
+          const sx = x - ux * r * 1.1 - uy * r * k, sy = y - uy * r * 1.1 + ux * r * k;
+          c.moveTo(sx, sy);
+          c.lineTo(sx - ux * r * (0.9 - Math.abs(k) * 0.4), sy - uy * r * (0.9 - Math.abs(k) * 0.4));
+        }
+        c.stroke();
+      }
+      c.lineCap = "round";
+      c.strokeStyle = rgba(color, 0.75);
+      c.lineWidth = Math.max(px, r * 0.06);
+      for (let k = 0; k < 2; k++) {
+        const a = now / 140 + k * Math.PI + phase;
+        c.beginPath();
+        c.arc(x, y, r * 1.1, a, a + 0.9);
+        c.stroke();
+      }
       break;
     }
     case "treeform":

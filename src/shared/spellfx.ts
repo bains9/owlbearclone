@@ -1,6 +1,6 @@
 // Spell effects: the looks the Spells tool plays on the map, and the group's spells that use them,
 // with their sizes from the character sheets' spell lists (metres). Shared, so the Room can
-// check an effect before passing it on. The first set: the party's own one-off spells.
+// check an effect before passing it on. Every look in the approval doc, and its spells.
 
 import type { Ephemeral } from "./protocol";
 import { LIMITS } from "./sanitize";
@@ -32,12 +32,34 @@ export const FX_LOOKS = {
   ray: { cast: "bolt", ms: 1100 },
   sparkle: { cast: "burst", ms: 1300 },
   teleport: { cast: "jump", ms: 1300 },
+  // The rest of the doc's looks (31 October 2026, protocol 8).
+  "fire-burst": { cast: "burst", ms: 1300 },
+  "flame-fan": { cast: "cone", ms: 1000 },
+  "cold-burst": { cast: "burst", ms: 1400 },
+  "falling-stones": { cast: "burst", ms: 1700 },
+  thunderclap: { cast: "burst", ms: 1100 },
+  "holy-flash": { cast: "burst", ms: 1000 },
+  lightning: { cast: "bolt", ms: 900 },
+  "fire-bolt": { cast: "bolt", ms: 1100 },
+  "ice-shard": { cast: "bolt", ms: 1100 },
+  "acid-arrow": { cast: "bolt", ms: 2600 },
 } as const satisfies Record<string, { cast: FxCast; ms: number }>;
 
 export type FxLook = keyof typeof FX_LOOKS;
 
 export function isFxLook(v: unknown): v is FxLook {
   return typeof v === "string" && Object.hasOwn(FX_LOOKS, v);
+}
+
+/** The first looks, which every page that plays effects knows. */
+const FIRST_FX: ReadonlySet<FxLook> = new Set<FxLook>(["frost-fan", "colour-spray", "downpour", "earth-maw", "needle-burst", "force-darts", "orb", "sky-lightning", "holy-bolt", "ray", "sparkle", "teleport"]);
+
+/**
+ * The oldest protocol version whose code can play a look. Older code can't draw one it doesn't
+ * know (it would stop drawing the map's top layer), so the Room doesn't send it one.
+ */
+export function fxVersion(look: FxLook): number {
+  return FIRST_FX.has(look) ? 1 : 8;
 }
 
 /** A spell as the Spells tool casts it. */
@@ -74,6 +96,48 @@ export const SPELL_FX: SpellFx[] = [
   { name: "Cure wounds", look: "sparkle", size: 1, color: "#8fffb0" },
   { name: "Portal I", look: "teleport", color: "#c9b8ff" },
   { name: "Misty Step", look: "teleport", color: "#dfe6ee" },
+  { name: "Teleport Object", look: "teleport", color: "#c9b8ff" },
+  { name: "Dispel Magic", look: "teleport", color: "#9fe8ff" },
+  { name: "Healing word", look: "sparkle", size: 1, color: "#8fffb0" },
+  { name: "Magic Fist", look: "force-darts", color: "#c08bff" },
+  { name: "Bladeleap", look: "force-darts", color: "#d8dee6" },
+  { name: "Lightning Ball", look: "orb", color: "#9fd0ff" },
+  { name: "Fog bolt", look: "orb", color: "#d8dee6" },
+  { name: "Retribution", look: "holy-bolt", color: "#ffd65a" },
+  { name: "Fist of retribution", look: "holy-bolt", color: "#ffd65a" },
+  { name: "Ray of Fatigue", look: "ray", color: "#a0a8b8" },
+  { name: "Ray of clumsiness", look: "ray", color: "#e0a040" },
+  { name: "Ray of weakness", look: "ray", color: "#6ac06a" },
+  // The rest of the doc's looks. Spheres are their width ("SL+1 m sphere": 2 m across at the
+  // lowest level), cubes a circle as wide.
+  { name: "Fireball", look: "fire-burst", size: 1 },
+  { name: "Elemental Burst", look: "fire-burst", size: 1.5 },
+  { name: "Fire burst", look: "fire-burst", size: 1.5 },
+  { name: "Fiery Cube", look: "fire-burst", size: 1.5 },
+  { name: "Fire Rain", look: "fire-burst", size: 5 },
+  { name: "Burning Hands", look: "flame-fan", size: 2, spread: 120 },
+  { name: "Frost bolt", look: "cold-burst", size: 1 },
+  { name: "Snowball Storm", look: "cold-burst", size: 10 },
+  { name: "Hail of Stones", look: "falling-stones", size: 3 },
+  { name: "Scatterspray", look: "falling-stones", size: 1.5 },
+  { name: "Stormvoice", look: "thunderclap", size: 5 },
+  { name: "Breath of Bewilderment", look: "thunderclap", size: 1.5 },
+  { name: "Battering Ram", look: "thunderclap", size: 0.75 },
+  { name: "Sunburst", look: "holy-flash", size: 7.5 },
+  { name: "Return to earth", look: "holy-flash", size: 7.5 },
+  { name: "Lightning Bolt", look: "lightning", color: "#bfe0ff" },
+  { name: "Lightning Strike", look: "lightning", color: "#bfe0ff" },
+  { name: "Lightning Lance", look: "lightning", color: "#bfe0ff" },
+  { name: "Static Shock", look: "lightning", color: "#d8ecff" },
+  { name: "Flame Arrow", look: "fire-bolt", color: "#ff8a3a" },
+  { name: "Fire Arrows", look: "fire-bolt", color: "#ff8a3a" },
+  { name: "Fire Lance", look: "fire-bolt", color: "#ff6a2a" },
+  { name: "Minute Meteors", look: "fire-bolt", color: "#ffb23a" },
+  { name: "Scorcher", look: "fire-bolt", color: "#ff6a2a" },
+  { name: "Ice bolt", look: "ice-shard", color: "#bfeaff" },
+  { name: "Ice Lance", look: "ice-shard", color: "#bfeaff" },
+  { name: "Ice knife", look: "ice-shard", color: "#dff6ff" },
+  { name: "Acid Arrow", look: "acid-arrow", color: "#8fe04a" },
 ];
 
 export function spellFx(name: string): SpellFx | undefined {
@@ -129,6 +193,53 @@ export const ZONE_SPELLS: ZoneSpell[] = [
   { name: "Zone of Truth", look: "marked", shape: "circle", size: 5 },
   { name: "Prayer", look: "marked", shape: "circle", size: 20 },
   { name: "Hallucinatory Forest", look: "marked", shape: "square", size: 8 },
+  { name: "Sound Bubble", look: "marked", shape: "circle", size: 1.5 },
+  // The doc's other spells for these looks. Lights on an object get a few metres; a drag sizes any.
+  { name: "Magic Mist", look: "fog", shape: "circle", size: 14 },
+  { name: "Smoke Sphere", look: "fog", shape: "circle", size: 3 },
+  { name: "Create Smoke", look: "fog", shape: "circle", size: 20 },
+  { name: "Inkwater", look: "fog", shape: "circle", size: 7.5 },
+  { name: "Pyrotechnics", look: "fog", shape: "circle", size: 6 },
+  { name: "Chilling Darkness", look: "darkness", shape: "square", size: 15 },
+  { name: "Light (reversed)", look: "darkness", shape: "circle", size: 5 },
+  { name: "Lasting Light (reversed)", look: "darkness", shape: "circle", size: 5 },
+  { name: "Light (cantrip)", look: "light", shape: "circle", size: 2.5 },
+  { name: "Lasting Light", look: "light", shape: "circle", size: 5 },
+  { name: "Dancing Lights", look: "light", shape: "circle", size: 1.5 },
+  { name: "Glowing Globe", look: "light", shape: "circle", size: 3 },
+  { name: "Enchanted Torch", look: "light", shape: "circle", size: 3 },
+  { name: "Forge fire", look: "light", shape: "circle", size: 3 },
+  { name: "Flare", look: "light", shape: "circle", size: 5 },
+  { name: "Banner", look: "light", shape: "circle", size: 3 },
+  { name: "Wall of Moonlight", look: "moonbeam", shape: "square", size: 10, width: 1 },
+  { name: "Beam of Light", look: "moonbeam", shape: "circle", size: 1 },
+  { name: "Hold Plant", look: "vines", shape: "square", size: 15 },
+  { name: "Earthen Grasp", look: "vines", shape: "circle", size: 0.75 },
+  { name: "Foothold", look: "spikes", shape: "circle", size: 3.5 },
+  { name: "Entomb", look: "pit", shape: "square", size: 10 },
+  { name: "Soften earth and stone", look: "pit", shape: "square", size: 3 },
+  { name: "Lower Water", look: "water", shape: "circle", size: 6 },
+  { name: "Still Water", look: "water", shape: "square", size: 10 },
+  { name: "Spring", look: "water", shape: "circle", size: 1.5 },
+  { name: "Minor Illusion", look: "hypnotic", shape: "square", size: 6 },
+  // The rest of the doc's zones (31 October 2026, protocol 8).
+  { name: "Circle of Flame", look: "fire-ring", shape: "circle", size: 2 },
+  { name: "Affect Fires", look: "fire-ring", shape: "circle", size: 3 },
+  { name: "Acid Rain", look: "acid", shape: "square", size: 20 },
+  { name: "Corrosive Solvent", look: "acid", shape: "circle", size: 0.75 },
+  { name: "Web", look: "web", shape: "square", size: 6 },
+  { name: "Mystic Rope", look: "web", shape: "circle", size: 1.5 },
+  { name: "Grease", look: "grease", shape: "square", size: 3 },
+  { name: "Lubricity", look: "grease", shape: "circle", size: 3 },
+  { name: "Force Umbrella", look: "force-dome", shape: "circle", size: 3.5 },
+  { name: "Tiny Hut", look: "force-dome", shape: "circle", size: 3.5 },
+  { name: "Minor Ward", look: "force-dome", shape: "circle", size: 2.5 },
+  { name: "Magic Circle", look: "force-dome", shape: "circle", size: 2 },
+  { name: "Protection from Spirits", look: "force-dome", shape: "circle", size: 3 },
+  { name: "Ward against Undead", look: "force-dome", shape: "circle", size: 5 },
+  { name: "Spell Vortex", look: "force-dome", shape: "circle", size: 1 },
+  { name: "Forceward", look: "force-dome", shape: "square", size: 6, width: 0.5 },
+  { name: "Line of defence", look: "force-dome", shape: "square", size: 30, width: 1 },
 ];
 
 /**
@@ -198,6 +309,13 @@ export const TOKEN_SPELLS: TokenSpell[] = [
   { name: "Raging Griffon", look: "spectral", color: "#9fe8ff" },
   { name: "Guardian", look: "spectral", color: "#9fe8ff" },
   { name: "Phantom Steed", look: "spectral", color: "#9fe8ff" },
+  { name: "Mirror Image", look: "mirror", color: "#ffffff" },
+  { name: "Blur", look: "blur", color: "#ffffff" },
+  { name: "Displace Self", look: "blur", color: "#ffffff" },
+  { name: "Duplicate self", look: "blur", color: "#ffffff" },
+  { name: "Blink", look: "blink", color: "#b48cff" },
+  { name: "Shadow Blink", look: "blink", color: "#5a3a8a" },
+  { name: "Haste", look: "haste", color: "#ffe066" },
 ];
 
 export function tokenSpell(name: string): TokenSpell | undefined {

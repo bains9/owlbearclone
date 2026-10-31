@@ -97,6 +97,20 @@ function count(z: Zone, cell: number, perSquare: number, max: number): number {
   return Math.max(4, Math.min(max, Math.round(squares * perSquare)));
 }
 
+/** The point `u` of the way round the zone's edge (0 to 1, from the right, or its top left corner). */
+function edgePoint(z: Zone, u: number): [number, number] {
+  if (z.shape === "circle") return [z.x + z.rx * Math.cos(u * Math.PI * 2), z.y + z.ry * Math.sin(u * Math.PI * 2)];
+  const w = 2 * z.rx, h = 2 * z.ry;
+  let d = (((u % 1) + 1) % 1) * 2 * (w + h);
+  const left = z.x - z.rx, top = z.y - z.ry;
+  if (d < w) return [left + d, top];
+  d -= w;
+  if (d < h) return [left + w, top + d];
+  d -= h;
+  if (d < w) return [left + w - d, top + h];
+  return [left, top + h - (d - w)];
+}
+
 let puffCanvas: HTMLCanvasElement | null = null;
 
 /** A soft, lumpy white puff (made once), drawn many times over for fog and clouds. */
@@ -418,6 +432,147 @@ export function drawZone(c: CanvasRenderingContext2D, z: Zone, now: number, cell
             c.fill();
           }
         }
+      }
+      break;
+    }
+    case "fire-ring": {
+      // Flames all round the edge, flickering, and a warm glow inside (it lights the dark too).
+      c.globalCompositeOperation = "lighter";
+      softFill(c, z, "#ff8a3a", 0.12, 0.3);
+      const around = z.shape === "circle" ? Math.PI * (z.rx + z.ry) : 4 * (z.rx + z.ry);
+      const n = Math.max(12, Math.min(160, Math.round(around / (cell * 0.22))));
+      const rand = seeded(z.seed);
+      for (let i = 0; i < n; i++) {
+        const [fx, fy] = edgePoint(z, i / n);
+        const tall = 0.28 + 0.16 * rand();
+        const flick = 0.7 + 0.3 * Math.sin(now / 80 + i * 1.7 + rand() * 6);
+        const h = cell * tall * flick;
+        c.fillStyle = "rgba(230, 80, 20, 0.55)";
+        c.beginPath();
+        c.ellipse(fx, fy - h * 0.35, cell * 0.12, h * 0.7, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = "rgba(255, 215, 110, 0.75)";
+        c.beginPath();
+        c.ellipse(fx, fy - h * 0.25, cell * 0.06, h * 0.4, 0, 0, Math.PI * 2);
+        c.fill();
+      }
+      break;
+    }
+    case "acid": {
+      // A green pool: bubbles swell and pop, drops fall into it.
+      softFill(c, z, "#4f8a1a", 0.45, 0.85);
+      c.save();
+      zonePath(c, z);
+      c.clip();
+      c.lineWidth = Math.max(px, cell * 0.015);
+      for (const s of spots(z, count(z, cell, 2.5, 120), 3)) {
+        const ph = (now / (900 + 700 * s.r[0]) + s.r[1]) % 1;
+        c.strokeStyle = rgba("#c8f070", 0.8 * (1 - ph));
+        c.beginPath();
+        c.arc(s.x, s.y, cell * 0.09 * ph, 0, Math.PI * 2);
+        c.stroke();
+      }
+      c.strokeStyle = "rgba(170, 230, 90, 0.7)";
+      c.lineWidth = Math.max(px, cell * 0.02);
+      c.beginPath();
+      for (const s of spots(z, count(z, cell, 1.2, 80), 2)) {
+        const y = s.y + (((now / 400 + s.r[0]) % 1) - 0.5) * cell * 0.8;
+        c.moveTo(s.x, y);
+        c.lineTo(s.x - cell * 0.03, y + cell * 0.15);
+      }
+      c.stroke();
+      c.restore();
+      break;
+    }
+    case "web": {
+      // Sticky webs stretched across the area, spokes and rings, over whoever's in it.
+      c.fillStyle = "rgba(240, 240, 235, 0.08)";
+      zonePath(c, z);
+      c.fill();
+      c.save();
+      zonePath(c, z);
+      c.clip();
+      c.strokeStyle = "rgba(235, 235, 230, 0.6)";
+      c.lineWidth = Math.max(px * 0.8, cell * 0.018);
+      for (const s of spots(z, count(z, cell, 0.18, 30), 3)) {
+        const R = cell * (1 + 0.6 * s.r[0]);
+        const turn = s.r[1] * Math.PI;
+        const spokes = 8;
+        c.beginPath();
+        for (let k = 0; k < spokes; k++) {
+          const a = turn + (k / spokes) * Math.PI * 2;
+          c.moveTo(s.x, s.y);
+          c.lineTo(s.x + Math.cos(a) * R, s.y + Math.sin(a) * R);
+        }
+        for (let ring = 1; ring <= 4; ring++) {
+          const rr = (R * ring) / 4.5;
+          for (let k = 0; k <= spokes; k++) {
+            const a = turn + (k / spokes) * Math.PI * 2;
+            if (k) c.lineTo(s.x + Math.cos(a) * rr, s.y + Math.sin(a) * rr);
+            else c.moveTo(s.x + Math.cos(a) * rr, s.y + Math.sin(a) * rr);
+          }
+        }
+        c.stroke();
+      }
+      c.restore();
+      break;
+    }
+    case "grease": {
+      // A dark, oily patch with a sheen of colours and bright glints.
+      softFill(c, z, "#2a2216", 0.6, 0.85);
+      c.save();
+      zonePath(c, z);
+      c.clip();
+      const sheen = ["#8a5aff", "#3ac0a0", "#e0b040"];
+      for (const s of spots(z, count(z, cell, 0.6, 40), 3)) {
+        c.fillStyle = rgba(sheen[Math.floor(s.r[0] * 3) % 3], 0.18);
+        c.beginPath();
+        c.ellipse(s.x, s.y, cell * (0.25 + 0.3 * s.r[1]), cell * (0.12 + 0.15 * s.r[2]), s.r[1] * 3, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.fillStyle = "rgba(255, 255, 255, 0.55)";
+      for (const s of spots(z, count(z, cell, 0.8, 50), 2)) {
+        c.beginPath();
+        c.ellipse(s.x, s.y, cell * 0.08, cell * 0.025, -0.5, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.restore();
+      break;
+    }
+    case "force-dome": {
+      // A faint shimmering dome (or a wall, as a rectangle), a sheen sweeping across it.
+      const R = Math.max(z.rx, z.ry);
+      if (z.shape === "circle") {
+        const g = c.createRadialGradient(z.x, z.y, R * 0.5, z.x, z.y, R);
+        g.addColorStop(0, "rgba(150, 190, 255, 0.04)");
+        g.addColorStop(1, "rgba(150, 190, 255, 0.28)");
+        c.fillStyle = g;
+      } else {
+        c.fillStyle = "rgba(150, 190, 255, 0.18)";
+      }
+      zonePath(c, z);
+      c.fill();
+      c.strokeStyle = "rgba(205, 225, 255, 0.85)";
+      c.lineWidth = Math.max(px, cell * 0.035);
+      c.stroke();
+      c.save();
+      zonePath(c, z);
+      c.clip();
+      const at = ((now / 2600) % 1) * 4 * R - 2 * R;
+      const sweep = c.createLinearGradient(z.x + at - R * 0.4, z.y - R * 0.4, z.x + at + R * 0.4, z.y + R * 0.4);
+      sweep.addColorStop(0, "rgba(255, 255, 255, 0)");
+      sweep.addColorStop(0.5, "rgba(230, 240, 255, 0.22)");
+      sweep.addColorStop(1, "rgba(255, 255, 255, 0)");
+      c.fillStyle = sweep;
+      c.fillRect(z.x - z.rx, z.y - z.ry, 2 * z.rx, 2 * z.ry);
+      c.restore();
+      if (z.shape === "circle") {
+        c.beginPath();
+        c.ellipse(z.x, z.y, z.rx * 0.82, z.ry * 0.82, 0, -2.6, -1.7);
+        c.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        c.lineWidth = cell * 0.06;
+        c.lineCap = "round";
+        c.stroke();
       }
       break;
     }
