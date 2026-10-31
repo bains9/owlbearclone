@@ -12,7 +12,7 @@ import type { Player } from "../src/shared/types";
 interface Party {
   readParty(env: unknown, cache: Cache | null, fetcher: typeof fetch, now?: number): Promise<CharactersReply>;
   prayedChange(body: unknown): unknown;
-  restOnSheet(source: string, key: string, sheetId: string, fetcher: typeof fetch): Promise<{ sp: number } | { error: string }>;
+  restOnSheet(source: string, key: string, sheetId: string, fetcher: typeof fetch, gain?: number): Promise<{ sp: number } | { error: string }>;
 }
 const party = (await import(/* @vite-ignore */ "../src/worker/" + "characters")) as Party;
 
