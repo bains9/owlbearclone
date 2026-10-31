@@ -19,7 +19,7 @@
 import type { DungeonStampId } from "../../shared/terrain";
 import type { SeasonLook } from "../../shared/types";
 import type { PropDef } from "../dungeonLib/propkit";
-import { prop } from "../dungeonLib/props";
+import type * as DungeonProps from "../dungeonLib/props";
 import type { StampLook } from "./buildArt";
 import {
   ERASE,
@@ -35,6 +35,47 @@ import {
   type Ink,
   type InkResult,
 } from "./dungeonSeasons";
+
+// Dungeon's objects (its drawing library, the biggest part of what the page would load) aren't
+// part of the page, as most maps never have one: they're loaded the first time one is drawn, and
+// until then one draws as nothing. What waits on them is told when they're in (whenDungeonObjects).
+let lib: typeof DungeonProps | null = null;
+let loading: Promise<void> | null = null;
+const waiting = new Set<() => void>();
+
+/** Loads Dungeon's objects (once; again after a load that failed). */
+export function loadDungeonObjects(): Promise<void> {
+  loading ??= import("../dungeonLib/props").then(
+    (m) => {
+      lib = m;
+      const list = [...waiting];
+      waiting.clear();
+      for (const then of list) then();
+    },
+    (err) => {
+      loading = null;
+      console.warn("Dungeon's objects couldn't be loaded", err);
+    },
+  );
+  return loading;
+}
+
+/** Dungeon's objects, or null until they're loaded. */
+export function dungeonObjects(): typeof DungeonProps | null {
+  return lib;
+}
+
+/** Calls `then` once Dungeon's objects are loaded (at once if they are), loading them if need be. */
+export function whenDungeonObjects(then: () => void): void {
+  if (lib) {
+    then();
+    return;
+  }
+  waiting.add(then);
+  void loadDungeonObjects();
+}
+
+const prop = (id: string): PropDef | undefined => lib?.prop(id);
 
 /** Whether a Dungeon object looks different in a season. */
 export function dungeonHasSeasonalArt(id: DungeonStampId, look: SeasonLook): boolean {
@@ -398,7 +439,10 @@ function makeSprite(def: PropDef, look: DungeonLook | null, bucket: number, now:
 /** Draws a Dungeon object into the unit square centred on the origin, as drawStamp does, in its season. */
 export function drawDungeonStamp(c: CanvasRenderingContext2D, id: DungeonStampId, look: StampLook | null, _turns: number, _fine: number): void {
   const def = prop(id.slice(2));
-  if (!def) return;
+  if (!def) {
+    if (!lib) void loadDungeonObjects();
+    return;
+  }
   const seasonal = look ? dungeonLook(id, look, !!def.light) : null;
   if (typeof c.getTransform !== "function" || typeof document === "undefined") {
     drawInUnit(c, def, seasonal?.ink ?? null);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { DUNGEON_PROPS } from "../src/shared/dungeonCatalog";
 import { terrainId, type DungeonStampId, type Stamp } from "../src/shared/terrain";
 import type { TerrainItem } from "../src/shared/types";
@@ -19,7 +19,7 @@ import {
   snowDots,
   snowInk,
 } from "../src/client/room/dungeonSeasons";
-import { drawDungeonStamp } from "../src/client/room/dungeonStamps";
+import { drawDungeonStamp, loadDungeonObjects } from "../src/client/room/dungeonStamps";
 
 // Dungeon's objects in the seasons: a role for each from its name, snow on everything outdoors
 // in winter, and the plants changing all year as Tabletop's own tree and bush do.
@@ -206,6 +206,9 @@ function fakeContext(log: string[]): CanvasRenderingContext2D {
 }
 
 describe("drawing Dungeon objects in a season", () => {
+  // They load the first time one is drawn on a page; here, before any is.
+  beforeAll(() => loadDungeonObjects());
+
   it("draws every one in every look, recoloured where its plants are", () => {
     const looks = [null, look("spring", 3, 0.1), look("summer", 3), look("autumn", 3, 0.7), look("winter", 3, 0.1, 3)];
     for (const p of DUNGEON_PROPS) {

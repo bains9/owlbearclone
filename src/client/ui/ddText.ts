@@ -11,7 +11,7 @@ import type { ObjectTable, SidecarMeta } from "../dd/sidecar";
 import { describeShift } from "../importScenes";
 import type { DungeondraftPairs } from "../mapImport";
 import type { SceneDataState } from "../room/mapData";
-import { isSnowy } from "../room/seasonExact";
+import { isSnowy } from "../room/seasonKeys";
 
 /** Pack items over this share of the area of objects and paths: say so and suggest comparing (extract.ts EXTRACT.packWarn). */
 export const PACK_WARN_SHARE = 0.15;

@@ -36,6 +36,10 @@ export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(buildId()),
   },
+  resolve: {
+    // Konva without the filters and shapes the board never uses (src/client/konvaLite.ts).
+    alias: [{ find: /^konva$/, replacement: fileURLToPath(new URL("./src/client/konvaLite.ts", import.meta.url)) }],
+  },
   oxc: {
     jsx: { runtime: "automatic", importSource: "preact" },
   },

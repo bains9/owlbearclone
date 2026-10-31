@@ -83,7 +83,6 @@ import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../.
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
 import { drawZone, inZone, rgba, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
-import { prop, propSprite } from "../dungeonLib/props";
 import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
@@ -109,11 +108,12 @@ import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
+import { dungeonObjects, whenDungeonObjects } from "./dungeonStamps";
 import { textureChoice, textureFloor } from "./dungeonTextures";
 import type { SeasonJob, SeasonJobData } from "./seasons";
 import { SeasonPlanner, SidecarCache } from "./mapData";
 import type { SceneDataState } from "./mapData";
-import { seedFrom } from "./seasonPixels";
+import { seedFrom } from "./seasonKeys";
 import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
 import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
@@ -1329,13 +1329,17 @@ export class Board implements BoardApi {
       );
       drawn = true;
     } else if (looks.has("treeform")) {
-      // Treeform: drawn as one of the map's own trees until the spell ends.
-      const tree = prop("oak-tree-small-rounded");
+      // Treeform: drawn as one of the map's own trees until the spell ends (once Dungeon's objects are in).
       body.add(
         new Konva.Shape({
           sceneFunc: (ctx) => {
-            if (!tree) return;
-            const s = propSprite(tree);
+            const objects = dungeonObjects();
+            const tree = objects?.prop("oak-tree-small-rounded");
+            if (!objects || !tree) {
+              if (!objects) whenDungeonObjects(() => this.tokenLayer.batchDraw());
+              return;
+            }
+            const s = objects.propSprite(tree);
             native(ctx).drawImage(s.img, s.sx, s.sy, s.sw, s.sh, -r * 1.25, -r * 1.25, r * 2.5, r * 2.5);
           },
           hitFunc: (ctx, shape) => {

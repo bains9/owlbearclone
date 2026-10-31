@@ -22,2234 +22,2242 @@ export interface DungeonMaterialInfo {
 
 export const DUNGEON_LIBRARY_VERSION = "9bae40f";
 
-export const DUNGEON_PROPS: readonly DungeonPropInfo[] = [
-  { id: "table", name: "Table", category: "Furniture", group: "Tables", w: 2, h: 1, layer: "object" },
-  { id: "round-table", name: "Round table", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "chair", name: "Chair", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "bench", name: "Bench", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bed", name: "Bed", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bookshelf", name: "Bookshelf", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "rug", name: "Rug", category: "Furniture", group: "Rugs", w: 2, h: 3, layer: "floor" },
-  { id: "barrel", name: "Barrel", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "crate", name: "Crate", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "chest", name: "Chest", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "sack", name: "Sack", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "tree", name: "Tree", category: "Nature", group: "Leafy trees", w: 2.6, h: 2.6, layer: "canopy" },
-  { id: "pine", name: "Pine tree", category: "Nature", group: "Evergreens", w: 2, h: 2, layer: "canopy" },
-  { id: "bush", name: "Bush", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "rock", name: "Rock", category: "Nature", group: "Rocks", w: 0.9, h: 0.9, layer: "object" },
-  { id: "boulder", name: "Boulder", category: "Nature", group: "Rocks", w: 1.8, h: 1.8, layer: "object" },
-  { id: "log", name: "Log", category: "Nature", group: "Bare and fallen wood", w: 1.8, h: 0.5, layer: "object" },
-  { id: "pillar", name: "Pillar", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue", name: "Statue", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "altar", name: "Altar", category: "Dungeon", group: "Magic", w: 2, h: 1, layer: "object" },
-  { id: "coffin", name: "Coffin", category: "Dungeon", group: "Tombs and bones", w: 0.8, h: 2, layer: "object" },
-  { id: "well", name: "Well", category: "Dungeon", group: "Wells and fountains", w: 1.4, h: 1.4, layer: "object" },
-  { id: "stairs", name: "Stairs", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "cauldron", name: "Cauldron", category: "Dungeon", group: "Magic", w: 0.9, h: 0.9, layer: "object" },
-  { id: "anvil", name: "Anvil", category: "Dungeon", group: "Arms and the forge", w: 0.9, h: 0.5, layer: "object" },
-  { id: "bones", name: "Bones", category: "Dungeon", group: "Tombs and bones", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "torch", name: "Wall torch", category: "Light", group: "Torches", w: 0.5, h: 0.5, layer: "object" },
-  { id: "brazier", name: "Brazier", category: "Light", group: "Fires", w: 0.9, h: 0.9, layer: "object" },
-  { id: "campfire", name: "Campfire", category: "Light", group: "Fires", w: 1.2, h: 1.2, layer: "object" },
-  { id: "candles", name: "Candles", category: "Light", group: "Candles", w: 0.5, h: 0.5, layer: "object" },
-  { id: "small-table", name: "Small table", category: "Furniture", group: "Tables", w: 1, h: 1, layer: "object" },
-  { id: "desk", name: "Desk", category: "Furniture", group: "Desks and lecterns", w: 1.6, h: 0.9, layer: "object" },
-  { id: "dining-table", name: "Dining table", category: "Furniture", group: "Tables", w: 2.6, h: 1.2, layer: "object" },
-  { id: "long-table", name: "Long table", category: "Furniture", group: "Tables", w: 3.2, h: 1, layer: "object" },
-  { id: "stool", name: "Stool", category: "Furniture", group: "Seating", w: 0.5, h: 0.5, layer: "object" },
-  { id: "armchair", name: "Armchair", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "throne", name: "Throne", category: "Furniture", group: "Seating", w: 1.2, h: 1.1, layer: "object" },
-  { id: "double-bed", name: "Double bed", category: "Furniture", group: "Beds", w: 2, h: 2.1, layer: "object" },
-  { id: "straw-bed", name: "Straw bed", category: "Furniture", group: "Beds", w: 1, h: 2, layer: "floor" },
-  { id: "wardrobe", name: "Wardrobe", category: "Furniture", group: "Storage", w: 1.6, h: 0.7, layer: "object" },
-  { id: "dresser", name: "Dresser", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "scroll-rack", name: "Scroll rack", category: "Furniture", group: "Storage", w: 1.6, h: 0.5, layer: "object" },
-  { id: "rug-blue", name: "Blue rug", category: "Furniture", group: "Rugs", w: 2, h: 3, layer: "floor" },
-  { id: "rug-round", name: "Round rug", category: "Furniture", group: "Rugs", w: 2, h: 2, layer: "floor" },
-  { id: "fur-rug", name: "Fur rug", category: "Furniture", group: "Rugs", w: 2, h: 2.4, layer: "floor" },
-  { id: "bathtub", name: "Bathtub", category: "Washroom", group: "Tubs", w: 1, h: 2, layer: "object" },
-  { id: "washbasin", name: "Washbasin", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.7, layer: "object" },
-  { id: "folding-screen", name: "Folding screen", category: "Furniture", group: "Screens and decor", w: 2, h: 0.4, layer: "object" },
-  { id: "cushions", name: "Floor cushions", category: "Furniture", group: "Seating", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "chess-table", name: "Chess table", category: "Furniture", group: "Tables", w: 1, h: 1, layer: "object" },
-  { id: "lectern", name: "Lectern", category: "Furniture", group: "Desks and lecterns", w: 0.8, h: 0.7, layer: "object" },
-  { id: "barrel-lying", name: "Barrel on its side", category: "Containers", group: "Barrels", w: 1, h: 0.8, layer: "object" },
-  { id: "barrels", name: "Barrels", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-small", name: "Small crate", category: "Containers", group: "Crates", w: 0.6, h: 0.6, layer: "object" },
-  { id: "crates", name: "Crates", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "chest-open", name: "Open chest", category: "Containers", group: "Chests and strongboxes", w: 1, h: 1, layer: "object" },
-  { id: "sacks", name: "Sacks", category: "Containers", group: "Sacks, baskets and buckets", w: 1.4, h: 1.2, layer: "object" },
-  { id: "basket", name: "Basket of apples", category: "Containers", group: "Sacks, baskets and buckets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "urn", name: "Urn", category: "Containers", group: "Pots, jars and urns", w: 0.7, h: 0.7, layer: "object" },
-  { id: "pots", name: "Clay pots", category: "Containers", group: "Pots, jars and urns", w: 1.2, h: 1, layer: "object" },
-  { id: "bucket", name: "Bucket", category: "Containers", group: "Sacks, baskets and buckets", w: 0.5, h: 0.5, layer: "object" },
-  { id: "treasure", name: "Treasure pile", category: "Containers", group: "Treasure", w: 1.4, h: 1.2, layer: "object" },
-  { id: "strongbox", name: "Strongbox", category: "Containers", group: "Chests and strongboxes", w: 0.8, h: 0.6, layer: "object" },
-  { id: "bar-counter", name: "Bar counter", category: "Kitchen & tavern", group: "The bar", w: 3.2, h: 0.8, layer: "object" },
-  { id: "keg", name: "Keg on a stand", category: "Kitchen & tavern", group: "The bar", w: 1.1, h: 0.8, layer: "object" },
-  { id: "food-platter", name: "Food platter", category: "Kitchen & tavern", group: "Food", w: 1, h: 0.8, layer: "object" },
-  { id: "oven", name: "Bread oven", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kitchen-counter", name: "Kitchen counter", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.8, layer: "object" },
-  { id: "cookware", name: "Pots and pans", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.8, layer: "object" },
-  { id: "wine-rack", name: "Wine rack", category: "Kitchen & tavern", group: "The bar", w: 1.6, h: 0.5, layer: "object" },
-  { id: "tankards", name: "Tankards", category: "Kitchen & tavern", group: "The bar", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-wheel", name: "Cheese wheels", category: "Kitchen & tavern", group: "Food", w: 0.9, h: 0.7, layer: "object" },
-  { id: "spit-roast", name: "Spit roast", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 1, layer: "object" },
-  { id: "oak-tree", name: "Oak tree", category: "Nature", group: "Leafy trees", w: 3.2, h: 3.2, layer: "canopy" },
-  { id: "birch-tree", name: "Birch tree", category: "Nature", group: "Leafy trees", w: 2, h: 2, layer: "canopy" },
-  { id: "willow-tree", name: "Willow tree", category: "Nature", group: "Leafy trees", w: 3, h: 3, layer: "canopy" },
-  { id: "fir-tree", name: "Fir tree", category: "Nature", group: "Evergreens", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "dead-tree", name: "Dead tree", category: "Nature", group: "Bare and fallen wood", w: 2.2, h: 2.2, layer: "canopy" },
-  { id: "stump", name: "Tree stump", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "fallen-branch", name: "Fallen branch", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object" },
-  { id: "flower-bush", name: "Flowering bush", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "hedge", name: "Hedge", category: "Nature", group: "Bushes and hedges", w: 2.2, h: 0.8, layer: "object" },
-  { id: "fern", name: "Fern", category: "Nature", group: "Bushes and hedges", w: 0.9, h: 0.9, layer: "object" },
-  { id: "grass-tuft", name: "Grass tuft", category: "Nature", group: "Flowers and grass", w: 0.7, h: 0.7, layer: "object" },
-  { id: "flowers-red", name: "Red flowers", category: "Nature", group: "Flowers and grass", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "flowers-yellow", name: "Yellow flowers", category: "Nature", group: "Flowers and grass", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "flowers-purple", name: "Purple flowers", category: "Nature", group: "Flowers and grass", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "reeds", name: "Reeds", category: "Nature", group: "Water plants", w: 0.9, h: 0.9, layer: "object" },
-  { id: "lily-pads", name: "Lily pads", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "mushrooms", name: "Mushrooms", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "rocks", name: "Rocks", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rubble", name: "Rubble", category: "Nature", group: "Rocks", w: 1.4, h: 1.2, layer: "object" },
-  { id: "snowdrift", name: "Snowdrift", category: "Nature", group: "Snow and ice", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "tent", name: "Tent", category: "Camp & outdoors", group: "Camp", w: 2.6, h: 2.6, layer: "canopy" },
-  { id: "bedroll", name: "Bedroll", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 2, layer: "floor" },
-  { id: "wagon", name: "Wagon", category: "Camp & outdoors", group: "Wagons and carts", w: 2, h: 3.6, layer: "object" },
-  { id: "cart", name: "Hand cart", category: "Camp & outdoors", group: "Wagons and carts", w: 1.6, h: 2, layer: "object" },
-  { id: "fence", name: "Fence", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "signpost", name: "Signpost", category: "Camp & outdoors", group: "Signs and banners", w: 1.2, h: 0.8, layer: "object" },
-  { id: "haystack", name: "Haystack", category: "Camp & outdoors", group: "Camp", w: 1.6, h: 1.6, layer: "object" },
-  { id: "log-pile", name: "Log pile", category: "Camp & outdoors", group: "Camp", w: 1.4, h: 1, layer: "object" },
-  { id: "scarecrow", name: "Scarecrow", category: "Camp & outdoors", group: "Camp", w: 1.2, h: 0.8, layer: "object" },
-  { id: "archery-target", name: "Archery target", category: "Camp & outdoors", group: "Games and training", w: 1, h: 1, layer: "object" },
-  { id: "market-stall", name: "Market stall", category: "Camp & outdoors", group: "Market", w: 2.4, h: 1.8, layer: "canopy" },
-  { id: "rowboat", name: "Rowboat", category: "Camp & outdoors", group: "Boats and bridges", w: 1.2, h: 3, layer: "object" },
-  { id: "pillar-square", name: "Square pillar", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "pillar-broken", name: "Broken pillar", category: "Dungeon", group: "Pillars and statues", w: 1.6, h: 1.2, layer: "object" },
-  { id: "sarcophagus", name: "Sarcophagus", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.4, layer: "object" },
-  { id: "stairs-spiral", name: "Spiral stairs", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "trapdoor", name: "Trapdoor", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "cage", name: "Cage", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 1.2, layer: "object" },
-  { id: "chains", name: "Chains", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 0.6, layer: "floor" },
-  { id: "weapon-rack", name: "Weapon rack", category: "Dungeon", group: "Arms and the forge", w: 1.6, h: 0.6, layer: "object" },
-  { id: "armor-stand", name: "Armour stand", category: "Dungeon", group: "Arms and the forge", w: 0.9, h: 0.7, layer: "object" },
-  { id: "forge", name: "Forge", category: "Dungeon", group: "Arms and the forge", w: 1.6, h: 1.2, layer: "object" },
-  { id: "skulls", name: "Skull pile", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 0.8, layer: "object" },
-  { id: "spider-web", name: "Spider web", category: "Dungeon", group: "Lairs", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "debris", name: "Debris", category: "Dungeon", group: "Stains and floor", w: 1.2, h: 1, layer: "floor" },
-  { id: "lever", name: "Lever", category: "Dungeon", group: "Levers and mechanisms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "magic-circle", name: "Magic circle", category: "Dungeon", group: "Magic", w: 3, h: 3, layer: "floor" },
-  { id: "arcane-portal", name: "Arcane portal", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "pit", name: "Pit", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "drain", name: "Floor drain", category: "Dungeon", group: "Stairs and ways down", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "obelisk", name: "Obelisk", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "fountain", name: "Fountain", category: "Dungeon", group: "Wells and fountains", w: 2.2, h: 2.2, layer: "object" },
-  { id: "idol", name: "Golden idol", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "standing-torch", name: "Standing torch", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candelabra", name: "Candelabra", category: "Light", group: "Candles", w: 0.7, h: 0.7, layer: "object" },
-  { id: "chandelier", name: "Chandelier", category: "Light", group: "Candles", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "lantern", name: "Lantern", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "object" },
-  { id: "fireplace", name: "Fireplace", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "magic-orb", name: "Magic orb", category: "Light", group: "Magic light", w: 0.8, h: 0.8, layer: "object" },
-  { id: "glowing-crystals", name: "Glowing crystals", category: "Light", group: "Magic light", w: 1, h: 1, layer: "object" },
-  { id: "street-lamp", name: "Street lamp", category: "Light", group: "Sconces and lamps", w: 0.8, h: 0.8, layer: "canopy" },
-  { id: "bonfire", name: "Bonfire", category: "Light", group: "Fires", w: 2, h: 2, layer: "object" },
-  { id: "table-square-pale-bare", name: "Square table, pale wood, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-pale-set", name: "Square table, pale wood, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-pale-cluttered", name: "Square table, pale wood, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-honey-bare", name: "Square table, honey wood, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-honey-set", name: "Square table, honey wood, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-honey-cluttered", name: "Square table, honey wood, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-walnut-bare", name: "Square table, walnut, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-walnut-set", name: "Square table, walnut, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-walnut-cluttered", name: "Square table, walnut, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-ebony-bare", name: "Square table, ebony, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-ebony-set", name: "Square table, ebony, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-ebony-cluttered", name: "Square table, ebony, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-mahogany-bare", name: "Square table, mahogany, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-mahogany-set", name: "Square table, mahogany, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-mahogany-cluttered", name: "Square table, mahogany, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-weathered-bare", name: "Square table, weathered wood, bare", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-weathered-set", name: "Square table, weathered wood, set for a meal", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-square-weathered-cluttered", name: "Square table, weathered wood, cluttered", category: "Furniture", group: "Tables", w: 1.2, h: 1.2, layer: "object" },
-  { id: "table-round-pale-bare", name: "Round table, pale wood, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-pale-set", name: "Round table, pale wood, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-pale-cluttered", name: "Round table, pale wood, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-honey-bare", name: "Round table, honey wood, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-honey-set", name: "Round table, honey wood, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-honey-cluttered", name: "Round table, honey wood, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-walnut-bare", name: "Round table, walnut, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-walnut-set", name: "Round table, walnut, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-walnut-cluttered", name: "Round table, walnut, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-ebony-bare", name: "Round table, ebony, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-ebony-set", name: "Round table, ebony, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-ebony-cluttered", name: "Round table, ebony, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-mahogany-bare", name: "Round table, mahogany, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-mahogany-set", name: "Round table, mahogany, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-mahogany-cluttered", name: "Round table, mahogany, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-weathered-bare", name: "Round table, weathered wood, bare", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-weathered-set", name: "Round table, weathered wood, set for a meal", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-round-weathered-cluttered", name: "Round table, weathered wood, cluttered", category: "Furniture", group: "Tables", w: 1.4, h: 1.4, layer: "object" },
-  { id: "table-long-pale-bare", name: "Long table, pale wood, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-pale-set", name: "Long table, pale wood, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-pale-cluttered", name: "Long table, pale wood, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-honey-bare", name: "Long table, honey wood, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-honey-set", name: "Long table, honey wood, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-honey-cluttered", name: "Long table, honey wood, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-walnut-bare", name: "Long table, walnut, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-walnut-set", name: "Long table, walnut, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-walnut-cluttered", name: "Long table, walnut, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-ebony-bare", name: "Long table, ebony, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-ebony-set", name: "Long table, ebony, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-ebony-cluttered", name: "Long table, ebony, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-mahogany-bare", name: "Long table, mahogany, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-mahogany-set", name: "Long table, mahogany, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-mahogany-cluttered", name: "Long table, mahogany, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-weathered-bare", name: "Long table, weathered wood, bare", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-weathered-set", name: "Long table, weathered wood, set for a meal", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-long-weathered-cluttered", name: "Long table, weathered wood, cluttered", category: "Furniture", group: "Tables", w: 3, h: 1.1, layer: "object" },
-  { id: "table-clothed-crimson", name: "Dining table with a cloth, crimson", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-navy", name: "Dining table with a cloth, navy", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-green", name: "Dining table with a cloth, green", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-ochre", name: "Dining table with a cloth, ochre", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-violet", name: "Dining table with a cloth, violet", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-black", name: "Dining table with a cloth, black", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-white", name: "Dining table with a cloth, white", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "table-clothed-teal", name: "Dining table with a cloth, teal", category: "Furniture", group: "Tables", w: 2.2, h: 1.2, layer: "object" },
-  { id: "side-table-pale", name: "Side table, pale wood", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "side-table-honey", name: "Side table, honey wood", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "side-table-walnut", name: "Side table, walnut", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "side-table-ebony", name: "Side table, ebony", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "side-table-mahogany", name: "Side table, mahogany", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "side-table-weathered", name: "Side table, weathered wood", category: "Furniture", group: "Tables", w: 0.7, h: 0.7, layer: "object" },
-  { id: "nightstand-pale", name: "Nightstand, pale wood", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "nightstand-honey", name: "Nightstand, honey wood", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "nightstand-walnut", name: "Nightstand, walnut", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "nightstand-ebony", name: "Nightstand, ebony", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "nightstand-mahogany", name: "Nightstand, mahogany", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "nightstand-weathered", name: "Nightstand, weathered wood", category: "Furniture", group: "Tables", w: 0.6, h: 0.5, layer: "object" },
-  { id: "low-table-pale", name: "Low table, pale wood", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "low-table-honey", name: "Low table, honey wood", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "low-table-walnut", name: "Low table, walnut", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "low-table-ebony", name: "Low table, ebony", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "low-table-mahogany", name: "Low table, mahogany", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "low-table-weathered", name: "Low table, weathered wood", category: "Furniture", group: "Tables", w: 1.2, h: 0.7, layer: "object" },
-  { id: "trestle-table-pale", name: "Trestle table, pale wood", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "trestle-table-honey", name: "Trestle table, honey wood", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "trestle-table-walnut", name: "Trestle table, walnut", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "trestle-table-ebony", name: "Trestle table, ebony", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "trestle-table-mahogany", name: "Trestle table, mahogany", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "trestle-table-weathered", name: "Trestle table, weathered wood", category: "Furniture", group: "Tables", w: 2.4, h: 0.9, layer: "object" },
-  { id: "chair-plain-pale", name: "Plain chair, pale wood", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-plain-honey", name: "Plain chair, honey wood", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-plain-walnut", name: "Plain chair, walnut", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-plain-ebony", name: "Plain chair, ebony", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-plain-mahogany", name: "Plain chair, mahogany", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-plain-weathered", name: "Plain chair, weathered wood", category: "Furniture", group: "Seating", w: 0.6, h: 0.6, layer: "object" },
-  { id: "chair-cushioned-crimson", name: "Cushioned chair, crimson", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-navy", name: "Cushioned chair, navy", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-green", name: "Cushioned chair, green", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-ochre", name: "Cushioned chair, ochre", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-violet", name: "Cushioned chair, violet", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-black", name: "Cushioned chair, black", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-white", name: "Cushioned chair, white", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "chair-cushioned-teal", name: "Cushioned chair, teal", category: "Furniture", group: "Seating", w: 0.65, h: 0.65, layer: "object" },
-  { id: "armchair-soft-crimson", name: "Soft armchair, crimson", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-navy", name: "Soft armchair, navy", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-green", name: "Soft armchair, green", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-ochre", name: "Soft armchair, ochre", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-violet", name: "Soft armchair, violet", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-black", name: "Soft armchair, black", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-white", name: "Soft armchair, white", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "armchair-soft-teal", name: "Soft armchair, teal", category: "Furniture", group: "Seating", w: 1, h: 1, layer: "object" },
-  { id: "couch-crimson", name: "Couch, crimson", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-navy", name: "Couch, navy", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-green", name: "Couch, green", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-ochre", name: "Couch, ochre", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-violet", name: "Couch, violet", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-black", name: "Couch, black", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-white", name: "Couch, white", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "couch-teal", name: "Couch, teal", category: "Furniture", group: "Seating", w: 2, h: 0.9, layer: "object" },
-  { id: "stool-round-pale", name: "Round stool, pale wood", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "stool-round-honey", name: "Round stool, honey wood", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "stool-round-walnut", name: "Round stool, walnut", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "stool-round-ebony", name: "Round stool, ebony", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "stool-round-mahogany", name: "Round stool, mahogany", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "stool-round-weathered", name: "Round stool, weathered wood", category: "Furniture", group: "Seating", w: 0.45, h: 0.45, layer: "object" },
-  { id: "bench-plain-pale", name: "Plain bench, pale wood", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bench-plain-honey", name: "Plain bench, honey wood", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bench-plain-walnut", name: "Plain bench, walnut", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bench-plain-ebony", name: "Plain bench, ebony", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bench-plain-mahogany", name: "Plain bench, mahogany", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "bench-plain-weathered", name: "Plain bench, weathered wood", category: "Furniture", group: "Seating", w: 2, h: 0.5, layer: "object" },
-  { id: "rocking-chair-pale", name: "Rocking chair, pale wood", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "rocking-chair-honey", name: "Rocking chair, honey wood", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "rocking-chair-walnut", name: "Rocking chair, walnut", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "rocking-chair-ebony", name: "Rocking chair, ebony", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "rocking-chair-mahogany", name: "Rocking chair, mahogany", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "rocking-chair-weathered", name: "Rocking chair, weathered wood", category: "Furniture", group: "Seating", w: 0.7, h: 0.9, layer: "object" },
-  { id: "throne-grand-iron-crimson", name: "Grand throne, iron, crimson", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-iron-navy", name: "Grand throne, iron, navy", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-iron-violet", name: "Grand throne, iron, violet", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-bronze-crimson", name: "Grand throne, bronze, crimson", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-bronze-navy", name: "Grand throne, bronze, navy", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-bronze-violet", name: "Grand throne, bronze, violet", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-brass-crimson", name: "Grand throne, brass, crimson", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-brass-navy", name: "Grand throne, brass, navy", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-brass-violet", name: "Grand throne, brass, violet", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-silver-crimson", name: "Grand throne, silver, crimson", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-silver-navy", name: "Grand throne, silver, navy", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-silver-violet", name: "Grand throne, silver, violet", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-gold-crimson", name: "Grand throne, gold, crimson", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-gold-navy", name: "Grand throne, gold, navy", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "throne-grand-gold-violet", name: "Grand throne, gold, violet", category: "Furniture", group: "Seating", w: 1.4, h: 1.3, layer: "object" },
-  { id: "footstool-crimson", name: "Footstool, crimson", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-navy", name: "Footstool, navy", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-green", name: "Footstool, green", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-ochre", name: "Footstool, ochre", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-violet", name: "Footstool, violet", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-black", name: "Footstool, black", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-white", name: "Footstool, white", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "footstool-teal", name: "Footstool, teal", category: "Furniture", group: "Seating", w: 0.5, h: 0.4, layer: "object" },
-  { id: "bed-single-crimson", name: "Single bed, crimson", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-navy", name: "Single bed, navy", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-green", name: "Single bed, green", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-ochre", name: "Single bed, ochre", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-violet", name: "Single bed, violet", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-black", name: "Single bed, black", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-white", name: "Single bed, white", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-single-teal", name: "Single bed, teal", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bed-wide-crimson", name: "Wide bed, crimson", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-navy", name: "Wide bed, navy", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-green", name: "Wide bed, green", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-ochre", name: "Wide bed, ochre", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-violet", name: "Wide bed, violet", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-black", name: "Wide bed, black", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-white", name: "Wide bed, white", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-wide-teal", name: "Wide bed, teal", category: "Furniture", group: "Beds", w: 2, h: 2.2, layer: "object" },
-  { id: "bed-four-poster-crimson", name: "Four-poster bed, crimson", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-navy", name: "Four-poster bed, navy", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-green", name: "Four-poster bed, green", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-ochre", name: "Four-poster bed, ochre", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-violet", name: "Four-poster bed, violet", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-black", name: "Four-poster bed, black", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-white", name: "Four-poster bed, white", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bed-four-poster-teal", name: "Four-poster bed, teal", category: "Furniture", group: "Beds", w: 2.2, h: 2.4, layer: "object" },
-  { id: "bunk-bed-pale", name: "Bunk bed, pale wood", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bunk-bed-honey", name: "Bunk bed, honey wood", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bunk-bed-walnut", name: "Bunk bed, walnut", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bunk-bed-ebony", name: "Bunk bed, ebony", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bunk-bed-mahogany", name: "Bunk bed, mahogany", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "bunk-bed-weathered", name: "Bunk bed, weathered wood", category: "Furniture", group: "Beds", w: 1.1, h: 2, layer: "object" },
-  { id: "cradle-pale", name: "Cradle, pale wood", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "cradle-honey", name: "Cradle, honey wood", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "cradle-walnut", name: "Cradle, walnut", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "cradle-ebony", name: "Cradle, ebony", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "cradle-mahogany", name: "Cradle, mahogany", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "cradle-weathered", name: "Cradle, weathered wood", category: "Furniture", group: "Beds", w: 0.6, h: 0.9, layer: "object" },
-  { id: "wardrobe-plain-pale", name: "Plain wardrobe, pale wood", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wardrobe-plain-honey", name: "Plain wardrobe, honey wood", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wardrobe-plain-walnut", name: "Plain wardrobe, walnut", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wardrobe-plain-ebony", name: "Plain wardrobe, ebony", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wardrobe-plain-mahogany", name: "Plain wardrobe, mahogany", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wardrobe-plain-weathered", name: "Plain wardrobe, weathered wood", category: "Furniture", group: "Storage", w: 1.4, h: 0.7, layer: "object" },
-  { id: "dresser-plain-pale", name: "Chest of drawers, pale wood", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "dresser-plain-honey", name: "Chest of drawers, honey wood", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "dresser-plain-walnut", name: "Chest of drawers, walnut", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "dresser-plain-ebony", name: "Chest of drawers, ebony", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "dresser-plain-mahogany", name: "Chest of drawers, mahogany", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "dresser-plain-weathered", name: "Chest of drawers, weathered wood", category: "Furniture", group: "Storage", w: 1.2, h: 0.6, layer: "object" },
-  { id: "cabinet-pale", name: "Cabinet, pale wood", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "cabinet-honey", name: "Cabinet, honey wood", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "cabinet-walnut", name: "Cabinet, walnut", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "cabinet-ebony", name: "Cabinet, ebony", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "cabinet-mahogany", name: "Cabinet, mahogany", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "cabinet-weathered", name: "Cabinet, weathered wood", category: "Furniture", group: "Storage", w: 1, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-pale-full", name: "Wide bookshelf, pale wood, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-pale-half-full", name: "Wide bookshelf, pale wood, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-pale-empty", name: "Wide bookshelf, pale wood, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-honey-full", name: "Wide bookshelf, honey wood, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-honey-half-full", name: "Wide bookshelf, honey wood, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-honey-empty", name: "Wide bookshelf, honey wood, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-walnut-full", name: "Wide bookshelf, walnut, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-walnut-half-full", name: "Wide bookshelf, walnut, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-walnut-empty", name: "Wide bookshelf, walnut, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-ebony-full", name: "Wide bookshelf, ebony, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-ebony-half-full", name: "Wide bookshelf, ebony, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-ebony-empty", name: "Wide bookshelf, ebony, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-mahogany-full", name: "Wide bookshelf, mahogany, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-mahogany-half-full", name: "Wide bookshelf, mahogany, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-mahogany-empty", name: "Wide bookshelf, mahogany, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-weathered-full", name: "Wide bookshelf, weathered wood, full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-weathered-half-full", name: "Wide bookshelf, weathered wood, half full", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "bookshelf-wide-weathered-empty", name: "Wide bookshelf, weathered wood, empty", category: "Furniture", group: "Storage", w: 2, h: 0.5, layer: "object" },
-  { id: "wall-shelf-pale", name: "Wall shelf, pale wood", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "wall-shelf-honey", name: "Wall shelf, honey wood", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "wall-shelf-walnut", name: "Wall shelf, walnut", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "wall-shelf-ebony", name: "Wall shelf, ebony", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "wall-shelf-mahogany", name: "Wall shelf, mahogany", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "wall-shelf-weathered", name: "Wall shelf, weathered wood", category: "Furniture", group: "Storage", w: 1.6, h: 0.35, layer: "object" },
-  { id: "rug-crimson-plain", name: "Rug, crimson, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-crimson-bordered", name: "Rug, crimson, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-crimson-diamond", name: "Rug, crimson, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-crimson-striped", name: "Rug, crimson, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-navy-plain", name: "Rug, navy, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-navy-bordered", name: "Rug, navy, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-navy-diamond", name: "Rug, navy, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-navy-striped", name: "Rug, navy, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-green-plain", name: "Rug, green, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-green-bordered", name: "Rug, green, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-green-diamond", name: "Rug, green, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-green-striped", name: "Rug, green, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-ochre-plain", name: "Rug, ochre, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-ochre-bordered", name: "Rug, ochre, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-ochre-diamond", name: "Rug, ochre, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-ochre-striped", name: "Rug, ochre, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-violet-plain", name: "Rug, violet, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-violet-bordered", name: "Rug, violet, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-violet-diamond", name: "Rug, violet, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-violet-striped", name: "Rug, violet, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-black-plain", name: "Rug, black, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-black-bordered", name: "Rug, black, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-black-diamond", name: "Rug, black, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-black-striped", name: "Rug, black, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-white-plain", name: "Rug, white, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-white-bordered", name: "Rug, white, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-white-diamond", name: "Rug, white, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-white-striped", name: "Rug, white, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-teal-plain", name: "Rug, teal, plain", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-teal-bordered", name: "Rug, teal, bordered", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-teal-diamond", name: "Rug, teal, diamond", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-teal-striped", name: "Rug, teal, striped", category: "Furniture", group: "Rugs", w: 2, h: 1.4, layer: "floor" },
-  { id: "rug-oval-crimson", name: "Oval rug, crimson", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-navy", name: "Oval rug, navy", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-green", name: "Oval rug, green", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-ochre", name: "Oval rug, ochre", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-violet", name: "Oval rug, violet", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-black", name: "Oval rug, black", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-white", name: "Oval rug, white", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "rug-oval-teal", name: "Oval rug, teal", category: "Furniture", group: "Rugs", w: 1.8, h: 1.2, layer: "floor" },
-  { id: "runner-crimson", name: "Runner, crimson", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-navy", name: "Runner, navy", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-green", name: "Runner, green", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-ochre", name: "Runner, ochre", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-violet", name: "Runner, violet", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-black", name: "Runner, black", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-white", name: "Runner, white", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "runner-teal", name: "Runner, teal", category: "Furniture", group: "Rugs", w: 3, h: 0.8, layer: "floor" },
-  { id: "pelt-rug-brown", name: "Pelt rug, brown", category: "Furniture", group: "Rugs", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "pelt-rug-white", name: "Pelt rug, white", category: "Furniture", group: "Rugs", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "pelt-rug-black", name: "Pelt rug, black", category: "Furniture", group: "Rugs", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "pelt-rug-grey", name: "Pelt rug, grey", category: "Furniture", group: "Rugs", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "mirror-standing-iron", name: "Standing mirror, iron", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "mirror-standing-bronze", name: "Standing mirror, bronze", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "mirror-standing-brass", name: "Standing mirror, brass", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "mirror-standing-silver", name: "Standing mirror, silver", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "mirror-standing-honey", name: "Standing mirror, honey wood", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "mirror-standing-walnut", name: "Standing mirror, walnut", category: "Furniture", group: "Screens and decor", w: 0.7, h: 0.3, layer: "object" },
-  { id: "screen-painted-crimson", name: "Painted screen, crimson", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-navy", name: "Painted screen, navy", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-green", name: "Painted screen, green", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-ochre", name: "Painted screen, ochre", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-violet", name: "Painted screen, violet", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-black", name: "Painted screen, black", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-white", name: "Painted screen, white", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "screen-painted-teal", name: "Painted screen, teal", category: "Furniture", group: "Screens and decor", w: 1.8, h: 0.4, layer: "object" },
-  { id: "coat-rack-pale", name: "Coat rack, pale wood", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coat-rack-honey", name: "Coat rack, honey wood", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coat-rack-walnut", name: "Coat rack, walnut", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coat-rack-ebony", name: "Coat rack, ebony", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coat-rack-mahogany", name: "Coat rack, mahogany", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coat-rack-weathered", name: "Coat rack, weathered wood", category: "Furniture", group: "Screens and decor", w: 0.6, h: 0.6, layer: "object" },
-  { id: "harpsichord-pale", name: "Harpsichord, pale wood", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "harpsichord-honey", name: "Harpsichord, honey wood", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "harpsichord-walnut", name: "Harpsichord, walnut", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "harpsichord-ebony", name: "Harpsichord, ebony", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "harpsichord-mahogany", name: "Harpsichord, mahogany", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "harpsichord-weathered", name: "Harpsichord, weathered wood", category: "Furniture", group: "Screens and decor", w: 1.2, h: 2, layer: "object" },
-  { id: "barrel-banded-pale-sealed", name: "Banded barrel, pale wood, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-pale-water", name: "Banded barrel, pale wood, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-pale-ale", name: "Banded barrel, pale wood, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-honey-sealed", name: "Banded barrel, honey wood, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-honey-water", name: "Banded barrel, honey wood, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-honey-ale", name: "Banded barrel, honey wood, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-walnut-sealed", name: "Banded barrel, walnut, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-walnut-water", name: "Banded barrel, walnut, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-walnut-ale", name: "Banded barrel, walnut, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-ebony-sealed", name: "Banded barrel, ebony, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-ebony-water", name: "Banded barrel, ebony, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-ebony-ale", name: "Banded barrel, ebony, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-mahogany-sealed", name: "Banded barrel, mahogany, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-mahogany-water", name: "Banded barrel, mahogany, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-mahogany-ale", name: "Banded barrel, mahogany, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-weathered-sealed", name: "Banded barrel, weathered wood, sealed", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-weathered-water", name: "Banded barrel, weathered wood, of water", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-banded-weathered-ale", name: "Banded barrel, weathered wood, of ale", category: "Containers", group: "Barrels", w: 0.8, h: 0.8, layer: "object" },
-  { id: "barrel-tipped-pale", name: "Barrel on its side, pale wood", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-tipped-honey", name: "Barrel on its side, honey wood", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-tipped-walnut", name: "Barrel on its side, walnut", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-tipped-ebony", name: "Barrel on its side, ebony", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-tipped-mahogany", name: "Barrel on its side, mahogany", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-tipped-weathered", name: "Barrel on its side, weathered wood", category: "Containers", group: "Barrels", w: 1.1, h: 0.75, layer: "object" },
-  { id: "barrel-stack-pale", name: "Stack of barrels, pale wood", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "barrel-stack-honey", name: "Stack of barrels, honey wood", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "barrel-stack-walnut", name: "Stack of barrels, walnut", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "barrel-stack-ebony", name: "Stack of barrels, ebony", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "barrel-stack-mahogany", name: "Stack of barrels, mahogany", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "barrel-stack-weathered", name: "Stack of barrels, weathered wood", category: "Containers", group: "Barrels", w: 1.6, h: 1.4, layer: "object" },
-  { id: "packing-crate-pale-closed", name: "Packing crate, pale wood, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-pale-open", name: "Packing crate, pale wood, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-pale-straw", name: "Packing crate, pale wood, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-pale-goods", name: "Packing crate, pale wood, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-honey-closed", name: "Packing crate, honey wood, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-honey-open", name: "Packing crate, honey wood, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-honey-straw", name: "Packing crate, honey wood, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-honey-goods", name: "Packing crate, honey wood, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-walnut-closed", name: "Packing crate, walnut, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-walnut-open", name: "Packing crate, walnut, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-walnut-straw", name: "Packing crate, walnut, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-walnut-goods", name: "Packing crate, walnut, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-ebony-closed", name: "Packing crate, ebony, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-ebony-open", name: "Packing crate, ebony, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-ebony-straw", name: "Packing crate, ebony, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-ebony-goods", name: "Packing crate, ebony, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-mahogany-closed", name: "Packing crate, mahogany, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-mahogany-open", name: "Packing crate, mahogany, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-mahogany-straw", name: "Packing crate, mahogany, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-mahogany-goods", name: "Packing crate, mahogany, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-weathered-closed", name: "Packing crate, weathered wood, closed", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-weathered-open", name: "Packing crate, weathered wood, open, empty", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-weathered-straw", name: "Packing crate, weathered wood, packed with straw", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "packing-crate-weathered-goods", name: "Packing crate, weathered wood, full of goods", category: "Containers", group: "Crates", w: 0.9, h: 0.9, layer: "object" },
-  { id: "crate-pile-pale", name: "Pile of crates, pale wood", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-pile-honey", name: "Pile of crates, honey wood", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-pile-walnut", name: "Pile of crates, walnut", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-pile-ebony", name: "Pile of crates, ebony", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-pile-mahogany", name: "Pile of crates, mahogany", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "crate-pile-weathered", name: "Pile of crates, weathered wood", category: "Containers", group: "Crates", w: 1.6, h: 1.4, layer: "object" },
-  { id: "long-crate-pale", name: "Long crate, pale wood", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "long-crate-honey", name: "Long crate, honey wood", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "long-crate-walnut", name: "Long crate, walnut", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "long-crate-ebony", name: "Long crate, ebony", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "long-crate-mahogany", name: "Long crate, mahogany", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "long-crate-weathered", name: "Long crate, weathered wood", category: "Containers", group: "Crates", w: 1.8, h: 0.6, layer: "object" },
-  { id: "chest-bound-pale-iron-bound-shut", name: "Bound chest, pale wood, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-pale-iron-bound-open", name: "Bound chest, pale wood, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-pale-brass-bound-shut", name: "Bound chest, pale wood, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-pale-brass-bound-open", name: "Bound chest, pale wood, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-honey-iron-bound-shut", name: "Bound chest, honey wood, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-honey-iron-bound-open", name: "Bound chest, honey wood, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-honey-brass-bound-shut", name: "Bound chest, honey wood, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-honey-brass-bound-open", name: "Bound chest, honey wood, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-walnut-iron-bound-shut", name: "Bound chest, walnut, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-walnut-iron-bound-open", name: "Bound chest, walnut, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-walnut-brass-bound-shut", name: "Bound chest, walnut, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-walnut-brass-bound-open", name: "Bound chest, walnut, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-ebony-iron-bound-shut", name: "Bound chest, ebony, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-ebony-iron-bound-open", name: "Bound chest, ebony, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-ebony-brass-bound-shut", name: "Bound chest, ebony, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-ebony-brass-bound-open", name: "Bound chest, ebony, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-mahogany-iron-bound-shut", name: "Bound chest, mahogany, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-mahogany-iron-bound-open", name: "Bound chest, mahogany, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-mahogany-brass-bound-shut", name: "Bound chest, mahogany, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-mahogany-brass-bound-open", name: "Bound chest, mahogany, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-weathered-iron-bound-shut", name: "Bound chest, weathered wood, iron bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-weathered-iron-bound-open", name: "Bound chest, weathered wood, iron bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-weathered-brass-bound-shut", name: "Bound chest, weathered wood, brass bound, shut", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "chest-bound-weathered-brass-bound-open", name: "Bound chest, weathered wood, brass bound, open", category: "Containers", group: "Chests and strongboxes", w: 1, h: 0.7, layer: "object" },
-  { id: "coffer-iron-shut", name: "Coffer, iron, shut", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-iron-open", name: "Coffer, iron, open", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-bronze-shut", name: "Coffer, bronze, shut", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-bronze-open", name: "Coffer, bronze, open", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-brass-shut", name: "Coffer, brass, shut", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-brass-open", name: "Coffer, brass, open", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-silver-shut", name: "Coffer, silver, shut", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "coffer-silver-open", name: "Coffer, silver, open", category: "Containers", group: "Chests and strongboxes", w: 0.55, h: 0.4, layer: "object" },
-  { id: "footlocker-pale", name: "Footlocker, pale wood", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "footlocker-honey", name: "Footlocker, honey wood", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "footlocker-walnut", name: "Footlocker, walnut", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "footlocker-ebony", name: "Footlocker, ebony", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "footlocker-mahogany", name: "Footlocker, mahogany", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "footlocker-weathered", name: "Footlocker, weathered wood", category: "Containers", group: "Chests and strongboxes", w: 1.1, h: 0.55, layer: "object" },
-  { id: "safe-box-iron", name: "Iron safe, iron", category: "Containers", group: "Chests and strongboxes", w: 0.8, h: 0.7, layer: "object" },
-  { id: "safe-box-bronze", name: "Iron safe, bronze", category: "Containers", group: "Chests and strongboxes", w: 0.8, h: 0.7, layer: "object" },
-  { id: "safe-box-brass", name: "Iron safe, brass", category: "Containers", group: "Chests and strongboxes", w: 0.8, h: 0.7, layer: "object" },
-  { id: "safe-box-silver", name: "Iron safe, silver", category: "Containers", group: "Chests and strongboxes", w: 0.8, h: 0.7, layer: "object" },
-  { id: "sack-cloth-hessian-tied", name: "Sack, hessian, tied", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-hessian-open", name: "Sack, hessian, open, of grain", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-white-tied", name: "Sack, white, tied", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-white-open", name: "Sack, white, open, of grain", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-brown-tied", name: "Sack, brown, tied", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-brown-open", name: "Sack, brown, open, of grain", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-green-tied", name: "Sack, green, tied", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-cloth-green-open", name: "Sack, green, open, of grain", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "sack-heap-hessian", name: "Heap of sacks, hessian", category: "Containers", group: "Sacks, baskets and buckets", w: 1.3, h: 1.1, layer: "object" },
-  { id: "sack-heap-white", name: "Heap of sacks, white", category: "Containers", group: "Sacks, baskets and buckets", w: 1.3, h: 1.1, layer: "object" },
-  { id: "sack-heap-brown", name: "Heap of sacks, brown", category: "Containers", group: "Sacks, baskets and buckets", w: 1.3, h: 1.1, layer: "object" },
-  { id: "sack-heap-green", name: "Heap of sacks, green", category: "Containers", group: "Sacks, baskets and buckets", w: 1.3, h: 1.1, layer: "object" },
-  { id: "basket-wicker-empty", name: "Wicker basket, empty", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "basket-wicker-bread", name: "Wicker basket, of bread", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "basket-wicker-fruit", name: "Wicker basket, of fruit", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "basket-wicker-yarn", name: "Wicker basket, of yarn", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "basket-wicker-laundry", name: "Wicker basket, of laundry", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "basket-wicker-fish", name: "Wicker basket, of fish", category: "Containers", group: "Sacks, baskets and buckets", w: 0.6, h: 0.6, layer: "object" },
-  { id: "pail-wooden-empty", name: "Pail, wooden, empty", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "pail-wooden-water", name: "Pail, wooden, of water", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "pail-wooden-milk", name: "Pail, wooden, of milk", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "pail-iron-empty", name: "Pail, iron, empty", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "pail-iron-water", name: "Pail, iron, of water", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "pail-iron-milk", name: "Pail, iron, of milk", category: "Containers", group: "Sacks, baskets and buckets", w: 0.45, h: 0.45, layer: "object" },
-  { id: "urn-tall-terracotta-plain", name: "Tall urn, terracotta, plain", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-terracotta-painted", name: "Tall urn, terracotta, painted", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-glazed-blue-plain", name: "Tall urn, blue glaze, plain", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-glazed-blue-painted", name: "Tall urn, blue glaze, painted", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-glazed-green-plain", name: "Tall urn, green glaze, plain", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-glazed-green-painted", name: "Tall urn, green glaze, painted", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-cream-plain", name: "Tall urn, cream, plain", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "urn-tall-cream-painted", name: "Tall urn, cream, painted", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "amphora-terracotta-upright", name: "Amphora, terracotta, upright", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-terracotta-lying", name: "Amphora, terracotta, on its side", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-glazed-blue-upright", name: "Amphora, blue glaze, upright", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-glazed-blue-lying", name: "Amphora, blue glaze, on its side", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-glazed-green-upright", name: "Amphora, green glaze, upright", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-glazed-green-lying", name: "Amphora, green glaze, on its side", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-cream-upright", name: "Amphora, cream, upright", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "amphora-cream-lying", name: "Amphora, cream, on its side", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 1, layer: "object" },
-  { id: "glass-jar-red", name: "Glass jar, red", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "glass-jar-blue", name: "Glass jar, blue", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "glass-jar-green", name: "Glass jar, green", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "glass-jar-purple", name: "Glass jar, purple", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "glass-jar-amber", name: "Glass jar, amber", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "glass-jar-clear", name: "Glass jar, clear", category: "Containers", group: "Pots, jars and urns", w: 0.35, h: 0.35, layer: "object" },
-  { id: "clay-pot-terracotta-small", name: "Clay pot, terracotta, small", category: "Containers", group: "Pots, jars and urns", w: 0.4, h: 0.4, layer: "object" },
-  { id: "clay-pot-terracotta-large", name: "Clay pot, terracotta, large", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "clay-pot-glazed-blue-small", name: "Clay pot, blue glaze, small", category: "Containers", group: "Pots, jars and urns", w: 0.4, h: 0.4, layer: "object" },
-  { id: "clay-pot-glazed-blue-large", name: "Clay pot, blue glaze, large", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "clay-pot-glazed-green-small", name: "Clay pot, green glaze, small", category: "Containers", group: "Pots, jars and urns", w: 0.4, h: 0.4, layer: "object" },
-  { id: "clay-pot-glazed-green-large", name: "Clay pot, green glaze, large", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "clay-pot-cream-small", name: "Clay pot, cream, small", category: "Containers", group: "Pots, jars and urns", w: 0.4, h: 0.4, layer: "object" },
-  { id: "clay-pot-cream-large", name: "Clay pot, cream, large", category: "Containers", group: "Pots, jars and urns", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coin-heap-gold-small", name: "Heap of coins, gold, small", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "coin-heap-gold-large", name: "Heap of coins, gold, large", category: "Containers", group: "Treasure", w: 1, h: 0.8, layer: "object" },
-  { id: "coin-heap-silver-small", name: "Heap of coins, silver, small", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "coin-heap-silver-large", name: "Heap of coins, silver, large", category: "Containers", group: "Treasure", w: 1, h: 0.8, layer: "object" },
-  { id: "coin-heap-copper-small", name: "Heap of coins, copper, small", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "coin-heap-copper-large", name: "Heap of coins, copper, large", category: "Containers", group: "Treasure", w: 1, h: 0.8, layer: "object" },
-  { id: "gem-heap-red", name: "Heap of gems, red", category: "Containers", group: "Treasure", w: 0.6, h: 0.5, layer: "object" },
-  { id: "gem-heap-blue", name: "Heap of gems, blue", category: "Containers", group: "Treasure", w: 0.6, h: 0.5, layer: "object" },
-  { id: "gem-heap-green", name: "Heap of gems, green", category: "Containers", group: "Treasure", w: 0.6, h: 0.5, layer: "object" },
-  { id: "gem-heap-purple", name: "Heap of gems, purple", category: "Containers", group: "Treasure", w: 0.6, h: 0.5, layer: "object" },
-  { id: "gem-heap-amber", name: "Heap of gems, amber", category: "Containers", group: "Treasure", w: 0.6, h: 0.5, layer: "object" },
-  { id: "hoard-gold-small", name: "Dragon's hoard, gold, small", category: "Containers", group: "Treasure", w: 1.7, h: 1.4, layer: "object" },
-  { id: "hoard-gold-large", name: "Dragon's hoard, gold, large", category: "Containers", group: "Treasure", w: 2.4, h: 2, layer: "object" },
-  { id: "hoard-silver-small", name: "Dragon's hoard, silver, small", category: "Containers", group: "Treasure", w: 1.7, h: 1.4, layer: "object" },
-  { id: "hoard-silver-large", name: "Dragon's hoard, silver, large", category: "Containers", group: "Treasure", w: 2.4, h: 2, layer: "object" },
-  { id: "loot-bag-hessian", name: "Bag of loot, hessian", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "loot-bag-white", name: "Bag of loot, white", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "loot-bag-brown", name: "Bag of loot, brown", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "loot-bag-green", name: "Bag of loot, green", category: "Containers", group: "Treasure", w: 0.7, h: 0.6, layer: "object" },
-  { id: "bar-section-pale", name: "Bar counter section, pale wood", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "bar-section-honey", name: "Bar counter section, honey wood", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "bar-section-walnut", name: "Bar counter section, walnut", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "bar-section-ebony", name: "Bar counter section, ebony", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "bar-section-mahogany", name: "Bar counter section, mahogany", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "bar-section-weathered", name: "Bar counter section, weathered wood", category: "Kitchen & tavern", group: "The bar", w: 2, h: 0.7, layer: "object" },
-  { id: "barstool-pale", name: "Bar stool, pale wood", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "barstool-honey", name: "Bar stool, honey wood", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "barstool-walnut", name: "Bar stool, walnut", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "barstool-ebony", name: "Bar stool, ebony", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "barstool-mahogany", name: "Bar stool, mahogany", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "barstool-weathered", name: "Bar stool, weathered wood", category: "Kitchen & tavern", group: "The bar", w: 0.45, h: 0.45, layer: "object" },
-  { id: "tapped-keg-pale", name: "Tapped keg, pale wood", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tapped-keg-honey", name: "Tapped keg, honey wood", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tapped-keg-walnut", name: "Tapped keg, walnut", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tapped-keg-ebony", name: "Tapped keg, ebony", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tapped-keg-mahogany", name: "Tapped keg, mahogany", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tapped-keg-weathered", name: "Tapped keg, weathered wood", category: "Kitchen & tavern", group: "The bar", w: 0.9, h: 0.6, layer: "object" },
-  { id: "tankards-pewter", name: "Tankards, pewter", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "tankards-brass", name: "Tankards, brass", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "tankards-silver", name: "Tankards, silver", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "tankards-wooden", name: "Tankards, wooden", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wine-bottles-red", name: "Bottles, red", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wine-bottles-blue", name: "Bottles, blue", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wine-bottles-green", name: "Bottles, green", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wine-bottles-amber", name: "Bottles, amber", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wine-bottles-clear", name: "Bottles, clear", category: "Kitchen & tavern", group: "The bar", w: 0.5, h: 0.5, layer: "object" },
-  { id: "bottle-rack-pale", name: "Bottle rack, pale wood", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "bottle-rack-honey", name: "Bottle rack, honey wood", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "bottle-rack-walnut", name: "Bottle rack, walnut", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "bottle-rack-ebony", name: "Bottle rack, ebony", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "bottle-rack-mahogany", name: "Bottle rack, mahogany", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "bottle-rack-weathered", name: "Bottle rack, weathered wood", category: "Kitchen & tavern", group: "The bar", w: 1.4, h: 0.5, layer: "object" },
-  { id: "gaming-table-pale-cards", name: "Gaming table, pale wood, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-pale-dice", name: "Gaming table, pale wood, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-honey-cards", name: "Gaming table, honey wood, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-honey-dice", name: "Gaming table, honey wood, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-walnut-cards", name: "Gaming table, walnut, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-walnut-dice", name: "Gaming table, walnut, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-ebony-cards", name: "Gaming table, ebony, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-ebony-dice", name: "Gaming table, ebony, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-mahogany-cards", name: "Gaming table, mahogany, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-mahogany-dice", name: "Gaming table, mahogany, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-weathered-cards", name: "Gaming table, weathered wood, with cards", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gaming-table-weathered-dice", name: "Gaming table, weathered wood, with dice", category: "Kitchen & tavern", group: "The bar", w: 1.2, h: 1.2, layer: "object" },
-  { id: "cook-stove-iron-cold", name: "Cooking stove, iron, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.8, layer: "object" },
-  { id: "cook-stove-iron-lit", name: "Cooking stove, iron, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.8, layer: "object" },
-  { id: "cook-stove-brass-cold", name: "Cooking stove, brass, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.8, layer: "object" },
-  { id: "cook-stove-brass-lit", name: "Cooking stove, brass, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.8, layer: "object" },
-  { id: "bread-oven-granite-cold", name: "Bread oven, granite, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-granite-lit", name: "Bread oven, granite, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-marble-cold", name: "Bread oven, marble, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-marble-lit", name: "Bread oven, marble, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-sandstone-cold", name: "Bread oven, sandstone, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-sandstone-lit", name: "Bread oven, sandstone, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-slate-cold", name: "Bread oven, slate, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-slate-lit", name: "Bread oven, slate, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-basalt-cold", name: "Bread oven, basalt, cold", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "bread-oven-basalt-lit", name: "Bread oven, basalt, lit", category: "Kitchen & tavern", group: "The kitchen", w: 1.4, h: 1.2, layer: "object" },
-  { id: "work-counter-pale", name: "Kitchen work counter, pale wood", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "work-counter-honey", name: "Kitchen work counter, honey wood", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "work-counter-walnut", name: "Kitchen work counter, walnut", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "work-counter-ebony", name: "Kitchen work counter, ebony", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "work-counter-mahogany", name: "Kitchen work counter, mahogany", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "work-counter-weathered", name: "Kitchen work counter, weathered wood", category: "Kitchen & tavern", group: "The kitchen", w: 2, h: 0.7, layer: "object" },
-  { id: "butcher-block-pale", name: "Butcher's block, pale wood", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "butcher-block-honey", name: "Butcher's block, honey wood", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "butcher-block-walnut", name: "Butcher's block, walnut", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "butcher-block-ebony", name: "Butcher's block, ebony", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "butcher-block-mahogany", name: "Butcher's block, mahogany", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "butcher-block-weathered", name: "Butcher's block, weathered wood", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "pantry-shelf-pale-stocked", name: "Pantry shelf, pale wood, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-pale-sparse", name: "Pantry shelf, pale wood, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-honey-stocked", name: "Pantry shelf, honey wood, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-honey-sparse", name: "Pantry shelf, honey wood, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-walnut-stocked", name: "Pantry shelf, walnut, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-walnut-sparse", name: "Pantry shelf, walnut, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-ebony-stocked", name: "Pantry shelf, ebony, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-ebony-sparse", name: "Pantry shelf, ebony, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-mahogany-stocked", name: "Pantry shelf, mahogany, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-mahogany-sparse", name: "Pantry shelf, mahogany, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-weathered-stocked", name: "Pantry shelf, weathered wood, stocked", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pantry-shelf-weathered-sparse", name: "Pantry shelf, weathered wood, nearly bare", category: "Kitchen & tavern", group: "The kitchen", w: 1.6, h: 0.45, layer: "object" },
-  { id: "cured-meats-hams", name: "Cured meats, hams", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.5, layer: "object" },
-  { id: "cured-meats-sausages", name: "Cured meats, strings of sausages", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.5, layer: "object" },
-  { id: "cured-meats-mixed", name: "Cured meats, mixed", category: "Kitchen & tavern", group: "The kitchen", w: 1.2, h: 0.5, layer: "object" },
-  { id: "dish-rack-pale", name: "Dish rack, pale wood", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "dish-rack-honey", name: "Dish rack, honey wood", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "dish-rack-walnut", name: "Dish rack, walnut", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "dish-rack-ebony", name: "Dish rack, ebony", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "dish-rack-mahogany", name: "Dish rack, mahogany", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "dish-rack-weathered", name: "Dish rack, weathered wood", category: "Kitchen & tavern", group: "The kitchen", w: 1, h: 0.4, layer: "object" },
-  { id: "wash-tub-wooden-empty", name: "Wash tub, wooden, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "wash-tub-wooden-dishes", name: "Wash tub, wooden, full of dishes", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "wash-tub-copper-empty", name: "Wash tub, copper, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "wash-tub-copper-dishes", name: "Wash tub, copper, full of dishes", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.9, layer: "object" },
-  { id: "spice-rack-pale", name: "Spice rack, pale wood", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.3, layer: "object" },
-  { id: "spice-rack-walnut", name: "Spice rack, walnut", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.3, layer: "object" },
-  { id: "spice-rack-ebony", name: "Spice rack, ebony", category: "Kitchen & tavern", group: "The kitchen", w: 0.9, h: 0.3, layer: "object" },
-  { id: "cooking-pot-iron-empty", name: "Cooking pot, iron, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-iron-stew", name: "Cooking pot, iron, of stew", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-bronze-empty", name: "Cooking pot, bronze, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-bronze-stew", name: "Cooking pot, bronze, of stew", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-brass-empty", name: "Cooking pot, brass, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-brass-stew", name: "Cooking pot, brass, of stew", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-silver-empty", name: "Cooking pot, silver, empty", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "cooking-pot-silver-stew", name: "Cooking pot, silver, of stew", category: "Kitchen & tavern", group: "The kitchen", w: 0.7, h: 0.7, layer: "object" },
-  { id: "platter-roast", name: "Platter, roast", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-fish", name: "Platter, fish", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-bread", name: "Platter, bread", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-cheese", name: "Platter, cheese", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-fruit", name: "Platter, fruit", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-pie", name: "Platter, pie", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-sausages", name: "Platter, sausages", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "platter-soup", name: "Platter, soup", category: "Kitchen & tavern", group: "Food", w: 0.8, h: 0.6, layer: "object" },
-  { id: "cheese-yellow-whole", name: "Cheese, yellow, whole", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-yellow-cut", name: "Cheese, yellow, cut", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-white-whole", name: "Cheese, white, whole", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-white-cut", name: "Cheese, white, cut", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-blue-whole", name: "Cheese, blue-veined, whole", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cheese-blue-cut", name: "Cheese, blue-veined, cut", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.6, layer: "object" },
-  { id: "fruit-crate-red", name: "Fruit crate, red", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "fruit-crate-green", name: "Fruit crate, green", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "fruit-crate-orange", name: "Fruit crate, orange", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "fruit-crate-purple", name: "Fruit crate, purple", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "fruit-crate-yellow", name: "Fruit crate, yellow", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "fruit-crate-mixed", name: "Fruit crate, mixed", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "vegetable-crate-mixed", name: "Vegetable crate, mixed", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "vegetable-crate-greens", name: "Vegetable crate, greens", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "vegetable-crate-squashes", name: "Vegetable crate, squashes", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "vegetable-crate-onions", name: "Vegetable crate, onions", category: "Kitchen & tavern", group: "Food", w: 0.7, h: 0.6, layer: "object" },
-  { id: "bread-loaves", name: "Bread, loaves", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.5, layer: "object" },
-  { id: "bread-rolls", name: "Bread, rolls", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.5, layer: "object" },
-  { id: "bread-plaited", name: "Bread, plaited loaf", category: "Kitchen & tavern", group: "Food", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pie-meat", name: "Pie, meat", category: "Kitchen & tavern", group: "Food", w: 0.5, h: 0.5, layer: "object" },
-  { id: "pie-berry", name: "Pie, berry", category: "Kitchen & tavern", group: "Food", w: 0.5, h: 0.5, layer: "object" },
-  { id: "pie-custard", name: "Pie, custard", category: "Kitchen & tavern", group: "Food", w: 0.5, h: 0.5, layer: "object" },
-  { id: "pie-cream", name: "Pie, cream", category: "Kitchen & tavern", group: "Food", w: 0.5, h: 0.5, layer: "object" },
-  { id: "feast-roast", name: "Feast spread, roast", category: "Kitchen & tavern", group: "Food", w: 2, h: 1, layer: "object" },
-  { id: "feast-fish", name: "Feast spread, fish", category: "Kitchen & tavern", group: "Food", w: 2, h: 1, layer: "object" },
-  { id: "feast-harvest", name: "Feast spread, harvest", category: "Kitchen & tavern", group: "Food", w: 2, h: 1, layer: "object" },
-  { id: "toilet-porcelain-open", name: "Toilet, white porcelain, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-porcelain-lidded", name: "Toilet, white porcelain, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-cream-open", name: "Toilet, cream, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-cream-lidded", name: "Toilet, cream, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-glazed-blue-open", name: "Toilet, blue glaze, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-glazed-blue-lidded", name: "Toilet, blue glaze, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-brass-open", name: "Toilet, brass, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-brass-lidded", name: "Toilet, brass, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-bronze-open", name: "Toilet, bronze, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-bronze-lidded", name: "Toilet, bronze, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-silver-open", name: "Toilet, silver, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-silver-lidded", name: "Toilet, silver, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-gold-open", name: "Toilet, gold, open", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "toilet-gold-lidded", name: "Toilet, gold, lidded", category: "Washroom", group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
-  { id: "urinal-porcelain", name: "Urinal, white porcelain", category: "Washroom", group: "Toilets", w: 0.5, h: 0.4, layer: "object" },
-  { id: "urinal-cream", name: "Urinal, cream", category: "Washroom", group: "Toilets", w: 0.5, h: 0.4, layer: "object" },
-  { id: "urinal-brass", name: "Urinal, brass", category: "Washroom", group: "Toilets", w: 0.5, h: 0.4, layer: "object" },
-  { id: "bidet-porcelain", name: "Bidet, white porcelain", category: "Washroom", group: "Toilets", w: 0.5, h: 0.7, layer: "object" },
-  { id: "bidet-cream", name: "Bidet, cream", category: "Washroom", group: "Toilets", w: 0.5, h: 0.7, layer: "object" },
-  { id: "bidet-brass", name: "Bidet, brass", category: "Washroom", group: "Toilets", w: 0.5, h: 0.7, layer: "object" },
-  { id: "close-stool-honey-crimson", name: "Close stool, honey wood, crimson", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-honey-navy", name: "Close stool, honey wood, navy", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-honey-green", name: "Close stool, honey wood, green", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-walnut-crimson", name: "Close stool, walnut, crimson", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-walnut-navy", name: "Close stool, walnut, navy", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-walnut-green", name: "Close stool, walnut, green", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-ebony-crimson", name: "Close stool, ebony, crimson", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-ebony-navy", name: "Close stool, ebony, navy", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "close-stool-ebony-green", name: "Close stool, ebony, green", category: "Washroom", group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
-  { id: "chamber-pot-terracotta-open", name: "Chamber pot, terracotta, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-terracotta-lidded", name: "Chamber pot, terracotta, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-glazed-blue-open", name: "Chamber pot, blue glaze, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-glazed-blue-lidded", name: "Chamber pot, blue glaze, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-cream-open", name: "Chamber pot, cream, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-cream-lidded", name: "Chamber pot, cream, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-brass-open", name: "Chamber pot, brass, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-brass-lidded", name: "Chamber pot, brass, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-silver-open", name: "Chamber pot, silver, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-silver-lidded", name: "Chamber pot, silver, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-gold-open", name: "Chamber pot, gold, open", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "chamber-pot-gold-lidded", name: "Chamber pot, gold, lidded", category: "Washroom", group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
-  { id: "privy-seat-pale-open", name: "Privy seat, pale wood, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-pale-lidded", name: "Privy seat, pale wood, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-honey-open", name: "Privy seat, honey wood, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-honey-lidded", name: "Privy seat, honey wood, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-walnut-open", name: "Privy seat, walnut, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-walnut-lidded", name: "Privy seat, walnut, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-ebony-open", name: "Privy seat, ebony, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-ebony-lidded", name: "Privy seat, ebony, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-mahogany-open", name: "Privy seat, mahogany, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-mahogany-lidded", name: "Privy seat, mahogany, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-weathered-open", name: "Privy seat, weathered wood, open", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "privy-seat-weathered-lidded", name: "Privy seat, weathered wood, lidded", category: "Washroom", group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" },
-  { id: "squat-hole-granite", name: "Squat hole, granite", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-marble", name: "Squat hole, marble", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-sandstone", name: "Squat hole, sandstone", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-slate", name: "Squat hole, slate", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-wooden", name: "Squat hole, wooden boards", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-porcelain", name: "Squat hole, white porcelain", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "squat-hole-brass", name: "Squat hole, brass", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "floor" },
-  { id: "latrine-bench-honey-two", name: "Latrine bench, honey wood, two holes", category: "Washroom", group: "Privies and latrines", w: 1.6, h: 0.7, layer: "object" },
-  { id: "latrine-bench-honey-three", name: "Latrine bench, honey wood, three holes", category: "Washroom", group: "Privies and latrines", w: 2.4000000000000004, h: 0.7, layer: "object" },
-  { id: "latrine-bench-honey-four", name: "Latrine bench, honey wood, four holes", category: "Washroom", group: "Privies and latrines", w: 3.2, h: 0.7, layer: "object" },
-  { id: "latrine-bench-walnut-two", name: "Latrine bench, walnut, two holes", category: "Washroom", group: "Privies and latrines", w: 1.6, h: 0.7, layer: "object" },
-  { id: "latrine-bench-walnut-three", name: "Latrine bench, walnut, three holes", category: "Washroom", group: "Privies and latrines", w: 2.4000000000000004, h: 0.7, layer: "object" },
-  { id: "latrine-bench-walnut-four", name: "Latrine bench, walnut, four holes", category: "Washroom", group: "Privies and latrines", w: 3.2, h: 0.7, layer: "object" },
-  { id: "latrine-bench-ebony-two", name: "Latrine bench, ebony, two holes", category: "Washroom", group: "Privies and latrines", w: 1.6, h: 0.7, layer: "object" },
-  { id: "latrine-bench-ebony-three", name: "Latrine bench, ebony, three holes", category: "Washroom", group: "Privies and latrines", w: 2.4000000000000004, h: 0.7, layer: "object" },
-  { id: "latrine-bench-ebony-four", name: "Latrine bench, ebony, four holes", category: "Washroom", group: "Privies and latrines", w: 3.2, h: 0.7, layer: "object" },
-  { id: "garderobe-granite", name: "Garderobe, granite", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "object" },
-  { id: "garderobe-marble", name: "Garderobe, marble", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "object" },
-  { id: "garderobe-sandstone", name: "Garderobe, sandstone", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "object" },
-  { id: "garderobe-slate", name: "Garderobe, slate", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "object" },
-  { id: "garderobe-basalt", name: "Garderobe, basalt", category: "Washroom", group: "Privies and latrines", w: 1, h: 1, layer: "object" },
-  { id: "slop-pail-honey", name: "Slop pail, honey wood", category: "Washroom", group: "Privies and latrines", w: 0.45, h: 0.45, layer: "object" },
-  { id: "slop-pail-walnut", name: "Slop pail, walnut", category: "Washroom", group: "Privies and latrines", w: 0.45, h: 0.45, layer: "object" },
-  { id: "slop-pail-ebony", name: "Slop pail, ebony", category: "Washroom", group: "Privies and latrines", w: 0.45, h: 0.45, layer: "object" },
-  { id: "privy-stall-honey", name: "Privy stall, honey wood", category: "Washroom", group: "Privies and latrines", w: 1, h: 1.4, layer: "object" },
-  { id: "privy-stall-walnut", name: "Privy stall, walnut", category: "Washroom", group: "Privies and latrines", w: 1, h: 1.4, layer: "object" },
-  { id: "privy-stall-ebony", name: "Privy stall, ebony", category: "Washroom", group: "Privies and latrines", w: 1, h: 1.4, layer: "object" },
-  { id: "bath-wooden", name: "Bath, wooden", category: "Washroom", group: "Tubs", w: 1.6, h: 0.9, layer: "object" },
-  { id: "bath-copper", name: "Bath, copper", category: "Washroom", group: "Tubs", w: 1.6, h: 0.9, layer: "object" },
-  { id: "bath-white", name: "Bath, white enamel", category: "Washroom", group: "Tubs", w: 1.6, h: 0.9, layer: "object" },
-  { id: "clawfoot-tub-white-empty", name: "Clawfoot tub, white enamel, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-white-filled", name: "Clawfoot tub, white enamel, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-white-suds", name: "Clawfoot tub, white enamel, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-cream-empty", name: "Clawfoot tub, cream enamel, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-cream-filled", name: "Clawfoot tub, cream enamel, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-cream-suds", name: "Clawfoot tub, cream enamel, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-black-empty", name: "Clawfoot tub, black enamel, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-black-filled", name: "Clawfoot tub, black enamel, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-black-suds", name: "Clawfoot tub, black enamel, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-navy-empty", name: "Clawfoot tub, navy enamel, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-navy-filled", name: "Clawfoot tub, navy enamel, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-navy-suds", name: "Clawfoot tub, navy enamel, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-copper-empty", name: "Clawfoot tub, copper, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-copper-filled", name: "Clawfoot tub, copper, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-copper-suds", name: "Clawfoot tub, copper, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-brass-empty", name: "Clawfoot tub, brass, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-brass-filled", name: "Clawfoot tub, brass, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-brass-suds", name: "Clawfoot tub, brass, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-silver-empty", name: "Clawfoot tub, silver, empty", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-silver-filled", name: "Clawfoot tub, silver, filled", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "clawfoot-tub-silver-suds", name: "Clawfoot tub, silver, with suds", category: "Washroom", group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
-  { id: "slipper-bath-white-empty", name: "Slipper bath, white enamel, empty", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-white-filled", name: "Slipper bath, white enamel, filled", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-black-empty", name: "Slipper bath, black enamel, empty", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-black-filled", name: "Slipper bath, black enamel, filled", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-copper-empty", name: "Slipper bath, copper, empty", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-copper-filled", name: "Slipper bath, copper, filled", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-brass-empty", name: "Slipper bath, brass, empty", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "slipper-bath-brass-filled", name: "Slipper bath, brass, filled", category: "Washroom", group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
-  { id: "hip-bath-tin-empty", name: "Hip bath, tin, empty", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "hip-bath-tin-filled", name: "Hip bath, tin, filled", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "hip-bath-copper-empty", name: "Hip bath, copper, empty", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "hip-bath-copper-filled", name: "Hip bath, copper, filled", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "hip-bath-brass-empty", name: "Hip bath, brass, empty", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "hip-bath-brass-filled", name: "Hip bath, brass, filled", category: "Washroom", group: "Tubs", w: 0.9, h: 0.8, layer: "object" },
-  { id: "barrel-tub-honey-empty", name: "Barrel tub, honey wood, empty", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "barrel-tub-honey-filled", name: "Barrel tub, honey wood, filled", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "barrel-tub-walnut-empty", name: "Barrel tub, walnut, empty", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "barrel-tub-walnut-filled", name: "Barrel tub, walnut, filled", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "barrel-tub-ebony-empty", name: "Barrel tub, ebony, empty", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "barrel-tub-ebony-filled", name: "Barrel tub, ebony, filled", category: "Washroom", group: "Tubs", w: 1.1, h: 1.1, layer: "object" },
-  { id: "sunken-bath-granite-filled", name: "Sunken bath, granite, filled", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-granite-drained", name: "Sunken bath, granite, drained", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-marble-filled", name: "Sunken bath, marble, filled", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-marble-drained", name: "Sunken bath, marble, drained", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-sandstone-filled", name: "Sunken bath, sandstone, filled", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-sandstone-drained", name: "Sunken bath, sandstone, drained", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-slate-filled", name: "Sunken bath, slate, filled", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-slate-drained", name: "Sunken bath, slate, drained", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-basalt-filled", name: "Sunken bath, basalt, filled", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "sunken-bath-basalt-drained", name: "Sunken bath, basalt, drained", category: "Washroom", group: "Pools and showers", w: 3, h: 2, layer: "floor" },
-  { id: "plunge-pool-granite", name: "Plunge pool, granite", category: "Washroom", group: "Pools and showers", w: 2, h: 2, layer: "floor" },
-  { id: "plunge-pool-marble", name: "Plunge pool, marble", category: "Washroom", group: "Pools and showers", w: 2, h: 2, layer: "floor" },
-  { id: "plunge-pool-sandstone", name: "Plunge pool, sandstone", category: "Washroom", group: "Pools and showers", w: 2, h: 2, layer: "floor" },
-  { id: "plunge-pool-slate", name: "Plunge pool, slate", category: "Washroom", group: "Pools and showers", w: 2, h: 2, layer: "floor" },
-  { id: "plunge-pool-basalt", name: "Plunge pool, basalt", category: "Washroom", group: "Pools and showers", w: 2, h: 2, layer: "floor" },
-  { id: "shower-stall-brass-marble", name: "Shower stall, brass, marble", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "shower-stall-brass-slate", name: "Shower stall, brass, slate", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "shower-stall-iron-marble", name: "Shower stall, iron, marble", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "shower-stall-iron-slate", name: "Shower stall, iron, slate", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "shower-stall-copper-marble", name: "Shower stall, copper, marble", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "shower-stall-copper-slate", name: "Shower stall, copper, slate", category: "Washroom", group: "Pools and showers", w: 1, h: 1, layer: "object" },
-  { id: "bucket-shower-honey", name: "Bucket shower, honey wood", category: "Washroom", group: "Pools and showers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "bucket-shower-walnut", name: "Bucket shower, walnut", category: "Washroom", group: "Pools and showers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "bucket-shower-ebony", name: "Bucket shower, ebony", category: "Washroom", group: "Pools and showers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "foot-bath-terracotta", name: "Foot bath, terracotta", category: "Washroom", group: "Pools and showers", w: 0.55, h: 0.45, layer: "object" },
-  { id: "foot-bath-copper", name: "Foot bath, copper", category: "Washroom", group: "Pools and showers", w: 0.55, h: 0.45, layer: "object" },
-  { id: "foot-bath-brass", name: "Foot bath, brass", category: "Washroom", group: "Pools and showers", w: 0.55, h: 0.45, layer: "object" },
-  { id: "washstand-pale", name: "Washstand, pale wood", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "washstand-honey", name: "Washstand, honey wood", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "washstand-walnut", name: "Washstand, walnut", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "washstand-ebony", name: "Washstand, ebony", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "washstand-mahogany", name: "Washstand, mahogany", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "washstand-weathered", name: "Washstand, weathered wood", category: "Washroom", group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-porcelain", name: "Pedestal basin, white porcelain", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-cream", name: "Pedestal basin, cream", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-glazed-blue", name: "Pedestal basin, blue glaze", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-marble", name: "Pedestal basin, marble", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-brass", name: "Pedestal basin, brass", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "pedestal-basin-copper", name: "Pedestal basin, copper", category: "Washroom", group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
-  { id: "basin-ewer-terracotta", name: "Basin and ewer, terracotta", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-glazed-blue", name: "Basin and ewer, blue glaze", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-glazed-green", name: "Basin and ewer, green glaze", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-cream", name: "Basin and ewer, cream", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-brass", name: "Basin and ewer, brass", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-silver", name: "Basin and ewer, silver", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "basin-ewer-gold", name: "Basin and ewer, gold", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-basin-porcelain", name: "Wall basin, white porcelain", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object" },
-  { id: "wall-basin-cream", name: "Wall basin, cream", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object" },
-  { id: "wall-basin-brass", name: "Wall basin, brass", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object" },
-  { id: "wall-basin-copper", name: "Wall basin, copper", category: "Washroom", group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object" },
-  { id: "basin-stand-iron", name: "Basin stand, iron", category: "Washroom", group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object" },
-  { id: "basin-stand-bronze", name: "Basin stand, bronze", category: "Washroom", group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object" },
-  { id: "basin-stand-brass", name: "Basin stand, brass", category: "Washroom", group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object" },
-  { id: "basin-stand-silver", name: "Basin stand, silver", category: "Washroom", group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object" },
-  { id: "wash-trough-granite", name: "Wash trough, granite", category: "Washroom", group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
-  { id: "wash-trough-sandstone", name: "Wash trough, sandstone", category: "Washroom", group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
-  { id: "wash-trough-slate", name: "Wash trough, slate", category: "Washroom", group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
-  { id: "wash-trough-honey", name: "Wash trough, honey wood", category: "Washroom", group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
-  { id: "wash-trough-walnut", name: "Wash trough, walnut", category: "Washroom", group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
-  { id: "vanity-pale", name: "Vanity, pale wood", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "vanity-honey", name: "Vanity, honey wood", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "vanity-walnut", name: "Vanity, walnut", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "vanity-ebony", name: "Vanity, ebony", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "vanity-mahogany", name: "Vanity, mahogany", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "vanity-weathered", name: "Vanity, weathered wood", category: "Washroom", group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" },
-  { id: "pump-sink-granite-iron", name: "Sink with a pump, granite, iron", category: "Washroom", group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object" },
-  { id: "pump-sink-granite-brass", name: "Sink with a pump, granite, brass", category: "Washroom", group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object" },
-  { id: "pump-sink-slate-iron", name: "Sink with a pump, slate, iron", category: "Washroom", group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object" },
-  { id: "pump-sink-slate-brass", name: "Sink with a pump, slate, brass", category: "Washroom", group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object" },
-  { id: "cistern-wooden-open", name: "Cistern, wooden, open", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "cistern-wooden-lidded", name: "Cistern, wooden, lidded", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "cistern-copper-open", name: "Cistern, copper, open", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "cistern-copper-lidded", name: "Cistern, copper, lidded", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "cistern-lead-open", name: "Cistern, lead, open", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "cistern-lead-lidded", name: "Cistern, lead, lidded", category: "Washroom", group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
-  { id: "water-boiler-copper", name: "Water boiler, copper", category: "Washroom", group: "Tanks and boilers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "water-boiler-iron", name: "Water boiler, iron", category: "Washroom", group: "Tanks and boilers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "water-boiler-brass", name: "Water boiler, brass", category: "Washroom", group: "Tanks and boilers", w: 0.9, h: 0.9, layer: "object" },
-  { id: "sauna-bench-pale-one", name: "Sauna bench, pale wood, one tier", category: "Washroom", group: "Sauna", w: 2, h: 0.5, layer: "object" },
-  { id: "sauna-bench-pale-two", name: "Sauna bench, pale wood, two tiers", category: "Washroom", group: "Sauna", w: 2, h: 0.9500000000000001, layer: "object" },
-  { id: "sauna-bench-pale-three", name: "Sauna bench, pale wood, three tiers", category: "Washroom", group: "Sauna", w: 2, h: 1.4000000000000001, layer: "object" },
-  { id: "sauna-bench-honey-one", name: "Sauna bench, honey wood, one tier", category: "Washroom", group: "Sauna", w: 2, h: 0.5, layer: "object" },
-  { id: "sauna-bench-honey-two", name: "Sauna bench, honey wood, two tiers", category: "Washroom", group: "Sauna", w: 2, h: 0.9500000000000001, layer: "object" },
-  { id: "sauna-bench-honey-three", name: "Sauna bench, honey wood, three tiers", category: "Washroom", group: "Sauna", w: 2, h: 1.4000000000000001, layer: "object" },
-  { id: "sauna-bench-weathered-one", name: "Sauna bench, weathered wood, one tier", category: "Washroom", group: "Sauna", w: 2, h: 0.5, layer: "object" },
-  { id: "sauna-bench-weathered-two", name: "Sauna bench, weathered wood, two tiers", category: "Washroom", group: "Sauna", w: 2, h: 0.9500000000000001, layer: "object" },
-  { id: "sauna-bench-weathered-three", name: "Sauna bench, weathered wood, three tiers", category: "Washroom", group: "Sauna", w: 2, h: 1.4000000000000001, layer: "object" },
-  { id: "sauna-stove-iron", name: "Sauna stove, iron", category: "Washroom", group: "Sauna", w: 0.8, h: 0.8, layer: "object" },
-  { id: "sauna-stove-bronze", name: "Sauna stove, bronze", category: "Washroom", group: "Sauna", w: 0.8, h: 0.8, layer: "object" },
-  { id: "sauna-stove-brass", name: "Sauna stove, brass", category: "Washroom", group: "Sauna", w: 0.8, h: 0.8, layer: "object" },
-  { id: "sauna-bucket-pale", name: "Sauna bucket and ladle, pale wood", category: "Washroom", group: "Sauna", w: 0.5, h: 0.5, layer: "object" },
-  { id: "sauna-bucket-honey", name: "Sauna bucket and ladle, honey wood", category: "Washroom", group: "Sauna", w: 0.5, h: 0.5, layer: "object" },
-  { id: "sauna-bucket-weathered", name: "Sauna bucket and ladle, weathered wood", category: "Washroom", group: "Sauna", w: 0.5, h: 0.5, layer: "object" },
-  { id: "washboard-tub-honey", name: "Washtub and washboard, honey wood", category: "Washroom", group: "Laundry", w: 0.9, h: 0.9, layer: "object" },
-  { id: "washboard-tub-walnut", name: "Washtub and washboard, walnut", category: "Washroom", group: "Laundry", w: 0.9, h: 0.9, layer: "object" },
-  { id: "washboard-tub-ebony", name: "Washtub and washboard, ebony", category: "Washroom", group: "Laundry", w: 0.9, h: 0.9, layer: "object" },
-  { id: "mangle-honey", name: "Mangle, honey wood", category: "Washroom", group: "Laundry", w: 0.9, h: 0.6, layer: "object" },
-  { id: "mangle-walnut", name: "Mangle, walnut", category: "Washroom", group: "Laundry", w: 0.9, h: 0.6, layer: "object" },
-  { id: "mangle-ebony", name: "Mangle, ebony", category: "Washroom", group: "Laundry", w: 0.9, h: 0.6, layer: "object" },
-  { id: "drying-rack-honey-bare", name: "Drying rack, honey wood, bare", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "drying-rack-honey-linens", name: "Drying rack, honey wood, hung with linens", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "drying-rack-walnut-bare", name: "Drying rack, walnut, bare", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "drying-rack-walnut-linens", name: "Drying rack, walnut, hung with linens", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "drying-rack-ebony-bare", name: "Drying rack, ebony, bare", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "drying-rack-ebony-linens", name: "Drying rack, ebony, hung with linens", category: "Washroom", group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "clothesline-linens", name: "Clothesline, hung with linens", category: "Washroom", group: "Laundry", w: 3, h: 0.5, layer: "object" },
-  { id: "clothesline-clothes", name: "Clothesline, hung with clothes", category: "Washroom", group: "Laundry", w: 3, h: 0.5, layer: "object" },
-  { id: "clothesline-towels", name: "Clothesline, hung with towels", category: "Washroom", group: "Laundry", w: 3, h: 0.5, layer: "object" },
-  { id: "towel-rail-honey-white", name: "Towel rail, honey wood, white towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-honey-coloured", name: "Towel rail, honey wood, coloured towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-walnut-white", name: "Towel rail, walnut, white towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-walnut-coloured", name: "Towel rail, walnut, coloured towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-brass-white", name: "Towel rail, brass, white towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-brass-coloured", name: "Towel rail, brass, coloured towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-silver-white", name: "Towel rail, silver, white towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-rail-silver-coloured", name: "Towel rail, silver, coloured towels", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
-  { id: "towel-stack-white", name: "Folded towels, white", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "towel-stack-crimson", name: "Folded towels, crimson", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "towel-stack-navy", name: "Folded towels, navy", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "towel-stack-green", name: "Folded towels, green", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "towel-stack-ochre", name: "Folded towels, ochre", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "towel-stack-teal", name: "Folded towels, teal", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" },
-  { id: "soap-dish-cream", name: "Soap dish, cream", category: "Washroom", group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object" },
-  { id: "soap-dish-glazed-blue", name: "Soap dish, blue glaze", category: "Washroom", group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object" },
-  { id: "soap-dish-brass", name: "Soap dish, brass", category: "Washroom", group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object" },
-  { id: "soap-dish-silver", name: "Soap dish, silver", category: "Washroom", group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object" },
-  { id: "bath-oils-red", name: "Bath oils, red", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "bath-oils-blue", name: "Bath oils, blue", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "bath-oils-green", name: "Bath oils, green", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "bath-oils-purple", name: "Bath oils, purple", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "bath-oils-amber", name: "Bath oils, amber", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "bath-oils-clear", name: "Bath oils, clear", category: "Washroom", group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" },
-  { id: "wall-mirror-brass", name: "Wall mirror, brass", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
-  { id: "wall-mirror-silver", name: "Wall mirror, silver", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
-  { id: "wall-mirror-gold", name: "Wall mirror, gold", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
-  { id: "wall-mirror-honey", name: "Wall mirror, honey wood", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
-  { id: "wall-mirror-walnut", name: "Wall mirror, walnut", category: "Washroom", group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
-  { id: "shaving-stand-brass", name: "Shaving stand, brass", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "shaving-stand-silver", name: "Shaving stand, silver", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "shaving-stand-iron", name: "Shaving stand, iron", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "bath-mat-white", name: "Bath mat, white", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-mat-crimson", name: "Bath mat, crimson", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-mat-navy", name: "Bath mat, navy", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-mat-green", name: "Bath mat, green", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-mat-ochre", name: "Bath mat, ochre", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-mat-teal", name: "Bath mat, teal", category: "Washroom", group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" },
-  { id: "bath-stool-honey", name: "Bath stool, honey wood", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "bath-stool-walnut", name: "Bath stool, walnut", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "bath-stool-ebony", name: "Bath stool, ebony", category: "Washroom", group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
-  { id: "oak-tree-small-rounded", name: "Oak tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "oak-tree-small-spreading", name: "Oak tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "oak-tree-medium-rounded", name: "Oak tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "oak-tree-medium-spreading", name: "Oak tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "oak-tree-large-rounded", name: "Oak tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "oak-tree-large-spreading", name: "Oak tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "maple-tree-small-rounded", name: "Maple tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "maple-tree-small-spreading", name: "Maple tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "maple-tree-medium-rounded", name: "Maple tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "maple-tree-medium-spreading", name: "Maple tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "maple-tree-large-rounded", name: "Maple tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "maple-tree-large-spreading", name: "Maple tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "birch-tree-small-rounded", name: "Birch tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "birch-tree-small-spreading", name: "Birch tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "birch-tree-medium-rounded", name: "Birch tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "birch-tree-medium-spreading", name: "Birch tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "birch-tree-large-rounded", name: "Birch tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "birch-tree-large-spreading", name: "Birch tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "elm-tree-small-rounded", name: "Elm tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "elm-tree-small-spreading", name: "Elm tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "elm-tree-medium-rounded", name: "Elm tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "elm-tree-medium-spreading", name: "Elm tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "elm-tree-large-rounded", name: "Elm tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "elm-tree-large-spreading", name: "Elm tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "beech-tree-small-rounded", name: "Beech tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "beech-tree-small-spreading", name: "Beech tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "beech-tree-medium-rounded", name: "Beech tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "beech-tree-medium-spreading", name: "Beech tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "beech-tree-large-rounded", name: "Beech tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "beech-tree-large-spreading", name: "Beech tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "apple-tree-small-rounded", name: "Apple tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "apple-tree-small-spreading", name: "Apple tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "apple-tree-medium-rounded", name: "Apple tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "apple-tree-medium-spreading", name: "Apple tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "apple-tree-large-rounded", name: "Apple tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "apple-tree-large-spreading", name: "Apple tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "cherry-tree-small-rounded", name: "Cherry tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "cherry-tree-small-spreading", name: "Cherry tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "cherry-tree-medium-rounded", name: "Cherry tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "cherry-tree-medium-spreading", name: "Cherry tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "cherry-tree-large-rounded", name: "Cherry tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "cherry-tree-large-spreading", name: "Cherry tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "chestnut-tree-small-rounded", name: "Chestnut tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "chestnut-tree-small-spreading", name: "Chestnut tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "chestnut-tree-medium-rounded", name: "Chestnut tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "chestnut-tree-medium-spreading", name: "Chestnut tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "chestnut-tree-large-rounded", name: "Chestnut tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "chestnut-tree-large-spreading", name: "Chestnut tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "linden-tree-small-rounded", name: "Linden tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "linden-tree-small-spreading", name: "Linden tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "linden-tree-medium-rounded", name: "Linden tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "linden-tree-medium-spreading", name: "Linden tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "linden-tree-large-rounded", name: "Linden tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "linden-tree-large-spreading", name: "Linden tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "poplar-tree-small-rounded", name: "Poplar tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "poplar-tree-small-spreading", name: "Poplar tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "poplar-tree-medium-rounded", name: "Poplar tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "poplar-tree-medium-spreading", name: "Poplar tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "poplar-tree-large-rounded", name: "Poplar tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "poplar-tree-large-spreading", name: "Poplar tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "aspen-tree-small-rounded", name: "Aspen tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "aspen-tree-small-spreading", name: "Aspen tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "aspen-tree-medium-rounded", name: "Aspen tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "aspen-tree-medium-spreading", name: "Aspen tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "aspen-tree-large-rounded", name: "Aspen tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "aspen-tree-large-spreading", name: "Aspen tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "willow-tree-small-rounded", name: "Weeping willow tree, small, rounded", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "willow-tree-small-spreading", name: "Weeping willow tree, small, spreading", category: "Nature", group: "Leafy trees", w: 1.8399999999999999, h: 1.8399999999999999, layer: "canopy" },
-  { id: "willow-tree-medium-rounded", name: "Weeping willow tree, medium, rounded", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "willow-tree-medium-spreading", name: "Weeping willow tree, medium, spreading", category: "Nature", group: "Leafy trees", w: 2.76, h: 2.76, layer: "canopy" },
-  { id: "willow-tree-large-rounded", name: "Weeping willow tree, large, rounded", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "willow-tree-large-spreading", name: "Weeping willow tree, large, spreading", category: "Nature", group: "Leafy trees", w: 3.9099999999999997, h: 3.9099999999999997, layer: "canopy" },
-  { id: "pine-tree-small", name: "Pine tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "pine-tree-medium", name: "Pine tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "pine-tree-large", name: "Pine tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "fir-tree-small", name: "Fir tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "fir-tree-medium", name: "Fir tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "fir-tree-large", name: "Fir tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "spruce-tree-small", name: "Spruce tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "spruce-tree-medium", name: "Spruce tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "spruce-tree-large", name: "Spruce tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "cedar-tree-small", name: "Cedar tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "cedar-tree-medium", name: "Cedar tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "cedar-tree-large", name: "Cedar tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "cypress-tree-small", name: "Cypress tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "cypress-tree-medium", name: "Cypress tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "cypress-tree-large", name: "Cypress tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "yew-tree-small", name: "Yew tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "yew-tree-medium", name: "Yew tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "yew-tree-large", name: "Yew tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "juniper-tree-small", name: "Juniper tree, small", category: "Nature", group: "Evergreens", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "juniper-tree-medium", name: "Juniper tree, medium", category: "Nature", group: "Evergreens", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "juniper-tree-large", name: "Juniper tree, large", category: "Nature", group: "Evergreens", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "palm-tree-small", name: "Palm tree, small", category: "Nature", group: "Evergreens", w: 1.6800000000000002, h: 1.6800000000000002, layer: "canopy" },
-  { id: "palm-tree-medium", name: "Palm tree, medium", category: "Nature", group: "Evergreens", w: 2.52, h: 2.52, layer: "canopy" },
-  { id: "palm-tree-large", name: "Palm tree, large", category: "Nature", group: "Evergreens", w: 3.57, h: 3.57, layer: "canopy" },
-  { id: "dead-tree-small", name: "Dead tree, small", category: "Nature", group: "Bare and fallen wood", w: 1.7600000000000002, h: 1.7600000000000002, layer: "canopy" },
-  { id: "dead-tree-medium", name: "Dead tree, medium", category: "Nature", group: "Bare and fallen wood", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "dead-tree-large", name: "Dead tree, large", category: "Nature", group: "Bare and fallen wood", w: 3.74, h: 3.74, layer: "canopy" },
-  { id: "dead-tree-twisted", name: "Dead tree, twisted", category: "Nature", group: "Bare and fallen wood", w: 2.4200000000000004, h: 2.4200000000000004, layer: "canopy" },
-  { id: "dead-tree-pale", name: "Dead tree, pale and dry", category: "Nature", group: "Bare and fallen wood", w: 2.64, h: 2.64, layer: "canopy" },
-  { id: "stump-cut", name: "Stump, cut", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "stump-broken", name: "Stump, broken", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "stump-rotten", name: "Stump, rotten", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "stump-mossy", name: "Stump, mossy", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "stump-wide", name: "Stump, wide", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "stump-small", name: "Stump, small", category: "Nature", group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" },
-  { id: "log-short", name: "Log, short", category: "Nature", group: "Bare and fallen wood", w: 1.2, h: 0.6, layer: "object" },
-  { id: "log-long", name: "Log, long", category: "Nature", group: "Bare and fallen wood", w: 2.5, h: 0.6, layer: "object" },
-  { id: "log-mossy", name: "Log, mossy", category: "Nature", group: "Bare and fallen wood", w: 1.8, h: 0.6, layer: "object" },
-  { id: "log-hollow", name: "Log, hollow", category: "Nature", group: "Bare and fallen wood", w: 1.8, h: 0.6, layer: "object" },
-  { id: "log-split", name: "Log, split", category: "Nature", group: "Bare and fallen wood", w: 1.8, h: 0.6, layer: "object" },
-  { id: "log-burnt", name: "Log, burnt", category: "Nature", group: "Bare and fallen wood", w: 1.8, h: 0.6, layer: "object" },
-  { id: "fallen-branch-small", name: "Fallen branch, small", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object" },
-  { id: "fallen-branch-large", name: "Fallen branch, large", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object" },
-  { id: "fallen-branch-forked", name: "Fallen branch, forked", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object" },
-  { id: "fallen-branch-pile", name: "Fallen branch, pile of brushwood", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object" },
-  { id: "driftwood-short", name: "Driftwood, short", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object" },
-  { id: "driftwood-long", name: "Driftwood, long", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object" },
-  { id: "driftwood-tangle", name: "Driftwood, tangle", category: "Nature", group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object" },
-  { id: "bush-round-small", name: "Bush, round, small", category: "Nature", group: "Bushes and hedges", w: 0.9, h: 0.9, layer: "object" },
-  { id: "bush-round-large", name: "Bush, round, large", category: "Nature", group: "Bushes and hedges", w: 1.4, h: 1.4, layer: "object" },
-  { id: "bush-wide-small", name: "Bush, wide, small", category: "Nature", group: "Bushes and hedges", w: 0.9, h: 0.9, layer: "object" },
-  { id: "bush-wide-large", name: "Bush, wide, large", category: "Nature", group: "Bushes and hedges", w: 1.4, h: 1.4, layer: "object" },
-  { id: "bush-ragged-small", name: "Bush, ragged, small", category: "Nature", group: "Bushes and hedges", w: 0.9, h: 0.9, layer: "object" },
-  { id: "bush-ragged-large", name: "Bush, ragged, large", category: "Nature", group: "Bushes and hedges", w: 1.4, h: 1.4, layer: "object" },
-  { id: "berry-bush-red", name: "Berry bush, red", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "berry-bush-blue", name: "Berry bush, blue", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "berry-bush-black", name: "Berry bush, black", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "flower-bush-pink", name: "Flowering bush, pink", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "flower-bush-white", name: "Flowering bush, white", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "flower-bush-red", name: "Flowering bush, red", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "flower-bush-yellow", name: "Flowering bush, yellow", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "flower-bush-violet", name: "Flowering bush, violet", category: "Nature", group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" },
-  { id: "hedge-short", name: "Hedge, short", category: "Nature", group: "Bushes and hedges", w: 1.2, h: 0.7, layer: "object" },
-  { id: "hedge-long", name: "Hedge, long", category: "Nature", group: "Bushes and hedges", w: 2, h: 0.7, layer: "object" },
-  { id: "hedge-corner", name: "Hedge, corner", category: "Nature", group: "Bushes and hedges", w: 1.2, h: 1.2, layer: "object" },
-  { id: "hedge-round", name: "Hedge, round, clipped", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "fern-small", name: "Fern, small", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "fern-large", name: "Fern, large", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "fern-cluster", name: "Fern, cluster", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "bramble-small", name: "Bramble, small", category: "Nature", group: "Bushes and hedges", w: 1.4, h: 1, layer: "object" },
-  { id: "bramble-large", name: "Bramble, large", category: "Nature", group: "Bushes and hedges", w: 1.4, h: 1, layer: "object" },
-  { id: "thorn-bush-green", name: "Thorn bush, green", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "thorn-bush-dry", name: "Thorn bush, dry", category: "Nature", group: "Bushes and hedges", w: 1, h: 1, layer: "object" },
-  { id: "flowers-red-patch", name: "Flowers, red, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-red-scattered", name: "Flowers, red, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-yellow-patch", name: "Flowers, yellow, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-yellow-scattered", name: "Flowers, yellow, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-purple-patch", name: "Flowers, purple, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-purple-scattered", name: "Flowers, purple, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-white-patch", name: "Flowers, white, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-white-scattered", name: "Flowers, white, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-blue-patch", name: "Flowers, blue, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-blue-scattered", name: "Flowers, blue, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-pink-patch", name: "Flowers, pink, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-pink-scattered", name: "Flowers, pink, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-orange-patch", name: "Flowers, orange, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-orange-scattered", name: "Flowers, orange, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-mixed-patch", name: "Flowers, mixed, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "flowers-mixed-scattered", name: "Flowers, mixed, scattered", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "tulip-bed-red", name: "Tulip bed, red", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "tulip-bed-yellow", name: "Tulip bed, yellow", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "tulip-bed-purple", name: "Tulip bed, purple", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "tulip-bed-white", name: "Tulip bed, white", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "tulip-bed-pink", name: "Tulip bed, pink", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "poppies-red", name: "Poppies, red", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "poppies-mixed", name: "Poppies, mixed", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "daisies-white", name: "Daisies, white", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "daisies-yellow", name: "Daisies, yellow", category: "Nature", group: "Flowers and grass", w: 1, h: 1, layer: "floor" },
-  { id: "lavender-patch", name: "Lavender, patch", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "lavender-row", name: "Lavender, row", category: "Nature", group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" },
-  { id: "grass-tuft-short", name: "Grass tuft, short", category: "Nature", group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "grass-tuft-tall", name: "Grass tuft, tall", category: "Nature", group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "grass-tuft-dry", name: "Grass tuft, dry", category: "Nature", group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "grass-tuft-lush", name: "Grass tuft, lush", category: "Nature", group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "tall-grass-patch", name: "Tall grass, patch", category: "Nature", group: "Flowers and grass", w: 1, h: 0.9, layer: "object" },
-  { id: "tall-grass-wide", name: "Tall grass, wide patch", category: "Nature", group: "Flowers and grass", w: 1.6, h: 1.2, layer: "object" },
-  { id: "weed-patch-small", name: "Weeds, small", category: "Nature", group: "Flowers and grass", w: 0.9, h: 0.9, layer: "floor" },
-  { id: "weed-patch-large", name: "Weeds, large", category: "Nature", group: "Flowers and grass", w: 0.9, h: 0.9, layer: "floor" },
-  { id: "rock-grey-small", name: "Rock, grey, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-grey-large", name: "Rock, grey, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "rock-brown-small", name: "Rock, brown, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-brown-large", name: "Rock, brown, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "rock-red-small", name: "Rock, red, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-red-large", name: "Rock, red, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "rock-dark-small", name: "Rock, dark, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-dark-large", name: "Rock, dark, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "rock-pale-small", name: "Rock, pale, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-pale-large", name: "Rock, pale, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "rock-mossy-small", name: "Rock, mossy, small", category: "Nature", group: "Rocks", w: 0.5, h: 0.45, layer: "object" },
-  { id: "rock-mossy-large", name: "Rock, mossy, large", category: "Nature", group: "Rocks", w: 0.8, h: 0.7, layer: "object" },
-  { id: "boulder-grey", name: "Boulder, grey", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "boulder-brown", name: "Boulder, brown", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "boulder-red", name: "Boulder, red", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "boulder-dark", name: "Boulder, dark", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "boulder-pale", name: "Boulder, pale", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "boulder-mossy", name: "Boulder, mossy", category: "Nature", group: "Rocks", w: 1.6, h: 1.4, layer: "object" },
-  { id: "rocks-grey", name: "Rocks, grey", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rocks-brown", name: "Rocks, brown", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rocks-red", name: "Rocks, red", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rocks-dark", name: "Rocks, dark", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rocks-pale", name: "Rocks, pale", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rocks-mossy", name: "Rocks, mossy", category: "Nature", group: "Rocks", w: 1.2, h: 1, layer: "object" },
-  { id: "rubble-grey-small", name: "Rubble, grey, small", category: "Nature", group: "Rocks", w: 0.9, h: 0.8, layer: "floor" },
-  { id: "rubble-grey-wide", name: "Rubble, grey, wide", category: "Nature", group: "Rocks", w: 1.5, h: 1.2, layer: "floor" },
-  { id: "rubble-brown-small", name: "Rubble, brown, small", category: "Nature", group: "Rocks", w: 0.9, h: 0.8, layer: "floor" },
-  { id: "rubble-brown-wide", name: "Rubble, brown, wide", category: "Nature", group: "Rocks", w: 1.5, h: 1.2, layer: "floor" },
-  { id: "rubble-red-small", name: "Rubble, red, small", category: "Nature", group: "Rocks", w: 0.9, h: 0.8, layer: "floor" },
-  { id: "rubble-red-wide", name: "Rubble, red, wide", category: "Nature", group: "Rocks", w: 1.5, h: 1.2, layer: "floor" },
-  { id: "rubble-dark-small", name: "Rubble, dark, small", category: "Nature", group: "Rocks", w: 0.9, h: 0.8, layer: "floor" },
-  { id: "rubble-dark-wide", name: "Rubble, dark, wide", category: "Nature", group: "Rocks", w: 1.5, h: 1.2, layer: "floor" },
-  { id: "rock-spire-grey", name: "Rock spire, grey", category: "Nature", group: "Rocks", w: 0.9, h: 0.9, layer: "object" },
-  { id: "rock-spire-brown", name: "Rock spire, brown", category: "Nature", group: "Rocks", w: 0.9, h: 0.9, layer: "object" },
-  { id: "rock-spire-pale", name: "Rock spire, pale", category: "Nature", group: "Rocks", w: 0.9, h: 0.9, layer: "object" },
-  { id: "cairn-small", name: "Cairn, small", category: "Nature", group: "Rocks", w: 0.8, h: 0.8, layer: "object" },
-  { id: "cairn-tall", name: "Cairn, tall", category: "Nature", group: "Rocks", w: 0.8, h: 0.8, layer: "object" },
-  { id: "reeds-small", name: "Reeds, small", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "object" },
-  { id: "reeds-large", name: "Reeds, large", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "object" },
-  { id: "reeds-dense", name: "Reeds, dense", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "object" },
-  { id: "cattail-clump-small", name: "Cattails, small", category: "Nature", group: "Water plants", w: 0.8, h: 0.8, layer: "object" },
-  { id: "cattail-clump-large", name: "Cattails, large", category: "Nature", group: "Water plants", w: 0.8, h: 0.8, layer: "object" },
-  { id: "cattail-clump-dense", name: "Cattails, dense", category: "Nature", group: "Water plants", w: 0.8, h: 0.8, layer: "object" },
-  { id: "lily-pads-plain", name: "Lily pads, plain", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "lily-pads-white", name: "Lily pads, white flowers", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "lily-pads-pink", name: "Lily pads, pink flowers", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "lily-pads-large", name: "Lily pads, large pads", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "seaweed-green", name: "Seaweed, green", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "seaweed-brown", name: "Seaweed, brown", category: "Nature", group: "Water plants", w: 1, h: 1, layer: "floor" },
-  { id: "kelp-thin", name: "Kelp, thin", category: "Nature", group: "Water plants", w: 1.2, h: 1.2, layer: "floor" },
-  { id: "kelp-thick", name: "Kelp, thick", category: "Nature", group: "Water plants", w: 1.2, h: 1.2, layer: "floor" },
-  { id: "mushrooms-red", name: "Mushrooms, red", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "mushrooms-brown", name: "Mushrooms, brown", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "mushrooms-white", name: "Mushrooms, white", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "mushrooms-purple", name: "Mushrooms, purple", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "mushrooms-yellow", name: "Mushrooms, yellow", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "mushrooms-blue", name: "Mushrooms, blue", category: "Nature", group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" },
-  { id: "giant-mushroom-red", name: "Giant mushroom, red", category: "Nature", group: "Mushrooms", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "giant-mushroom-brown", name: "Giant mushroom, brown", category: "Nature", group: "Mushrooms", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "giant-mushroom-purple", name: "Giant mushroom, purple", category: "Nature", group: "Mushrooms", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "mushroom-ring-brown", name: "Mushroom ring, brown", category: "Nature", group: "Mushrooms", w: 1.6, h: 1.6, layer: "floor" },
-  { id: "mushroom-ring-white", name: "Mushroom ring, white", category: "Nature", group: "Mushrooms", w: 1.6, h: 1.6, layer: "floor" },
-  { id: "toadstool-single", name: "Toadstool, single", category: "Nature", group: "Mushrooms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "toadstool-pair", name: "Toadstool, pair", category: "Nature", group: "Mushrooms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "snowdrift-small", name: "Snowdrift, small", category: "Nature", group: "Snow and ice", w: 1, h: 0.7, layer: "floor" },
-  { id: "snowdrift-large", name: "Snowdrift, large", category: "Nature", group: "Snow and ice", w: 1.6, h: 1, layer: "floor" },
-  { id: "snowdrift-long", name: "Snowdrift, long", category: "Nature", group: "Snow and ice", w: 2.1, h: 0.7, layer: "floor" },
-  { id: "icicle-rocks-small", name: "Rocks with icicles, small", category: "Nature", group: "Snow and ice", w: 1, h: 0.9, layer: "object" },
-  { id: "icicle-rocks-large", name: "Rocks with icicles, large", category: "Nature", group: "Snow and ice", w: 1, h: 0.9, layer: "object" },
-  { id: "fallen-leaves-brown", name: "Fallen leaves, brown", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "fallen-leaves-red", name: "Fallen leaves, red", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "fallen-leaves-yellow", name: "Fallen leaves, yellow", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "fallen-leaves-mixed", name: "Fallen leaves, mixed", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "roots-small", name: "Roots, small", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "roots-large", name: "Roots, large", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "roots-tangle", name: "Roots, tangle", category: "Nature", group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" },
-  { id: "tent-canvas-crimson-small", name: "Tent, crimson, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-crimson-large", name: "Tent, crimson, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-navy-small", name: "Tent, navy, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-navy-large", name: "Tent, navy, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-green-small", name: "Tent, green, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-green-large", name: "Tent, green, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-ochre-small", name: "Tent, ochre, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-ochre-large", name: "Tent, ochre, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-violet-small", name: "Tent, violet, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-violet-large", name: "Tent, violet, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-black-small", name: "Tent, black, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-black-large", name: "Tent, black, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-white-small", name: "Tent, white, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-white-large", name: "Tent, white, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "tent-canvas-teal-small", name: "Tent, teal, small", category: "Camp & outdoors", group: "Camp", w: 1.5, h: 1.2, layer: "canopy" },
-  { id: "tent-canvas-teal-large", name: "Tent, teal, large", category: "Camp & outdoors", group: "Camp", w: 2.1, h: 1.7, layer: "canopy" },
-  { id: "pavilion-crimson", name: "Pavilion, crimson", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-navy", name: "Pavilion, navy", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-green", name: "Pavilion, green", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-ochre", name: "Pavilion, ochre", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-violet", name: "Pavilion, violet", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-black", name: "Pavilion, black", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-white", name: "Pavilion, white", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "pavilion-teal", name: "Pavilion, teal", category: "Camp & outdoors", group: "Camp", w: 3, h: 3, layer: "canopy" },
-  { id: "lean-to-pale", name: "Lean-to, pale wood", category: "Camp & outdoors", group: "Camp", w: 1.8, h: 1.2, layer: "canopy" },
-  { id: "lean-to-walnut", name: "Lean-to, walnut", category: "Camp & outdoors", group: "Camp", w: 1.8, h: 1.2, layer: "canopy" },
-  { id: "lean-to-weathered", name: "Lean-to, weathered wood", category: "Camp & outdoors", group: "Camp", w: 1.8, h: 1.2, layer: "canopy" },
-  { id: "bedroll-crimson", name: "Bedroll, crimson", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-navy", name: "Bedroll, navy", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-green", name: "Bedroll, green", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-ochre", name: "Bedroll, ochre", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-violet", name: "Bedroll, violet", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-black", name: "Bedroll, black", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-white", name: "Bedroll, white", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "bedroll-teal", name: "Bedroll, teal", category: "Camp & outdoors", group: "Camp", w: 0.8, h: 1.9, layer: "floor" },
-  { id: "hammock-crimson", name: "Hammock, crimson", category: "Camp & outdoors", group: "Camp", w: 2.4, h: 0.8, layer: "object" },
-  { id: "hammock-navy", name: "Hammock, navy", category: "Camp & outdoors", group: "Camp", w: 2.4, h: 0.8, layer: "object" },
-  { id: "hammock-green", name: "Hammock, green", category: "Camp & outdoors", group: "Camp", w: 2.4, h: 0.8, layer: "object" },
-  { id: "hammock-ochre", name: "Hammock, ochre", category: "Camp & outdoors", group: "Camp", w: 2.4, h: 0.8, layer: "object" },
-  { id: "camp-gear-cooking", name: "Camp gear, cooking tripod", category: "Camp & outdoors", group: "Camp", w: 1.2, h: 1, layer: "object" },
-  { id: "camp-gear-supplies", name: "Camp gear, supplies", category: "Camp & outdoors", group: "Camp", w: 1.2, h: 1, layer: "object" },
-  { id: "camp-gear-packs", name: "Camp gear, packs and rolls", category: "Camp & outdoors", group: "Camp", w: 1.2, h: 1, layer: "object" },
-  { id: "wagon-pale-covered", name: "Wagon, pale wood, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-pale-open", name: "Wagon, pale wood, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-honey-covered", name: "Wagon, honey wood, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-honey-open", name: "Wagon, honey wood, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-walnut-covered", name: "Wagon, walnut, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-walnut-open", name: "Wagon, walnut, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-ebony-covered", name: "Wagon, ebony, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-ebony-open", name: "Wagon, ebony, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-mahogany-covered", name: "Wagon, mahogany, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-mahogany-open", name: "Wagon, mahogany, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-weathered-covered", name: "Wagon, weathered wood, covered", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "wagon-weathered-open", name: "Wagon, weathered wood, open, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "handcart-pale-empty", name: "Handcart, pale wood, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-pale-loaded", name: "Handcart, pale wood, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-honey-empty", name: "Handcart, honey wood, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-honey-loaded", name: "Handcart, honey wood, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-walnut-empty", name: "Handcart, walnut, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-walnut-loaded", name: "Handcart, walnut, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-ebony-empty", name: "Handcart, ebony, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-ebony-loaded", name: "Handcart, ebony, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-mahogany-empty", name: "Handcart, mahogany, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-mahogany-loaded", name: "Handcart, mahogany, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-weathered-empty", name: "Handcart, weathered wood, empty", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "handcart-weathered-loaded", name: "Handcart, weathered wood, loaded", category: "Camp & outdoors", group: "Wagons and carts", w: 1.8, h: 1.1, layer: "object" },
-  { id: "carriage-crimson", name: "Carriage, crimson", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "carriage-navy", name: "Carriage, navy", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "carriage-green", name: "Carriage, green", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "carriage-black", name: "Carriage, black", category: "Camp & outdoors", group: "Wagons and carts", w: 3, h: 1.6, layer: "object" },
-  { id: "rail-fence-pale-straight", name: "Rail fence, pale wood, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-pale-broken", name: "Rail fence, pale wood, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-honey-straight", name: "Rail fence, honey wood, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-honey-broken", name: "Rail fence, honey wood, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-walnut-straight", name: "Rail fence, walnut, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-walnut-broken", name: "Rail fence, walnut, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-ebony-straight", name: "Rail fence, ebony, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-ebony-broken", name: "Rail fence, ebony, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-mahogany-straight", name: "Rail fence, mahogany, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-mahogany-broken", name: "Rail fence, mahogany, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-weathered-straight", name: "Rail fence, weathered wood, straight", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "rail-fence-weathered-broken", name: "Rail fence, weathered wood, broken", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.4, layer: "object" },
-  { id: "picket-fence-white", name: "Picket fence, white", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.3, layer: "object" },
-  { id: "picket-fence-pale", name: "Picket fence, pale wood", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.3, layer: "object" },
-  { id: "picket-fence-weathered", name: "Picket fence, weathered wood", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.3, layer: "object" },
-  { id: "field-gate-pale", name: "Field gate, pale wood", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "field-gate-honey", name: "Field gate, honey wood", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "field-gate-walnut", name: "Field gate, walnut", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "field-gate-ebony", name: "Field gate, ebony", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "field-gate-mahogany", name: "Field gate, mahogany", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "field-gate-weathered", name: "Field gate, weathered wood", category: "Camp & outdoors", group: "Fences and gates", w: 1.6, h: 0.4, layer: "object" },
-  { id: "garden-wall-granite-whole", name: "Garden wall, granite, whole", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-granite-tumbled", name: "Garden wall, granite, tumbled down", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-marble-whole", name: "Garden wall, marble, whole", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-marble-tumbled", name: "Garden wall, marble, tumbled down", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-sandstone-whole", name: "Garden wall, sandstone, whole", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-sandstone-tumbled", name: "Garden wall, sandstone, tumbled down", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-slate-whole", name: "Garden wall, slate, whole", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-slate-tumbled", name: "Garden wall, slate, tumbled down", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-basalt-whole", name: "Garden wall, basalt, whole", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "garden-wall-basalt-tumbled", name: "Garden wall, basalt, tumbled down", category: "Camp & outdoors", group: "Fences and gates", w: 2, h: 0.5, layer: "object" },
-  { id: "fingerpost-one", name: "Fingerpost, one arm", category: "Camp & outdoors", group: "Signs and banners", w: 1.2, h: 1.2, layer: "object" },
-  { id: "fingerpost-two", name: "Fingerpost, two arms", category: "Camp & outdoors", group: "Signs and banners", w: 1.2, h: 1.2, layer: "object" },
-  { id: "fingerpost-three", name: "Fingerpost, three arms", category: "Camp & outdoors", group: "Signs and banners", w: 1.2, h: 1.2, layer: "object" },
-  { id: "banner-pole-crimson", name: "Banner on a pole, crimson", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-navy", name: "Banner on a pole, navy", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-green", name: "Banner on a pole, green", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-ochre", name: "Banner on a pole, ochre", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-violet", name: "Banner on a pole, violet", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-black", name: "Banner on a pole, black", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-white", name: "Banner on a pole, white", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "banner-pole-teal", name: "Banner on a pole, teal", category: "Camp & outdoors", group: "Signs and banners", w: 1, h: 0.6, layer: "canopy" },
-  { id: "milestone-granite", name: "Milestone, granite", category: "Camp & outdoors", group: "Signs and banners", w: 0.5, h: 0.4, layer: "object" },
-  { id: "milestone-marble", name: "Milestone, marble", category: "Camp & outdoors", group: "Signs and banners", w: 0.5, h: 0.4, layer: "object" },
-  { id: "milestone-sandstone", name: "Milestone, sandstone", category: "Camp & outdoors", group: "Signs and banners", w: 0.5, h: 0.4, layer: "object" },
-  { id: "stall-awning-crimson", name: "Market stall, crimson", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-navy", name: "Market stall, navy", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-green", name: "Market stall, green", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-ochre", name: "Market stall, ochre", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-violet", name: "Market stall, violet", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-black", name: "Market stall, black", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-white", name: "Market stall, white", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-awning-teal", name: "Market stall, teal", category: "Camp & outdoors", group: "Market", w: 2.2, h: 1.6, layer: "canopy" },
-  { id: "stall-table-pots", name: "Stall table, pots", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "stall-table-cloth", name: "Stall table, cloth", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "stall-table-fish", name: "Stall table, fish", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "stall-table-produce", name: "Stall table, produce", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "stall-table-trinkets", name: "Stall table, trinkets", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "stall-table-blades", name: "Stall table, blades", category: "Camp & outdoors", group: "Market", w: 1.8, h: 0.8, layer: "object" },
-  { id: "skiff-pale", name: "Skiff, pale wood", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "skiff-honey", name: "Skiff, honey wood", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "skiff-walnut", name: "Skiff, walnut", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "skiff-ebony", name: "Skiff, ebony", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "skiff-mahogany", name: "Skiff, mahogany", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "skiff-weathered", name: "Skiff, weathered wood", category: "Camp & outdoors", group: "Boats and bridges", w: 2.6, h: 1, layer: "object" },
-  { id: "canoe-pale", name: "Canoe, pale wood", category: "Camp & outdoors", group: "Boats and bridges", w: 2.8, h: 0.6, layer: "object" },
-  { id: "canoe-honey", name: "Canoe, honey wood", category: "Camp & outdoors", group: "Boats and bridges", w: 2.8, h: 0.6, layer: "object" },
-  { id: "canoe-walnut", name: "Canoe, walnut", category: "Camp & outdoors", group: "Boats and bridges", w: 2.8, h: 0.6, layer: "object" },
-  { id: "canoe-ebony", name: "Canoe, ebony", category: "Camp & outdoors", group: "Boats and bridges", w: 2.8, h: 0.6, layer: "object" },
-  { id: "footbridge-pale-short", name: "Footbridge, pale wood, short", category: "Camp & outdoors", group: "Boats and bridges", w: 2, h: 1.2, layer: "floor" },
-  { id: "footbridge-pale-long", name: "Footbridge, pale wood, long", category: "Camp & outdoors", group: "Boats and bridges", w: 3, h: 1.2, layer: "floor" },
-  { id: "footbridge-walnut-short", name: "Footbridge, walnut, short", category: "Camp & outdoors", group: "Boats and bridges", w: 2, h: 1.2, layer: "floor" },
-  { id: "footbridge-walnut-long", name: "Footbridge, walnut, long", category: "Camp & outdoors", group: "Boats and bridges", w: 3, h: 1.2, layer: "floor" },
-  { id: "footbridge-weathered-short", name: "Footbridge, weathered wood, short", category: "Camp & outdoors", group: "Boats and bridges", w: 2, h: 1.2, layer: "floor" },
-  { id: "footbridge-weathered-long", name: "Footbridge, weathered wood, long", category: "Camp & outdoors", group: "Boats and bridges", w: 3, h: 1.2, layer: "floor" },
-  { id: "training-dummy-straw", name: "Training dummy, straw", category: "Camp & outdoors", group: "Games and training", w: 0.8, h: 0.6, layer: "object" },
-  { id: "training-dummy-sacking", name: "Training dummy, sacking", category: "Camp & outdoors", group: "Games and training", w: 0.8, h: 0.6, layer: "object" },
-  { id: "training-dummy-armoured", name: "Training dummy, armoured", category: "Camp & outdoors", group: "Games and training", w: 0.8, h: 0.6, layer: "object" },
-  { id: "archery-butt-round", name: "Archery butt, round", category: "Camp & outdoors", group: "Games and training", w: 1, h: 0.5, layer: "object" },
-  { id: "archery-butt-square", name: "Archery butt, square", category: "Camp & outdoors", group: "Games and training", w: 1, h: 0.5, layer: "object" },
-  { id: "column-granite-whole", name: "Column, granite, whole", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-granite-cracked", name: "Column, granite, cracked", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-granite-fallen", name: "Column, granite, fallen", category: "Dungeon", group: "Pillars and statues", w: 3, h: 1, layer: "object" },
-  { id: "column-marble-whole", name: "Column, marble, whole", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-marble-cracked", name: "Column, marble, cracked", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-marble-fallen", name: "Column, marble, fallen", category: "Dungeon", group: "Pillars and statues", w: 3, h: 1, layer: "object" },
-  { id: "column-sandstone-whole", name: "Column, sandstone, whole", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-sandstone-cracked", name: "Column, sandstone, cracked", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-sandstone-fallen", name: "Column, sandstone, fallen", category: "Dungeon", group: "Pillars and statues", w: 3, h: 1, layer: "object" },
-  { id: "column-slate-whole", name: "Column, slate, whole", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-slate-cracked", name: "Column, slate, cracked", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-slate-fallen", name: "Column, slate, fallen", category: "Dungeon", group: "Pillars and statues", w: 3, h: 1, layer: "object" },
-  { id: "column-basalt-whole", name: "Column, basalt, whole", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-basalt-cracked", name: "Column, basalt, cracked", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "column-basalt-fallen", name: "Column, basalt, fallen", category: "Dungeon", group: "Pillars and statues", w: 3, h: 1, layer: "object" },
-  { id: "pier-square-granite", name: "Square pier, granite", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "pier-square-marble", name: "Square pier, marble", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "pier-square-sandstone", name: "Square pier, sandstone", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "pier-square-slate", name: "Square pier, slate", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "pier-square-basalt", name: "Square pier, basalt", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-granite-warrior", name: "Statue, granite, warrior", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-granite-robed", name: "Statue, granite, robed figure", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-granite-beast", name: "Statue, granite, beast", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-marble-warrior", name: "Statue, marble, warrior", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-marble-robed", name: "Statue, marble, robed figure", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-marble-beast", name: "Statue, marble, beast", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-sandstone-warrior", name: "Statue, sandstone, warrior", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-sandstone-robed", name: "Statue, sandstone, robed figure", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-sandstone-beast", name: "Statue, sandstone, beast", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-slate-warrior", name: "Statue, slate, warrior", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-slate-robed", name: "Statue, slate, robed figure", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-slate-beast", name: "Statue, slate, beast", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-basalt-warrior", name: "Statue, basalt, warrior", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-basalt-robed", name: "Statue, basalt, robed figure", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "statue-figure-basalt-beast", name: "Statue, basalt, beast", category: "Dungeon", group: "Pillars and statues", w: 1, h: 1, layer: "object" },
-  { id: "obelisk-carved-granite", name: "Carved obelisk, granite", category: "Dungeon", group: "Pillars and statues", w: 0.9, h: 0.9, layer: "object" },
-  { id: "obelisk-carved-marble", name: "Carved obelisk, marble", category: "Dungeon", group: "Pillars and statues", w: 0.9, h: 0.9, layer: "object" },
-  { id: "obelisk-carved-sandstone", name: "Carved obelisk, sandstone", category: "Dungeon", group: "Pillars and statues", w: 0.9, h: 0.9, layer: "object" },
-  { id: "obelisk-carved-slate", name: "Carved obelisk, slate", category: "Dungeon", group: "Pillars and statues", w: 0.9, h: 0.9, layer: "object" },
-  { id: "obelisk-carved-basalt", name: "Carved obelisk, basalt", category: "Dungeon", group: "Pillars and statues", w: 0.9, h: 0.9, layer: "object" },
-  { id: "idol-small-gold", name: "Small idol, gold", category: "Dungeon", group: "Pillars and statues", w: 0.6, h: 0.6, layer: "object" },
-  { id: "idol-small-jade", name: "Small idol, jade", category: "Dungeon", group: "Pillars and statues", w: 0.6, h: 0.6, layer: "object" },
-  { id: "idol-small-bronze", name: "Small idol, bronze", category: "Dungeon", group: "Pillars and statues", w: 0.6, h: 0.6, layer: "object" },
-  { id: "idol-small-basalt", name: "Small idol, basalt", category: "Dungeon", group: "Pillars and statues", w: 0.6, h: 0.6, layer: "object" },
-  { id: "coffin-plain-pale-shut", name: "Coffin, pale wood, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-pale-open", name: "Coffin, pale wood, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-honey-shut", name: "Coffin, honey wood, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-honey-open", name: "Coffin, honey wood, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-walnut-shut", name: "Coffin, walnut, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-walnut-open", name: "Coffin, walnut, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-ebony-shut", name: "Coffin, ebony, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-ebony-open", name: "Coffin, ebony, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-mahogany-shut", name: "Coffin, mahogany, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-mahogany-open", name: "Coffin, mahogany, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-weathered-shut", name: "Coffin, weathered wood, shut", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "coffin-plain-weathered-open", name: "Coffin, weathered wood, open", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 2, layer: "object" },
-  { id: "sarcophagus-carved-granite-shut", name: "Carved sarcophagus, granite, shut", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-granite-open", name: "Carved sarcophagus, granite, open", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-marble-shut", name: "Carved sarcophagus, marble, shut", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-marble-open", name: "Carved sarcophagus, marble, open", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-sandstone-shut", name: "Carved sarcophagus, sandstone, shut", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-sandstone-open", name: "Carved sarcophagus, sandstone, open", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-slate-shut", name: "Carved sarcophagus, slate, shut", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-slate-open", name: "Carved sarcophagus, slate, open", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-basalt-shut", name: "Carved sarcophagus, basalt, shut", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sarcophagus-carved-basalt-open", name: "Carved sarcophagus, basalt, open", category: "Dungeon", group: "Tombs and bones", w: 1.2, h: 2.2, layer: "object" },
-  { id: "skeleton-lying", name: "Skeleton, lying", category: "Dungeon", group: "Tombs and bones", w: 1, h: 1.2, layer: "floor" },
-  { id: "skeleton-slumped", name: "Skeleton, slumped", category: "Dungeon", group: "Tombs and bones", w: 1, h: 1.2, layer: "floor" },
-  { id: "skeleton-scattered", name: "Skeleton, scattered", category: "Dungeon", group: "Tombs and bones", w: 1, h: 1.2, layer: "floor" },
-  { id: "bone-pile-small", name: "Pile of bones, small", category: "Dungeon", group: "Tombs and bones", w: 1, h: 0.8, layer: "object" },
-  { id: "bone-pile-large", name: "Pile of bones, large", category: "Dungeon", group: "Tombs and bones", w: 1, h: 0.8, layer: "object" },
-  { id: "skull-heap-small", name: "Heap of skulls, small", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 0.8, layer: "object" },
-  { id: "skull-heap-large", name: "Heap of skulls, large", category: "Dungeon", group: "Tombs and bones", w: 0.9, h: 0.8, layer: "object" },
-  { id: "iron-cage-iron-empty", name: "Cage, iron, empty", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 1.2, layer: "object" },
-  { id: "iron-cage-iron-prisoner", name: "Cage, iron, with a prisoner", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 1.2, layer: "object" },
-  { id: "iron-cage-bronze-empty", name: "Cage, bronze, empty", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 1.2, layer: "object" },
-  { id: "iron-cage-bronze-prisoner", name: "Cage, bronze, with a prisoner", category: "Dungeon", group: "Prison and torture", w: 1.2, h: 1.2, layer: "object" },
-  { id: "gibbet-cage-empty", name: "Hanging cage, empty", category: "Dungeon", group: "Prison and torture", w: 0.8, h: 0.8, layer: "canopy" },
-  { id: "gibbet-cage-bones", name: "Hanging cage, with bones", category: "Dungeon", group: "Prison and torture", w: 0.8, h: 0.8, layer: "canopy" },
-  { id: "shackles-iron", name: "Shackles, iron", category: "Dungeon", group: "Prison and torture", w: 0.8, h: 0.4, layer: "floor" },
-  { id: "shackles-rusty", name: "Shackles, rusty", category: "Dungeon", group: "Prison and torture", w: 0.8, h: 0.4, layer: "floor" },
-  { id: "stocks-pale", name: "Stocks, pale wood", category: "Dungeon", group: "Prison and torture", w: 1.4, h: 0.5, layer: "object" },
-  { id: "stocks-walnut", name: "Stocks, walnut", category: "Dungeon", group: "Prison and torture", w: 1.4, h: 0.5, layer: "object" },
-  { id: "stocks-weathered", name: "Stocks, weathered wood", category: "Dungeon", group: "Prison and torture", w: 1.4, h: 0.5, layer: "object" },
-  { id: "torture-rack-walnut", name: "Rack, walnut", category: "Dungeon", group: "Prison and torture", w: 1, h: 2.2, layer: "object" },
-  { id: "torture-rack-ebony", name: "Rack, ebony", category: "Dungeon", group: "Prison and torture", w: 1, h: 2.2, layer: "object" },
-  { id: "torture-rack-weathered", name: "Rack, weathered wood", category: "Dungeon", group: "Prison and torture", w: 1, h: 2.2, layer: "object" },
-  { id: "iron-maiden-shut", name: "Iron maiden, shut", category: "Dungeon", group: "Prison and torture", w: 1, h: 0.9, layer: "object" },
-  { id: "iron-maiden-open", name: "Iron maiden, open", category: "Dungeon", group: "Prison and torture", w: 1, h: 0.9, layer: "object" },
-  { id: "spike-trap-hidden", name: "Spike trap, hidden", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "spike-trap-sprung", name: "Spike trap, sprung", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "pressure-plate-granite", name: "Pressure plate, granite", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "pressure-plate-marble", name: "Pressure plate, marble", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "pressure-plate-sandstone", name: "Pressure plate, sandstone", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "bear-trap-shut", name: "Bear trap, shut", category: "Dungeon", group: "Traps", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "bear-trap-open", name: "Bear trap, open", category: "Dungeon", group: "Traps", w: 0.8, h: 0.8, layer: "floor" },
-  { id: "pit-trap-covered", name: "Pit trap, covered", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "pit-trap-open", name: "Pit trap, open", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "pit-trap-spiked", name: "Pit trap, spiked", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "blade-trap-swinging", name: "Blade trap, swinging", category: "Dungeon", group: "Traps", w: 2, h: 0.6, layer: "object" },
-  { id: "rune-trap-fire", name: "Rune trap, firelight", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "rune-trap-blue", name: "Rune trap, blue flame", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "rune-trap-green", name: "Rune trap, green flame", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "rune-trap-violet", name: "Rune trap, violet flame", category: "Dungeon", group: "Traps", w: 1, h: 1, layer: "floor" },
-  { id: "summoning-circle-fire", name: "Summoning circle, firelight", category: "Dungeon", group: "Magic", w: 2.4, h: 2.4, layer: "floor" },
-  { id: "summoning-circle-blue", name: "Summoning circle, blue flame", category: "Dungeon", group: "Magic", w: 2.4, h: 2.4, layer: "floor" },
-  { id: "summoning-circle-green", name: "Summoning circle, green flame", category: "Dungeon", group: "Magic", w: 2.4, h: 2.4, layer: "floor" },
-  { id: "summoning-circle-violet", name: "Summoning circle, violet flame", category: "Dungeon", group: "Magic", w: 2.4, h: 2.4, layer: "floor" },
-  { id: "ritual-circle-fire", name: "Ritual circle with candles, firelight", category: "Dungeon", group: "Magic", w: 2.6, h: 2.6, layer: "floor" },
-  { id: "ritual-circle-blue", name: "Ritual circle with candles, blue flame", category: "Dungeon", group: "Magic", w: 2.6, h: 2.6, layer: "floor" },
-  { id: "ritual-circle-green", name: "Ritual circle with candles, green flame", category: "Dungeon", group: "Magic", w: 2.6, h: 2.6, layer: "floor" },
-  { id: "ritual-circle-violet", name: "Ritual circle with candles, violet flame", category: "Dungeon", group: "Magic", w: 2.6, h: 2.6, layer: "floor" },
-  { id: "portal-ring-fire-open", name: "Portal, firelight, open", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-fire-dormant", name: "Portal, firelight, dormant", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-blue-open", name: "Portal, blue flame, open", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-blue-dormant", name: "Portal, blue flame, dormant", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-green-open", name: "Portal, green flame, open", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-green-dormant", name: "Portal, green flame, dormant", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-violet-open", name: "Portal, violet flame, open", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "portal-ring-violet-dormant", name: "Portal, violet flame, dormant", category: "Dungeon", group: "Magic", w: 2, h: 2, layer: "object" },
-  { id: "scrying-pool-clear", name: "Scrying pool, clear", category: "Dungeon", group: "Magic", w: 1.4, h: 1.4, layer: "object" },
-  { id: "scrying-pool-dark", name: "Scrying pool, dark", category: "Dungeon", group: "Magic", w: 1.4, h: 1.4, layer: "object" },
-  { id: "witch-cauldron-fire", name: "Bubbling cauldron, firelight", category: "Dungeon", group: "Magic", w: 1, h: 1, layer: "object" },
-  { id: "witch-cauldron-blue", name: "Bubbling cauldron, blue flame", category: "Dungeon", group: "Magic", w: 1, h: 1, layer: "object" },
-  { id: "witch-cauldron-green", name: "Bubbling cauldron, green flame", category: "Dungeon", group: "Magic", w: 1, h: 1, layer: "object" },
-  { id: "witch-cauldron-violet", name: "Bubbling cauldron, violet flame", category: "Dungeon", group: "Magic", w: 1, h: 1, layer: "object" },
-  { id: "blood-pool-small", name: "Blood, small pool", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "blood-pool-large", name: "Blood, large pool", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "blood-pool-trail", name: "Blood, trail", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "slime-puddle-green", name: "Slime, green", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "slime-puddle-purple", name: "Slime, purple", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "slime-puddle-black", name: "Slime, black", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "scorch-mark-small", name: "Scorch mark, small", category: "Dungeon", group: "Stains and floor", w: 1.2, h: 1.2, layer: "floor" },
-  { id: "scorch-mark-large", name: "Scorch mark, large", category: "Dungeon", group: "Stains and floor", w: 1.2, h: 1.2, layer: "floor" },
-  { id: "floor-grate-iron-square", name: "Floor grate, iron, square", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "floor-grate-iron-round", name: "Floor grate, iron, round", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "floor-grate-bronze-square", name: "Floor grate, bronze, square", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "floor-grate-bronze-round", name: "Floor grate, bronze, round", category: "Dungeon", group: "Stains and floor", w: 1, h: 1, layer: "floor" },
-  { id: "floor-crack-small", name: "Crack in the floor, small", category: "Dungeon", group: "Stains and floor", w: 1.4, h: 1, layer: "floor" },
-  { id: "floor-crack-large", name: "Crack in the floor, large", category: "Dungeon", group: "Stains and floor", w: 1.4, h: 1, layer: "floor" },
-  { id: "monster-nest-small", name: "Monster nest, small", category: "Dungeon", group: "Lairs", w: 1.3, h: 1.3, layer: "floor" },
-  { id: "monster-nest-large", name: "Monster nest, large", category: "Dungeon", group: "Lairs", w: 2, h: 2, layer: "floor" },
-  { id: "egg-clutch-green", name: "Clutch of eggs, green", category: "Dungeon", group: "Lairs", w: 0.9, h: 0.9, layer: "object" },
-  { id: "egg-clutch-red", name: "Clutch of eggs, red", category: "Dungeon", group: "Lairs", w: 0.9, h: 0.9, layer: "object" },
-  { id: "egg-clutch-white", name: "Clutch of eggs, white", category: "Dungeon", group: "Lairs", w: 0.9, h: 0.9, layer: "object" },
-  { id: "egg-clutch-black", name: "Clutch of eggs, black", category: "Dungeon", group: "Lairs", w: 0.9, h: 0.9, layer: "object" },
-  { id: "cobweb-corner", name: "Cobweb, corner", category: "Dungeon", group: "Lairs", w: 1.2, h: 1.2, layer: "canopy" },
-  { id: "cobweb-large", name: "Cobweb, large", category: "Dungeon", group: "Lairs", w: 1.2, h: 1.2, layer: "canopy" },
-  { id: "cobweb-torn", name: "Cobweb, torn", category: "Dungeon", group: "Lairs", w: 1.2, h: 1.2, layer: "canopy" },
-  { id: "stairway-granite-straight", name: "Stairway, granite, straight", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "stairway-granite-spiral", name: "Stairway, granite, spiral", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "stairway-marble-straight", name: "Stairway, marble, straight", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "stairway-marble-spiral", name: "Stairway, marble, spiral", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "stairway-sandstone-straight", name: "Stairway, sandstone, straight", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "stairway-sandstone-spiral", name: "Stairway, sandstone, spiral", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "stairway-slate-straight", name: "Stairway, slate, straight", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "stairway-slate-spiral", name: "Stairway, slate, spiral", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "stairway-basalt-straight", name: "Stairway, basalt, straight", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 2, layer: "floor" },
-  { id: "stairway-basalt-spiral", name: "Stairway, basalt, spiral", category: "Dungeon", group: "Stairs and ways down", w: 2, h: 2, layer: "floor" },
-  { id: "ladder-pale", name: "Ladder, pale wood", category: "Dungeon", group: "Stairs and ways down", w: 0.6, h: 2, layer: "object" },
-  { id: "ladder-walnut", name: "Ladder, walnut", category: "Dungeon", group: "Stairs and ways down", w: 0.6, h: 2, layer: "object" },
-  { id: "ladder-weathered", name: "Ladder, weathered wood", category: "Dungeon", group: "Stairs and ways down", w: 0.6, h: 2, layer: "object" },
-  { id: "hatch-pale-shut", name: "Hatch, pale wood, shut", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "hatch-pale-open", name: "Hatch, pale wood, open", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "hatch-walnut-shut", name: "Hatch, walnut, shut", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "hatch-walnut-open", name: "Hatch, walnut, open", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "hatch-weathered-shut", name: "Hatch, weathered wood, shut", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "hatch-weathered-open", name: "Hatch, weathered wood, open", category: "Dungeon", group: "Stairs and ways down", w: 1, h: 1, layer: "floor" },
-  { id: "wall-lever-iron-up", name: "Wall lever, iron, up", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-iron-down", name: "Wall lever, iron, down", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-bronze-up", name: "Wall lever, bronze, up", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-bronze-down", name: "Wall lever, bronze, down", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-brass-up", name: "Wall lever, brass, up", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-brass-down", name: "Wall lever, brass, down", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-silver-up", name: "Wall lever, silver, up", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-lever-silver-down", name: "Wall lever, silver, down", category: "Dungeon", group: "Levers and mechanisms", w: 0.5, h: 0.5, layer: "object" },
-  { id: "gong-iron", name: "Gong, iron", category: "Dungeon", group: "Levers and mechanisms", w: 1.2, h: 0.5, layer: "object" },
-  { id: "gong-bronze", name: "Gong, bronze", category: "Dungeon", group: "Levers and mechanisms", w: 1.2, h: 0.5, layer: "object" },
-  { id: "gong-brass", name: "Gong, brass", category: "Dungeon", group: "Levers and mechanisms", w: 1.2, h: 0.5, layer: "object" },
-  { id: "winch-chain", name: "Winch, chain", category: "Dungeon", group: "Levers and mechanisms", w: 1.2, h: 0.7, layer: "object" },
-  { id: "winch-rope", name: "Winch, rope", category: "Dungeon", group: "Levers and mechanisms", w: 1.2, h: 0.7, layer: "object" },
-  { id: "wall-torch-fire", name: "Wall torch, firelight", category: "Light", group: "Torches", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-torch-blue", name: "Wall torch, blue flame", category: "Light", group: "Torches", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-torch-green", name: "Wall torch, green flame", category: "Light", group: "Torches", w: 0.5, h: 0.5, layer: "object" },
-  { id: "wall-torch-violet", name: "Wall torch, violet flame", category: "Light", group: "Torches", w: 0.5, h: 0.5, layer: "object" },
-  { id: "torch-stand-iron-fire", name: "Torch stand, iron, firelight", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-iron-blue", name: "Torch stand, iron, blue flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-iron-green", name: "Torch stand, iron, green flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-iron-violet", name: "Torch stand, iron, violet flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-bronze-fire", name: "Torch stand, bronze, firelight", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-bronze-blue", name: "Torch stand, bronze, blue flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-bronze-green", name: "Torch stand, bronze, green flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-bronze-violet", name: "Torch stand, bronze, violet flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-brass-fire", name: "Torch stand, brass, firelight", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-brass-blue", name: "Torch stand, brass, blue flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-brass-green", name: "Torch stand, brass, green flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "torch-stand-brass-violet", name: "Torch stand, brass, violet flame", category: "Light", group: "Torches", w: 0.6, h: 0.6, layer: "object" },
-  { id: "wall-sconce-iron-one", name: "Wall sconce, iron, one candle", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-iron-three", name: "Wall sconce, iron, three candles", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-bronze-one", name: "Wall sconce, bronze, one candle", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-bronze-three", name: "Wall sconce, bronze, three candles", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-brass-one", name: "Wall sconce, brass, one candle", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-brass-three", name: "Wall sconce, brass, three candles", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-silver-one", name: "Wall sconce, silver, one candle", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "wall-sconce-silver-three", name: "Wall sconce, silver, three candles", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.4, layer: "object" },
-  { id: "oil-lamp-terracotta", name: "Oil lamp, terracotta", category: "Light", group: "Sconces and lamps", w: 0.4, h: 0.3, layer: "object" },
-  { id: "oil-lamp-glazed-blue", name: "Oil lamp, blue glaze", category: "Light", group: "Sconces and lamps", w: 0.4, h: 0.3, layer: "object" },
-  { id: "oil-lamp-glazed-green", name: "Oil lamp, green glaze", category: "Light", group: "Sconces and lamps", w: 0.4, h: 0.3, layer: "object" },
-  { id: "oil-lamp-cream", name: "Oil lamp, cream", category: "Light", group: "Sconces and lamps", w: 0.4, h: 0.3, layer: "object" },
-  { id: "hanging-lantern-iron-fire", name: "Hanging lantern, iron, firelight", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-iron-blue", name: "Hanging lantern, iron, blue flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-iron-green", name: "Hanging lantern, iron, green flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-iron-violet", name: "Hanging lantern, iron, violet flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-bronze-fire", name: "Hanging lantern, bronze, firelight", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-bronze-blue", name: "Hanging lantern, bronze, blue flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-bronze-green", name: "Hanging lantern, bronze, green flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-bronze-violet", name: "Hanging lantern, bronze, violet flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-brass-fire", name: "Hanging lantern, brass, firelight", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-brass-blue", name: "Hanging lantern, brass, blue flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-brass-green", name: "Hanging lantern, brass, green flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "hanging-lantern-brass-violet", name: "Hanging lantern, brass, violet flame", category: "Light", group: "Sconces and lamps", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "lamp-post-iron-fire", name: "Lamp post, iron, firelight", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "lamp-post-iron-blue", name: "Lamp post, iron, blue flame", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "lamp-post-brass-fire", name: "Lamp post, brass, firelight", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "lamp-post-brass-blue", name: "Lamp post, brass, blue flame", category: "Light", group: "Sconces and lamps", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "candle-cluster-white-few", name: "Candle cluster, white, few", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-white-many", name: "Candle cluster, white, many", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-tallow-few", name: "Candle cluster, tallow, few", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-tallow-many", name: "Candle cluster, tallow, many", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-black-few", name: "Candle cluster, black, few", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-black-many", name: "Candle cluster, black, many", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-red-few", name: "Candle cluster, red, few", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candle-cluster-red-many", name: "Candle cluster, red, many", category: "Light", group: "Candles", w: 0.6, h: 0.6, layer: "object" },
-  { id: "candelabra-tall-iron", name: "Tall candelabra, iron", category: "Light", group: "Candles", w: 0.8, h: 0.4, layer: "object" },
-  { id: "candelabra-tall-bronze", name: "Tall candelabra, bronze", category: "Light", group: "Candles", w: 0.8, h: 0.4, layer: "object" },
-  { id: "candelabra-tall-brass", name: "Tall candelabra, brass", category: "Light", group: "Candles", w: 0.8, h: 0.4, layer: "object" },
-  { id: "candelabra-tall-silver", name: "Tall candelabra, silver", category: "Light", group: "Candles", w: 0.8, h: 0.4, layer: "object" },
-  { id: "chandelier-ring-iron-small", name: "Ring chandelier, iron, small", category: "Light", group: "Candles", w: 1.1, h: 1.1, layer: "canopy" },
-  { id: "chandelier-ring-iron-large", name: "Ring chandelier, iron, large", category: "Light", group: "Candles", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "chandelier-ring-bronze-small", name: "Ring chandelier, bronze, small", category: "Light", group: "Candles", w: 1.1, h: 1.1, layer: "canopy" },
-  { id: "chandelier-ring-bronze-large", name: "Ring chandelier, bronze, large", category: "Light", group: "Candles", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "chandelier-ring-brass-small", name: "Ring chandelier, brass, small", category: "Light", group: "Candles", w: 1.1, h: 1.1, layer: "canopy" },
-  { id: "chandelier-ring-brass-large", name: "Ring chandelier, brass, large", category: "Light", group: "Candles", w: 1.6, h: 1.6, layer: "canopy" },
-  { id: "fire-pit-granite-lit", name: "Fire pit, granite, lit", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "fire-pit-granite-embers", name: "Fire pit, granite, embers", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "fire-pit-marble-lit", name: "Fire pit, marble, lit", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "fire-pit-marble-embers", name: "Fire pit, marble, embers", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "fire-pit-sandstone-lit", name: "Fire pit, sandstone, lit", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "fire-pit-sandstone-embers", name: "Fire pit, sandstone, embers", category: "Light", group: "Fires", w: 1.1, h: 1.1, layer: "object" },
-  { id: "cooking-fire-spit", name: "Cooking fire, with a spit", category: "Light", group: "Fires", w: 1.2, h: 1, layer: "object" },
-  { id: "cooking-fire-pot", name: "Cooking fire, with a pot", category: "Light", group: "Fires", w: 1.2, h: 1, layer: "object" },
-  { id: "bonfire-great-fire", name: "Great bonfire, firelight", category: "Light", group: "Fires", w: 2, h: 2, layer: "object" },
-  { id: "bonfire-great-green", name: "Great bonfire, green flame", category: "Light", group: "Fires", w: 2, h: 2, layer: "object" },
-  { id: "brazier-bowl-iron-fire", name: "Brazier, iron, firelight", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-iron-blue", name: "Brazier, iron, blue flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-iron-green", name: "Brazier, iron, green flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-iron-violet", name: "Brazier, iron, violet flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-bronze-fire", name: "Brazier, bronze, firelight", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-bronze-blue", name: "Brazier, bronze, blue flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-bronze-green", name: "Brazier, bronze, green flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-bronze-violet", name: "Brazier, bronze, violet flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-brass-fire", name: "Brazier, brass, firelight", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-brass-blue", name: "Brazier, brass, blue flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-brass-green", name: "Brazier, brass, green flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "brazier-bowl-brass-violet", name: "Brazier, brass, violet flame", category: "Light", group: "Fires", w: 0.8, h: 0.8, layer: "object" },
-  { id: "hearth-granite", name: "Hearth, granite", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "hearth-marble", name: "Hearth, marble", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "hearth-sandstone", name: "Hearth, sandstone", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "hearth-slate", name: "Hearth, slate", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "hearth-basalt", name: "Hearth, basalt", category: "Light", group: "Fires", w: 2, h: 1, layer: "object" },
-  { id: "floating-orb-fire", name: "Floating orb, firelight", category: "Light", group: "Magic light", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "floating-orb-blue", name: "Floating orb, blue flame", category: "Light", group: "Magic light", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "floating-orb-green", name: "Floating orb, green flame", category: "Light", group: "Magic light", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "floating-orb-violet", name: "Floating orb, violet flame", category: "Light", group: "Magic light", w: 0.6, h: 0.6, layer: "canopy" },
-  { id: "crystal-cluster-blue", name: "Crystal cluster, blue", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "crystal-cluster-green", name: "Crystal cluster, green", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "crystal-cluster-purple", name: "Crystal cluster, purple", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "crystal-cluster-red", name: "Crystal cluster, red", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "crystal-cluster-amber", name: "Crystal cluster, amber", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "glowing-mushrooms-blue", name: "Glowing mushrooms, blue flame", category: "Light", group: "Magic light", w: 0.7, h: 0.7, layer: "object" },
-  { id: "glowing-mushrooms-green", name: "Glowing mushrooms, green flame", category: "Light", group: "Magic light", w: 0.7, h: 0.7, layer: "object" },
-  { id: "glowing-mushrooms-violet", name: "Glowing mushrooms, violet flame", category: "Light", group: "Magic light", w: 0.7, h: 0.7, layer: "object" },
-  { id: "wisp-blue", name: "Will-o'-the-wisp, blue flame", category: "Light", group: "Magic light", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "wisp-green", name: "Will-o'-the-wisp, green flame", category: "Light", group: "Magic light", w: 0.5, h: 0.5, layer: "canopy" },
-  { id: "light-pillar-blue", name: "Light pillar, blue", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "light-pillar-green", name: "Light pillar, green", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "light-pillar-purple", name: "Light pillar, purple", category: "Light", group: "Magic light", w: 0.9, h: 0.9, layer: "object" },
-  { id: "book-stack-red", name: "Stack of books, red", category: "Library & magic", group: "Books and scrolls", w: 0.5, h: 0.5, layer: "object" },
-  { id: "book-stack-blue", name: "Stack of books, blue", category: "Library & magic", group: "Books and scrolls", w: 0.5, h: 0.5, layer: "object" },
-  { id: "book-stack-green", name: "Stack of books, green", category: "Library & magic", group: "Books and scrolls", w: 0.5, h: 0.5, layer: "object" },
-  { id: "book-stack-brown", name: "Stack of books, brown", category: "Library & magic", group: "Books and scrolls", w: 0.5, h: 0.5, layer: "object" },
-  { id: "book-stack-mixed", name: "Stack of books, mixed", category: "Library & magic", group: "Books and scrolls", w: 0.5, h: 0.5, layer: "object" },
-  { id: "open-tome-plain", name: "Open book, plain", category: "Library & magic", group: "Books and scrolls", w: 0.6, h: 0.4, layer: "object" },
-  { id: "open-tome-illuminated", name: "Open book, illuminated", category: "Library & magic", group: "Books and scrolls", w: 0.6, h: 0.4, layer: "object" },
-  { id: "open-tome-spellbook", name: "Open book, glowing spellbook", category: "Library & magic", group: "Books and scrolls", w: 0.6, h: 0.4, layer: "object" },
-  { id: "scroll-heap-small", name: "Heap of scrolls, small", category: "Library & magic", group: "Books and scrolls", w: 0.7, h: 0.6, layer: "object" },
-  { id: "scroll-heap-large", name: "Heap of scrolls, large", category: "Library & magic", group: "Books and scrolls", w: 0.7, h: 0.6, layer: "object" },
-  { id: "reading-desk-pale", name: "Reading desk, pale wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "reading-desk-honey", name: "Reading desk, honey wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "reading-desk-walnut", name: "Reading desk, walnut", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "reading-desk-ebony", name: "Reading desk, ebony", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "reading-desk-mahogany", name: "Reading desk, mahogany", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "reading-desk-weathered", name: "Reading desk, weathered wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-pale", name: "Writing desk, pale wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-honey", name: "Writing desk, honey wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-walnut", name: "Writing desk, walnut", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-ebony", name: "Writing desk, ebony", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-mahogany", name: "Writing desk, mahogany", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "writing-desk-weathered", name: "Writing desk, weathered wood", category: "Library & magic", group: "Books and scrolls", w: 1.2, h: 0.7, layer: "object" },
-  { id: "library-stack-pale-full", name: "Library stack, pale wood, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-pale-sparse", name: "Library stack, pale wood, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-honey-full", name: "Library stack, honey wood, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-honey-sparse", name: "Library stack, honey wood, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-walnut-full", name: "Library stack, walnut, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-walnut-sparse", name: "Library stack, walnut, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-ebony-full", name: "Library stack, ebony, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-ebony-sparse", name: "Library stack, ebony, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-mahogany-full", name: "Library stack, mahogany, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-mahogany-sparse", name: "Library stack, mahogany, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-weathered-full", name: "Library stack, weathered wood, full", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "library-stack-weathered-sparse", name: "Library stack, weathered wood, sparse", category: "Library & magic", group: "Books and scrolls", w: 2.4, h: 0.8, layer: "object" },
-  { id: "globe-stand-bronze", name: "Globe, bronze", category: "Library & magic", group: "Study and stars", w: 0.7, h: 0.7, layer: "object" },
-  { id: "globe-stand-brass", name: "Globe, brass", category: "Library & magic", group: "Study and stars", w: 0.7, h: 0.7, layer: "object" },
-  { id: "globe-stand-silver", name: "Globe, silver", category: "Library & magic", group: "Study and stars", w: 0.7, h: 0.7, layer: "object" },
-  { id: "telescope-iron", name: "Telescope, iron", category: "Library & magic", group: "Study and stars", w: 1.4, h: 0.6, layer: "object" },
-  { id: "telescope-bronze", name: "Telescope, bronze", category: "Library & magic", group: "Study and stars", w: 1.4, h: 0.6, layer: "object" },
-  { id: "telescope-brass", name: "Telescope, brass", category: "Library & magic", group: "Study and stars", w: 1.4, h: 0.6, layer: "object" },
-  { id: "telescope-silver", name: "Telescope, silver", category: "Library & magic", group: "Study and stars", w: 1.4, h: 0.6, layer: "object" },
-  { id: "orrery-bronze", name: "Orrery, bronze", category: "Library & magic", group: "Study and stars", w: 1, h: 1, layer: "object" },
-  { id: "orrery-brass", name: "Orrery, brass", category: "Library & magic", group: "Study and stars", w: 1, h: 1, layer: "object" },
-  { id: "orrery-silver", name: "Orrery, silver", category: "Library & magic", group: "Study and stars", w: 1, h: 1, layer: "object" },
-  { id: "map-table-pale", name: "Map table, pale wood", category: "Library & magic", group: "Study and stars", w: 1.6, h: 1.1, layer: "object" },
-  { id: "map-table-honey", name: "Map table, honey wood", category: "Library & magic", group: "Study and stars", w: 1.6, h: 1.1, layer: "object" },
-  { id: "map-table-walnut", name: "Map table, walnut", category: "Library & magic", group: "Study and stars", w: 1.6, h: 1.1, layer: "object" },
-  { id: "map-table-ebony", name: "Map table, ebony", category: "Library & magic", group: "Study and stars", w: 1.6, h: 1.1, layer: "object" },
-  { id: "hourglass-bronze", name: "Hourglass, bronze", category: "Library & magic", group: "Study and stars", w: 0.4, h: 0.4, layer: "object" },
-  { id: "hourglass-brass", name: "Hourglass, brass", category: "Library & magic", group: "Study and stars", w: 0.4, h: 0.4, layer: "object" },
-  { id: "hourglass-silver", name: "Hourglass, silver", category: "Library & magic", group: "Study and stars", w: 0.4, h: 0.4, layer: "object" },
-  { id: "alchemy-table-pale", name: "Alchemy table, pale wood", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "alchemy-table-honey", name: "Alchemy table, honey wood", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "alchemy-table-walnut", name: "Alchemy table, walnut", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "alchemy-table-ebony", name: "Alchemy table, ebony", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "alchemy-table-mahogany", name: "Alchemy table, mahogany", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "alchemy-table-weathered", name: "Alchemy table, weathered wood", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.8, layer: "object" },
-  { id: "potion-shelf-honey-full", name: "Potion shelf, honey wood, full", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-shelf-honey-sparse", name: "Potion shelf, honey wood, sparse", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-shelf-walnut-full", name: "Potion shelf, walnut, full", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-shelf-walnut-sparse", name: "Potion shelf, walnut, sparse", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-shelf-ebony-full", name: "Potion shelf, ebony, full", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-shelf-ebony-sparse", name: "Potion shelf, ebony, sparse", category: "Library & magic", group: "Alchemy", w: 1.6, h: 0.45, layer: "object" },
-  { id: "potion-bottles-red", name: "Potion bottles, red", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "potion-bottles-blue", name: "Potion bottles, blue", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "potion-bottles-green", name: "Potion bottles, green", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "potion-bottles-purple", name: "Potion bottles, purple", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "potion-bottles-amber", name: "Potion bottles, amber", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "potion-bottles-clear", name: "Potion bottles, clear", category: "Library & magic", group: "Alchemy", w: 0.4, h: 0.4, layer: "object" },
-  { id: "specimen-jars-eyes", name: "Specimen jars, eyes", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.4, layer: "object" },
-  { id: "specimen-jars-creatures", name: "Specimen jars, creatures", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.4, layer: "object" },
-  { id: "specimen-jars-herbs", name: "Specimen jars, herbs", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.4, layer: "object" },
-  { id: "alembic-bronze", name: "Alembic, bronze", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.5, layer: "object" },
-  { id: "alembic-brass", name: "Alembic, brass", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.5, layer: "object" },
-  { id: "alembic-silver", name: "Alembic, silver", category: "Library & magic", group: "Alchemy", w: 0.8, h: 0.5, layer: "object" },
-  { id: "crystal-ball-fire", name: "Crystal ball, firelight", category: "Library & magic", group: "Arcane", w: 0.5, h: 0.5, layer: "object" },
-  { id: "crystal-ball-blue", name: "Crystal ball, blue flame", category: "Library & magic", group: "Arcane", w: 0.5, h: 0.5, layer: "object" },
-  { id: "crystal-ball-green", name: "Crystal ball, green flame", category: "Library & magic", group: "Arcane", w: 0.5, h: 0.5, layer: "object" },
-  { id: "crystal-ball-violet", name: "Crystal ball, violet flame", category: "Library & magic", group: "Arcane", w: 0.5, h: 0.5, layer: "object" },
-  { id: "magic-mirror-bronze-blue", name: "Magic mirror, bronze, blue flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "magic-mirror-bronze-violet", name: "Magic mirror, bronze, violet flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "magic-mirror-brass-blue", name: "Magic mirror, brass, blue flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "magic-mirror-brass-violet", name: "Magic mirror, brass, violet flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "magic-mirror-silver-blue", name: "Magic mirror, silver, blue flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "magic-mirror-silver-violet", name: "Magic mirror, silver, violet flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.35, layer: "object" },
-  { id: "spellbook-lectern-fire", name: "Spellbook lectern, firelight", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "spellbook-lectern-blue", name: "Spellbook lectern, blue flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "spellbook-lectern-green", name: "Spellbook lectern, green flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "spellbook-lectern-violet", name: "Spellbook lectern, violet flame", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "staff-rack-honey", name: "Staff rack, honey wood", category: "Library & magic", group: "Arcane", w: 1.2, h: 0.4, layer: "object" },
-  { id: "staff-rack-walnut", name: "Staff rack, walnut", category: "Library & magic", group: "Arcane", w: 1.2, h: 0.4, layer: "object" },
-  { id: "staff-rack-ebony", name: "Staff rack, ebony", category: "Library & magic", group: "Arcane", w: 1.2, h: 0.4, layer: "object" },
-  { id: "rune-tablets-granite", name: "Rune tablets, granite", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "rune-tablets-marble", name: "Rune tablets, marble", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "rune-tablets-sandstone", name: "Rune tablets, sandstone", category: "Library & magic", group: "Arcane", w: 0.8, h: 0.6, layer: "object" },
-  { id: "forge-hearth-granite-lit", name: "Forge, granite, lit", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "forge-hearth-granite-cold", name: "Forge, granite, cold", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "forge-hearth-marble-lit", name: "Forge, marble, lit", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "forge-hearth-marble-cold", name: "Forge, marble, cold", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "forge-hearth-sandstone-lit", name: "Forge, sandstone, lit", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "forge-hearth-sandstone-cold", name: "Forge, sandstone, cold", category: "Workshop & smithy", group: "Smithy", w: 1.4, h: 1.2, layer: "object" },
-  { id: "anvil-block-iron-bare", name: "Anvil on its block, iron, bare", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.6, layer: "object" },
-  { id: "anvil-block-iron-tools", name: "Anvil on its block, iron, with tools", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.6, layer: "object" },
-  { id: "anvil-block-bronze-bare", name: "Anvil on its block, bronze, bare", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.6, layer: "object" },
-  { id: "anvil-block-bronze-tools", name: "Anvil on its block, bronze, with tools", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.6, layer: "object" },
-  { id: "quench-trough-pale", name: "Quench trough, pale wood", category: "Workshop & smithy", group: "Smithy", w: 1.2, h: 0.6, layer: "object" },
-  { id: "quench-trough-walnut", name: "Quench trough, walnut", category: "Workshop & smithy", group: "Smithy", w: 1.2, h: 0.6, layer: "object" },
-  { id: "quench-trough-weathered", name: "Quench trough, weathered wood", category: "Workshop & smithy", group: "Smithy", w: 1.2, h: 0.6, layer: "object" },
-  { id: "grinding-wheel-granite", name: "Grinding wheel, granite", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.5, layer: "object" },
-  { id: "grinding-wheel-sandstone", name: "Grinding wheel, sandstone", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.5, layer: "object" },
-  { id: "grinding-wheel-slate", name: "Grinding wheel, slate", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.5, layer: "object" },
-  { id: "bellows-brown", name: "Bellows, brown leather", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.5, layer: "object" },
-  { id: "bellows-black", name: "Bellows, black leather", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.5, layer: "object" },
-  { id: "ingot-stack-iron", name: "Stack of ingots, iron", category: "Workshop & smithy", group: "Smithy", w: 0.7, h: 0.5, layer: "object" },
-  { id: "ingot-stack-bronze", name: "Stack of ingots, bronze", category: "Workshop & smithy", group: "Smithy", w: 0.7, h: 0.5, layer: "object" },
-  { id: "ingot-stack-brass", name: "Stack of ingots, brass", category: "Workshop & smithy", group: "Smithy", w: 0.7, h: 0.5, layer: "object" },
-  { id: "ingot-stack-silver", name: "Stack of ingots, silver", category: "Workshop & smithy", group: "Smithy", w: 0.7, h: 0.5, layer: "object" },
-  { id: "ingot-stack-gold", name: "Stack of ingots, gold", category: "Workshop & smithy", group: "Smithy", w: 0.7, h: 0.5, layer: "object" },
-  { id: "ore-pile-iron", name: "Pile of ore, iron", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.7, layer: "object" },
-  { id: "ore-pile-copper", name: "Pile of ore, copper", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.7, layer: "object" },
-  { id: "ore-pile-silver", name: "Pile of ore, silver", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.7, layer: "object" },
-  { id: "ore-pile-gold", name: "Pile of ore, gold", category: "Workshop & smithy", group: "Smithy", w: 0.9, h: 0.7, layer: "object" },
-  { id: "smelter-lit", name: "Smelter, lit", category: "Workshop & smithy", group: "Smithy", w: 1.2, h: 1.2, layer: "object" },
-  { id: "smelter-cold", name: "Smelter, cold", category: "Workshop & smithy", group: "Smithy", w: 1.2, h: 1.2, layer: "object" },
-  { id: "workbench-pale-tidy", name: "Workbench, pale wood, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-pale-cluttered", name: "Workbench, pale wood, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-honey-tidy", name: "Workbench, honey wood, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-honey-cluttered", name: "Workbench, honey wood, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-walnut-tidy", name: "Workbench, walnut, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-walnut-cluttered", name: "Workbench, walnut, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-ebony-tidy", name: "Workbench, ebony, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-ebony-cluttered", name: "Workbench, ebony, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-mahogany-tidy", name: "Workbench, mahogany, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-mahogany-cluttered", name: "Workbench, mahogany, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-weathered-tidy", name: "Workbench, weathered wood, tidy", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "workbench-weathered-cluttered", name: "Workbench, weathered wood, cluttered", category: "Workshop & smithy", group: "Carpentry", w: 2, h: 0.8, layer: "object" },
-  { id: "lumber-stack-pale", name: "Stack of lumber, pale wood", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "lumber-stack-honey", name: "Stack of lumber, honey wood", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "lumber-stack-walnut", name: "Stack of lumber, walnut", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "lumber-stack-ebony", name: "Stack of lumber, ebony", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "lumber-stack-mahogany", name: "Stack of lumber, mahogany", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "lumber-stack-weathered", name: "Stack of lumber, weathered wood", category: "Workshop & smithy", group: "Carpentry", w: 2.4, h: 0.8, layer: "object" },
-  { id: "sawhorse-pale", name: "Sawhorse, pale wood", category: "Workshop & smithy", group: "Carpentry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "sawhorse-walnut", name: "Sawhorse, walnut", category: "Workshop & smithy", group: "Carpentry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "sawhorse-weathered", name: "Sawhorse, weathered wood", category: "Workshop & smithy", group: "Carpentry", w: 1.2, h: 0.5, layer: "object" },
-  { id: "tool-rack-pale", name: "Tool rack, pale wood", category: "Workshop & smithy", group: "Carpentry", w: 1.4, h: 0.3, layer: "object" },
-  { id: "tool-rack-walnut", name: "Tool rack, walnut", category: "Workshop & smithy", group: "Carpentry", w: 1.4, h: 0.3, layer: "object" },
-  { id: "tool-rack-weathered", name: "Tool rack, weathered wood", category: "Workshop & smithy", group: "Carpentry", w: 1.4, h: 0.3, layer: "object" },
-  { id: "loom-pale", name: "Loom, pale wood", category: "Workshop & smithy", group: "Textiles", w: 1.6, h: 1.2, layer: "object" },
-  { id: "loom-walnut", name: "Loom, walnut", category: "Workshop & smithy", group: "Textiles", w: 1.6, h: 1.2, layer: "object" },
-  { id: "loom-weathered", name: "Loom, weathered wood", category: "Workshop & smithy", group: "Textiles", w: 1.6, h: 1.2, layer: "object" },
-  { id: "spinning-wheel-pale", name: "Spinning wheel, pale wood", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.6, layer: "object" },
-  { id: "spinning-wheel-walnut", name: "Spinning wheel, walnut", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.6, layer: "object" },
-  { id: "spinning-wheel-weathered", name: "Spinning wheel, weathered wood", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.6, layer: "object" },
-  { id: "dye-vat-crimson", name: "Dye vat, crimson", category: "Workshop & smithy", group: "Textiles", w: 0.9, h: 0.9, layer: "object" },
-  { id: "dye-vat-navy", name: "Dye vat, navy", category: "Workshop & smithy", group: "Textiles", w: 0.9, h: 0.9, layer: "object" },
-  { id: "dye-vat-green", name: "Dye vat, green", category: "Workshop & smithy", group: "Textiles", w: 0.9, h: 0.9, layer: "object" },
-  { id: "dye-vat-ochre", name: "Dye vat, ochre", category: "Workshop & smithy", group: "Textiles", w: 0.9, h: 0.9, layer: "object" },
-  { id: "dye-vat-violet", name: "Dye vat, violet", category: "Workshop & smithy", group: "Textiles", w: 0.9, h: 0.9, layer: "object" },
-  { id: "sewing-table-pale", name: "Sewing table, pale wood", category: "Workshop & smithy", group: "Textiles", w: 1.2, h: 0.7, layer: "object" },
-  { id: "sewing-table-walnut", name: "Sewing table, walnut", category: "Workshop & smithy", group: "Textiles", w: 1.2, h: 0.7, layer: "object" },
-  { id: "sewing-table-weathered", name: "Sewing table, weathered wood", category: "Workshop & smithy", group: "Textiles", w: 1.2, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-crimson", name: "Bolts of cloth, crimson", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-navy", name: "Bolts of cloth, navy", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-green", name: "Bolts of cloth, green", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-ochre", name: "Bolts of cloth, ochre", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-violet", name: "Bolts of cloth, violet", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-black", name: "Bolts of cloth, black", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-white", name: "Bolts of cloth, white", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "cloth-bolts-teal", name: "Bolts of cloth, teal", category: "Workshop & smithy", group: "Textiles", w: 1, h: 0.7, layer: "object" },
-  { id: "potters-wheel-pale", name: "Potter's wheel, pale wood", category: "Workshop & smithy", group: "Pottery and leather", w: 0.9, h: 0.9, layer: "object" },
-  { id: "potters-wheel-walnut", name: "Potter's wheel, walnut", category: "Workshop & smithy", group: "Pottery and leather", w: 0.9, h: 0.9, layer: "object" },
-  { id: "potters-wheel-weathered", name: "Potter's wheel, weathered wood", category: "Workshop & smithy", group: "Pottery and leather", w: 0.9, h: 0.9, layer: "object" },
-  { id: "kiln-granite-lit", name: "Kiln, granite, lit", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kiln-granite-cold", name: "Kiln, granite, cold", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kiln-marble-lit", name: "Kiln, marble, lit", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kiln-marble-cold", name: "Kiln, marble, cold", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kiln-sandstone-lit", name: "Kiln, sandstone, lit", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "kiln-sandstone-cold", name: "Kiln, sandstone, cold", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "pottery-rack-unfired", name: "Pottery drying rack, unfired", category: "Workshop & smithy", group: "Pottery and leather", w: 1.6, h: 0.45, layer: "object" },
-  { id: "pottery-rack-glazed", name: "Pottery drying rack, glazed", category: "Workshop & smithy", group: "Pottery and leather", w: 1.6, h: 0.45, layer: "object" },
-  { id: "hide-frame-brown", name: "Hide stretching frame, brown", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "hide-frame-pale", name: "Hide stretching frame, pale", category: "Workshop & smithy", group: "Pottery and leather", w: 1.4, h: 1.4, layer: "object" },
-  { id: "tanning-vat-wooden", name: "Tanning vat, wooden", category: "Workshop & smithy", group: "Pottery and leather", w: 1, h: 1, layer: "object" },
-  { id: "tanning-vat-clay", name: "Tanning vat, clay", category: "Workshop & smithy", group: "Pottery and leather", w: 1, h: 1, layer: "object" },
-  { id: "mast-honey", name: "Mast, honey wood", category: "Ship & dock", group: "On deck", w: 1, h: 1, layer: "object" },
-  { id: "mast-walnut", name: "Mast, walnut", category: "Ship & dock", group: "On deck", w: 1, h: 1, layer: "object" },
-  { id: "mast-ebony", name: "Mast, ebony", category: "Ship & dock", group: "On deck", w: 1, h: 1, layer: "object" },
-  { id: "mast-weathered", name: "Mast, weathered wood", category: "Ship & dock", group: "On deck", w: 1, h: 1, layer: "object" },
-  { id: "ships-wheel-honey", name: "Ship's wheel, honey wood", category: "Ship & dock", group: "On deck", w: 0.9, h: 0.9, layer: "object" },
-  { id: "ships-wheel-walnut", name: "Ship's wheel, walnut", category: "Ship & dock", group: "On deck", w: 0.9, h: 0.9, layer: "object" },
-  { id: "ships-wheel-ebony", name: "Ship's wheel, ebony", category: "Ship & dock", group: "On deck", w: 0.9, h: 0.9, layer: "object" },
-  { id: "ships-wheel-weathered", name: "Ship's wheel, weathered wood", category: "Ship & dock", group: "On deck", w: 0.9, h: 0.9, layer: "object" },
-  { id: "capstan-pale", name: "Capstan, pale wood", category: "Ship & dock", group: "On deck", w: 1.2, h: 1.2, layer: "object" },
-  { id: "capstan-walnut", name: "Capstan, walnut", category: "Ship & dock", group: "On deck", w: 1.2, h: 1.2, layer: "object" },
-  { id: "capstan-weathered", name: "Capstan, weathered wood", category: "Ship & dock", group: "On deck", w: 1.2, h: 1.2, layer: "object" },
-  { id: "deck-cannon-iron", name: "Cannon, iron", category: "Ship & dock", group: "On deck", w: 1.8, h: 0.8, layer: "object" },
-  { id: "deck-cannon-bronze", name: "Cannon, bronze", category: "Ship & dock", group: "On deck", w: 1.8, h: 0.8, layer: "object" },
-  { id: "deck-cannon-brass", name: "Cannon, brass", category: "Ship & dock", group: "On deck", w: 1.8, h: 0.8, layer: "object" },
-  { id: "cannonballs-pyramid", name: "Cannonballs, pyramid", category: "Ship & dock", group: "On deck", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cannonballs-rack", name: "Cannonballs, rack", category: "Ship & dock", group: "On deck", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cargo-hatch-honey-shut", name: "Cargo hatch, honey wood, shut", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-honey-open", name: "Cargo hatch, honey wood, open", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-walnut-shut", name: "Cargo hatch, walnut, shut", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-walnut-open", name: "Cargo hatch, walnut, open", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-ebony-shut", name: "Cargo hatch, ebony, shut", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-ebony-open", name: "Cargo hatch, ebony, open", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-weathered-shut", name: "Cargo hatch, weathered wood, shut", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "cargo-hatch-weathered-open", name: "Cargo hatch, weathered wood, open", category: "Ship & dock", group: "On deck", w: 1.4, h: 1.4, layer: "floor" },
-  { id: "rigging-coil-rope", name: "Coil, rope", category: "Ship & dock", group: "On deck", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "rigging-coil-chain", name: "Coil, chain", category: "Ship & dock", group: "On deck", w: 0.7, h: 0.7, layer: "floor" },
-  { id: "anchor-iron", name: "Anchor, iron", category: "Ship & dock", group: "On deck", w: 1, h: 1.2, layer: "floor" },
-  { id: "anchor-bronze", name: "Anchor, bronze", category: "Ship & dock", group: "On deck", w: 1, h: 1.2, layer: "floor" },
-  { id: "anchor-brass", name: "Anchor, brass", category: "Ship & dock", group: "On deck", w: 1, h: 1.2, layer: "floor" },
-  { id: "ship-bell-bronze", name: "Ship's bell, bronze", category: "Ship & dock", group: "On deck", w: 0.6, h: 0.6, layer: "object" },
-  { id: "ship-bell-brass", name: "Ship's bell, brass", category: "Ship & dock", group: "On deck", w: 0.6, h: 0.6, layer: "object" },
-  { id: "ship-bell-silver", name: "Ship's bell, silver", category: "Ship & dock", group: "On deck", w: 0.6, h: 0.6, layer: "object" },
-  { id: "figurehead-mermaid", name: "Figurehead, mermaid", category: "Ship & dock", group: "On deck", w: 1.4, h: 0.6, layer: "object" },
-  { id: "figurehead-dragon", name: "Figurehead, dragon", category: "Ship & dock", group: "On deck", w: 1.4, h: 0.6, layer: "object" },
-  { id: "figurehead-lion", name: "Figurehead, lion", category: "Ship & dock", group: "On deck", w: 1.4, h: 0.6, layer: "object" },
-  { id: "dock-boards-pale-short", name: "Dock boards, pale wood, short", category: "Ship & dock", group: "Docks", w: 2, h: 1.6, layer: "floor" },
-  { id: "dock-boards-pale-long", name: "Dock boards, pale wood, long", category: "Ship & dock", group: "Docks", w: 3, h: 1.6, layer: "floor" },
-  { id: "dock-boards-walnut-short", name: "Dock boards, walnut, short", category: "Ship & dock", group: "Docks", w: 2, h: 1.6, layer: "floor" },
-  { id: "dock-boards-walnut-long", name: "Dock boards, walnut, long", category: "Ship & dock", group: "Docks", w: 3, h: 1.6, layer: "floor" },
-  { id: "dock-boards-weathered-short", name: "Dock boards, weathered wood, short", category: "Ship & dock", group: "Docks", w: 2, h: 1.6, layer: "floor" },
-  { id: "dock-boards-weathered-long", name: "Dock boards, weathered wood, long", category: "Ship & dock", group: "Docks", w: 3, h: 1.6, layer: "floor" },
-  { id: "mooring-post-wooden", name: "Mooring post, wooden", category: "Ship & dock", group: "Docks", w: 0.5, h: 0.5, layer: "object" },
-  { id: "mooring-post-iron", name: "Mooring post, iron", category: "Ship & dock", group: "Docks", w: 0.5, h: 0.5, layer: "object" },
-  { id: "dock-crane-wooden", name: "Dock crane, wooden", category: "Ship & dock", group: "Docks", w: 2.4, h: 1.2, layer: "canopy" },
-  { id: "dock-crane-iron-braced", name: "Dock crane, iron-braced", category: "Ship & dock", group: "Docks", w: 2.4, h: 1.2, layer: "canopy" },
-  { id: "gangplank-pale", name: "Gangplank, pale wood", category: "Ship & dock", group: "Docks", w: 0.8, h: 2.6, layer: "floor" },
-  { id: "gangplank-walnut", name: "Gangplank, walnut", category: "Ship & dock", group: "Docks", w: 0.8, h: 2.6, layer: "floor" },
-  { id: "gangplank-weathered", name: "Gangplank, weathered wood", category: "Ship & dock", group: "Docks", w: 0.8, h: 2.6, layer: "floor" },
-  { id: "crab-pots-stacked", name: "Crab pots, stacked", category: "Ship & dock", group: "Docks", w: 1, h: 0.7, layer: "object" },
-  { id: "crab-pots-scattered", name: "Crab pots, scattered", category: "Ship & dock", group: "Docks", w: 1, h: 0.7, layer: "object" },
-  { id: "fishing-net-dry", name: "Fishing net, dry", category: "Ship & dock", group: "Docks", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "fishing-net-wet", name: "Fishing net, wet", category: "Ship & dock", group: "Docks", w: 1.6, h: 1.2, layer: "floor" },
-  { id: "fish-crate-fresh", name: "Fish crate, of fresh fish", category: "Ship & dock", group: "Docks", w: 0.8, h: 0.6, layer: "object" },
-  { id: "fish-crate-salted", name: "Fish crate, of salted fish", category: "Ship & dock", group: "Docks", w: 0.8, h: 0.6, layer: "object" },
-  { id: "sailboat-crimson", name: "Sailboat, crimson", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "sailboat-navy", name: "Sailboat, navy", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "sailboat-green", name: "Sailboat, green", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "sailboat-ochre", name: "Sailboat, ochre", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "sailboat-black", name: "Sailboat, black", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "sailboat-white", name: "Sailboat, white", category: "Ship & dock", group: "Boats", w: 4, h: 1.6, layer: "object" },
-  { id: "longboat-pale", name: "Longboat, pale wood", category: "Ship & dock", group: "Boats", w: 5, h: 1.4, layer: "object" },
-  { id: "longboat-walnut", name: "Longboat, walnut", category: "Ship & dock", group: "Boats", w: 5, h: 1.4, layer: "object" },
-  { id: "longboat-weathered", name: "Longboat, weathered wood", category: "Ship & dock", group: "Boats", w: 5, h: 1.4, layer: "object" },
-  { id: "raft-pale", name: "Raft, pale wood", category: "Ship & dock", group: "Boats", w: 2, h: 1.6, layer: "floor" },
-  { id: "raft-walnut", name: "Raft, walnut", category: "Ship & dock", group: "Boats", w: 2, h: 1.6, layer: "floor" },
-  { id: "raft-weathered", name: "Raft, weathered wood", category: "Ship & dock", group: "Boats", w: 2, h: 1.6, layer: "floor" },
-  { id: "buoy-red", name: "Buoy, red", category: "Ship & dock", group: "Boats", w: 0.6, h: 0.6, layer: "object" },
-  { id: "buoy-white", name: "Buoy, white", category: "Ship & dock", group: "Boats", w: 0.6, h: 0.6, layer: "object" },
-  { id: "buoy-yellow", name: "Buoy, yellow", category: "Ship & dock", group: "Boats", w: 0.6, h: 0.6, layer: "object" },
-  { id: "buoy-green", name: "Buoy, green", category: "Ship & dock", group: "Boats", w: 0.6, h: 0.6, layer: "object" },
-  { id: "cargo-net-crates", name: "Cargo net, of crates", category: "Ship & dock", group: "Cargo", w: 1.6, h: 1.4, layer: "object" },
-  { id: "cargo-net-barrels", name: "Cargo net, of barrels", category: "Ship & dock", group: "Cargo", w: 1.6, h: 1.4, layer: "object" },
-  { id: "cargo-pile-crates", name: "Cargo pile, crates", category: "Ship & dock", group: "Cargo", w: 2, h: 1.6, layer: "object" },
-  { id: "cargo-pile-barrels", name: "Cargo pile, barrels", category: "Ship & dock", group: "Cargo", w: 2, h: 1.6, layer: "object" },
-  { id: "cargo-pile-sacks", name: "Cargo pile, sacks", category: "Ship & dock", group: "Cargo", w: 2, h: 1.6, layer: "object" },
-  { id: "cargo-pile-mixed", name: "Cargo pile, mixed", category: "Ship & dock", group: "Cargo", w: 2, h: 1.6, layer: "object" },
-  { id: "water-trough-honey-empty", name: "Water trough, honey wood, empty", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "water-trough-honey-full", name: "Water trough, honey wood, full", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "water-trough-walnut-empty", name: "Water trough, walnut, empty", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "water-trough-walnut-full", name: "Water trough, walnut, full", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "water-trough-weathered-empty", name: "Water trough, weathered wood, empty", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "water-trough-weathered-full", name: "Water trough, weathered wood, full", category: "Farm & village", group: "Livestock", w: 1.6, h: 0.6, layer: "object" },
-  { id: "feed-trough-honey", name: "Feed trough, honey wood", category: "Farm & village", group: "Livestock", w: 1.4, h: 0.5, layer: "object" },
-  { id: "feed-trough-walnut", name: "Feed trough, walnut", category: "Farm & village", group: "Livestock", w: 1.4, h: 0.5, layer: "object" },
-  { id: "feed-trough-weathered", name: "Feed trough, weathered wood", category: "Farm & village", group: "Livestock", w: 1.4, h: 0.5, layer: "object" },
-  { id: "chicken-coop-pale", name: "Chicken coop, pale wood", category: "Farm & village", group: "Livestock", w: 2, h: 1.3, layer: "object" },
-  { id: "chicken-coop-honey", name: "Chicken coop, honey wood", category: "Farm & village", group: "Livestock", w: 2, h: 1.3, layer: "object" },
-  { id: "chicken-coop-walnut", name: "Chicken coop, walnut", category: "Farm & village", group: "Livestock", w: 2, h: 1.3, layer: "object" },
-  { id: "chicken-coop-weathered", name: "Chicken coop, weathered wood", category: "Farm & village", group: "Livestock", w: 2, h: 1.3, layer: "object" },
-  { id: "animal-pen-small", name: "Animal pen, small", category: "Farm & village", group: "Livestock", w: 2, h: 2, layer: "floor" },
-  { id: "animal-pen-large", name: "Animal pen, large", category: "Farm & village", group: "Livestock", w: 3, h: 3, layer: "floor" },
-  { id: "beehive-skep-single", name: "Beehive, straw skep, single", category: "Farm & village", group: "Livestock", w: 0.6, h: 0.6, layer: "object" },
-  { id: "beehive-skep-row", name: "Beehive, straw skep, row of three", category: "Farm & village", group: "Livestock", w: 1.8, h: 0.6, layer: "object" },
-  { id: "beehive-box-single", name: "Beehive, wooden box, single", category: "Farm & village", group: "Livestock", w: 0.6, h: 0.6, layer: "object" },
-  { id: "beehive-box-row", name: "Beehive, wooden box, row of three", category: "Farm & village", group: "Livestock", w: 1.8, h: 0.6, layer: "object" },
-  { id: "kennel-honey", name: "Kennel, honey wood", category: "Farm & village", group: "Livestock", w: 1, h: 0.9, layer: "object" },
-  { id: "kennel-walnut", name: "Kennel, walnut", category: "Farm & village", group: "Livestock", w: 1, h: 0.9, layer: "object" },
-  { id: "kennel-weathered", name: "Kennel, weathered wood", category: "Farm & village", group: "Livestock", w: 1, h: 0.9, layer: "object" },
-  { id: "stable-stall-honey", name: "Stable stall, honey wood", category: "Farm & village", group: "Livestock", w: 2, h: 3, layer: "floor" },
-  { id: "stable-stall-walnut", name: "Stable stall, walnut", category: "Farm & village", group: "Livestock", w: 2, h: 3, layer: "floor" },
-  { id: "stable-stall-weathered", name: "Stable stall, weathered wood", category: "Farm & village", group: "Livestock", w: 2, h: 3, layer: "floor" },
-  { id: "wheat-field-green", name: "Wheat field, green", category: "Farm & village", group: "Fields", w: 2, h: 2, layer: "floor" },
-  { id: "wheat-field-golden", name: "Wheat field, golden", category: "Farm & village", group: "Fields", w: 2, h: 2, layer: "floor" },
-  { id: "corn-rows-young", name: "Corn rows, young", category: "Farm & village", group: "Fields", w: 2, h: 2, layer: "object" },
-  { id: "corn-rows-tall", name: "Corn rows, tall", category: "Farm & village", group: "Fields", w: 2, h: 2, layer: "object" },
-  { id: "cabbage-rows-green", name: "Cabbage rows, green", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "cabbage-rows-purple", name: "Cabbage rows, purple", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "pumpkin-patch-small", name: "Pumpkin patch, small", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "pumpkin-patch-large", name: "Pumpkin patch, large", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "carrot-rows-young", name: "Carrot rows, young", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "carrot-rows-ready", name: "Carrot rows, ready", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "crop-rows-mixed", name: "Crop rows, mixed", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "crop-rows-beans", name: "Crop rows, beans", category: "Farm & village", group: "Fields", w: 2, h: 1.6, layer: "object" },
-  { id: "hay-bales-square", name: "Hay bales, square", category: "Farm & village", group: "Farm things", w: 1.6, h: 1.2, layer: "object" },
-  { id: "hay-bales-round", name: "Hay bales, round", category: "Farm & village", group: "Farm things", w: 1.6, h: 1.2, layer: "object" },
-  { id: "straw-heap-small", name: "Heap of straw, small", category: "Farm & village", group: "Farm things", w: 1.2, h: 1, layer: "floor" },
-  { id: "straw-heap-large", name: "Heap of straw, large", category: "Farm & village", group: "Farm things", w: 1.2, h: 1, layer: "floor" },
-  { id: "wheelbarrow-honey-empty", name: "Wheelbarrow, honey wood, empty", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wheelbarrow-honey-loaded", name: "Wheelbarrow, honey wood, loaded with soil", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wheelbarrow-walnut-empty", name: "Wheelbarrow, walnut, empty", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wheelbarrow-walnut-loaded", name: "Wheelbarrow, walnut, loaded with soil", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wheelbarrow-weathered-empty", name: "Wheelbarrow, weathered wood, empty", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "wheelbarrow-weathered-loaded", name: "Wheelbarrow, weathered wood, loaded with soil", category: "Farm & village", group: "Farm things", w: 1.4, h: 0.7, layer: "object" },
-  { id: "plough-wooden", name: "Plough, wooden", category: "Farm & village", group: "Farm things", w: 1.8, h: 0.6, layer: "object" },
-  { id: "plough-iron-shod", name: "Plough, iron-shod", category: "Farm & village", group: "Farm things", w: 1.8, h: 0.6, layer: "object" },
-  { id: "milk-churns-silver", name: "Milk churns, silver", category: "Farm & village", group: "Farm things", w: 0.9, h: 0.5, layer: "object" },
-  { id: "milk-churns-brass", name: "Milk churns, brass", category: "Farm & village", group: "Farm things", w: 0.9, h: 0.5, layer: "object" },
-  { id: "water-pump-iron", name: "Water pump, iron", category: "Farm & village", group: "Farm things", w: 0.7, h: 0.6, layer: "object" },
-  { id: "water-pump-wooden", name: "Water pump, wooden", category: "Farm & village", group: "Farm things", w: 0.7, h: 0.6, layer: "object" },
-  { id: "woodpile-split", name: "Woodpile, split", category: "Farm & village", group: "Farm things", w: 1.6, h: 0.8, layer: "object" },
-  { id: "woodpile-rounds", name: "Woodpile, rounds", category: "Farm & village", group: "Farm things", w: 1.6, h: 0.8, layer: "object" },
-  { id: "chopping-block-honey", name: "Chopping block, honey wood", category: "Farm & village", group: "Farm things", w: 0.8, h: 0.8, layer: "object" },
-  { id: "chopping-block-walnut", name: "Chopping block, walnut", category: "Farm & village", group: "Farm things", w: 0.8, h: 0.8, layer: "object" },
-  { id: "chopping-block-weathered", name: "Chopping block, weathered wood", category: "Farm & village", group: "Farm things", w: 0.8, h: 0.8, layer: "object" },
-  { id: "notice-board-honey", name: "Notice board, honey wood", category: "Farm & village", group: "The village", w: 1.4, h: 0.4, layer: "object" },
-  { id: "notice-board-walnut", name: "Notice board, walnut", category: "Farm & village", group: "The village", w: 1.4, h: 0.4, layer: "object" },
-  { id: "notice-board-weathered", name: "Notice board, weathered wood", category: "Farm & village", group: "The village", w: 1.4, h: 0.4, layer: "object" },
-  { id: "outhouse-honey", name: "Outhouse, honey wood", category: "Farm & village", group: "The village", w: 1, h: 1, layer: "object" },
-  { id: "outhouse-walnut", name: "Outhouse, walnut", category: "Farm & village", group: "The village", w: 1, h: 1, layer: "object" },
-  { id: "outhouse-weathered", name: "Outhouse, weathered wood", category: "Farm & village", group: "The village", w: 1, h: 1, layer: "object" },
-  { id: "village-well-granite", name: "Village well, granite", category: "Farm & village", group: "The village", w: 1.8, h: 1.8, layer: "canopy" },
-  { id: "village-well-marble", name: "Village well, marble", category: "Farm & village", group: "The village", w: 1.8, h: 1.8, layer: "canopy" },
-  { id: "village-well-sandstone", name: "Village well, sandstone", category: "Farm & village", group: "The village", w: 1.8, h: 1.8, layer: "canopy" },
-  { id: "village-well-slate", name: "Village well, slate", category: "Farm & village", group: "The village", w: 1.8, h: 1.8, layer: "canopy" },
-  { id: "village-well-basalt", name: "Village well, basalt", category: "Farm & village", group: "The village", w: 1.8, h: 1.8, layer: "canopy" },
-  { id: "market-cross-granite", name: "Market cross, granite", category: "Farm & village", group: "The village", w: 1.4, h: 1.4, layer: "object" },
-  { id: "market-cross-marble", name: "Market cross, marble", category: "Farm & village", group: "The village", w: 1.4, h: 1.4, layer: "object" },
-  { id: "market-cross-sandstone", name: "Market cross, sandstone", category: "Farm & village", group: "The village", w: 1.4, h: 1.4, layer: "object" },
-  { id: "scarecrow-figure-hat", name: "Scarecrow, with a hat", category: "Farm & village", group: "The village", w: 1.2, h: 0.6, layer: "object" },
-  { id: "scarecrow-figure-sack", name: "Scarecrow, with a sack head", category: "Farm & village", group: "The village", w: 1.2, h: 0.6, layer: "object" },
-  { id: "temple-altar-granite-bare", name: "Temple altar, granite, bare", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-granite-crimson", name: "Temple altar, granite, crimson cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-granite-white", name: "Temple altar, granite, white cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-marble-bare", name: "Temple altar, marble, bare", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-marble-crimson", name: "Temple altar, marble, crimson cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-marble-white", name: "Temple altar, marble, white cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-sandstone-bare", name: "Temple altar, sandstone, bare", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-sandstone-crimson", name: "Temple altar, sandstone, crimson cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-sandstone-white", name: "Temple altar, sandstone, white cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-slate-bare", name: "Temple altar, slate, bare", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-slate-crimson", name: "Temple altar, slate, crimson cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-slate-white", name: "Temple altar, slate, white cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-basalt-bare", name: "Temple altar, basalt, bare", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-basalt-crimson", name: "Temple altar, basalt, crimson cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "temple-altar-basalt-white", name: "Temple altar, basalt, white cloth", category: "Temple & graveyard", group: "Altars", w: 2, h: 1, layer: "object" },
-  { id: "offering-bowl-iron", name: "Offering bowl, iron", category: "Temple & graveyard", group: "Altars", w: 0.6, h: 0.6, layer: "object" },
-  { id: "offering-bowl-bronze", name: "Offering bowl, bronze", category: "Temple & graveyard", group: "Altars", w: 0.6, h: 0.6, layer: "object" },
-  { id: "offering-bowl-brass", name: "Offering bowl, brass", category: "Temple & graveyard", group: "Altars", w: 0.6, h: 0.6, layer: "object" },
-  { id: "offering-bowl-silver", name: "Offering bowl, silver", category: "Temple & graveyard", group: "Altars", w: 0.6, h: 0.6, layer: "object" },
-  { id: "offering-bowl-gold", name: "Offering bowl, gold", category: "Temple & graveyard", group: "Altars", w: 0.6, h: 0.6, layer: "object" },
-  { id: "incense-burner-bronze", name: "Incense burner, bronze", category: "Temple & graveyard", group: "Altars", w: 0.5, h: 0.5, layer: "object" },
-  { id: "incense-burner-brass", name: "Incense burner, brass", category: "Temple & graveyard", group: "Altars", w: 0.5, h: 0.5, layer: "object" },
-  { id: "incense-burner-silver", name: "Incense burner, silver", category: "Temple & graveyard", group: "Altars", w: 0.5, h: 0.5, layer: "object" },
-  { id: "holy-symbol-gold", name: "Holy symbol on a stand, gold sun", category: "Temple & graveyard", group: "Altars", w: 0.7, h: 0.4, layer: "object" },
-  { id: "holy-symbol-silver", name: "Holy symbol on a stand, silver moon", category: "Temple & graveyard", group: "Altars", w: 0.7, h: 0.4, layer: "object" },
-  { id: "pew-pale", name: "Pew, pale wood", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "pew-honey", name: "Pew, honey wood", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "pew-walnut", name: "Pew, walnut", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "pew-ebony", name: "Pew, ebony", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "pew-mahogany", name: "Pew, mahogany", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "pew-weathered", name: "Pew, weathered wood", category: "Temple & graveyard", group: "Worship", w: 3, h: 0.7, layer: "object" },
-  { id: "prayer-mat-crimson", name: "Prayer mat, crimson", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-navy", name: "Prayer mat, navy", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-green", name: "Prayer mat, green", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-ochre", name: "Prayer mat, ochre", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-violet", name: "Prayer mat, violet", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-black", name: "Prayer mat, black", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-white", name: "Prayer mat, white", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "prayer-mat-teal", name: "Prayer mat, teal", category: "Temple & graveyard", group: "Worship", w: 0.8, h: 1.4, layer: "floor" },
-  { id: "font-basin-granite", name: "Font, granite", category: "Temple & graveyard", group: "Worship", w: 1, h: 1, layer: "object" },
-  { id: "font-basin-marble", name: "Font, marble", category: "Temple & graveyard", group: "Worship", w: 1, h: 1, layer: "object" },
-  { id: "font-basin-sandstone", name: "Font, sandstone", category: "Temple & graveyard", group: "Worship", w: 1, h: 1, layer: "object" },
-  { id: "font-basin-slate", name: "Font, slate", category: "Temple & graveyard", group: "Worship", w: 1, h: 1, layer: "object" },
-  { id: "font-basin-basalt", name: "Font, basalt", category: "Temple & graveyard", group: "Worship", w: 1, h: 1, layer: "object" },
-  { id: "votive-rack-iron", name: "Votive candle rack, iron", category: "Temple & graveyard", group: "Worship", w: 1.2, h: 0.5, layer: "object" },
-  { id: "votive-rack-bronze", name: "Votive candle rack, bronze", category: "Temple & graveyard", group: "Worship", w: 1.2, h: 0.5, layer: "object" },
-  { id: "votive-rack-brass", name: "Votive candle rack, brass", category: "Temple & graveyard", group: "Worship", w: 1.2, h: 0.5, layer: "object" },
-  { id: "temple-bell-bronze", name: "Temple bell, bronze", category: "Temple & graveyard", group: "Worship", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "temple-bell-brass", name: "Temple bell, brass", category: "Temple & graveyard", group: "Worship", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "temple-bell-silver", name: "Temple bell, silver", category: "Temple & graveyard", group: "Worship", w: 1.4, h: 1.4, layer: "canopy" },
-  { id: "angel-statue-granite", name: "Angel statue, granite", category: "Temple & graveyard", group: "Statues and shrines", w: 1.4, h: 1, layer: "object" },
-  { id: "angel-statue-marble", name: "Angel statue, marble", category: "Temple & graveyard", group: "Statues and shrines", w: 1.4, h: 1, layer: "object" },
-  { id: "angel-statue-sandstone", name: "Angel statue, sandstone", category: "Temple & graveyard", group: "Statues and shrines", w: 1.4, h: 1, layer: "object" },
-  { id: "wooden-shrine-honey", name: "Wooden shrine, honey wood", category: "Temple & graveyard", group: "Statues and shrines", w: 1, h: 0.8, layer: "object" },
-  { id: "wooden-shrine-walnut", name: "Wooden shrine, walnut", category: "Temple & graveyard", group: "Statues and shrines", w: 1, h: 0.8, layer: "object" },
-  { id: "wooden-shrine-ebony", name: "Wooden shrine, ebony", category: "Temple & graveyard", group: "Statues and shrines", w: 1, h: 0.8, layer: "object" },
-  { id: "wayside-shrine-granite", name: "Wayside shrine, granite", category: "Temple & graveyard", group: "Statues and shrines", w: 0.8, h: 0.8, layer: "object" },
-  { id: "wayside-shrine-marble", name: "Wayside shrine, marble", category: "Temple & graveyard", group: "Statues and shrines", w: 0.8, h: 0.8, layer: "object" },
-  { id: "wayside-shrine-sandstone", name: "Wayside shrine, sandstone", category: "Temple & graveyard", group: "Statues and shrines", w: 0.8, h: 0.8, layer: "object" },
-  { id: "reliquary-gold", name: "Reliquary, gold", category: "Temple & graveyard", group: "Statues and shrines", w: 0.7, h: 0.5, layer: "object" },
-  { id: "reliquary-silver", name: "Reliquary, silver", category: "Temple & graveyard", group: "Statues and shrines", w: 0.7, h: 0.5, layer: "object" },
-  { id: "gravestone-granite-rounded", name: "Gravestone, granite, rounded", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-granite-cross", name: "Gravestone, granite, cross", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-granite-slab", name: "Gravestone, granite, slab", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-marble-rounded", name: "Gravestone, marble, rounded", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-marble-cross", name: "Gravestone, marble, cross", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-marble-slab", name: "Gravestone, marble, slab", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-sandstone-rounded", name: "Gravestone, sandstone, rounded", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-sandstone-cross", name: "Gravestone, sandstone, cross", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-sandstone-slab", name: "Gravestone, sandstone, slab", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-slate-rounded", name: "Gravestone, slate, rounded", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-slate-cross", name: "Gravestone, slate, cross", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-slate-slab", name: "Gravestone, slate, slab", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-basalt-rounded", name: "Gravestone, basalt, rounded", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-basalt-cross", name: "Gravestone, basalt, cross", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "gravestone-basalt-slab", name: "Gravestone, basalt, slab", category: "Temple & graveyard", group: "Graveyard", w: 0.8, h: 0.5, layer: "object" },
-  { id: "grave-plot-fresh", name: "Grave, freshly dug", category: "Temple & graveyard", group: "Graveyard", w: 1, h: 2, layer: "floor" },
-  { id: "grave-plot-sunken", name: "Grave, sunken", category: "Temple & graveyard", group: "Graveyard", w: 1, h: 2, layer: "floor" },
-  { id: "grave-plot-open", name: "Grave, open, dug", category: "Temple & graveyard", group: "Graveyard", w: 1, h: 2, layer: "floor" },
-  { id: "tomb-chest-granite", name: "Chest tomb, granite", category: "Temple & graveyard", group: "Graveyard", w: 1.2, h: 2.2, layer: "object" },
-  { id: "tomb-chest-marble", name: "Chest tomb, marble", category: "Temple & graveyard", group: "Graveyard", w: 1.2, h: 2.2, layer: "object" },
-  { id: "tomb-chest-sandstone", name: "Chest tomb, sandstone", category: "Temple & graveyard", group: "Graveyard", w: 1.2, h: 2.2, layer: "object" },
-  { id: "mausoleum-granite", name: "Mausoleum, granite", category: "Temple & graveyard", group: "Graveyard", w: 3, h: 3, layer: "object" },
-  { id: "mausoleum-marble", name: "Mausoleum, marble", category: "Temple & graveyard", group: "Graveyard", w: 3, h: 3, layer: "object" },
-  { id: "mausoleum-sandstone", name: "Mausoleum, sandstone", category: "Temple & graveyard", group: "Graveyard", w: 3, h: 3, layer: "object" },
-  { id: "grave-railing-iron", name: "Grave railing, iron", category: "Temple & graveyard", group: "Graveyard", w: 1.2, h: 2.2, layer: "object" },
-  { id: "grave-railing-bronze", name: "Grave railing, bronze", category: "Temple & graveyard", group: "Graveyard", w: 1.2, h: 2.2, layer: "object" },
-  { id: "sword-rack-honey-full", name: "Sword rack, honey wood, full", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "sword-rack-honey-sparse", name: "Sword rack, honey wood, sparse", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "sword-rack-walnut-full", name: "Sword rack, walnut, full", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "sword-rack-walnut-sparse", name: "Sword rack, walnut, sparse", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "sword-rack-ebony-full", name: "Sword rack, ebony, full", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "sword-rack-ebony-sparse", name: "Sword rack, ebony, sparse", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.5, layer: "object" },
-  { id: "spear-rack-honey", name: "Spear rack, honey wood", category: "Arms & armour", group: "Racks", w: 0.8, h: 0.8, layer: "object" },
-  { id: "spear-rack-walnut", name: "Spear rack, walnut", category: "Arms & armour", group: "Racks", w: 0.8, h: 0.8, layer: "object" },
-  { id: "spear-rack-ebony", name: "Spear rack, ebony", category: "Arms & armour", group: "Racks", w: 0.8, h: 0.8, layer: "object" },
-  { id: "bow-rack-honey", name: "Bow rack, honey wood", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.4, layer: "object" },
-  { id: "bow-rack-walnut", name: "Bow rack, walnut", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.4, layer: "object" },
-  { id: "bow-rack-ebony", name: "Bow rack, ebony", category: "Arms & armour", group: "Racks", w: 1.4, h: 0.4, layer: "object" },
-  { id: "shield-rack-crimson", name: "Shield rack, crimson", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "shield-rack-navy", name: "Shield rack, navy", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "shield-rack-green", name: "Shield rack, green", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "shield-rack-ochre", name: "Shield rack, ochre", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "shield-rack-black", name: "Shield rack, black", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "shield-rack-white", name: "Shield rack, white", category: "Arms & armour", group: "Racks", w: 1.6, h: 0.5, layer: "object" },
-  { id: "armour-stand-iron-plate", name: "Armour stand, iron, plate", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-iron-mail", name: "Armour stand, iron, mail", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-bronze-plate", name: "Armour stand, bronze, plate", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-bronze-mail", name: "Armour stand, bronze, mail", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-brass-plate", name: "Armour stand, brass, plate", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-brass-mail", name: "Armour stand, brass, mail", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-silver-plate", name: "Armour stand, silver, plate", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "armour-stand-silver-mail", name: "Armour stand, silver, mail", category: "Arms & armour", group: "Armour", w: 0.8, h: 0.8, layer: "object" },
-  { id: "helmet-shelf-iron", name: "Helmet shelf, iron", category: "Arms & armour", group: "Armour", w: 1.4, h: 0.4, layer: "object" },
-  { id: "helmet-shelf-bronze", name: "Helmet shelf, bronze", category: "Arms & armour", group: "Armour", w: 1.4, h: 0.4, layer: "object" },
-  { id: "helmet-shelf-brass", name: "Helmet shelf, brass", category: "Arms & armour", group: "Armour", w: 1.4, h: 0.4, layer: "object" },
-  { id: "round-shield-crimson", name: "Round shield, crimson", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "round-shield-navy", name: "Round shield, navy", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "round-shield-green", name: "Round shield, green", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "round-shield-ochre", name: "Round shield, ochre", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "round-shield-black", name: "Round shield, black", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "round-shield-white", name: "Round shield, white", category: "Arms & armour", group: "Armour", w: 0.7, h: 0.7, layer: "object" },
-  { id: "war-banner-crimson-plain", name: "War banner, crimson, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-crimson-emblem", name: "War banner, crimson, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-navy-plain", name: "War banner, navy, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-navy-emblem", name: "War banner, navy, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-green-plain", name: "War banner, green, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-green-emblem", name: "War banner, green, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-ochre-plain", name: "War banner, ochre, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-ochre-emblem", name: "War banner, ochre, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-violet-plain", name: "War banner, violet, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-violet-emblem", name: "War banner, violet, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-black-plain", name: "War banner, black, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-black-emblem", name: "War banner, black, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-white-plain", name: "War banner, white, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-white-emblem", name: "War banner, white, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-teal-plain", name: "War banner, teal, plain", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "war-banner-teal-emblem", name: "War banner, teal, with an emblem", category: "Arms & armour", group: "Banners and standards", w: 1, h: 0.6, layer: "canopy" },
-  { id: "ballista-honey", name: "Ballista, honey wood", category: "Arms & armour", group: "Siege and defence", w: 2, h: 1.6, layer: "object" },
-  { id: "ballista-walnut", name: "Ballista, walnut", category: "Arms & armour", group: "Siege and defence", w: 2, h: 1.6, layer: "object" },
-  { id: "ballista-ebony", name: "Ballista, ebony", category: "Arms & armour", group: "Siege and defence", w: 2, h: 1.6, layer: "object" },
-  { id: "catapult-honey", name: "Catapult, honey wood", category: "Arms & armour", group: "Siege and defence", w: 2.4, h: 1.6, layer: "object" },
-  { id: "catapult-walnut", name: "Catapult, walnut", category: "Arms & armour", group: "Siege and defence", w: 2.4, h: 1.6, layer: "object" },
-  { id: "barricade-spiked", name: "Barricade, spiked", category: "Arms & armour", group: "Siege and defence", w: 2, h: 0.8, layer: "object" },
-  { id: "barricade-planked", name: "Barricade, planked", category: "Arms & armour", group: "Siege and defence", w: 2, h: 0.8, layer: "object" },
-  { id: "barricade-carts", name: "Barricade, of carts and crates", category: "Arms & armour", group: "Siege and defence", w: 2, h: 0.8, layer: "object" },
-  { id: "caltrops-scattered", name: "Caltrops, scattered", category: "Arms & armour", group: "Siege and defence", w: 1.2, h: 1, layer: "floor" },
-  { id: "caltrops-patch", name: "Caltrops, dense patch", category: "Arms & armour", group: "Siege and defence", w: 1.2, h: 1, layer: "floor" },
-  { id: "arrow-bundle-few", name: "Bundle of arrows, few", category: "Arms & armour", group: "Siege and defence", w: 0.9, h: 0.4, layer: "object" },
-  { id: "arrow-bundle-many", name: "Bundle of arrows, many", category: "Arms & armour", group: "Siege and defence", w: 0.9, h: 0.4, layer: "object" },
-  { id: "quiver-brown", name: "Quiver, brown leather", category: "Arms & armour", group: "Siege and defence", w: 0.5, h: 0.4, layer: "object" },
-  { id: "quiver-black", name: "Quiver, black leather", category: "Arms & armour", group: "Siege and defence", w: 0.5, h: 0.4, layer: "object" },
-  { id: "war-drum-pale", name: "War drum, pale hide", category: "Arms & armour", group: "Siege and defence", w: 0.9, h: 0.9, layer: "object" },
-  { id: "war-drum-dark", name: "War drum, dark hide", category: "Arms & armour", group: "Siege and defence", w: 0.9, h: 0.9, layer: "object" },
-  { id: "war-drum-painted", name: "War drum, painted hide", category: "Arms & armour", group: "Siege and defence", w: 0.9, h: 0.9, layer: "object" },
-];
+const CATEGORIES: readonly string[] = ["Furniture","Containers","Nature","Dungeon","Light","Washroom","Kitchen & tavern","Camp & outdoors","Library & magic","Workshop & smithy","Ship & dock","Farm & village","Temple & graveyard","Arms & armour"];
+const GROUPS: readonly string[] = ["Tables","Seating","Beds","Storage","Rugs","Barrels","Crates","Chests and strongboxes","Sacks, baskets and buckets","Leafy trees","Evergreens","Bushes and hedges","Rocks","Bare and fallen wood","Pillars and statues","Magic","Tombs and bones","Wells and fountains","Stairs and ways down","Arms and the forge","Torches","Fires","Candles","Desks and lecterns","Tubs","Basins and washstands","Screens and decor","Pots, jars and urns","Treasure","The bar","Food","The kitchen","Flowers and grass","Water plants","Mushrooms","Snow and ice","Camp","Wagons and carts","Fences and gates","Signs and banners","Games and training","Market","Boats and bridges","Prison and torture","Lairs","Stains and floor","Levers and mechanisms","Sconces and lamps","Magic light","Toilets","Privies and latrines","Pools and showers","Tanks and boilers","Sauna","Laundry","Towels, soap and mirrors","Leaves and roots","Traps","Books and scrolls","Study and stars","Alchemy","Arcane","Smithy","Carpentry","Textiles","Pottery and leather","On deck","Docks","Boats","Cargo","Livestock","Fields","Farm things","The village","Altars","Worship","Statues and shrines","Graveyard","Racks","Armour","Banners and standards","Siege and defence"];
+const LAYERS = ["floor","object","canopy"] as const;
+
+/** Each object on a line: id|name|category|group|w|h|layer, the last three of those places in CATEGORIES, GROUPS and LAYERS. */
+const PROP_LINES = `table|Table|0|0|2|1|1
+round-table|Round table|0|0|1.4|1.4|1
+chair|Chair|0|1|0.6|0.6|1
+bench|Bench|0|1|2|0.5|1
+bed|Bed|0|2|1.1|2|1
+bookshelf|Bookshelf|0|3|2|0.5|1
+rug|Rug|0|4|2|3|0
+barrel|Barrel|1|5|0.8|0.8|1
+crate|Crate|1|6|0.9|0.9|1
+chest|Chest|1|7|1|0.7|1
+sack|Sack|1|8|0.6|0.6|1
+tree|Tree|2|9|2.6|2.6|2
+pine|Pine tree|2|10|2|2|2
+bush|Bush|2|11|1|1|1
+rock|Rock|2|12|0.9|0.9|1
+boulder|Boulder|2|12|1.8|1.8|1
+log|Log|2|13|1.8|0.5|1
+pillar|Pillar|3|14|1|1|1
+statue|Statue|3|14|1|1|1
+altar|Altar|3|15|2|1|1
+coffin|Coffin|3|16|0.8|2|1
+well|Well|3|17|1.4|1.4|1
+stairs|Stairs|3|18|1|2|0
+cauldron|Cauldron|3|15|0.9|0.9|1
+anvil|Anvil|3|19|0.9|0.5|1
+bones|Bones|3|16|0.8|0.8|0
+torch|Wall torch|4|20|0.5|0.5|1
+brazier|Brazier|4|21|0.9|0.9|1
+campfire|Campfire|4|21|1.2|1.2|1
+candles|Candles|4|22|0.5|0.5|1
+small-table|Small table|0|0|1|1|1
+desk|Desk|0|23|1.6|0.9|1
+dining-table|Dining table|0|0|2.6|1.2|1
+long-table|Long table|0|0|3.2|1|1
+stool|Stool|0|1|0.5|0.5|1
+armchair|Armchair|0|1|1|1|1
+throne|Throne|0|1|1.2|1.1|1
+double-bed|Double bed|0|2|2|2.1|1
+straw-bed|Straw bed|0|2|1|2|0
+wardrobe|Wardrobe|0|3|1.6|0.7|1
+dresser|Dresser|0|3|1.2|0.6|1
+scroll-rack|Scroll rack|0|3|1.6|0.5|1
+rug-blue|Blue rug|0|4|2|3|0
+rug-round|Round rug|0|4|2|2|0
+fur-rug|Fur rug|0|4|2|2.4|0
+bathtub|Bathtub|5|24|1|2|1
+washbasin|Washbasin|5|25|0.7|0.7|1
+folding-screen|Folding screen|0|26|2|0.4|1
+cushions|Floor cushions|0|1|1.4|1.4|0
+chess-table|Chess table|0|0|1|1|1
+lectern|Lectern|0|23|0.8|0.7|1
+barrel-lying|Barrel on its side|1|5|1|0.8|1
+barrels|Barrels|1|5|1.6|1.4|1
+crate-small|Small crate|1|6|0.6|0.6|1
+crates|Crates|1|6|1.6|1.4|1
+chest-open|Open chest|1|7|1|1|1
+sacks|Sacks|1|8|1.4|1.2|1
+basket|Basket of apples|1|8|0.7|0.7|1
+urn|Urn|1|27|0.7|0.7|1
+pots|Clay pots|1|27|1.2|1|1
+bucket|Bucket|1|8|0.5|0.5|1
+treasure|Treasure pile|1|28|1.4|1.2|1
+strongbox|Strongbox|1|7|0.8|0.6|1
+bar-counter|Bar counter|6|29|3.2|0.8|1
+keg|Keg on a stand|6|29|1.1|0.8|1
+food-platter|Food platter|6|30|1|0.8|1
+oven|Bread oven|6|31|1.4|1.4|1
+kitchen-counter|Kitchen counter|6|31|2|0.8|1
+cookware|Pots and pans|6|31|1.2|0.8|1
+wine-rack|Wine rack|6|29|1.6|0.5|1
+tankards|Tankards|6|29|0.6|0.6|1
+cheese-wheel|Cheese wheels|6|30|0.9|0.7|1
+spit-roast|Spit roast|6|31|1.6|1|1
+oak-tree|Oak tree|2|9|3.2|3.2|2
+birch-tree|Birch tree|2|9|2|2|2
+willow-tree|Willow tree|2|9|3|3|2
+fir-tree|Fir tree|2|10|1.6|1.6|2
+dead-tree|Dead tree|2|13|2.2|2.2|2
+stump|Tree stump|2|13|0.8|0.8|1
+fallen-branch|Fallen branch|2|13|1.6|0.8|1
+flower-bush|Flowering bush|2|11|1|1|1
+hedge|Hedge|2|11|2.2|0.8|1
+fern|Fern|2|11|0.9|0.9|1
+grass-tuft|Grass tuft|2|32|0.7|0.7|1
+flowers-red|Red flowers|2|32|0.8|0.8|0
+flowers-yellow|Yellow flowers|2|32|0.8|0.8|0
+flowers-purple|Purple flowers|2|32|0.8|0.8|0
+reeds|Reeds|2|33|0.9|0.9|1
+lily-pads|Lily pads|2|33|1|1|0
+mushrooms|Mushrooms|2|34|0.6|0.6|1
+rocks|Rocks|2|12|1.2|1|1
+rubble|Rubble|2|12|1.4|1.2|1
+snowdrift|Snowdrift|2|35|1.6|1.2|0
+tent|Tent|7|36|2.6|2.6|2
+bedroll|Bedroll|7|36|0.8|2|0
+wagon|Wagon|7|37|2|3.6|1
+cart|Hand cart|7|37|1.6|2|1
+fence|Fence|7|38|2|0.4|1
+signpost|Signpost|7|39|1.2|0.8|1
+haystack|Haystack|7|36|1.6|1.6|1
+log-pile|Log pile|7|36|1.4|1|1
+scarecrow|Scarecrow|7|36|1.2|0.8|1
+archery-target|Archery target|7|40|1|1|1
+market-stall|Market stall|7|41|2.4|1.8|2
+rowboat|Rowboat|7|42|1.2|3|1
+pillar-square|Square pillar|3|14|1|1|1
+pillar-broken|Broken pillar|3|14|1.6|1.2|1
+sarcophagus|Sarcophagus|3|16|1.2|2.4|1
+stairs-spiral|Spiral stairs|3|18|2|2|0
+trapdoor|Trapdoor|3|18|1|1|0
+cage|Cage|3|43|1.2|1.2|1
+chains|Chains|3|43|1.2|0.6|0
+weapon-rack|Weapon rack|3|19|1.6|0.6|1
+armor-stand|Armour stand|3|19|0.9|0.7|1
+forge|Forge|3|19|1.6|1.2|1
+skulls|Skull pile|3|16|0.9|0.8|1
+spider-web|Spider web|3|44|1.6|1.6|2
+debris|Debris|3|45|1.2|1|0
+lever|Lever|3|46|0.6|0.6|1
+magic-circle|Magic circle|3|15|3|3|0
+arcane-portal|Arcane portal|3|15|2|2|1
+pit|Pit|3|18|2|2|0
+drain|Floor drain|3|18|0.8|0.8|0
+obelisk|Obelisk|3|14|1|1|1
+fountain|Fountain|3|17|2.2|2.2|1
+idol|Golden idol|3|14|1|1|1
+standing-torch|Standing torch|4|20|0.6|0.6|1
+candelabra|Candelabra|4|22|0.7|0.7|1
+chandelier|Chandelier|4|22|1.6|1.6|2
+lantern|Lantern|4|47|0.5|0.5|1
+fireplace|Fireplace|4|21|2|1|1
+magic-orb|Magic orb|4|48|0.8|0.8|1
+glowing-crystals|Glowing crystals|4|48|1|1|1
+street-lamp|Street lamp|4|47|0.8|0.8|2
+bonfire|Bonfire|4|21|2|2|1
+table-square-pale-bare|Square table, pale wood, bare|0|0|1.2|1.2|1
+table-square-pale-set|Square table, pale wood, set for a meal|0|0|1.2|1.2|1
+table-square-pale-cluttered|Square table, pale wood, cluttered|0|0|1.2|1.2|1
+table-square-honey-bare|Square table, honey wood, bare|0|0|1.2|1.2|1
+table-square-honey-set|Square table, honey wood, set for a meal|0|0|1.2|1.2|1
+table-square-honey-cluttered|Square table, honey wood, cluttered|0|0|1.2|1.2|1
+table-square-walnut-bare|Square table, walnut, bare|0|0|1.2|1.2|1
+table-square-walnut-set|Square table, walnut, set for a meal|0|0|1.2|1.2|1
+table-square-walnut-cluttered|Square table, walnut, cluttered|0|0|1.2|1.2|1
+table-square-ebony-bare|Square table, ebony, bare|0|0|1.2|1.2|1
+table-square-ebony-set|Square table, ebony, set for a meal|0|0|1.2|1.2|1
+table-square-ebony-cluttered|Square table, ebony, cluttered|0|0|1.2|1.2|1
+table-square-mahogany-bare|Square table, mahogany, bare|0|0|1.2|1.2|1
+table-square-mahogany-set|Square table, mahogany, set for a meal|0|0|1.2|1.2|1
+table-square-mahogany-cluttered|Square table, mahogany, cluttered|0|0|1.2|1.2|1
+table-square-weathered-bare|Square table, weathered wood, bare|0|0|1.2|1.2|1
+table-square-weathered-set|Square table, weathered wood, set for a meal|0|0|1.2|1.2|1
+table-square-weathered-cluttered|Square table, weathered wood, cluttered|0|0|1.2|1.2|1
+table-round-pale-bare|Round table, pale wood, bare|0|0|1.4|1.4|1
+table-round-pale-set|Round table, pale wood, set for a meal|0|0|1.4|1.4|1
+table-round-pale-cluttered|Round table, pale wood, cluttered|0|0|1.4|1.4|1
+table-round-honey-bare|Round table, honey wood, bare|0|0|1.4|1.4|1
+table-round-honey-set|Round table, honey wood, set for a meal|0|0|1.4|1.4|1
+table-round-honey-cluttered|Round table, honey wood, cluttered|0|0|1.4|1.4|1
+table-round-walnut-bare|Round table, walnut, bare|0|0|1.4|1.4|1
+table-round-walnut-set|Round table, walnut, set for a meal|0|0|1.4|1.4|1
+table-round-walnut-cluttered|Round table, walnut, cluttered|0|0|1.4|1.4|1
+table-round-ebony-bare|Round table, ebony, bare|0|0|1.4|1.4|1
+table-round-ebony-set|Round table, ebony, set for a meal|0|0|1.4|1.4|1
+table-round-ebony-cluttered|Round table, ebony, cluttered|0|0|1.4|1.4|1
+table-round-mahogany-bare|Round table, mahogany, bare|0|0|1.4|1.4|1
+table-round-mahogany-set|Round table, mahogany, set for a meal|0|0|1.4|1.4|1
+table-round-mahogany-cluttered|Round table, mahogany, cluttered|0|0|1.4|1.4|1
+table-round-weathered-bare|Round table, weathered wood, bare|0|0|1.4|1.4|1
+table-round-weathered-set|Round table, weathered wood, set for a meal|0|0|1.4|1.4|1
+table-round-weathered-cluttered|Round table, weathered wood, cluttered|0|0|1.4|1.4|1
+table-long-pale-bare|Long table, pale wood, bare|0|0|3|1.1|1
+table-long-pale-set|Long table, pale wood, set for a meal|0|0|3|1.1|1
+table-long-pale-cluttered|Long table, pale wood, cluttered|0|0|3|1.1|1
+table-long-honey-bare|Long table, honey wood, bare|0|0|3|1.1|1
+table-long-honey-set|Long table, honey wood, set for a meal|0|0|3|1.1|1
+table-long-honey-cluttered|Long table, honey wood, cluttered|0|0|3|1.1|1
+table-long-walnut-bare|Long table, walnut, bare|0|0|3|1.1|1
+table-long-walnut-set|Long table, walnut, set for a meal|0|0|3|1.1|1
+table-long-walnut-cluttered|Long table, walnut, cluttered|0|0|3|1.1|1
+table-long-ebony-bare|Long table, ebony, bare|0|0|3|1.1|1
+table-long-ebony-set|Long table, ebony, set for a meal|0|0|3|1.1|1
+table-long-ebony-cluttered|Long table, ebony, cluttered|0|0|3|1.1|1
+table-long-mahogany-bare|Long table, mahogany, bare|0|0|3|1.1|1
+table-long-mahogany-set|Long table, mahogany, set for a meal|0|0|3|1.1|1
+table-long-mahogany-cluttered|Long table, mahogany, cluttered|0|0|3|1.1|1
+table-long-weathered-bare|Long table, weathered wood, bare|0|0|3|1.1|1
+table-long-weathered-set|Long table, weathered wood, set for a meal|0|0|3|1.1|1
+table-long-weathered-cluttered|Long table, weathered wood, cluttered|0|0|3|1.1|1
+table-clothed-crimson|Dining table with a cloth, crimson|0|0|2.2|1.2|1
+table-clothed-navy|Dining table with a cloth, navy|0|0|2.2|1.2|1
+table-clothed-green|Dining table with a cloth, green|0|0|2.2|1.2|1
+table-clothed-ochre|Dining table with a cloth, ochre|0|0|2.2|1.2|1
+table-clothed-violet|Dining table with a cloth, violet|0|0|2.2|1.2|1
+table-clothed-black|Dining table with a cloth, black|0|0|2.2|1.2|1
+table-clothed-white|Dining table with a cloth, white|0|0|2.2|1.2|1
+table-clothed-teal|Dining table with a cloth, teal|0|0|2.2|1.2|1
+side-table-pale|Side table, pale wood|0|0|0.7|0.7|1
+side-table-honey|Side table, honey wood|0|0|0.7|0.7|1
+side-table-walnut|Side table, walnut|0|0|0.7|0.7|1
+side-table-ebony|Side table, ebony|0|0|0.7|0.7|1
+side-table-mahogany|Side table, mahogany|0|0|0.7|0.7|1
+side-table-weathered|Side table, weathered wood|0|0|0.7|0.7|1
+nightstand-pale|Nightstand, pale wood|0|0|0.6|0.5|1
+nightstand-honey|Nightstand, honey wood|0|0|0.6|0.5|1
+nightstand-walnut|Nightstand, walnut|0|0|0.6|0.5|1
+nightstand-ebony|Nightstand, ebony|0|0|0.6|0.5|1
+nightstand-mahogany|Nightstand, mahogany|0|0|0.6|0.5|1
+nightstand-weathered|Nightstand, weathered wood|0|0|0.6|0.5|1
+low-table-pale|Low table, pale wood|0|0|1.2|0.7|1
+low-table-honey|Low table, honey wood|0|0|1.2|0.7|1
+low-table-walnut|Low table, walnut|0|0|1.2|0.7|1
+low-table-ebony|Low table, ebony|0|0|1.2|0.7|1
+low-table-mahogany|Low table, mahogany|0|0|1.2|0.7|1
+low-table-weathered|Low table, weathered wood|0|0|1.2|0.7|1
+trestle-table-pale|Trestle table, pale wood|0|0|2.4|0.9|1
+trestle-table-honey|Trestle table, honey wood|0|0|2.4|0.9|1
+trestle-table-walnut|Trestle table, walnut|0|0|2.4|0.9|1
+trestle-table-ebony|Trestle table, ebony|0|0|2.4|0.9|1
+trestle-table-mahogany|Trestle table, mahogany|0|0|2.4|0.9|1
+trestle-table-weathered|Trestle table, weathered wood|0|0|2.4|0.9|1
+chair-plain-pale|Plain chair, pale wood|0|1|0.6|0.6|1
+chair-plain-honey|Plain chair, honey wood|0|1|0.6|0.6|1
+chair-plain-walnut|Plain chair, walnut|0|1|0.6|0.6|1
+chair-plain-ebony|Plain chair, ebony|0|1|0.6|0.6|1
+chair-plain-mahogany|Plain chair, mahogany|0|1|0.6|0.6|1
+chair-plain-weathered|Plain chair, weathered wood|0|1|0.6|0.6|1
+chair-cushioned-crimson|Cushioned chair, crimson|0|1|0.65|0.65|1
+chair-cushioned-navy|Cushioned chair, navy|0|1|0.65|0.65|1
+chair-cushioned-green|Cushioned chair, green|0|1|0.65|0.65|1
+chair-cushioned-ochre|Cushioned chair, ochre|0|1|0.65|0.65|1
+chair-cushioned-violet|Cushioned chair, violet|0|1|0.65|0.65|1
+chair-cushioned-black|Cushioned chair, black|0|1|0.65|0.65|1
+chair-cushioned-white|Cushioned chair, white|0|1|0.65|0.65|1
+chair-cushioned-teal|Cushioned chair, teal|0|1|0.65|0.65|1
+armchair-soft-crimson|Soft armchair, crimson|0|1|1|1|1
+armchair-soft-navy|Soft armchair, navy|0|1|1|1|1
+armchair-soft-green|Soft armchair, green|0|1|1|1|1
+armchair-soft-ochre|Soft armchair, ochre|0|1|1|1|1
+armchair-soft-violet|Soft armchair, violet|0|1|1|1|1
+armchair-soft-black|Soft armchair, black|0|1|1|1|1
+armchair-soft-white|Soft armchair, white|0|1|1|1|1
+armchair-soft-teal|Soft armchair, teal|0|1|1|1|1
+couch-crimson|Couch, crimson|0|1|2|0.9|1
+couch-navy|Couch, navy|0|1|2|0.9|1
+couch-green|Couch, green|0|1|2|0.9|1
+couch-ochre|Couch, ochre|0|1|2|0.9|1
+couch-violet|Couch, violet|0|1|2|0.9|1
+couch-black|Couch, black|0|1|2|0.9|1
+couch-white|Couch, white|0|1|2|0.9|1
+couch-teal|Couch, teal|0|1|2|0.9|1
+stool-round-pale|Round stool, pale wood|0|1|0.45|0.45|1
+stool-round-honey|Round stool, honey wood|0|1|0.45|0.45|1
+stool-round-walnut|Round stool, walnut|0|1|0.45|0.45|1
+stool-round-ebony|Round stool, ebony|0|1|0.45|0.45|1
+stool-round-mahogany|Round stool, mahogany|0|1|0.45|0.45|1
+stool-round-weathered|Round stool, weathered wood|0|1|0.45|0.45|1
+bench-plain-pale|Plain bench, pale wood|0|1|2|0.5|1
+bench-plain-honey|Plain bench, honey wood|0|1|2|0.5|1
+bench-plain-walnut|Plain bench, walnut|0|1|2|0.5|1
+bench-plain-ebony|Plain bench, ebony|0|1|2|0.5|1
+bench-plain-mahogany|Plain bench, mahogany|0|1|2|0.5|1
+bench-plain-weathered|Plain bench, weathered wood|0|1|2|0.5|1
+rocking-chair-pale|Rocking chair, pale wood|0|1|0.7|0.9|1
+rocking-chair-honey|Rocking chair, honey wood|0|1|0.7|0.9|1
+rocking-chair-walnut|Rocking chair, walnut|0|1|0.7|0.9|1
+rocking-chair-ebony|Rocking chair, ebony|0|1|0.7|0.9|1
+rocking-chair-mahogany|Rocking chair, mahogany|0|1|0.7|0.9|1
+rocking-chair-weathered|Rocking chair, weathered wood|0|1|0.7|0.9|1
+throne-grand-iron-crimson|Grand throne, iron, crimson|0|1|1.4|1.3|1
+throne-grand-iron-navy|Grand throne, iron, navy|0|1|1.4|1.3|1
+throne-grand-iron-violet|Grand throne, iron, violet|0|1|1.4|1.3|1
+throne-grand-bronze-crimson|Grand throne, bronze, crimson|0|1|1.4|1.3|1
+throne-grand-bronze-navy|Grand throne, bronze, navy|0|1|1.4|1.3|1
+throne-grand-bronze-violet|Grand throne, bronze, violet|0|1|1.4|1.3|1
+throne-grand-brass-crimson|Grand throne, brass, crimson|0|1|1.4|1.3|1
+throne-grand-brass-navy|Grand throne, brass, navy|0|1|1.4|1.3|1
+throne-grand-brass-violet|Grand throne, brass, violet|0|1|1.4|1.3|1
+throne-grand-silver-crimson|Grand throne, silver, crimson|0|1|1.4|1.3|1
+throne-grand-silver-navy|Grand throne, silver, navy|0|1|1.4|1.3|1
+throne-grand-silver-violet|Grand throne, silver, violet|0|1|1.4|1.3|1
+throne-grand-gold-crimson|Grand throne, gold, crimson|0|1|1.4|1.3|1
+throne-grand-gold-navy|Grand throne, gold, navy|0|1|1.4|1.3|1
+throne-grand-gold-violet|Grand throne, gold, violet|0|1|1.4|1.3|1
+footstool-crimson|Footstool, crimson|0|1|0.5|0.4|1
+footstool-navy|Footstool, navy|0|1|0.5|0.4|1
+footstool-green|Footstool, green|0|1|0.5|0.4|1
+footstool-ochre|Footstool, ochre|0|1|0.5|0.4|1
+footstool-violet|Footstool, violet|0|1|0.5|0.4|1
+footstool-black|Footstool, black|0|1|0.5|0.4|1
+footstool-white|Footstool, white|0|1|0.5|0.4|1
+footstool-teal|Footstool, teal|0|1|0.5|0.4|1
+bed-single-crimson|Single bed, crimson|0|2|1.1|2|1
+bed-single-navy|Single bed, navy|0|2|1.1|2|1
+bed-single-green|Single bed, green|0|2|1.1|2|1
+bed-single-ochre|Single bed, ochre|0|2|1.1|2|1
+bed-single-violet|Single bed, violet|0|2|1.1|2|1
+bed-single-black|Single bed, black|0|2|1.1|2|1
+bed-single-white|Single bed, white|0|2|1.1|2|1
+bed-single-teal|Single bed, teal|0|2|1.1|2|1
+bed-wide-crimson|Wide bed, crimson|0|2|2|2.2|1
+bed-wide-navy|Wide bed, navy|0|2|2|2.2|1
+bed-wide-green|Wide bed, green|0|2|2|2.2|1
+bed-wide-ochre|Wide bed, ochre|0|2|2|2.2|1
+bed-wide-violet|Wide bed, violet|0|2|2|2.2|1
+bed-wide-black|Wide bed, black|0|2|2|2.2|1
+bed-wide-white|Wide bed, white|0|2|2|2.2|1
+bed-wide-teal|Wide bed, teal|0|2|2|2.2|1
+bed-four-poster-crimson|Four-poster bed, crimson|0|2|2.2|2.4|1
+bed-four-poster-navy|Four-poster bed, navy|0|2|2.2|2.4|1
+bed-four-poster-green|Four-poster bed, green|0|2|2.2|2.4|1
+bed-four-poster-ochre|Four-poster bed, ochre|0|2|2.2|2.4|1
+bed-four-poster-violet|Four-poster bed, violet|0|2|2.2|2.4|1
+bed-four-poster-black|Four-poster bed, black|0|2|2.2|2.4|1
+bed-four-poster-white|Four-poster bed, white|0|2|2.2|2.4|1
+bed-four-poster-teal|Four-poster bed, teal|0|2|2.2|2.4|1
+bunk-bed-pale|Bunk bed, pale wood|0|2|1.1|2|1
+bunk-bed-honey|Bunk bed, honey wood|0|2|1.1|2|1
+bunk-bed-walnut|Bunk bed, walnut|0|2|1.1|2|1
+bunk-bed-ebony|Bunk bed, ebony|0|2|1.1|2|1
+bunk-bed-mahogany|Bunk bed, mahogany|0|2|1.1|2|1
+bunk-bed-weathered|Bunk bed, weathered wood|0|2|1.1|2|1
+cradle-pale|Cradle, pale wood|0|2|0.6|0.9|1
+cradle-honey|Cradle, honey wood|0|2|0.6|0.9|1
+cradle-walnut|Cradle, walnut|0|2|0.6|0.9|1
+cradle-ebony|Cradle, ebony|0|2|0.6|0.9|1
+cradle-mahogany|Cradle, mahogany|0|2|0.6|0.9|1
+cradle-weathered|Cradle, weathered wood|0|2|0.6|0.9|1
+wardrobe-plain-pale|Plain wardrobe, pale wood|0|3|1.4|0.7|1
+wardrobe-plain-honey|Plain wardrobe, honey wood|0|3|1.4|0.7|1
+wardrobe-plain-walnut|Plain wardrobe, walnut|0|3|1.4|0.7|1
+wardrobe-plain-ebony|Plain wardrobe, ebony|0|3|1.4|0.7|1
+wardrobe-plain-mahogany|Plain wardrobe, mahogany|0|3|1.4|0.7|1
+wardrobe-plain-weathered|Plain wardrobe, weathered wood|0|3|1.4|0.7|1
+dresser-plain-pale|Chest of drawers, pale wood|0|3|1.2|0.6|1
+dresser-plain-honey|Chest of drawers, honey wood|0|3|1.2|0.6|1
+dresser-plain-walnut|Chest of drawers, walnut|0|3|1.2|0.6|1
+dresser-plain-ebony|Chest of drawers, ebony|0|3|1.2|0.6|1
+dresser-plain-mahogany|Chest of drawers, mahogany|0|3|1.2|0.6|1
+dresser-plain-weathered|Chest of drawers, weathered wood|0|3|1.2|0.6|1
+cabinet-pale|Cabinet, pale wood|0|3|1|0.5|1
+cabinet-honey|Cabinet, honey wood|0|3|1|0.5|1
+cabinet-walnut|Cabinet, walnut|0|3|1|0.5|1
+cabinet-ebony|Cabinet, ebony|0|3|1|0.5|1
+cabinet-mahogany|Cabinet, mahogany|0|3|1|0.5|1
+cabinet-weathered|Cabinet, weathered wood|0|3|1|0.5|1
+bookshelf-wide-pale-full|Wide bookshelf, pale wood, full|0|3|2|0.5|1
+bookshelf-wide-pale-half-full|Wide bookshelf, pale wood, half full|0|3|2|0.5|1
+bookshelf-wide-pale-empty|Wide bookshelf, pale wood, empty|0|3|2|0.5|1
+bookshelf-wide-honey-full|Wide bookshelf, honey wood, full|0|3|2|0.5|1
+bookshelf-wide-honey-half-full|Wide bookshelf, honey wood, half full|0|3|2|0.5|1
+bookshelf-wide-honey-empty|Wide bookshelf, honey wood, empty|0|3|2|0.5|1
+bookshelf-wide-walnut-full|Wide bookshelf, walnut, full|0|3|2|0.5|1
+bookshelf-wide-walnut-half-full|Wide bookshelf, walnut, half full|0|3|2|0.5|1
+bookshelf-wide-walnut-empty|Wide bookshelf, walnut, empty|0|3|2|0.5|1
+bookshelf-wide-ebony-full|Wide bookshelf, ebony, full|0|3|2|0.5|1
+bookshelf-wide-ebony-half-full|Wide bookshelf, ebony, half full|0|3|2|0.5|1
+bookshelf-wide-ebony-empty|Wide bookshelf, ebony, empty|0|3|2|0.5|1
+bookshelf-wide-mahogany-full|Wide bookshelf, mahogany, full|0|3|2|0.5|1
+bookshelf-wide-mahogany-half-full|Wide bookshelf, mahogany, half full|0|3|2|0.5|1
+bookshelf-wide-mahogany-empty|Wide bookshelf, mahogany, empty|0|3|2|0.5|1
+bookshelf-wide-weathered-full|Wide bookshelf, weathered wood, full|0|3|2|0.5|1
+bookshelf-wide-weathered-half-full|Wide bookshelf, weathered wood, half full|0|3|2|0.5|1
+bookshelf-wide-weathered-empty|Wide bookshelf, weathered wood, empty|0|3|2|0.5|1
+wall-shelf-pale|Wall shelf, pale wood|0|3|1.6|0.35|1
+wall-shelf-honey|Wall shelf, honey wood|0|3|1.6|0.35|1
+wall-shelf-walnut|Wall shelf, walnut|0|3|1.6|0.35|1
+wall-shelf-ebony|Wall shelf, ebony|0|3|1.6|0.35|1
+wall-shelf-mahogany|Wall shelf, mahogany|0|3|1.6|0.35|1
+wall-shelf-weathered|Wall shelf, weathered wood|0|3|1.6|0.35|1
+rug-crimson-plain|Rug, crimson, plain|0|4|2|1.4|0
+rug-crimson-bordered|Rug, crimson, bordered|0|4|2|1.4|0
+rug-crimson-diamond|Rug, crimson, diamond|0|4|2|1.4|0
+rug-crimson-striped|Rug, crimson, striped|0|4|2|1.4|0
+rug-navy-plain|Rug, navy, plain|0|4|2|1.4|0
+rug-navy-bordered|Rug, navy, bordered|0|4|2|1.4|0
+rug-navy-diamond|Rug, navy, diamond|0|4|2|1.4|0
+rug-navy-striped|Rug, navy, striped|0|4|2|1.4|0
+rug-green-plain|Rug, green, plain|0|4|2|1.4|0
+rug-green-bordered|Rug, green, bordered|0|4|2|1.4|0
+rug-green-diamond|Rug, green, diamond|0|4|2|1.4|0
+rug-green-striped|Rug, green, striped|0|4|2|1.4|0
+rug-ochre-plain|Rug, ochre, plain|0|4|2|1.4|0
+rug-ochre-bordered|Rug, ochre, bordered|0|4|2|1.4|0
+rug-ochre-diamond|Rug, ochre, diamond|0|4|2|1.4|0
+rug-ochre-striped|Rug, ochre, striped|0|4|2|1.4|0
+rug-violet-plain|Rug, violet, plain|0|4|2|1.4|0
+rug-violet-bordered|Rug, violet, bordered|0|4|2|1.4|0
+rug-violet-diamond|Rug, violet, diamond|0|4|2|1.4|0
+rug-violet-striped|Rug, violet, striped|0|4|2|1.4|0
+rug-black-plain|Rug, black, plain|0|4|2|1.4|0
+rug-black-bordered|Rug, black, bordered|0|4|2|1.4|0
+rug-black-diamond|Rug, black, diamond|0|4|2|1.4|0
+rug-black-striped|Rug, black, striped|0|4|2|1.4|0
+rug-white-plain|Rug, white, plain|0|4|2|1.4|0
+rug-white-bordered|Rug, white, bordered|0|4|2|1.4|0
+rug-white-diamond|Rug, white, diamond|0|4|2|1.4|0
+rug-white-striped|Rug, white, striped|0|4|2|1.4|0
+rug-teal-plain|Rug, teal, plain|0|4|2|1.4|0
+rug-teal-bordered|Rug, teal, bordered|0|4|2|1.4|0
+rug-teal-diamond|Rug, teal, diamond|0|4|2|1.4|0
+rug-teal-striped|Rug, teal, striped|0|4|2|1.4|0
+rug-oval-crimson|Oval rug, crimson|0|4|1.8|1.2|0
+rug-oval-navy|Oval rug, navy|0|4|1.8|1.2|0
+rug-oval-green|Oval rug, green|0|4|1.8|1.2|0
+rug-oval-ochre|Oval rug, ochre|0|4|1.8|1.2|0
+rug-oval-violet|Oval rug, violet|0|4|1.8|1.2|0
+rug-oval-black|Oval rug, black|0|4|1.8|1.2|0
+rug-oval-white|Oval rug, white|0|4|1.8|1.2|0
+rug-oval-teal|Oval rug, teal|0|4|1.8|1.2|0
+runner-crimson|Runner, crimson|0|4|3|0.8|0
+runner-navy|Runner, navy|0|4|3|0.8|0
+runner-green|Runner, green|0|4|3|0.8|0
+runner-ochre|Runner, ochre|0|4|3|0.8|0
+runner-violet|Runner, violet|0|4|3|0.8|0
+runner-black|Runner, black|0|4|3|0.8|0
+runner-white|Runner, white|0|4|3|0.8|0
+runner-teal|Runner, teal|0|4|3|0.8|0
+pelt-rug-brown|Pelt rug, brown|0|4|1.6|1.2|0
+pelt-rug-white|Pelt rug, white|0|4|1.6|1.2|0
+pelt-rug-black|Pelt rug, black|0|4|1.6|1.2|0
+pelt-rug-grey|Pelt rug, grey|0|4|1.6|1.2|0
+mirror-standing-iron|Standing mirror, iron|0|26|0.7|0.3|1
+mirror-standing-bronze|Standing mirror, bronze|0|26|0.7|0.3|1
+mirror-standing-brass|Standing mirror, brass|0|26|0.7|0.3|1
+mirror-standing-silver|Standing mirror, silver|0|26|0.7|0.3|1
+mirror-standing-honey|Standing mirror, honey wood|0|26|0.7|0.3|1
+mirror-standing-walnut|Standing mirror, walnut|0|26|0.7|0.3|1
+screen-painted-crimson|Painted screen, crimson|0|26|1.8|0.4|1
+screen-painted-navy|Painted screen, navy|0|26|1.8|0.4|1
+screen-painted-green|Painted screen, green|0|26|1.8|0.4|1
+screen-painted-ochre|Painted screen, ochre|0|26|1.8|0.4|1
+screen-painted-violet|Painted screen, violet|0|26|1.8|0.4|1
+screen-painted-black|Painted screen, black|0|26|1.8|0.4|1
+screen-painted-white|Painted screen, white|0|26|1.8|0.4|1
+screen-painted-teal|Painted screen, teal|0|26|1.8|0.4|1
+coat-rack-pale|Coat rack, pale wood|0|26|0.6|0.6|1
+coat-rack-honey|Coat rack, honey wood|0|26|0.6|0.6|1
+coat-rack-walnut|Coat rack, walnut|0|26|0.6|0.6|1
+coat-rack-ebony|Coat rack, ebony|0|26|0.6|0.6|1
+coat-rack-mahogany|Coat rack, mahogany|0|26|0.6|0.6|1
+coat-rack-weathered|Coat rack, weathered wood|0|26|0.6|0.6|1
+harpsichord-pale|Harpsichord, pale wood|0|26|1.2|2|1
+harpsichord-honey|Harpsichord, honey wood|0|26|1.2|2|1
+harpsichord-walnut|Harpsichord, walnut|0|26|1.2|2|1
+harpsichord-ebony|Harpsichord, ebony|0|26|1.2|2|1
+harpsichord-mahogany|Harpsichord, mahogany|0|26|1.2|2|1
+harpsichord-weathered|Harpsichord, weathered wood|0|26|1.2|2|1
+barrel-banded-pale-sealed|Banded barrel, pale wood, sealed|1|5|0.8|0.8|1
+barrel-banded-pale-water|Banded barrel, pale wood, of water|1|5|0.8|0.8|1
+barrel-banded-pale-ale|Banded barrel, pale wood, of ale|1|5|0.8|0.8|1
+barrel-banded-honey-sealed|Banded barrel, honey wood, sealed|1|5|0.8|0.8|1
+barrel-banded-honey-water|Banded barrel, honey wood, of water|1|5|0.8|0.8|1
+barrel-banded-honey-ale|Banded barrel, honey wood, of ale|1|5|0.8|0.8|1
+barrel-banded-walnut-sealed|Banded barrel, walnut, sealed|1|5|0.8|0.8|1
+barrel-banded-walnut-water|Banded barrel, walnut, of water|1|5|0.8|0.8|1
+barrel-banded-walnut-ale|Banded barrel, walnut, of ale|1|5|0.8|0.8|1
+barrel-banded-ebony-sealed|Banded barrel, ebony, sealed|1|5|0.8|0.8|1
+barrel-banded-ebony-water|Banded barrel, ebony, of water|1|5|0.8|0.8|1
+barrel-banded-ebony-ale|Banded barrel, ebony, of ale|1|5|0.8|0.8|1
+barrel-banded-mahogany-sealed|Banded barrel, mahogany, sealed|1|5|0.8|0.8|1
+barrel-banded-mahogany-water|Banded barrel, mahogany, of water|1|5|0.8|0.8|1
+barrel-banded-mahogany-ale|Banded barrel, mahogany, of ale|1|5|0.8|0.8|1
+barrel-banded-weathered-sealed|Banded barrel, weathered wood, sealed|1|5|0.8|0.8|1
+barrel-banded-weathered-water|Banded barrel, weathered wood, of water|1|5|0.8|0.8|1
+barrel-banded-weathered-ale|Banded barrel, weathered wood, of ale|1|5|0.8|0.8|1
+barrel-tipped-pale|Barrel on its side, pale wood|1|5|1.1|0.75|1
+barrel-tipped-honey|Barrel on its side, honey wood|1|5|1.1|0.75|1
+barrel-tipped-walnut|Barrel on its side, walnut|1|5|1.1|0.75|1
+barrel-tipped-ebony|Barrel on its side, ebony|1|5|1.1|0.75|1
+barrel-tipped-mahogany|Barrel on its side, mahogany|1|5|1.1|0.75|1
+barrel-tipped-weathered|Barrel on its side, weathered wood|1|5|1.1|0.75|1
+barrel-stack-pale|Stack of barrels, pale wood|1|5|1.6|1.4|1
+barrel-stack-honey|Stack of barrels, honey wood|1|5|1.6|1.4|1
+barrel-stack-walnut|Stack of barrels, walnut|1|5|1.6|1.4|1
+barrel-stack-ebony|Stack of barrels, ebony|1|5|1.6|1.4|1
+barrel-stack-mahogany|Stack of barrels, mahogany|1|5|1.6|1.4|1
+barrel-stack-weathered|Stack of barrels, weathered wood|1|5|1.6|1.4|1
+packing-crate-pale-closed|Packing crate, pale wood, closed|1|6|0.9|0.9|1
+packing-crate-pale-open|Packing crate, pale wood, open, empty|1|6|0.9|0.9|1
+packing-crate-pale-straw|Packing crate, pale wood, packed with straw|1|6|0.9|0.9|1
+packing-crate-pale-goods|Packing crate, pale wood, full of goods|1|6|0.9|0.9|1
+packing-crate-honey-closed|Packing crate, honey wood, closed|1|6|0.9|0.9|1
+packing-crate-honey-open|Packing crate, honey wood, open, empty|1|6|0.9|0.9|1
+packing-crate-honey-straw|Packing crate, honey wood, packed with straw|1|6|0.9|0.9|1
+packing-crate-honey-goods|Packing crate, honey wood, full of goods|1|6|0.9|0.9|1
+packing-crate-walnut-closed|Packing crate, walnut, closed|1|6|0.9|0.9|1
+packing-crate-walnut-open|Packing crate, walnut, open, empty|1|6|0.9|0.9|1
+packing-crate-walnut-straw|Packing crate, walnut, packed with straw|1|6|0.9|0.9|1
+packing-crate-walnut-goods|Packing crate, walnut, full of goods|1|6|0.9|0.9|1
+packing-crate-ebony-closed|Packing crate, ebony, closed|1|6|0.9|0.9|1
+packing-crate-ebony-open|Packing crate, ebony, open, empty|1|6|0.9|0.9|1
+packing-crate-ebony-straw|Packing crate, ebony, packed with straw|1|6|0.9|0.9|1
+packing-crate-ebony-goods|Packing crate, ebony, full of goods|1|6|0.9|0.9|1
+packing-crate-mahogany-closed|Packing crate, mahogany, closed|1|6|0.9|0.9|1
+packing-crate-mahogany-open|Packing crate, mahogany, open, empty|1|6|0.9|0.9|1
+packing-crate-mahogany-straw|Packing crate, mahogany, packed with straw|1|6|0.9|0.9|1
+packing-crate-mahogany-goods|Packing crate, mahogany, full of goods|1|6|0.9|0.9|1
+packing-crate-weathered-closed|Packing crate, weathered wood, closed|1|6|0.9|0.9|1
+packing-crate-weathered-open|Packing crate, weathered wood, open, empty|1|6|0.9|0.9|1
+packing-crate-weathered-straw|Packing crate, weathered wood, packed with straw|1|6|0.9|0.9|1
+packing-crate-weathered-goods|Packing crate, weathered wood, full of goods|1|6|0.9|0.9|1
+crate-pile-pale|Pile of crates, pale wood|1|6|1.6|1.4|1
+crate-pile-honey|Pile of crates, honey wood|1|6|1.6|1.4|1
+crate-pile-walnut|Pile of crates, walnut|1|6|1.6|1.4|1
+crate-pile-ebony|Pile of crates, ebony|1|6|1.6|1.4|1
+crate-pile-mahogany|Pile of crates, mahogany|1|6|1.6|1.4|1
+crate-pile-weathered|Pile of crates, weathered wood|1|6|1.6|1.4|1
+long-crate-pale|Long crate, pale wood|1|6|1.8|0.6|1
+long-crate-honey|Long crate, honey wood|1|6|1.8|0.6|1
+long-crate-walnut|Long crate, walnut|1|6|1.8|0.6|1
+long-crate-ebony|Long crate, ebony|1|6|1.8|0.6|1
+long-crate-mahogany|Long crate, mahogany|1|6|1.8|0.6|1
+long-crate-weathered|Long crate, weathered wood|1|6|1.8|0.6|1
+chest-bound-pale-iron-bound-shut|Bound chest, pale wood, iron bound, shut|1|7|1|0.7|1
+chest-bound-pale-iron-bound-open|Bound chest, pale wood, iron bound, open|1|7|1|0.7|1
+chest-bound-pale-brass-bound-shut|Bound chest, pale wood, brass bound, shut|1|7|1|0.7|1
+chest-bound-pale-brass-bound-open|Bound chest, pale wood, brass bound, open|1|7|1|0.7|1
+chest-bound-honey-iron-bound-shut|Bound chest, honey wood, iron bound, shut|1|7|1|0.7|1
+chest-bound-honey-iron-bound-open|Bound chest, honey wood, iron bound, open|1|7|1|0.7|1
+chest-bound-honey-brass-bound-shut|Bound chest, honey wood, brass bound, shut|1|7|1|0.7|1
+chest-bound-honey-brass-bound-open|Bound chest, honey wood, brass bound, open|1|7|1|0.7|1
+chest-bound-walnut-iron-bound-shut|Bound chest, walnut, iron bound, shut|1|7|1|0.7|1
+chest-bound-walnut-iron-bound-open|Bound chest, walnut, iron bound, open|1|7|1|0.7|1
+chest-bound-walnut-brass-bound-shut|Bound chest, walnut, brass bound, shut|1|7|1|0.7|1
+chest-bound-walnut-brass-bound-open|Bound chest, walnut, brass bound, open|1|7|1|0.7|1
+chest-bound-ebony-iron-bound-shut|Bound chest, ebony, iron bound, shut|1|7|1|0.7|1
+chest-bound-ebony-iron-bound-open|Bound chest, ebony, iron bound, open|1|7|1|0.7|1
+chest-bound-ebony-brass-bound-shut|Bound chest, ebony, brass bound, shut|1|7|1|0.7|1
+chest-bound-ebony-brass-bound-open|Bound chest, ebony, brass bound, open|1|7|1|0.7|1
+chest-bound-mahogany-iron-bound-shut|Bound chest, mahogany, iron bound, shut|1|7|1|0.7|1
+chest-bound-mahogany-iron-bound-open|Bound chest, mahogany, iron bound, open|1|7|1|0.7|1
+chest-bound-mahogany-brass-bound-shut|Bound chest, mahogany, brass bound, shut|1|7|1|0.7|1
+chest-bound-mahogany-brass-bound-open|Bound chest, mahogany, brass bound, open|1|7|1|0.7|1
+chest-bound-weathered-iron-bound-shut|Bound chest, weathered wood, iron bound, shut|1|7|1|0.7|1
+chest-bound-weathered-iron-bound-open|Bound chest, weathered wood, iron bound, open|1|7|1|0.7|1
+chest-bound-weathered-brass-bound-shut|Bound chest, weathered wood, brass bound, shut|1|7|1|0.7|1
+chest-bound-weathered-brass-bound-open|Bound chest, weathered wood, brass bound, open|1|7|1|0.7|1
+coffer-iron-shut|Coffer, iron, shut|1|7|0.55|0.4|1
+coffer-iron-open|Coffer, iron, open|1|7|0.55|0.4|1
+coffer-bronze-shut|Coffer, bronze, shut|1|7|0.55|0.4|1
+coffer-bronze-open|Coffer, bronze, open|1|7|0.55|0.4|1
+coffer-brass-shut|Coffer, brass, shut|1|7|0.55|0.4|1
+coffer-brass-open|Coffer, brass, open|1|7|0.55|0.4|1
+coffer-silver-shut|Coffer, silver, shut|1|7|0.55|0.4|1
+coffer-silver-open|Coffer, silver, open|1|7|0.55|0.4|1
+footlocker-pale|Footlocker, pale wood|1|7|1.1|0.55|1
+footlocker-honey|Footlocker, honey wood|1|7|1.1|0.55|1
+footlocker-walnut|Footlocker, walnut|1|7|1.1|0.55|1
+footlocker-ebony|Footlocker, ebony|1|7|1.1|0.55|1
+footlocker-mahogany|Footlocker, mahogany|1|7|1.1|0.55|1
+footlocker-weathered|Footlocker, weathered wood|1|7|1.1|0.55|1
+safe-box-iron|Iron safe, iron|1|7|0.8|0.7|1
+safe-box-bronze|Iron safe, bronze|1|7|0.8|0.7|1
+safe-box-brass|Iron safe, brass|1|7|0.8|0.7|1
+safe-box-silver|Iron safe, silver|1|7|0.8|0.7|1
+sack-cloth-hessian-tied|Sack, hessian, tied|1|8|0.6|0.6|1
+sack-cloth-hessian-open|Sack, hessian, open, of grain|1|8|0.6|0.6|1
+sack-cloth-white-tied|Sack, white, tied|1|8|0.6|0.6|1
+sack-cloth-white-open|Sack, white, open, of grain|1|8|0.6|0.6|1
+sack-cloth-brown-tied|Sack, brown, tied|1|8|0.6|0.6|1
+sack-cloth-brown-open|Sack, brown, open, of grain|1|8|0.6|0.6|1
+sack-cloth-green-tied|Sack, green, tied|1|8|0.6|0.6|1
+sack-cloth-green-open|Sack, green, open, of grain|1|8|0.6|0.6|1
+sack-heap-hessian|Heap of sacks, hessian|1|8|1.3|1.1|1
+sack-heap-white|Heap of sacks, white|1|8|1.3|1.1|1
+sack-heap-brown|Heap of sacks, brown|1|8|1.3|1.1|1
+sack-heap-green|Heap of sacks, green|1|8|1.3|1.1|1
+basket-wicker-empty|Wicker basket, empty|1|8|0.6|0.6|1
+basket-wicker-bread|Wicker basket, of bread|1|8|0.6|0.6|1
+basket-wicker-fruit|Wicker basket, of fruit|1|8|0.6|0.6|1
+basket-wicker-yarn|Wicker basket, of yarn|1|8|0.6|0.6|1
+basket-wicker-laundry|Wicker basket, of laundry|1|8|0.6|0.6|1
+basket-wicker-fish|Wicker basket, of fish|1|8|0.6|0.6|1
+pail-wooden-empty|Pail, wooden, empty|1|8|0.45|0.45|1
+pail-wooden-water|Pail, wooden, of water|1|8|0.45|0.45|1
+pail-wooden-milk|Pail, wooden, of milk|1|8|0.45|0.45|1
+pail-iron-empty|Pail, iron, empty|1|8|0.45|0.45|1
+pail-iron-water|Pail, iron, of water|1|8|0.45|0.45|1
+pail-iron-milk|Pail, iron, of milk|1|8|0.45|0.45|1
+urn-tall-terracotta-plain|Tall urn, terracotta, plain|1|27|0.6|0.6|1
+urn-tall-terracotta-painted|Tall urn, terracotta, painted|1|27|0.6|0.6|1
+urn-tall-glazed-blue-plain|Tall urn, blue glaze, plain|1|27|0.6|0.6|1
+urn-tall-glazed-blue-painted|Tall urn, blue glaze, painted|1|27|0.6|0.6|1
+urn-tall-glazed-green-plain|Tall urn, green glaze, plain|1|27|0.6|0.6|1
+urn-tall-glazed-green-painted|Tall urn, green glaze, painted|1|27|0.6|0.6|1
+urn-tall-cream-plain|Tall urn, cream, plain|1|27|0.6|0.6|1
+urn-tall-cream-painted|Tall urn, cream, painted|1|27|0.6|0.6|1
+amphora-terracotta-upright|Amphora, terracotta, upright|1|27|0.6|1|1
+amphora-terracotta-lying|Amphora, terracotta, on its side|1|27|0.6|1|1
+amphora-glazed-blue-upright|Amphora, blue glaze, upright|1|27|0.6|1|1
+amphora-glazed-blue-lying|Amphora, blue glaze, on its side|1|27|0.6|1|1
+amphora-glazed-green-upright|Amphora, green glaze, upright|1|27|0.6|1|1
+amphora-glazed-green-lying|Amphora, green glaze, on its side|1|27|0.6|1|1
+amphora-cream-upright|Amphora, cream, upright|1|27|0.6|1|1
+amphora-cream-lying|Amphora, cream, on its side|1|27|0.6|1|1
+glass-jar-red|Glass jar, red|1|27|0.35|0.35|1
+glass-jar-blue|Glass jar, blue|1|27|0.35|0.35|1
+glass-jar-green|Glass jar, green|1|27|0.35|0.35|1
+glass-jar-purple|Glass jar, purple|1|27|0.35|0.35|1
+glass-jar-amber|Glass jar, amber|1|27|0.35|0.35|1
+glass-jar-clear|Glass jar, clear|1|27|0.35|0.35|1
+clay-pot-terracotta-small|Clay pot, terracotta, small|1|27|0.4|0.4|1
+clay-pot-terracotta-large|Clay pot, terracotta, large|1|27|0.6|0.6|1
+clay-pot-glazed-blue-small|Clay pot, blue glaze, small|1|27|0.4|0.4|1
+clay-pot-glazed-blue-large|Clay pot, blue glaze, large|1|27|0.6|0.6|1
+clay-pot-glazed-green-small|Clay pot, green glaze, small|1|27|0.4|0.4|1
+clay-pot-glazed-green-large|Clay pot, green glaze, large|1|27|0.6|0.6|1
+clay-pot-cream-small|Clay pot, cream, small|1|27|0.4|0.4|1
+clay-pot-cream-large|Clay pot, cream, large|1|27|0.6|0.6|1
+coin-heap-gold-small|Heap of coins, gold, small|1|28|0.7|0.6|1
+coin-heap-gold-large|Heap of coins, gold, large|1|28|1|0.8|1
+coin-heap-silver-small|Heap of coins, silver, small|1|28|0.7|0.6|1
+coin-heap-silver-large|Heap of coins, silver, large|1|28|1|0.8|1
+coin-heap-copper-small|Heap of coins, copper, small|1|28|0.7|0.6|1
+coin-heap-copper-large|Heap of coins, copper, large|1|28|1|0.8|1
+gem-heap-red|Heap of gems, red|1|28|0.6|0.5|1
+gem-heap-blue|Heap of gems, blue|1|28|0.6|0.5|1
+gem-heap-green|Heap of gems, green|1|28|0.6|0.5|1
+gem-heap-purple|Heap of gems, purple|1|28|0.6|0.5|1
+gem-heap-amber|Heap of gems, amber|1|28|0.6|0.5|1
+hoard-gold-small|Dragon's hoard, gold, small|1|28|1.7|1.4|1
+hoard-gold-large|Dragon's hoard, gold, large|1|28|2.4|2|1
+hoard-silver-small|Dragon's hoard, silver, small|1|28|1.7|1.4|1
+hoard-silver-large|Dragon's hoard, silver, large|1|28|2.4|2|1
+loot-bag-hessian|Bag of loot, hessian|1|28|0.7|0.6|1
+loot-bag-white|Bag of loot, white|1|28|0.7|0.6|1
+loot-bag-brown|Bag of loot, brown|1|28|0.7|0.6|1
+loot-bag-green|Bag of loot, green|1|28|0.7|0.6|1
+bar-section-pale|Bar counter section, pale wood|6|29|2|0.7|1
+bar-section-honey|Bar counter section, honey wood|6|29|2|0.7|1
+bar-section-walnut|Bar counter section, walnut|6|29|2|0.7|1
+bar-section-ebony|Bar counter section, ebony|6|29|2|0.7|1
+bar-section-mahogany|Bar counter section, mahogany|6|29|2|0.7|1
+bar-section-weathered|Bar counter section, weathered wood|6|29|2|0.7|1
+barstool-pale|Bar stool, pale wood|6|29|0.45|0.45|1
+barstool-honey|Bar stool, honey wood|6|29|0.45|0.45|1
+barstool-walnut|Bar stool, walnut|6|29|0.45|0.45|1
+barstool-ebony|Bar stool, ebony|6|29|0.45|0.45|1
+barstool-mahogany|Bar stool, mahogany|6|29|0.45|0.45|1
+barstool-weathered|Bar stool, weathered wood|6|29|0.45|0.45|1
+tapped-keg-pale|Tapped keg, pale wood|6|29|0.9|0.6|1
+tapped-keg-honey|Tapped keg, honey wood|6|29|0.9|0.6|1
+tapped-keg-walnut|Tapped keg, walnut|6|29|0.9|0.6|1
+tapped-keg-ebony|Tapped keg, ebony|6|29|0.9|0.6|1
+tapped-keg-mahogany|Tapped keg, mahogany|6|29|0.9|0.6|1
+tapped-keg-weathered|Tapped keg, weathered wood|6|29|0.9|0.6|1
+tankards-pewter|Tankards, pewter|6|29|0.5|0.5|1
+tankards-brass|Tankards, brass|6|29|0.5|0.5|1
+tankards-silver|Tankards, silver|6|29|0.5|0.5|1
+tankards-wooden|Tankards, wooden|6|29|0.5|0.5|1
+wine-bottles-red|Bottles, red|6|29|0.5|0.5|1
+wine-bottles-blue|Bottles, blue|6|29|0.5|0.5|1
+wine-bottles-green|Bottles, green|6|29|0.5|0.5|1
+wine-bottles-amber|Bottles, amber|6|29|0.5|0.5|1
+wine-bottles-clear|Bottles, clear|6|29|0.5|0.5|1
+bottle-rack-pale|Bottle rack, pale wood|6|29|1.4|0.5|1
+bottle-rack-honey|Bottle rack, honey wood|6|29|1.4|0.5|1
+bottle-rack-walnut|Bottle rack, walnut|6|29|1.4|0.5|1
+bottle-rack-ebony|Bottle rack, ebony|6|29|1.4|0.5|1
+bottle-rack-mahogany|Bottle rack, mahogany|6|29|1.4|0.5|1
+bottle-rack-weathered|Bottle rack, weathered wood|6|29|1.4|0.5|1
+gaming-table-pale-cards|Gaming table, pale wood, with cards|6|29|1.2|1.2|1
+gaming-table-pale-dice|Gaming table, pale wood, with dice|6|29|1.2|1.2|1
+gaming-table-honey-cards|Gaming table, honey wood, with cards|6|29|1.2|1.2|1
+gaming-table-honey-dice|Gaming table, honey wood, with dice|6|29|1.2|1.2|1
+gaming-table-walnut-cards|Gaming table, walnut, with cards|6|29|1.2|1.2|1
+gaming-table-walnut-dice|Gaming table, walnut, with dice|6|29|1.2|1.2|1
+gaming-table-ebony-cards|Gaming table, ebony, with cards|6|29|1.2|1.2|1
+gaming-table-ebony-dice|Gaming table, ebony, with dice|6|29|1.2|1.2|1
+gaming-table-mahogany-cards|Gaming table, mahogany, with cards|6|29|1.2|1.2|1
+gaming-table-mahogany-dice|Gaming table, mahogany, with dice|6|29|1.2|1.2|1
+gaming-table-weathered-cards|Gaming table, weathered wood, with cards|6|29|1.2|1.2|1
+gaming-table-weathered-dice|Gaming table, weathered wood, with dice|6|29|1.2|1.2|1
+cook-stove-iron-cold|Cooking stove, iron, cold|6|31|1.2|0.8|1
+cook-stove-iron-lit|Cooking stove, iron, lit|6|31|1.2|0.8|1
+cook-stove-brass-cold|Cooking stove, brass, cold|6|31|1.2|0.8|1
+cook-stove-brass-lit|Cooking stove, brass, lit|6|31|1.2|0.8|1
+bread-oven-granite-cold|Bread oven, granite, cold|6|31|1.4|1.2|1
+bread-oven-granite-lit|Bread oven, granite, lit|6|31|1.4|1.2|1
+bread-oven-marble-cold|Bread oven, marble, cold|6|31|1.4|1.2|1
+bread-oven-marble-lit|Bread oven, marble, lit|6|31|1.4|1.2|1
+bread-oven-sandstone-cold|Bread oven, sandstone, cold|6|31|1.4|1.2|1
+bread-oven-sandstone-lit|Bread oven, sandstone, lit|6|31|1.4|1.2|1
+bread-oven-slate-cold|Bread oven, slate, cold|6|31|1.4|1.2|1
+bread-oven-slate-lit|Bread oven, slate, lit|6|31|1.4|1.2|1
+bread-oven-basalt-cold|Bread oven, basalt, cold|6|31|1.4|1.2|1
+bread-oven-basalt-lit|Bread oven, basalt, lit|6|31|1.4|1.2|1
+work-counter-pale|Kitchen work counter, pale wood|6|31|2|0.7|1
+work-counter-honey|Kitchen work counter, honey wood|6|31|2|0.7|1
+work-counter-walnut|Kitchen work counter, walnut|6|31|2|0.7|1
+work-counter-ebony|Kitchen work counter, ebony|6|31|2|0.7|1
+work-counter-mahogany|Kitchen work counter, mahogany|6|31|2|0.7|1
+work-counter-weathered|Kitchen work counter, weathered wood|6|31|2|0.7|1
+butcher-block-pale|Butcher's block, pale wood|6|31|0.9|0.9|1
+butcher-block-honey|Butcher's block, honey wood|6|31|0.9|0.9|1
+butcher-block-walnut|Butcher's block, walnut|6|31|0.9|0.9|1
+butcher-block-ebony|Butcher's block, ebony|6|31|0.9|0.9|1
+butcher-block-mahogany|Butcher's block, mahogany|6|31|0.9|0.9|1
+butcher-block-weathered|Butcher's block, weathered wood|6|31|0.9|0.9|1
+pantry-shelf-pale-stocked|Pantry shelf, pale wood, stocked|6|31|1.6|0.45|1
+pantry-shelf-pale-sparse|Pantry shelf, pale wood, nearly bare|6|31|1.6|0.45|1
+pantry-shelf-honey-stocked|Pantry shelf, honey wood, stocked|6|31|1.6|0.45|1
+pantry-shelf-honey-sparse|Pantry shelf, honey wood, nearly bare|6|31|1.6|0.45|1
+pantry-shelf-walnut-stocked|Pantry shelf, walnut, stocked|6|31|1.6|0.45|1
+pantry-shelf-walnut-sparse|Pantry shelf, walnut, nearly bare|6|31|1.6|0.45|1
+pantry-shelf-ebony-stocked|Pantry shelf, ebony, stocked|6|31|1.6|0.45|1
+pantry-shelf-ebony-sparse|Pantry shelf, ebony, nearly bare|6|31|1.6|0.45|1
+pantry-shelf-mahogany-stocked|Pantry shelf, mahogany, stocked|6|31|1.6|0.45|1
+pantry-shelf-mahogany-sparse|Pantry shelf, mahogany, nearly bare|6|31|1.6|0.45|1
+pantry-shelf-weathered-stocked|Pantry shelf, weathered wood, stocked|6|31|1.6|0.45|1
+pantry-shelf-weathered-sparse|Pantry shelf, weathered wood, nearly bare|6|31|1.6|0.45|1
+cured-meats-hams|Cured meats, hams|6|31|1.2|0.5|1
+cured-meats-sausages|Cured meats, strings of sausages|6|31|1.2|0.5|1
+cured-meats-mixed|Cured meats, mixed|6|31|1.2|0.5|1
+dish-rack-pale|Dish rack, pale wood|6|31|1|0.4|1
+dish-rack-honey|Dish rack, honey wood|6|31|1|0.4|1
+dish-rack-walnut|Dish rack, walnut|6|31|1|0.4|1
+dish-rack-ebony|Dish rack, ebony|6|31|1|0.4|1
+dish-rack-mahogany|Dish rack, mahogany|6|31|1|0.4|1
+dish-rack-weathered|Dish rack, weathered wood|6|31|1|0.4|1
+wash-tub-wooden-empty|Wash tub, wooden, empty|6|31|0.9|0.9|1
+wash-tub-wooden-dishes|Wash tub, wooden, full of dishes|6|31|0.9|0.9|1
+wash-tub-copper-empty|Wash tub, copper, empty|6|31|0.9|0.9|1
+wash-tub-copper-dishes|Wash tub, copper, full of dishes|6|31|0.9|0.9|1
+spice-rack-pale|Spice rack, pale wood|6|31|0.9|0.3|1
+spice-rack-walnut|Spice rack, walnut|6|31|0.9|0.3|1
+spice-rack-ebony|Spice rack, ebony|6|31|0.9|0.3|1
+cooking-pot-iron-empty|Cooking pot, iron, empty|6|31|0.7|0.7|1
+cooking-pot-iron-stew|Cooking pot, iron, of stew|6|31|0.7|0.7|1
+cooking-pot-bronze-empty|Cooking pot, bronze, empty|6|31|0.7|0.7|1
+cooking-pot-bronze-stew|Cooking pot, bronze, of stew|6|31|0.7|0.7|1
+cooking-pot-brass-empty|Cooking pot, brass, empty|6|31|0.7|0.7|1
+cooking-pot-brass-stew|Cooking pot, brass, of stew|6|31|0.7|0.7|1
+cooking-pot-silver-empty|Cooking pot, silver, empty|6|31|0.7|0.7|1
+cooking-pot-silver-stew|Cooking pot, silver, of stew|6|31|0.7|0.7|1
+platter-roast|Platter, roast|6|30|0.8|0.6|1
+platter-fish|Platter, fish|6|30|0.8|0.6|1
+platter-bread|Platter, bread|6|30|0.8|0.6|1
+platter-cheese|Platter, cheese|6|30|0.8|0.6|1
+platter-fruit|Platter, fruit|6|30|0.8|0.6|1
+platter-pie|Platter, pie|6|30|0.8|0.6|1
+platter-sausages|Platter, sausages|6|30|0.8|0.6|1
+platter-soup|Platter, soup|6|30|0.8|0.6|1
+cheese-yellow-whole|Cheese, yellow, whole|6|30|0.6|0.6|1
+cheese-yellow-cut|Cheese, yellow, cut|6|30|0.6|0.6|1
+cheese-white-whole|Cheese, white, whole|6|30|0.6|0.6|1
+cheese-white-cut|Cheese, white, cut|6|30|0.6|0.6|1
+cheese-blue-whole|Cheese, blue-veined, whole|6|30|0.6|0.6|1
+cheese-blue-cut|Cheese, blue-veined, cut|6|30|0.6|0.6|1
+fruit-crate-red|Fruit crate, red|6|30|0.7|0.6|1
+fruit-crate-green|Fruit crate, green|6|30|0.7|0.6|1
+fruit-crate-orange|Fruit crate, orange|6|30|0.7|0.6|1
+fruit-crate-purple|Fruit crate, purple|6|30|0.7|0.6|1
+fruit-crate-yellow|Fruit crate, yellow|6|30|0.7|0.6|1
+fruit-crate-mixed|Fruit crate, mixed|6|30|0.7|0.6|1
+vegetable-crate-mixed|Vegetable crate, mixed|6|30|0.7|0.6|1
+vegetable-crate-greens|Vegetable crate, greens|6|30|0.7|0.6|1
+vegetable-crate-squashes|Vegetable crate, squashes|6|30|0.7|0.6|1
+vegetable-crate-onions|Vegetable crate, onions|6|30|0.7|0.6|1
+bread-loaves|Bread, loaves|6|30|0.6|0.5|1
+bread-rolls|Bread, rolls|6|30|0.6|0.5|1
+bread-plaited|Bread, plaited loaf|6|30|0.6|0.5|1
+pie-meat|Pie, meat|6|30|0.5|0.5|1
+pie-berry|Pie, berry|6|30|0.5|0.5|1
+pie-custard|Pie, custard|6|30|0.5|0.5|1
+pie-cream|Pie, cream|6|30|0.5|0.5|1
+feast-roast|Feast spread, roast|6|30|2|1|1
+feast-fish|Feast spread, fish|6|30|2|1|1
+feast-harvest|Feast spread, harvest|6|30|2|1|1
+toilet-porcelain-open|Toilet, white porcelain, open|5|49|0.6|0.8|1
+toilet-porcelain-lidded|Toilet, white porcelain, lidded|5|49|0.6|0.8|1
+toilet-cream-open|Toilet, cream, open|5|49|0.6|0.8|1
+toilet-cream-lidded|Toilet, cream, lidded|5|49|0.6|0.8|1
+toilet-glazed-blue-open|Toilet, blue glaze, open|5|49|0.6|0.8|1
+toilet-glazed-blue-lidded|Toilet, blue glaze, lidded|5|49|0.6|0.8|1
+toilet-brass-open|Toilet, brass, open|5|49|0.6|0.8|1
+toilet-brass-lidded|Toilet, brass, lidded|5|49|0.6|0.8|1
+toilet-bronze-open|Toilet, bronze, open|5|49|0.6|0.8|1
+toilet-bronze-lidded|Toilet, bronze, lidded|5|49|0.6|0.8|1
+toilet-silver-open|Toilet, silver, open|5|49|0.6|0.8|1
+toilet-silver-lidded|Toilet, silver, lidded|5|49|0.6|0.8|1
+toilet-gold-open|Toilet, gold, open|5|49|0.6|0.8|1
+toilet-gold-lidded|Toilet, gold, lidded|5|49|0.6|0.8|1
+urinal-porcelain|Urinal, white porcelain|5|49|0.5|0.4|1
+urinal-cream|Urinal, cream|5|49|0.5|0.4|1
+urinal-brass|Urinal, brass|5|49|0.5|0.4|1
+bidet-porcelain|Bidet, white porcelain|5|49|0.5|0.7|1
+bidet-cream|Bidet, cream|5|49|0.5|0.7|1
+bidet-brass|Bidet, brass|5|49|0.5|0.7|1
+close-stool-honey-crimson|Close stool, honey wood, crimson|5|49|0.7|0.7|1
+close-stool-honey-navy|Close stool, honey wood, navy|5|49|0.7|0.7|1
+close-stool-honey-green|Close stool, honey wood, green|5|49|0.7|0.7|1
+close-stool-walnut-crimson|Close stool, walnut, crimson|5|49|0.7|0.7|1
+close-stool-walnut-navy|Close stool, walnut, navy|5|49|0.7|0.7|1
+close-stool-walnut-green|Close stool, walnut, green|5|49|0.7|0.7|1
+close-stool-ebony-crimson|Close stool, ebony, crimson|5|49|0.7|0.7|1
+close-stool-ebony-navy|Close stool, ebony, navy|5|49|0.7|0.7|1
+close-stool-ebony-green|Close stool, ebony, green|5|49|0.7|0.7|1
+chamber-pot-terracotta-open|Chamber pot, terracotta, open|5|49|0.45|0.4|1
+chamber-pot-terracotta-lidded|Chamber pot, terracotta, lidded|5|49|0.45|0.4|1
+chamber-pot-glazed-blue-open|Chamber pot, blue glaze, open|5|49|0.45|0.4|1
+chamber-pot-glazed-blue-lidded|Chamber pot, blue glaze, lidded|5|49|0.45|0.4|1
+chamber-pot-cream-open|Chamber pot, cream, open|5|49|0.45|0.4|1
+chamber-pot-cream-lidded|Chamber pot, cream, lidded|5|49|0.45|0.4|1
+chamber-pot-brass-open|Chamber pot, brass, open|5|49|0.45|0.4|1
+chamber-pot-brass-lidded|Chamber pot, brass, lidded|5|49|0.45|0.4|1
+chamber-pot-silver-open|Chamber pot, silver, open|5|49|0.45|0.4|1
+chamber-pot-silver-lidded|Chamber pot, silver, lidded|5|49|0.45|0.4|1
+chamber-pot-gold-open|Chamber pot, gold, open|5|49|0.45|0.4|1
+chamber-pot-gold-lidded|Chamber pot, gold, lidded|5|49|0.45|0.4|1
+privy-seat-pale-open|Privy seat, pale wood, open|5|50|0.9|0.7|1
+privy-seat-pale-lidded|Privy seat, pale wood, lidded|5|50|0.9|0.7|1
+privy-seat-honey-open|Privy seat, honey wood, open|5|50|0.9|0.7|1
+privy-seat-honey-lidded|Privy seat, honey wood, lidded|5|50|0.9|0.7|1
+privy-seat-walnut-open|Privy seat, walnut, open|5|50|0.9|0.7|1
+privy-seat-walnut-lidded|Privy seat, walnut, lidded|5|50|0.9|0.7|1
+privy-seat-ebony-open|Privy seat, ebony, open|5|50|0.9|0.7|1
+privy-seat-ebony-lidded|Privy seat, ebony, lidded|5|50|0.9|0.7|1
+privy-seat-mahogany-open|Privy seat, mahogany, open|5|50|0.9|0.7|1
+privy-seat-mahogany-lidded|Privy seat, mahogany, lidded|5|50|0.9|0.7|1
+privy-seat-weathered-open|Privy seat, weathered wood, open|5|50|0.9|0.7|1
+privy-seat-weathered-lidded|Privy seat, weathered wood, lidded|5|50|0.9|0.7|1
+squat-hole-granite|Squat hole, granite|5|50|1|1|0
+squat-hole-marble|Squat hole, marble|5|50|1|1|0
+squat-hole-sandstone|Squat hole, sandstone|5|50|1|1|0
+squat-hole-slate|Squat hole, slate|5|50|1|1|0
+squat-hole-wooden|Squat hole, wooden boards|5|50|1|1|0
+squat-hole-porcelain|Squat hole, white porcelain|5|50|1|1|0
+squat-hole-brass|Squat hole, brass|5|50|1|1|0
+latrine-bench-honey-two|Latrine bench, honey wood, two holes|5|50|1.6|0.7|1
+latrine-bench-honey-three|Latrine bench, honey wood, three holes|5|50|2.4000000000000004|0.7|1
+latrine-bench-honey-four|Latrine bench, honey wood, four holes|5|50|3.2|0.7|1
+latrine-bench-walnut-two|Latrine bench, walnut, two holes|5|50|1.6|0.7|1
+latrine-bench-walnut-three|Latrine bench, walnut, three holes|5|50|2.4000000000000004|0.7|1
+latrine-bench-walnut-four|Latrine bench, walnut, four holes|5|50|3.2|0.7|1
+latrine-bench-ebony-two|Latrine bench, ebony, two holes|5|50|1.6|0.7|1
+latrine-bench-ebony-three|Latrine bench, ebony, three holes|5|50|2.4000000000000004|0.7|1
+latrine-bench-ebony-four|Latrine bench, ebony, four holes|5|50|3.2|0.7|1
+garderobe-granite|Garderobe, granite|5|50|1|1|1
+garderobe-marble|Garderobe, marble|5|50|1|1|1
+garderobe-sandstone|Garderobe, sandstone|5|50|1|1|1
+garderobe-slate|Garderobe, slate|5|50|1|1|1
+garderobe-basalt|Garderobe, basalt|5|50|1|1|1
+slop-pail-honey|Slop pail, honey wood|5|50|0.45|0.45|1
+slop-pail-walnut|Slop pail, walnut|5|50|0.45|0.45|1
+slop-pail-ebony|Slop pail, ebony|5|50|0.45|0.45|1
+privy-stall-honey|Privy stall, honey wood|5|50|1|1.4|1
+privy-stall-walnut|Privy stall, walnut|5|50|1|1.4|1
+privy-stall-ebony|Privy stall, ebony|5|50|1|1.4|1
+bath-wooden|Bath, wooden|5|24|1.6|0.9|1
+bath-copper|Bath, copper|5|24|1.6|0.9|1
+bath-white|Bath, white enamel|5|24|1.6|0.9|1
+clawfoot-tub-white-empty|Clawfoot tub, white enamel, empty|5|24|1.7|0.85|1
+clawfoot-tub-white-filled|Clawfoot tub, white enamel, filled|5|24|1.7|0.85|1
+clawfoot-tub-white-suds|Clawfoot tub, white enamel, with suds|5|24|1.7|0.85|1
+clawfoot-tub-cream-empty|Clawfoot tub, cream enamel, empty|5|24|1.7|0.85|1
+clawfoot-tub-cream-filled|Clawfoot tub, cream enamel, filled|5|24|1.7|0.85|1
+clawfoot-tub-cream-suds|Clawfoot tub, cream enamel, with suds|5|24|1.7|0.85|1
+clawfoot-tub-black-empty|Clawfoot tub, black enamel, empty|5|24|1.7|0.85|1
+clawfoot-tub-black-filled|Clawfoot tub, black enamel, filled|5|24|1.7|0.85|1
+clawfoot-tub-black-suds|Clawfoot tub, black enamel, with suds|5|24|1.7|0.85|1
+clawfoot-tub-navy-empty|Clawfoot tub, navy enamel, empty|5|24|1.7|0.85|1
+clawfoot-tub-navy-filled|Clawfoot tub, navy enamel, filled|5|24|1.7|0.85|1
+clawfoot-tub-navy-suds|Clawfoot tub, navy enamel, with suds|5|24|1.7|0.85|1
+clawfoot-tub-copper-empty|Clawfoot tub, copper, empty|5|24|1.7|0.85|1
+clawfoot-tub-copper-filled|Clawfoot tub, copper, filled|5|24|1.7|0.85|1
+clawfoot-tub-copper-suds|Clawfoot tub, copper, with suds|5|24|1.7|0.85|1
+clawfoot-tub-brass-empty|Clawfoot tub, brass, empty|5|24|1.7|0.85|1
+clawfoot-tub-brass-filled|Clawfoot tub, brass, filled|5|24|1.7|0.85|1
+clawfoot-tub-brass-suds|Clawfoot tub, brass, with suds|5|24|1.7|0.85|1
+clawfoot-tub-silver-empty|Clawfoot tub, silver, empty|5|24|1.7|0.85|1
+clawfoot-tub-silver-filled|Clawfoot tub, silver, filled|5|24|1.7|0.85|1
+clawfoot-tub-silver-suds|Clawfoot tub, silver, with suds|5|24|1.7|0.85|1
+slipper-bath-white-empty|Slipper bath, white enamel, empty|5|24|1.6|0.8|1
+slipper-bath-white-filled|Slipper bath, white enamel, filled|5|24|1.6|0.8|1
+slipper-bath-black-empty|Slipper bath, black enamel, empty|5|24|1.6|0.8|1
+slipper-bath-black-filled|Slipper bath, black enamel, filled|5|24|1.6|0.8|1
+slipper-bath-copper-empty|Slipper bath, copper, empty|5|24|1.6|0.8|1
+slipper-bath-copper-filled|Slipper bath, copper, filled|5|24|1.6|0.8|1
+slipper-bath-brass-empty|Slipper bath, brass, empty|5|24|1.6|0.8|1
+slipper-bath-brass-filled|Slipper bath, brass, filled|5|24|1.6|0.8|1
+hip-bath-tin-empty|Hip bath, tin, empty|5|24|0.9|0.8|1
+hip-bath-tin-filled|Hip bath, tin, filled|5|24|0.9|0.8|1
+hip-bath-copper-empty|Hip bath, copper, empty|5|24|0.9|0.8|1
+hip-bath-copper-filled|Hip bath, copper, filled|5|24|0.9|0.8|1
+hip-bath-brass-empty|Hip bath, brass, empty|5|24|0.9|0.8|1
+hip-bath-brass-filled|Hip bath, brass, filled|5|24|0.9|0.8|1
+barrel-tub-honey-empty|Barrel tub, honey wood, empty|5|24|1.1|1.1|1
+barrel-tub-honey-filled|Barrel tub, honey wood, filled|5|24|1.1|1.1|1
+barrel-tub-walnut-empty|Barrel tub, walnut, empty|5|24|1.1|1.1|1
+barrel-tub-walnut-filled|Barrel tub, walnut, filled|5|24|1.1|1.1|1
+barrel-tub-ebony-empty|Barrel tub, ebony, empty|5|24|1.1|1.1|1
+barrel-tub-ebony-filled|Barrel tub, ebony, filled|5|24|1.1|1.1|1
+sunken-bath-granite-filled|Sunken bath, granite, filled|5|51|3|2|0
+sunken-bath-granite-drained|Sunken bath, granite, drained|5|51|3|2|0
+sunken-bath-marble-filled|Sunken bath, marble, filled|5|51|3|2|0
+sunken-bath-marble-drained|Sunken bath, marble, drained|5|51|3|2|0
+sunken-bath-sandstone-filled|Sunken bath, sandstone, filled|5|51|3|2|0
+sunken-bath-sandstone-drained|Sunken bath, sandstone, drained|5|51|3|2|0
+sunken-bath-slate-filled|Sunken bath, slate, filled|5|51|3|2|0
+sunken-bath-slate-drained|Sunken bath, slate, drained|5|51|3|2|0
+sunken-bath-basalt-filled|Sunken bath, basalt, filled|5|51|3|2|0
+sunken-bath-basalt-drained|Sunken bath, basalt, drained|5|51|3|2|0
+plunge-pool-granite|Plunge pool, granite|5|51|2|2|0
+plunge-pool-marble|Plunge pool, marble|5|51|2|2|0
+plunge-pool-sandstone|Plunge pool, sandstone|5|51|2|2|0
+plunge-pool-slate|Plunge pool, slate|5|51|2|2|0
+plunge-pool-basalt|Plunge pool, basalt|5|51|2|2|0
+shower-stall-brass-marble|Shower stall, brass, marble|5|51|1|1|1
+shower-stall-brass-slate|Shower stall, brass, slate|5|51|1|1|1
+shower-stall-iron-marble|Shower stall, iron, marble|5|51|1|1|1
+shower-stall-iron-slate|Shower stall, iron, slate|5|51|1|1|1
+shower-stall-copper-marble|Shower stall, copper, marble|5|51|1|1|1
+shower-stall-copper-slate|Shower stall, copper, slate|5|51|1|1|1
+bucket-shower-honey|Bucket shower, honey wood|5|51|0.9|0.9|1
+bucket-shower-walnut|Bucket shower, walnut|5|51|0.9|0.9|1
+bucket-shower-ebony|Bucket shower, ebony|5|51|0.9|0.9|1
+foot-bath-terracotta|Foot bath, terracotta|5|51|0.55|0.45|1
+foot-bath-copper|Foot bath, copper|5|51|0.55|0.45|1
+foot-bath-brass|Foot bath, brass|5|51|0.55|0.45|1
+washstand-pale|Washstand, pale wood|5|25|0.7|0.5|1
+washstand-honey|Washstand, honey wood|5|25|0.7|0.5|1
+washstand-walnut|Washstand, walnut|5|25|0.7|0.5|1
+washstand-ebony|Washstand, ebony|5|25|0.7|0.5|1
+washstand-mahogany|Washstand, mahogany|5|25|0.7|0.5|1
+washstand-weathered|Washstand, weathered wood|5|25|0.7|0.5|1
+pedestal-basin-porcelain|Pedestal basin, white porcelain|5|25|0.6|0.5|1
+pedestal-basin-cream|Pedestal basin, cream|5|25|0.6|0.5|1
+pedestal-basin-glazed-blue|Pedestal basin, blue glaze|5|25|0.6|0.5|1
+pedestal-basin-marble|Pedestal basin, marble|5|25|0.6|0.5|1
+pedestal-basin-brass|Pedestal basin, brass|5|25|0.6|0.5|1
+pedestal-basin-copper|Pedestal basin, copper|5|25|0.6|0.5|1
+basin-ewer-terracotta|Basin and ewer, terracotta|5|25|0.5|0.5|1
+basin-ewer-glazed-blue|Basin and ewer, blue glaze|5|25|0.5|0.5|1
+basin-ewer-glazed-green|Basin and ewer, green glaze|5|25|0.5|0.5|1
+basin-ewer-cream|Basin and ewer, cream|5|25|0.5|0.5|1
+basin-ewer-brass|Basin and ewer, brass|5|25|0.5|0.5|1
+basin-ewer-silver|Basin and ewer, silver|5|25|0.5|0.5|1
+basin-ewer-gold|Basin and ewer, gold|5|25|0.5|0.5|1
+wall-basin-porcelain|Wall basin, white porcelain|5|25|0.5|0.35|1
+wall-basin-cream|Wall basin, cream|5|25|0.5|0.35|1
+wall-basin-brass|Wall basin, brass|5|25|0.5|0.35|1
+wall-basin-copper|Wall basin, copper|5|25|0.5|0.35|1
+basin-stand-iron|Basin stand, iron|5|25|0.55|0.55|1
+basin-stand-bronze|Basin stand, bronze|5|25|0.55|0.55|1
+basin-stand-brass|Basin stand, brass|5|25|0.55|0.55|1
+basin-stand-silver|Basin stand, silver|5|25|0.55|0.55|1
+wash-trough-granite|Wash trough, granite|5|25|2.4|0.7|1
+wash-trough-sandstone|Wash trough, sandstone|5|25|2.4|0.7|1
+wash-trough-slate|Wash trough, slate|5|25|2.4|0.7|1
+wash-trough-honey|Wash trough, honey wood|5|25|2.4|0.7|1
+wash-trough-walnut|Wash trough, walnut|5|25|2.4|0.7|1
+vanity-pale|Vanity, pale wood|5|25|1.2|0.55|1
+vanity-honey|Vanity, honey wood|5|25|1.2|0.55|1
+vanity-walnut|Vanity, walnut|5|25|1.2|0.55|1
+vanity-ebony|Vanity, ebony|5|25|1.2|0.55|1
+vanity-mahogany|Vanity, mahogany|5|25|1.2|0.55|1
+vanity-weathered|Vanity, weathered wood|5|25|1.2|0.55|1
+pump-sink-granite-iron|Sink with a pump, granite, iron|5|25|0.8|0.55|1
+pump-sink-granite-brass|Sink with a pump, granite, brass|5|25|0.8|0.55|1
+pump-sink-slate-iron|Sink with a pump, slate, iron|5|25|0.8|0.55|1
+pump-sink-slate-brass|Sink with a pump, slate, brass|5|25|0.8|0.55|1
+cistern-wooden-open|Cistern, wooden, open|5|52|1|1|1
+cistern-wooden-lidded|Cistern, wooden, lidded|5|52|1|1|1
+cistern-copper-open|Cistern, copper, open|5|52|1|1|1
+cistern-copper-lidded|Cistern, copper, lidded|5|52|1|1|1
+cistern-lead-open|Cistern, lead, open|5|52|1|1|1
+cistern-lead-lidded|Cistern, lead, lidded|5|52|1|1|1
+water-boiler-copper|Water boiler, copper|5|52|0.9|0.9|1
+water-boiler-iron|Water boiler, iron|5|52|0.9|0.9|1
+water-boiler-brass|Water boiler, brass|5|52|0.9|0.9|1
+sauna-bench-pale-one|Sauna bench, pale wood, one tier|5|53|2|0.5|1
+sauna-bench-pale-two|Sauna bench, pale wood, two tiers|5|53|2|0.9500000000000001|1
+sauna-bench-pale-three|Sauna bench, pale wood, three tiers|5|53|2|1.4000000000000001|1
+sauna-bench-honey-one|Sauna bench, honey wood, one tier|5|53|2|0.5|1
+sauna-bench-honey-two|Sauna bench, honey wood, two tiers|5|53|2|0.9500000000000001|1
+sauna-bench-honey-three|Sauna bench, honey wood, three tiers|5|53|2|1.4000000000000001|1
+sauna-bench-weathered-one|Sauna bench, weathered wood, one tier|5|53|2|0.5|1
+sauna-bench-weathered-two|Sauna bench, weathered wood, two tiers|5|53|2|0.9500000000000001|1
+sauna-bench-weathered-three|Sauna bench, weathered wood, three tiers|5|53|2|1.4000000000000001|1
+sauna-stove-iron|Sauna stove, iron|5|53|0.8|0.8|1
+sauna-stove-bronze|Sauna stove, bronze|5|53|0.8|0.8|1
+sauna-stove-brass|Sauna stove, brass|5|53|0.8|0.8|1
+sauna-bucket-pale|Sauna bucket and ladle, pale wood|5|53|0.5|0.5|1
+sauna-bucket-honey|Sauna bucket and ladle, honey wood|5|53|0.5|0.5|1
+sauna-bucket-weathered|Sauna bucket and ladle, weathered wood|5|53|0.5|0.5|1
+washboard-tub-honey|Washtub and washboard, honey wood|5|54|0.9|0.9|1
+washboard-tub-walnut|Washtub and washboard, walnut|5|54|0.9|0.9|1
+washboard-tub-ebony|Washtub and washboard, ebony|5|54|0.9|0.9|1
+mangle-honey|Mangle, honey wood|5|54|0.9|0.6|1
+mangle-walnut|Mangle, walnut|5|54|0.9|0.6|1
+mangle-ebony|Mangle, ebony|5|54|0.9|0.6|1
+drying-rack-honey-bare|Drying rack, honey wood, bare|5|54|1.2|0.5|1
+drying-rack-honey-linens|Drying rack, honey wood, hung with linens|5|54|1.2|0.5|1
+drying-rack-walnut-bare|Drying rack, walnut, bare|5|54|1.2|0.5|1
+drying-rack-walnut-linens|Drying rack, walnut, hung with linens|5|54|1.2|0.5|1
+drying-rack-ebony-bare|Drying rack, ebony, bare|5|54|1.2|0.5|1
+drying-rack-ebony-linens|Drying rack, ebony, hung with linens|5|54|1.2|0.5|1
+clothesline-linens|Clothesline, hung with linens|5|54|3|0.5|1
+clothesline-clothes|Clothesline, hung with clothes|5|54|3|0.5|1
+clothesline-towels|Clothesline, hung with towels|5|54|3|0.5|1
+towel-rail-honey-white|Towel rail, honey wood, white towels|5|55|0.8|0.3|1
+towel-rail-honey-coloured|Towel rail, honey wood, coloured towels|5|55|0.8|0.3|1
+towel-rail-walnut-white|Towel rail, walnut, white towels|5|55|0.8|0.3|1
+towel-rail-walnut-coloured|Towel rail, walnut, coloured towels|5|55|0.8|0.3|1
+towel-rail-brass-white|Towel rail, brass, white towels|5|55|0.8|0.3|1
+towel-rail-brass-coloured|Towel rail, brass, coloured towels|5|55|0.8|0.3|1
+towel-rail-silver-white|Towel rail, silver, white towels|5|55|0.8|0.3|1
+towel-rail-silver-coloured|Towel rail, silver, coloured towels|5|55|0.8|0.3|1
+towel-stack-white|Folded towels, white|5|55|0.45|0.4|1
+towel-stack-crimson|Folded towels, crimson|5|55|0.45|0.4|1
+towel-stack-navy|Folded towels, navy|5|55|0.45|0.4|1
+towel-stack-green|Folded towels, green|5|55|0.45|0.4|1
+towel-stack-ochre|Folded towels, ochre|5|55|0.45|0.4|1
+towel-stack-teal|Folded towels, teal|5|55|0.45|0.4|1
+soap-dish-cream|Soap dish, cream|5|55|0.35|0.3|1
+soap-dish-glazed-blue|Soap dish, blue glaze|5|55|0.35|0.3|1
+soap-dish-brass|Soap dish, brass|5|55|0.35|0.3|1
+soap-dish-silver|Soap dish, silver|5|55|0.35|0.3|1
+bath-oils-red|Bath oils, red|5|55|0.5|0.35|1
+bath-oils-blue|Bath oils, blue|5|55|0.5|0.35|1
+bath-oils-green|Bath oils, green|5|55|0.5|0.35|1
+bath-oils-purple|Bath oils, purple|5|55|0.5|0.35|1
+bath-oils-amber|Bath oils, amber|5|55|0.5|0.35|1
+bath-oils-clear|Bath oils, clear|5|55|0.5|0.35|1
+wall-mirror-brass|Wall mirror, brass|5|55|0.8|0.2|1
+wall-mirror-silver|Wall mirror, silver|5|55|0.8|0.2|1
+wall-mirror-gold|Wall mirror, gold|5|55|0.8|0.2|1
+wall-mirror-honey|Wall mirror, honey wood|5|55|0.8|0.2|1
+wall-mirror-walnut|Wall mirror, walnut|5|55|0.8|0.2|1
+shaving-stand-brass|Shaving stand, brass|5|55|0.45|0.45|1
+shaving-stand-silver|Shaving stand, silver|5|55|0.45|0.45|1
+shaving-stand-iron|Shaving stand, iron|5|55|0.45|0.45|1
+bath-mat-white|Bath mat, white|5|55|1|0.6|0
+bath-mat-crimson|Bath mat, crimson|5|55|1|0.6|0
+bath-mat-navy|Bath mat, navy|5|55|1|0.6|0
+bath-mat-green|Bath mat, green|5|55|1|0.6|0
+bath-mat-ochre|Bath mat, ochre|5|55|1|0.6|0
+bath-mat-teal|Bath mat, teal|5|55|1|0.6|0
+bath-stool-honey|Bath stool, honey wood|5|55|0.45|0.45|1
+bath-stool-walnut|Bath stool, walnut|5|55|0.45|0.45|1
+bath-stool-ebony|Bath stool, ebony|5|55|0.45|0.45|1
+oak-tree-small-rounded|Oak tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+oak-tree-small-spreading|Oak tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+oak-tree-medium-rounded|Oak tree, medium, rounded|2|9|2.76|2.76|2
+oak-tree-medium-spreading|Oak tree, medium, spreading|2|9|2.76|2.76|2
+oak-tree-large-rounded|Oak tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+oak-tree-large-spreading|Oak tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+maple-tree-small-rounded|Maple tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+maple-tree-small-spreading|Maple tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+maple-tree-medium-rounded|Maple tree, medium, rounded|2|9|2.76|2.76|2
+maple-tree-medium-spreading|Maple tree, medium, spreading|2|9|2.76|2.76|2
+maple-tree-large-rounded|Maple tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+maple-tree-large-spreading|Maple tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+birch-tree-small-rounded|Birch tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+birch-tree-small-spreading|Birch tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+birch-tree-medium-rounded|Birch tree, medium, rounded|2|9|2.76|2.76|2
+birch-tree-medium-spreading|Birch tree, medium, spreading|2|9|2.76|2.76|2
+birch-tree-large-rounded|Birch tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+birch-tree-large-spreading|Birch tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+elm-tree-small-rounded|Elm tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+elm-tree-small-spreading|Elm tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+elm-tree-medium-rounded|Elm tree, medium, rounded|2|9|2.76|2.76|2
+elm-tree-medium-spreading|Elm tree, medium, spreading|2|9|2.76|2.76|2
+elm-tree-large-rounded|Elm tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+elm-tree-large-spreading|Elm tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+beech-tree-small-rounded|Beech tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+beech-tree-small-spreading|Beech tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+beech-tree-medium-rounded|Beech tree, medium, rounded|2|9|2.76|2.76|2
+beech-tree-medium-spreading|Beech tree, medium, spreading|2|9|2.76|2.76|2
+beech-tree-large-rounded|Beech tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+beech-tree-large-spreading|Beech tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+apple-tree-small-rounded|Apple tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+apple-tree-small-spreading|Apple tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+apple-tree-medium-rounded|Apple tree, medium, rounded|2|9|2.76|2.76|2
+apple-tree-medium-spreading|Apple tree, medium, spreading|2|9|2.76|2.76|2
+apple-tree-large-rounded|Apple tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+apple-tree-large-spreading|Apple tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+cherry-tree-small-rounded|Cherry tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+cherry-tree-small-spreading|Cherry tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+cherry-tree-medium-rounded|Cherry tree, medium, rounded|2|9|2.76|2.76|2
+cherry-tree-medium-spreading|Cherry tree, medium, spreading|2|9|2.76|2.76|2
+cherry-tree-large-rounded|Cherry tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+cherry-tree-large-spreading|Cherry tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+chestnut-tree-small-rounded|Chestnut tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+chestnut-tree-small-spreading|Chestnut tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+chestnut-tree-medium-rounded|Chestnut tree, medium, rounded|2|9|2.76|2.76|2
+chestnut-tree-medium-spreading|Chestnut tree, medium, spreading|2|9|2.76|2.76|2
+chestnut-tree-large-rounded|Chestnut tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+chestnut-tree-large-spreading|Chestnut tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+linden-tree-small-rounded|Linden tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+linden-tree-small-spreading|Linden tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+linden-tree-medium-rounded|Linden tree, medium, rounded|2|9|2.76|2.76|2
+linden-tree-medium-spreading|Linden tree, medium, spreading|2|9|2.76|2.76|2
+linden-tree-large-rounded|Linden tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+linden-tree-large-spreading|Linden tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+poplar-tree-small-rounded|Poplar tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+poplar-tree-small-spreading|Poplar tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+poplar-tree-medium-rounded|Poplar tree, medium, rounded|2|9|2.76|2.76|2
+poplar-tree-medium-spreading|Poplar tree, medium, spreading|2|9|2.76|2.76|2
+poplar-tree-large-rounded|Poplar tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+poplar-tree-large-spreading|Poplar tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+aspen-tree-small-rounded|Aspen tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+aspen-tree-small-spreading|Aspen tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+aspen-tree-medium-rounded|Aspen tree, medium, rounded|2|9|2.76|2.76|2
+aspen-tree-medium-spreading|Aspen tree, medium, spreading|2|9|2.76|2.76|2
+aspen-tree-large-rounded|Aspen tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+aspen-tree-large-spreading|Aspen tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+willow-tree-small-rounded|Weeping willow tree, small, rounded|2|9|1.8399999999999999|1.8399999999999999|2
+willow-tree-small-spreading|Weeping willow tree, small, spreading|2|9|1.8399999999999999|1.8399999999999999|2
+willow-tree-medium-rounded|Weeping willow tree, medium, rounded|2|9|2.76|2.76|2
+willow-tree-medium-spreading|Weeping willow tree, medium, spreading|2|9|2.76|2.76|2
+willow-tree-large-rounded|Weeping willow tree, large, rounded|2|9|3.9099999999999997|3.9099999999999997|2
+willow-tree-large-spreading|Weeping willow tree, large, spreading|2|9|3.9099999999999997|3.9099999999999997|2
+pine-tree-small|Pine tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+pine-tree-medium|Pine tree, medium|2|10|2.64|2.64|2
+pine-tree-large|Pine tree, large|2|10|3.74|3.74|2
+fir-tree-small|Fir tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+fir-tree-medium|Fir tree, medium|2|10|2.64|2.64|2
+fir-tree-large|Fir tree, large|2|10|3.74|3.74|2
+spruce-tree-small|Spruce tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+spruce-tree-medium|Spruce tree, medium|2|10|2.64|2.64|2
+spruce-tree-large|Spruce tree, large|2|10|3.74|3.74|2
+cedar-tree-small|Cedar tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+cedar-tree-medium|Cedar tree, medium|2|10|2.64|2.64|2
+cedar-tree-large|Cedar tree, large|2|10|3.74|3.74|2
+cypress-tree-small|Cypress tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+cypress-tree-medium|Cypress tree, medium|2|10|2.64|2.64|2
+cypress-tree-large|Cypress tree, large|2|10|3.74|3.74|2
+yew-tree-small|Yew tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+yew-tree-medium|Yew tree, medium|2|10|2.64|2.64|2
+yew-tree-large|Yew tree, large|2|10|3.74|3.74|2
+juniper-tree-small|Juniper tree, small|2|10|1.7600000000000002|1.7600000000000002|2
+juniper-tree-medium|Juniper tree, medium|2|10|2.64|2.64|2
+juniper-tree-large|Juniper tree, large|2|10|3.74|3.74|2
+palm-tree-small|Palm tree, small|2|10|1.6800000000000002|1.6800000000000002|2
+palm-tree-medium|Palm tree, medium|2|10|2.52|2.52|2
+palm-tree-large|Palm tree, large|2|10|3.57|3.57|2
+dead-tree-small|Dead tree, small|2|13|1.7600000000000002|1.7600000000000002|2
+dead-tree-medium|Dead tree, medium|2|13|2.64|2.64|2
+dead-tree-large|Dead tree, large|2|13|3.74|3.74|2
+dead-tree-twisted|Dead tree, twisted|2|13|2.4200000000000004|2.4200000000000004|2
+dead-tree-pale|Dead tree, pale and dry|2|13|2.64|2.64|2
+stump-cut|Stump, cut|2|13|0.8|0.8|1
+stump-broken|Stump, broken|2|13|0.8|0.8|1
+stump-rotten|Stump, rotten|2|13|0.8|0.8|1
+stump-mossy|Stump, mossy|2|13|0.8|0.8|1
+stump-wide|Stump, wide|2|13|0.8|0.8|1
+stump-small|Stump, small|2|13|0.8|0.8|1
+log-short|Log, short|2|13|1.2|0.6|1
+log-long|Log, long|2|13|2.5|0.6|1
+log-mossy|Log, mossy|2|13|1.8|0.6|1
+log-hollow|Log, hollow|2|13|1.8|0.6|1
+log-split|Log, split|2|13|1.8|0.6|1
+log-burnt|Log, burnt|2|13|1.8|0.6|1
+fallen-branch-small|Fallen branch, small|2|13|1.6|1|1
+fallen-branch-large|Fallen branch, large|2|13|1.6|1|1
+fallen-branch-forked|Fallen branch, forked|2|13|1.6|1|1
+fallen-branch-pile|Fallen branch, pile of brushwood|2|13|1.6|1|1
+driftwood-short|Driftwood, short|2|13|1.6|0.8|1
+driftwood-long|Driftwood, long|2|13|1.6|0.8|1
+driftwood-tangle|Driftwood, tangle|2|13|1.6|0.8|1
+bush-round-small|Bush, round, small|2|11|0.9|0.9|1
+bush-round-large|Bush, round, large|2|11|1.4|1.4|1
+bush-wide-small|Bush, wide, small|2|11|0.9|0.9|1
+bush-wide-large|Bush, wide, large|2|11|1.4|1.4|1
+bush-ragged-small|Bush, ragged, small|2|11|0.9|0.9|1
+bush-ragged-large|Bush, ragged, large|2|11|1.4|1.4|1
+berry-bush-red|Berry bush, red|2|11|1.1|1.1|1
+berry-bush-blue|Berry bush, blue|2|11|1.1|1.1|1
+berry-bush-black|Berry bush, black|2|11|1.1|1.1|1
+flower-bush-pink|Flowering bush, pink|2|11|1.1|1.1|1
+flower-bush-white|Flowering bush, white|2|11|1.1|1.1|1
+flower-bush-red|Flowering bush, red|2|11|1.1|1.1|1
+flower-bush-yellow|Flowering bush, yellow|2|11|1.1|1.1|1
+flower-bush-violet|Flowering bush, violet|2|11|1.1|1.1|1
+hedge-short|Hedge, short|2|11|1.2|0.7|1
+hedge-long|Hedge, long|2|11|2|0.7|1
+hedge-corner|Hedge, corner|2|11|1.2|1.2|1
+hedge-round|Hedge, round, clipped|2|11|1|1|1
+fern-small|Fern, small|2|11|1|1|1
+fern-large|Fern, large|2|11|1|1|1
+fern-cluster|Fern, cluster|2|11|1|1|1
+bramble-small|Bramble, small|2|11|1.4|1|1
+bramble-large|Bramble, large|2|11|1.4|1|1
+thorn-bush-green|Thorn bush, green|2|11|1|1|1
+thorn-bush-dry|Thorn bush, dry|2|11|1|1|1
+flowers-red-patch|Flowers, red, patch|2|32|1|1|0
+flowers-red-scattered|Flowers, red, scattered|2|32|1|1|0
+flowers-yellow-patch|Flowers, yellow, patch|2|32|1|1|0
+flowers-yellow-scattered|Flowers, yellow, scattered|2|32|1|1|0
+flowers-purple-patch|Flowers, purple, patch|2|32|1|1|0
+flowers-purple-scattered|Flowers, purple, scattered|2|32|1|1|0
+flowers-white-patch|Flowers, white, patch|2|32|1|1|0
+flowers-white-scattered|Flowers, white, scattered|2|32|1|1|0
+flowers-blue-patch|Flowers, blue, patch|2|32|1|1|0
+flowers-blue-scattered|Flowers, blue, scattered|2|32|1|1|0
+flowers-pink-patch|Flowers, pink, patch|2|32|1|1|0
+flowers-pink-scattered|Flowers, pink, scattered|2|32|1|1|0
+flowers-orange-patch|Flowers, orange, patch|2|32|1|1|0
+flowers-orange-scattered|Flowers, orange, scattered|2|32|1|1|0
+flowers-mixed-patch|Flowers, mixed, patch|2|32|1|1|0
+flowers-mixed-scattered|Flowers, mixed, scattered|2|32|1|1|0
+tulip-bed-red|Tulip bed, red|2|32|1.2|0.8|0
+tulip-bed-yellow|Tulip bed, yellow|2|32|1.2|0.8|0
+tulip-bed-purple|Tulip bed, purple|2|32|1.2|0.8|0
+tulip-bed-white|Tulip bed, white|2|32|1.2|0.8|0
+tulip-bed-pink|Tulip bed, pink|2|32|1.2|0.8|0
+poppies-red|Poppies, red|2|32|1|1|0
+poppies-mixed|Poppies, mixed|2|32|1|1|0
+daisies-white|Daisies, white|2|32|1|1|0
+daisies-yellow|Daisies, yellow|2|32|1|1|0
+lavender-patch|Lavender, patch|2|32|1.2|0.8|0
+lavender-row|Lavender, row|2|32|1.2|0.8|0
+grass-tuft-short|Grass tuft, short|2|32|0.7|0.7|0
+grass-tuft-tall|Grass tuft, tall|2|32|0.7|0.7|0
+grass-tuft-dry|Grass tuft, dry|2|32|0.7|0.7|0
+grass-tuft-lush|Grass tuft, lush|2|32|0.7|0.7|0
+tall-grass-patch|Tall grass, patch|2|32|1|0.9|1
+tall-grass-wide|Tall grass, wide patch|2|32|1.6|1.2|1
+weed-patch-small|Weeds, small|2|32|0.9|0.9|0
+weed-patch-large|Weeds, large|2|32|0.9|0.9|0
+rock-grey-small|Rock, grey, small|2|12|0.5|0.45|1
+rock-grey-large|Rock, grey, large|2|12|0.8|0.7|1
+rock-brown-small|Rock, brown, small|2|12|0.5|0.45|1
+rock-brown-large|Rock, brown, large|2|12|0.8|0.7|1
+rock-red-small|Rock, red, small|2|12|0.5|0.45|1
+rock-red-large|Rock, red, large|2|12|0.8|0.7|1
+rock-dark-small|Rock, dark, small|2|12|0.5|0.45|1
+rock-dark-large|Rock, dark, large|2|12|0.8|0.7|1
+rock-pale-small|Rock, pale, small|2|12|0.5|0.45|1
+rock-pale-large|Rock, pale, large|2|12|0.8|0.7|1
+rock-mossy-small|Rock, mossy, small|2|12|0.5|0.45|1
+rock-mossy-large|Rock, mossy, large|2|12|0.8|0.7|1
+boulder-grey|Boulder, grey|2|12|1.6|1.4|1
+boulder-brown|Boulder, brown|2|12|1.6|1.4|1
+boulder-red|Boulder, red|2|12|1.6|1.4|1
+boulder-dark|Boulder, dark|2|12|1.6|1.4|1
+boulder-pale|Boulder, pale|2|12|1.6|1.4|1
+boulder-mossy|Boulder, mossy|2|12|1.6|1.4|1
+rocks-grey|Rocks, grey|2|12|1.2|1|1
+rocks-brown|Rocks, brown|2|12|1.2|1|1
+rocks-red|Rocks, red|2|12|1.2|1|1
+rocks-dark|Rocks, dark|2|12|1.2|1|1
+rocks-pale|Rocks, pale|2|12|1.2|1|1
+rocks-mossy|Rocks, mossy|2|12|1.2|1|1
+rubble-grey-small|Rubble, grey, small|2|12|0.9|0.8|0
+rubble-grey-wide|Rubble, grey, wide|2|12|1.5|1.2|0
+rubble-brown-small|Rubble, brown, small|2|12|0.9|0.8|0
+rubble-brown-wide|Rubble, brown, wide|2|12|1.5|1.2|0
+rubble-red-small|Rubble, red, small|2|12|0.9|0.8|0
+rubble-red-wide|Rubble, red, wide|2|12|1.5|1.2|0
+rubble-dark-small|Rubble, dark, small|2|12|0.9|0.8|0
+rubble-dark-wide|Rubble, dark, wide|2|12|1.5|1.2|0
+rock-spire-grey|Rock spire, grey|2|12|0.9|0.9|1
+rock-spire-brown|Rock spire, brown|2|12|0.9|0.9|1
+rock-spire-pale|Rock spire, pale|2|12|0.9|0.9|1
+cairn-small|Cairn, small|2|12|0.8|0.8|1
+cairn-tall|Cairn, tall|2|12|0.8|0.8|1
+reeds-small|Reeds, small|2|33|1|1|1
+reeds-large|Reeds, large|2|33|1|1|1
+reeds-dense|Reeds, dense|2|33|1|1|1
+cattail-clump-small|Cattails, small|2|33|0.8|0.8|1
+cattail-clump-large|Cattails, large|2|33|0.8|0.8|1
+cattail-clump-dense|Cattails, dense|2|33|0.8|0.8|1
+lily-pads-plain|Lily pads, plain|2|33|1|1|0
+lily-pads-white|Lily pads, white flowers|2|33|1|1|0
+lily-pads-pink|Lily pads, pink flowers|2|33|1|1|0
+lily-pads-large|Lily pads, large pads|2|33|1|1|0
+seaweed-green|Seaweed, green|2|33|1|1|0
+seaweed-brown|Seaweed, brown|2|33|1|1|0
+kelp-thin|Kelp, thin|2|33|1.2|1.2|0
+kelp-thick|Kelp, thick|2|33|1.2|1.2|0
+mushrooms-red|Mushrooms, red|2|34|0.6|0.6|1
+mushrooms-brown|Mushrooms, brown|2|34|0.6|0.6|1
+mushrooms-white|Mushrooms, white|2|34|0.6|0.6|1
+mushrooms-purple|Mushrooms, purple|2|34|0.6|0.6|1
+mushrooms-yellow|Mushrooms, yellow|2|34|0.6|0.6|1
+mushrooms-blue|Mushrooms, blue|2|34|0.6|0.6|1
+giant-mushroom-red|Giant mushroom, red|2|34|1.4|1.4|2
+giant-mushroom-brown|Giant mushroom, brown|2|34|1.4|1.4|2
+giant-mushroom-purple|Giant mushroom, purple|2|34|1.4|1.4|2
+mushroom-ring-brown|Mushroom ring, brown|2|34|1.6|1.6|0
+mushroom-ring-white|Mushroom ring, white|2|34|1.6|1.6|0
+toadstool-single|Toadstool, single|2|34|0.5|0.5|1
+toadstool-pair|Toadstool, pair|2|34|0.5|0.5|1
+snowdrift-small|Snowdrift, small|2|35|1|0.7|0
+snowdrift-large|Snowdrift, large|2|35|1.6|1|0
+snowdrift-long|Snowdrift, long|2|35|2.1|0.7|0
+icicle-rocks-small|Rocks with icicles, small|2|35|1|0.9|1
+icicle-rocks-large|Rocks with icicles, large|2|35|1|0.9|1
+fallen-leaves-brown|Fallen leaves, brown|2|56|1.2|1|0
+fallen-leaves-red|Fallen leaves, red|2|56|1.2|1|0
+fallen-leaves-yellow|Fallen leaves, yellow|2|56|1.2|1|0
+fallen-leaves-mixed|Fallen leaves, mixed|2|56|1.2|1|0
+roots-small|Roots, small|2|56|1.2|1|0
+roots-large|Roots, large|2|56|1.2|1|0
+roots-tangle|Roots, tangle|2|56|1.2|1|0
+tent-canvas-crimson-small|Tent, crimson, small|7|36|1.5|1.2|2
+tent-canvas-crimson-large|Tent, crimson, large|7|36|2.1|1.7|2
+tent-canvas-navy-small|Tent, navy, small|7|36|1.5|1.2|2
+tent-canvas-navy-large|Tent, navy, large|7|36|2.1|1.7|2
+tent-canvas-green-small|Tent, green, small|7|36|1.5|1.2|2
+tent-canvas-green-large|Tent, green, large|7|36|2.1|1.7|2
+tent-canvas-ochre-small|Tent, ochre, small|7|36|1.5|1.2|2
+tent-canvas-ochre-large|Tent, ochre, large|7|36|2.1|1.7|2
+tent-canvas-violet-small|Tent, violet, small|7|36|1.5|1.2|2
+tent-canvas-violet-large|Tent, violet, large|7|36|2.1|1.7|2
+tent-canvas-black-small|Tent, black, small|7|36|1.5|1.2|2
+tent-canvas-black-large|Tent, black, large|7|36|2.1|1.7|2
+tent-canvas-white-small|Tent, white, small|7|36|1.5|1.2|2
+tent-canvas-white-large|Tent, white, large|7|36|2.1|1.7|2
+tent-canvas-teal-small|Tent, teal, small|7|36|1.5|1.2|2
+tent-canvas-teal-large|Tent, teal, large|7|36|2.1|1.7|2
+pavilion-crimson|Pavilion, crimson|7|36|3|3|2
+pavilion-navy|Pavilion, navy|7|36|3|3|2
+pavilion-green|Pavilion, green|7|36|3|3|2
+pavilion-ochre|Pavilion, ochre|7|36|3|3|2
+pavilion-violet|Pavilion, violet|7|36|3|3|2
+pavilion-black|Pavilion, black|7|36|3|3|2
+pavilion-white|Pavilion, white|7|36|3|3|2
+pavilion-teal|Pavilion, teal|7|36|3|3|2
+lean-to-pale|Lean-to, pale wood|7|36|1.8|1.2|2
+lean-to-walnut|Lean-to, walnut|7|36|1.8|1.2|2
+lean-to-weathered|Lean-to, weathered wood|7|36|1.8|1.2|2
+bedroll-crimson|Bedroll, crimson|7|36|0.8|1.9|0
+bedroll-navy|Bedroll, navy|7|36|0.8|1.9|0
+bedroll-green|Bedroll, green|7|36|0.8|1.9|0
+bedroll-ochre|Bedroll, ochre|7|36|0.8|1.9|0
+bedroll-violet|Bedroll, violet|7|36|0.8|1.9|0
+bedroll-black|Bedroll, black|7|36|0.8|1.9|0
+bedroll-white|Bedroll, white|7|36|0.8|1.9|0
+bedroll-teal|Bedroll, teal|7|36|0.8|1.9|0
+hammock-crimson|Hammock, crimson|7|36|2.4|0.8|1
+hammock-navy|Hammock, navy|7|36|2.4|0.8|1
+hammock-green|Hammock, green|7|36|2.4|0.8|1
+hammock-ochre|Hammock, ochre|7|36|2.4|0.8|1
+camp-gear-cooking|Camp gear, cooking tripod|7|36|1.2|1|1
+camp-gear-supplies|Camp gear, supplies|7|36|1.2|1|1
+camp-gear-packs|Camp gear, packs and rolls|7|36|1.2|1|1
+wagon-pale-covered|Wagon, pale wood, covered|7|37|3|1.6|1
+wagon-pale-open|Wagon, pale wood, open, loaded|7|37|3|1.6|1
+wagon-honey-covered|Wagon, honey wood, covered|7|37|3|1.6|1
+wagon-honey-open|Wagon, honey wood, open, loaded|7|37|3|1.6|1
+wagon-walnut-covered|Wagon, walnut, covered|7|37|3|1.6|1
+wagon-walnut-open|Wagon, walnut, open, loaded|7|37|3|1.6|1
+wagon-ebony-covered|Wagon, ebony, covered|7|37|3|1.6|1
+wagon-ebony-open|Wagon, ebony, open, loaded|7|37|3|1.6|1
+wagon-mahogany-covered|Wagon, mahogany, covered|7|37|3|1.6|1
+wagon-mahogany-open|Wagon, mahogany, open, loaded|7|37|3|1.6|1
+wagon-weathered-covered|Wagon, weathered wood, covered|7|37|3|1.6|1
+wagon-weathered-open|Wagon, weathered wood, open, loaded|7|37|3|1.6|1
+handcart-pale-empty|Handcart, pale wood, empty|7|37|1.8|1.1|1
+handcart-pale-loaded|Handcart, pale wood, loaded|7|37|1.8|1.1|1
+handcart-honey-empty|Handcart, honey wood, empty|7|37|1.8|1.1|1
+handcart-honey-loaded|Handcart, honey wood, loaded|7|37|1.8|1.1|1
+handcart-walnut-empty|Handcart, walnut, empty|7|37|1.8|1.1|1
+handcart-walnut-loaded|Handcart, walnut, loaded|7|37|1.8|1.1|1
+handcart-ebony-empty|Handcart, ebony, empty|7|37|1.8|1.1|1
+handcart-ebony-loaded|Handcart, ebony, loaded|7|37|1.8|1.1|1
+handcart-mahogany-empty|Handcart, mahogany, empty|7|37|1.8|1.1|1
+handcart-mahogany-loaded|Handcart, mahogany, loaded|7|37|1.8|1.1|1
+handcart-weathered-empty|Handcart, weathered wood, empty|7|37|1.8|1.1|1
+handcart-weathered-loaded|Handcart, weathered wood, loaded|7|37|1.8|1.1|1
+carriage-crimson|Carriage, crimson|7|37|3|1.6|1
+carriage-navy|Carriage, navy|7|37|3|1.6|1
+carriage-green|Carriage, green|7|37|3|1.6|1
+carriage-black|Carriage, black|7|37|3|1.6|1
+rail-fence-pale-straight|Rail fence, pale wood, straight|7|38|2|0.4|1
+rail-fence-pale-broken|Rail fence, pale wood, broken|7|38|2|0.4|1
+rail-fence-honey-straight|Rail fence, honey wood, straight|7|38|2|0.4|1
+rail-fence-honey-broken|Rail fence, honey wood, broken|7|38|2|0.4|1
+rail-fence-walnut-straight|Rail fence, walnut, straight|7|38|2|0.4|1
+rail-fence-walnut-broken|Rail fence, walnut, broken|7|38|2|0.4|1
+rail-fence-ebony-straight|Rail fence, ebony, straight|7|38|2|0.4|1
+rail-fence-ebony-broken|Rail fence, ebony, broken|7|38|2|0.4|1
+rail-fence-mahogany-straight|Rail fence, mahogany, straight|7|38|2|0.4|1
+rail-fence-mahogany-broken|Rail fence, mahogany, broken|7|38|2|0.4|1
+rail-fence-weathered-straight|Rail fence, weathered wood, straight|7|38|2|0.4|1
+rail-fence-weathered-broken|Rail fence, weathered wood, broken|7|38|2|0.4|1
+picket-fence-white|Picket fence, white|7|38|2|0.3|1
+picket-fence-pale|Picket fence, pale wood|7|38|2|0.3|1
+picket-fence-weathered|Picket fence, weathered wood|7|38|2|0.3|1
+field-gate-pale|Field gate, pale wood|7|38|1.6|0.4|1
+field-gate-honey|Field gate, honey wood|7|38|1.6|0.4|1
+field-gate-walnut|Field gate, walnut|7|38|1.6|0.4|1
+field-gate-ebony|Field gate, ebony|7|38|1.6|0.4|1
+field-gate-mahogany|Field gate, mahogany|7|38|1.6|0.4|1
+field-gate-weathered|Field gate, weathered wood|7|38|1.6|0.4|1
+garden-wall-granite-whole|Garden wall, granite, whole|7|38|2|0.5|1
+garden-wall-granite-tumbled|Garden wall, granite, tumbled down|7|38|2|0.5|1
+garden-wall-marble-whole|Garden wall, marble, whole|7|38|2|0.5|1
+garden-wall-marble-tumbled|Garden wall, marble, tumbled down|7|38|2|0.5|1
+garden-wall-sandstone-whole|Garden wall, sandstone, whole|7|38|2|0.5|1
+garden-wall-sandstone-tumbled|Garden wall, sandstone, tumbled down|7|38|2|0.5|1
+garden-wall-slate-whole|Garden wall, slate, whole|7|38|2|0.5|1
+garden-wall-slate-tumbled|Garden wall, slate, tumbled down|7|38|2|0.5|1
+garden-wall-basalt-whole|Garden wall, basalt, whole|7|38|2|0.5|1
+garden-wall-basalt-tumbled|Garden wall, basalt, tumbled down|7|38|2|0.5|1
+fingerpost-one|Fingerpost, one arm|7|39|1.2|1.2|1
+fingerpost-two|Fingerpost, two arms|7|39|1.2|1.2|1
+fingerpost-three|Fingerpost, three arms|7|39|1.2|1.2|1
+banner-pole-crimson|Banner on a pole, crimson|7|39|1|0.6|2
+banner-pole-navy|Banner on a pole, navy|7|39|1|0.6|2
+banner-pole-green|Banner on a pole, green|7|39|1|0.6|2
+banner-pole-ochre|Banner on a pole, ochre|7|39|1|0.6|2
+banner-pole-violet|Banner on a pole, violet|7|39|1|0.6|2
+banner-pole-black|Banner on a pole, black|7|39|1|0.6|2
+banner-pole-white|Banner on a pole, white|7|39|1|0.6|2
+banner-pole-teal|Banner on a pole, teal|7|39|1|0.6|2
+milestone-granite|Milestone, granite|7|39|0.5|0.4|1
+milestone-marble|Milestone, marble|7|39|0.5|0.4|1
+milestone-sandstone|Milestone, sandstone|7|39|0.5|0.4|1
+stall-awning-crimson|Market stall, crimson|7|41|2.2|1.6|2
+stall-awning-navy|Market stall, navy|7|41|2.2|1.6|2
+stall-awning-green|Market stall, green|7|41|2.2|1.6|2
+stall-awning-ochre|Market stall, ochre|7|41|2.2|1.6|2
+stall-awning-violet|Market stall, violet|7|41|2.2|1.6|2
+stall-awning-black|Market stall, black|7|41|2.2|1.6|2
+stall-awning-white|Market stall, white|7|41|2.2|1.6|2
+stall-awning-teal|Market stall, teal|7|41|2.2|1.6|2
+stall-table-pots|Stall table, pots|7|41|1.8|0.8|1
+stall-table-cloth|Stall table, cloth|7|41|1.8|0.8|1
+stall-table-fish|Stall table, fish|7|41|1.8|0.8|1
+stall-table-produce|Stall table, produce|7|41|1.8|0.8|1
+stall-table-trinkets|Stall table, trinkets|7|41|1.8|0.8|1
+stall-table-blades|Stall table, blades|7|41|1.8|0.8|1
+skiff-pale|Skiff, pale wood|7|42|2.6|1|1
+skiff-honey|Skiff, honey wood|7|42|2.6|1|1
+skiff-walnut|Skiff, walnut|7|42|2.6|1|1
+skiff-ebony|Skiff, ebony|7|42|2.6|1|1
+skiff-mahogany|Skiff, mahogany|7|42|2.6|1|1
+skiff-weathered|Skiff, weathered wood|7|42|2.6|1|1
+canoe-pale|Canoe, pale wood|7|42|2.8|0.6|1
+canoe-honey|Canoe, honey wood|7|42|2.8|0.6|1
+canoe-walnut|Canoe, walnut|7|42|2.8|0.6|1
+canoe-ebony|Canoe, ebony|7|42|2.8|0.6|1
+footbridge-pale-short|Footbridge, pale wood, short|7|42|2|1.2|0
+footbridge-pale-long|Footbridge, pale wood, long|7|42|3|1.2|0
+footbridge-walnut-short|Footbridge, walnut, short|7|42|2|1.2|0
+footbridge-walnut-long|Footbridge, walnut, long|7|42|3|1.2|0
+footbridge-weathered-short|Footbridge, weathered wood, short|7|42|2|1.2|0
+footbridge-weathered-long|Footbridge, weathered wood, long|7|42|3|1.2|0
+training-dummy-straw|Training dummy, straw|7|40|0.8|0.6|1
+training-dummy-sacking|Training dummy, sacking|7|40|0.8|0.6|1
+training-dummy-armoured|Training dummy, armoured|7|40|0.8|0.6|1
+archery-butt-round|Archery butt, round|7|40|1|0.5|1
+archery-butt-square|Archery butt, square|7|40|1|0.5|1
+column-granite-whole|Column, granite, whole|3|14|1|1|1
+column-granite-cracked|Column, granite, cracked|3|14|1|1|1
+column-granite-fallen|Column, granite, fallen|3|14|3|1|1
+column-marble-whole|Column, marble, whole|3|14|1|1|1
+column-marble-cracked|Column, marble, cracked|3|14|1|1|1
+column-marble-fallen|Column, marble, fallen|3|14|3|1|1
+column-sandstone-whole|Column, sandstone, whole|3|14|1|1|1
+column-sandstone-cracked|Column, sandstone, cracked|3|14|1|1|1
+column-sandstone-fallen|Column, sandstone, fallen|3|14|3|1|1
+column-slate-whole|Column, slate, whole|3|14|1|1|1
+column-slate-cracked|Column, slate, cracked|3|14|1|1|1
+column-slate-fallen|Column, slate, fallen|3|14|3|1|1
+column-basalt-whole|Column, basalt, whole|3|14|1|1|1
+column-basalt-cracked|Column, basalt, cracked|3|14|1|1|1
+column-basalt-fallen|Column, basalt, fallen|3|14|3|1|1
+pier-square-granite|Square pier, granite|3|14|1|1|1
+pier-square-marble|Square pier, marble|3|14|1|1|1
+pier-square-sandstone|Square pier, sandstone|3|14|1|1|1
+pier-square-slate|Square pier, slate|3|14|1|1|1
+pier-square-basalt|Square pier, basalt|3|14|1|1|1
+statue-figure-granite-warrior|Statue, granite, warrior|3|14|1|1|1
+statue-figure-granite-robed|Statue, granite, robed figure|3|14|1|1|1
+statue-figure-granite-beast|Statue, granite, beast|3|14|1|1|1
+statue-figure-marble-warrior|Statue, marble, warrior|3|14|1|1|1
+statue-figure-marble-robed|Statue, marble, robed figure|3|14|1|1|1
+statue-figure-marble-beast|Statue, marble, beast|3|14|1|1|1
+statue-figure-sandstone-warrior|Statue, sandstone, warrior|3|14|1|1|1
+statue-figure-sandstone-robed|Statue, sandstone, robed figure|3|14|1|1|1
+statue-figure-sandstone-beast|Statue, sandstone, beast|3|14|1|1|1
+statue-figure-slate-warrior|Statue, slate, warrior|3|14|1|1|1
+statue-figure-slate-robed|Statue, slate, robed figure|3|14|1|1|1
+statue-figure-slate-beast|Statue, slate, beast|3|14|1|1|1
+statue-figure-basalt-warrior|Statue, basalt, warrior|3|14|1|1|1
+statue-figure-basalt-robed|Statue, basalt, robed figure|3|14|1|1|1
+statue-figure-basalt-beast|Statue, basalt, beast|3|14|1|1|1
+obelisk-carved-granite|Carved obelisk, granite|3|14|0.9|0.9|1
+obelisk-carved-marble|Carved obelisk, marble|3|14|0.9|0.9|1
+obelisk-carved-sandstone|Carved obelisk, sandstone|3|14|0.9|0.9|1
+obelisk-carved-slate|Carved obelisk, slate|3|14|0.9|0.9|1
+obelisk-carved-basalt|Carved obelisk, basalt|3|14|0.9|0.9|1
+idol-small-gold|Small idol, gold|3|14|0.6|0.6|1
+idol-small-jade|Small idol, jade|3|14|0.6|0.6|1
+idol-small-bronze|Small idol, bronze|3|14|0.6|0.6|1
+idol-small-basalt|Small idol, basalt|3|14|0.6|0.6|1
+coffin-plain-pale-shut|Coffin, pale wood, shut|3|16|0.9|2|1
+coffin-plain-pale-open|Coffin, pale wood, open|3|16|0.9|2|1
+coffin-plain-honey-shut|Coffin, honey wood, shut|3|16|0.9|2|1
+coffin-plain-honey-open|Coffin, honey wood, open|3|16|0.9|2|1
+coffin-plain-walnut-shut|Coffin, walnut, shut|3|16|0.9|2|1
+coffin-plain-walnut-open|Coffin, walnut, open|3|16|0.9|2|1
+coffin-plain-ebony-shut|Coffin, ebony, shut|3|16|0.9|2|1
+coffin-plain-ebony-open|Coffin, ebony, open|3|16|0.9|2|1
+coffin-plain-mahogany-shut|Coffin, mahogany, shut|3|16|0.9|2|1
+coffin-plain-mahogany-open|Coffin, mahogany, open|3|16|0.9|2|1
+coffin-plain-weathered-shut|Coffin, weathered wood, shut|3|16|0.9|2|1
+coffin-plain-weathered-open|Coffin, weathered wood, open|3|16|0.9|2|1
+sarcophagus-carved-granite-shut|Carved sarcophagus, granite, shut|3|16|1.2|2.2|1
+sarcophagus-carved-granite-open|Carved sarcophagus, granite, open|3|16|1.2|2.2|1
+sarcophagus-carved-marble-shut|Carved sarcophagus, marble, shut|3|16|1.2|2.2|1
+sarcophagus-carved-marble-open|Carved sarcophagus, marble, open|3|16|1.2|2.2|1
+sarcophagus-carved-sandstone-shut|Carved sarcophagus, sandstone, shut|3|16|1.2|2.2|1
+sarcophagus-carved-sandstone-open|Carved sarcophagus, sandstone, open|3|16|1.2|2.2|1
+sarcophagus-carved-slate-shut|Carved sarcophagus, slate, shut|3|16|1.2|2.2|1
+sarcophagus-carved-slate-open|Carved sarcophagus, slate, open|3|16|1.2|2.2|1
+sarcophagus-carved-basalt-shut|Carved sarcophagus, basalt, shut|3|16|1.2|2.2|1
+sarcophagus-carved-basalt-open|Carved sarcophagus, basalt, open|3|16|1.2|2.2|1
+skeleton-lying|Skeleton, lying|3|16|1|1.2|0
+skeleton-slumped|Skeleton, slumped|3|16|1|1.2|0
+skeleton-scattered|Skeleton, scattered|3|16|1|1.2|0
+bone-pile-small|Pile of bones, small|3|16|1|0.8|1
+bone-pile-large|Pile of bones, large|3|16|1|0.8|1
+skull-heap-small|Heap of skulls, small|3|16|0.9|0.8|1
+skull-heap-large|Heap of skulls, large|3|16|0.9|0.8|1
+iron-cage-iron-empty|Cage, iron, empty|3|43|1.2|1.2|1
+iron-cage-iron-prisoner|Cage, iron, with a prisoner|3|43|1.2|1.2|1
+iron-cage-bronze-empty|Cage, bronze, empty|3|43|1.2|1.2|1
+iron-cage-bronze-prisoner|Cage, bronze, with a prisoner|3|43|1.2|1.2|1
+gibbet-cage-empty|Hanging cage, empty|3|43|0.8|0.8|2
+gibbet-cage-bones|Hanging cage, with bones|3|43|0.8|0.8|2
+shackles-iron|Shackles, iron|3|43|0.8|0.4|0
+shackles-rusty|Shackles, rusty|3|43|0.8|0.4|0
+stocks-pale|Stocks, pale wood|3|43|1.4|0.5|1
+stocks-walnut|Stocks, walnut|3|43|1.4|0.5|1
+stocks-weathered|Stocks, weathered wood|3|43|1.4|0.5|1
+torture-rack-walnut|Rack, walnut|3|43|1|2.2|1
+torture-rack-ebony|Rack, ebony|3|43|1|2.2|1
+torture-rack-weathered|Rack, weathered wood|3|43|1|2.2|1
+iron-maiden-shut|Iron maiden, shut|3|43|1|0.9|1
+iron-maiden-open|Iron maiden, open|3|43|1|0.9|1
+spike-trap-hidden|Spike trap, hidden|3|57|1|1|0
+spike-trap-sprung|Spike trap, sprung|3|57|1|1|0
+pressure-plate-granite|Pressure plate, granite|3|57|1|1|0
+pressure-plate-marble|Pressure plate, marble|3|57|1|1|0
+pressure-plate-sandstone|Pressure plate, sandstone|3|57|1|1|0
+bear-trap-shut|Bear trap, shut|3|57|0.8|0.8|0
+bear-trap-open|Bear trap, open|3|57|0.8|0.8|0
+pit-trap-covered|Pit trap, covered|3|57|1|1|0
+pit-trap-open|Pit trap, open|3|57|1|1|0
+pit-trap-spiked|Pit trap, spiked|3|57|1|1|0
+blade-trap-swinging|Blade trap, swinging|3|57|2|0.6|1
+rune-trap-fire|Rune trap, firelight|3|57|1|1|0
+rune-trap-blue|Rune trap, blue flame|3|57|1|1|0
+rune-trap-green|Rune trap, green flame|3|57|1|1|0
+rune-trap-violet|Rune trap, violet flame|3|57|1|1|0
+summoning-circle-fire|Summoning circle, firelight|3|15|2.4|2.4|0
+summoning-circle-blue|Summoning circle, blue flame|3|15|2.4|2.4|0
+summoning-circle-green|Summoning circle, green flame|3|15|2.4|2.4|0
+summoning-circle-violet|Summoning circle, violet flame|3|15|2.4|2.4|0
+ritual-circle-fire|Ritual circle with candles, firelight|3|15|2.6|2.6|0
+ritual-circle-blue|Ritual circle with candles, blue flame|3|15|2.6|2.6|0
+ritual-circle-green|Ritual circle with candles, green flame|3|15|2.6|2.6|0
+ritual-circle-violet|Ritual circle with candles, violet flame|3|15|2.6|2.6|0
+portal-ring-fire-open|Portal, firelight, open|3|15|2|2|1
+portal-ring-fire-dormant|Portal, firelight, dormant|3|15|2|2|1
+portal-ring-blue-open|Portal, blue flame, open|3|15|2|2|1
+portal-ring-blue-dormant|Portal, blue flame, dormant|3|15|2|2|1
+portal-ring-green-open|Portal, green flame, open|3|15|2|2|1
+portal-ring-green-dormant|Portal, green flame, dormant|3|15|2|2|1
+portal-ring-violet-open|Portal, violet flame, open|3|15|2|2|1
+portal-ring-violet-dormant|Portal, violet flame, dormant|3|15|2|2|1
+scrying-pool-clear|Scrying pool, clear|3|15|1.4|1.4|1
+scrying-pool-dark|Scrying pool, dark|3|15|1.4|1.4|1
+witch-cauldron-fire|Bubbling cauldron, firelight|3|15|1|1|1
+witch-cauldron-blue|Bubbling cauldron, blue flame|3|15|1|1|1
+witch-cauldron-green|Bubbling cauldron, green flame|3|15|1|1|1
+witch-cauldron-violet|Bubbling cauldron, violet flame|3|15|1|1|1
+blood-pool-small|Blood, small pool|3|45|1|1|0
+blood-pool-large|Blood, large pool|3|45|1|1|0
+blood-pool-trail|Blood, trail|3|45|1|1|0
+slime-puddle-green|Slime, green|3|45|1|1|0
+slime-puddle-purple|Slime, purple|3|45|1|1|0
+slime-puddle-black|Slime, black|3|45|1|1|0
+scorch-mark-small|Scorch mark, small|3|45|1.2|1.2|0
+scorch-mark-large|Scorch mark, large|3|45|1.2|1.2|0
+floor-grate-iron-square|Floor grate, iron, square|3|45|1|1|0
+floor-grate-iron-round|Floor grate, iron, round|3|45|1|1|0
+floor-grate-bronze-square|Floor grate, bronze, square|3|45|1|1|0
+floor-grate-bronze-round|Floor grate, bronze, round|3|45|1|1|0
+floor-crack-small|Crack in the floor, small|3|45|1.4|1|0
+floor-crack-large|Crack in the floor, large|3|45|1.4|1|0
+monster-nest-small|Monster nest, small|3|44|1.3|1.3|0
+monster-nest-large|Monster nest, large|3|44|2|2|0
+egg-clutch-green|Clutch of eggs, green|3|44|0.9|0.9|1
+egg-clutch-red|Clutch of eggs, red|3|44|0.9|0.9|1
+egg-clutch-white|Clutch of eggs, white|3|44|0.9|0.9|1
+egg-clutch-black|Clutch of eggs, black|3|44|0.9|0.9|1
+cobweb-corner|Cobweb, corner|3|44|1.2|1.2|2
+cobweb-large|Cobweb, large|3|44|1.2|1.2|2
+cobweb-torn|Cobweb, torn|3|44|1.2|1.2|2
+stairway-granite-straight|Stairway, granite, straight|3|18|1|2|0
+stairway-granite-spiral|Stairway, granite, spiral|3|18|2|2|0
+stairway-marble-straight|Stairway, marble, straight|3|18|1|2|0
+stairway-marble-spiral|Stairway, marble, spiral|3|18|2|2|0
+stairway-sandstone-straight|Stairway, sandstone, straight|3|18|1|2|0
+stairway-sandstone-spiral|Stairway, sandstone, spiral|3|18|2|2|0
+stairway-slate-straight|Stairway, slate, straight|3|18|1|2|0
+stairway-slate-spiral|Stairway, slate, spiral|3|18|2|2|0
+stairway-basalt-straight|Stairway, basalt, straight|3|18|1|2|0
+stairway-basalt-spiral|Stairway, basalt, spiral|3|18|2|2|0
+ladder-pale|Ladder, pale wood|3|18|0.6|2|1
+ladder-walnut|Ladder, walnut|3|18|0.6|2|1
+ladder-weathered|Ladder, weathered wood|3|18|0.6|2|1
+hatch-pale-shut|Hatch, pale wood, shut|3|18|1|1|0
+hatch-pale-open|Hatch, pale wood, open|3|18|1|1|0
+hatch-walnut-shut|Hatch, walnut, shut|3|18|1|1|0
+hatch-walnut-open|Hatch, walnut, open|3|18|1|1|0
+hatch-weathered-shut|Hatch, weathered wood, shut|3|18|1|1|0
+hatch-weathered-open|Hatch, weathered wood, open|3|18|1|1|0
+wall-lever-iron-up|Wall lever, iron, up|3|46|0.5|0.5|1
+wall-lever-iron-down|Wall lever, iron, down|3|46|0.5|0.5|1
+wall-lever-bronze-up|Wall lever, bronze, up|3|46|0.5|0.5|1
+wall-lever-bronze-down|Wall lever, bronze, down|3|46|0.5|0.5|1
+wall-lever-brass-up|Wall lever, brass, up|3|46|0.5|0.5|1
+wall-lever-brass-down|Wall lever, brass, down|3|46|0.5|0.5|1
+wall-lever-silver-up|Wall lever, silver, up|3|46|0.5|0.5|1
+wall-lever-silver-down|Wall lever, silver, down|3|46|0.5|0.5|1
+gong-iron|Gong, iron|3|46|1.2|0.5|1
+gong-bronze|Gong, bronze|3|46|1.2|0.5|1
+gong-brass|Gong, brass|3|46|1.2|0.5|1
+winch-chain|Winch, chain|3|46|1.2|0.7|1
+winch-rope|Winch, rope|3|46|1.2|0.7|1
+wall-torch-fire|Wall torch, firelight|4|20|0.5|0.5|1
+wall-torch-blue|Wall torch, blue flame|4|20|0.5|0.5|1
+wall-torch-green|Wall torch, green flame|4|20|0.5|0.5|1
+wall-torch-violet|Wall torch, violet flame|4|20|0.5|0.5|1
+torch-stand-iron-fire|Torch stand, iron, firelight|4|20|0.6|0.6|1
+torch-stand-iron-blue|Torch stand, iron, blue flame|4|20|0.6|0.6|1
+torch-stand-iron-green|Torch stand, iron, green flame|4|20|0.6|0.6|1
+torch-stand-iron-violet|Torch stand, iron, violet flame|4|20|0.6|0.6|1
+torch-stand-bronze-fire|Torch stand, bronze, firelight|4|20|0.6|0.6|1
+torch-stand-bronze-blue|Torch stand, bronze, blue flame|4|20|0.6|0.6|1
+torch-stand-bronze-green|Torch stand, bronze, green flame|4|20|0.6|0.6|1
+torch-stand-bronze-violet|Torch stand, bronze, violet flame|4|20|0.6|0.6|1
+torch-stand-brass-fire|Torch stand, brass, firelight|4|20|0.6|0.6|1
+torch-stand-brass-blue|Torch stand, brass, blue flame|4|20|0.6|0.6|1
+torch-stand-brass-green|Torch stand, brass, green flame|4|20|0.6|0.6|1
+torch-stand-brass-violet|Torch stand, brass, violet flame|4|20|0.6|0.6|1
+wall-sconce-iron-one|Wall sconce, iron, one candle|4|47|0.6|0.4|1
+wall-sconce-iron-three|Wall sconce, iron, three candles|4|47|0.6|0.4|1
+wall-sconce-bronze-one|Wall sconce, bronze, one candle|4|47|0.6|0.4|1
+wall-sconce-bronze-three|Wall sconce, bronze, three candles|4|47|0.6|0.4|1
+wall-sconce-brass-one|Wall sconce, brass, one candle|4|47|0.6|0.4|1
+wall-sconce-brass-three|Wall sconce, brass, three candles|4|47|0.6|0.4|1
+wall-sconce-silver-one|Wall sconce, silver, one candle|4|47|0.6|0.4|1
+wall-sconce-silver-three|Wall sconce, silver, three candles|4|47|0.6|0.4|1
+oil-lamp-terracotta|Oil lamp, terracotta|4|47|0.4|0.3|1
+oil-lamp-glazed-blue|Oil lamp, blue glaze|4|47|0.4|0.3|1
+oil-lamp-glazed-green|Oil lamp, green glaze|4|47|0.4|0.3|1
+oil-lamp-cream|Oil lamp, cream|4|47|0.4|0.3|1
+hanging-lantern-iron-fire|Hanging lantern, iron, firelight|4|47|0.5|0.5|2
+hanging-lantern-iron-blue|Hanging lantern, iron, blue flame|4|47|0.5|0.5|2
+hanging-lantern-iron-green|Hanging lantern, iron, green flame|4|47|0.5|0.5|2
+hanging-lantern-iron-violet|Hanging lantern, iron, violet flame|4|47|0.5|0.5|2
+hanging-lantern-bronze-fire|Hanging lantern, bronze, firelight|4|47|0.5|0.5|2
+hanging-lantern-bronze-blue|Hanging lantern, bronze, blue flame|4|47|0.5|0.5|2
+hanging-lantern-bronze-green|Hanging lantern, bronze, green flame|4|47|0.5|0.5|2
+hanging-lantern-bronze-violet|Hanging lantern, bronze, violet flame|4|47|0.5|0.5|2
+hanging-lantern-brass-fire|Hanging lantern, brass, firelight|4|47|0.5|0.5|2
+hanging-lantern-brass-blue|Hanging lantern, brass, blue flame|4|47|0.5|0.5|2
+hanging-lantern-brass-green|Hanging lantern, brass, green flame|4|47|0.5|0.5|2
+hanging-lantern-brass-violet|Hanging lantern, brass, violet flame|4|47|0.5|0.5|2
+lamp-post-iron-fire|Lamp post, iron, firelight|4|47|0.6|0.6|2
+lamp-post-iron-blue|Lamp post, iron, blue flame|4|47|0.6|0.6|2
+lamp-post-brass-fire|Lamp post, brass, firelight|4|47|0.6|0.6|2
+lamp-post-brass-blue|Lamp post, brass, blue flame|4|47|0.6|0.6|2
+candle-cluster-white-few|Candle cluster, white, few|4|22|0.6|0.6|1
+candle-cluster-white-many|Candle cluster, white, many|4|22|0.6|0.6|1
+candle-cluster-tallow-few|Candle cluster, tallow, few|4|22|0.6|0.6|1
+candle-cluster-tallow-many|Candle cluster, tallow, many|4|22|0.6|0.6|1
+candle-cluster-black-few|Candle cluster, black, few|4|22|0.6|0.6|1
+candle-cluster-black-many|Candle cluster, black, many|4|22|0.6|0.6|1
+candle-cluster-red-few|Candle cluster, red, few|4|22|0.6|0.6|1
+candle-cluster-red-many|Candle cluster, red, many|4|22|0.6|0.6|1
+candelabra-tall-iron|Tall candelabra, iron|4|22|0.8|0.4|1
+candelabra-tall-bronze|Tall candelabra, bronze|4|22|0.8|0.4|1
+candelabra-tall-brass|Tall candelabra, brass|4|22|0.8|0.4|1
+candelabra-tall-silver|Tall candelabra, silver|4|22|0.8|0.4|1
+chandelier-ring-iron-small|Ring chandelier, iron, small|4|22|1.1|1.1|2
+chandelier-ring-iron-large|Ring chandelier, iron, large|4|22|1.6|1.6|2
+chandelier-ring-bronze-small|Ring chandelier, bronze, small|4|22|1.1|1.1|2
+chandelier-ring-bronze-large|Ring chandelier, bronze, large|4|22|1.6|1.6|2
+chandelier-ring-brass-small|Ring chandelier, brass, small|4|22|1.1|1.1|2
+chandelier-ring-brass-large|Ring chandelier, brass, large|4|22|1.6|1.6|2
+fire-pit-granite-lit|Fire pit, granite, lit|4|21|1.1|1.1|1
+fire-pit-granite-embers|Fire pit, granite, embers|4|21|1.1|1.1|1
+fire-pit-marble-lit|Fire pit, marble, lit|4|21|1.1|1.1|1
+fire-pit-marble-embers|Fire pit, marble, embers|4|21|1.1|1.1|1
+fire-pit-sandstone-lit|Fire pit, sandstone, lit|4|21|1.1|1.1|1
+fire-pit-sandstone-embers|Fire pit, sandstone, embers|4|21|1.1|1.1|1
+cooking-fire-spit|Cooking fire, with a spit|4|21|1.2|1|1
+cooking-fire-pot|Cooking fire, with a pot|4|21|1.2|1|1
+bonfire-great-fire|Great bonfire, firelight|4|21|2|2|1
+bonfire-great-green|Great bonfire, green flame|4|21|2|2|1
+brazier-bowl-iron-fire|Brazier, iron, firelight|4|21|0.8|0.8|1
+brazier-bowl-iron-blue|Brazier, iron, blue flame|4|21|0.8|0.8|1
+brazier-bowl-iron-green|Brazier, iron, green flame|4|21|0.8|0.8|1
+brazier-bowl-iron-violet|Brazier, iron, violet flame|4|21|0.8|0.8|1
+brazier-bowl-bronze-fire|Brazier, bronze, firelight|4|21|0.8|0.8|1
+brazier-bowl-bronze-blue|Brazier, bronze, blue flame|4|21|0.8|0.8|1
+brazier-bowl-bronze-green|Brazier, bronze, green flame|4|21|0.8|0.8|1
+brazier-bowl-bronze-violet|Brazier, bronze, violet flame|4|21|0.8|0.8|1
+brazier-bowl-brass-fire|Brazier, brass, firelight|4|21|0.8|0.8|1
+brazier-bowl-brass-blue|Brazier, brass, blue flame|4|21|0.8|0.8|1
+brazier-bowl-brass-green|Brazier, brass, green flame|4|21|0.8|0.8|1
+brazier-bowl-brass-violet|Brazier, brass, violet flame|4|21|0.8|0.8|1
+hearth-granite|Hearth, granite|4|21|2|1|1
+hearth-marble|Hearth, marble|4|21|2|1|1
+hearth-sandstone|Hearth, sandstone|4|21|2|1|1
+hearth-slate|Hearth, slate|4|21|2|1|1
+hearth-basalt|Hearth, basalt|4|21|2|1|1
+floating-orb-fire|Floating orb, firelight|4|48|0.6|0.6|2
+floating-orb-blue|Floating orb, blue flame|4|48|0.6|0.6|2
+floating-orb-green|Floating orb, green flame|4|48|0.6|0.6|2
+floating-orb-violet|Floating orb, violet flame|4|48|0.6|0.6|2
+crystal-cluster-blue|Crystal cluster, blue|4|48|0.9|0.9|1
+crystal-cluster-green|Crystal cluster, green|4|48|0.9|0.9|1
+crystal-cluster-purple|Crystal cluster, purple|4|48|0.9|0.9|1
+crystal-cluster-red|Crystal cluster, red|4|48|0.9|0.9|1
+crystal-cluster-amber|Crystal cluster, amber|4|48|0.9|0.9|1
+glowing-mushrooms-blue|Glowing mushrooms, blue flame|4|48|0.7|0.7|1
+glowing-mushrooms-green|Glowing mushrooms, green flame|4|48|0.7|0.7|1
+glowing-mushrooms-violet|Glowing mushrooms, violet flame|4|48|0.7|0.7|1
+wisp-blue|Will-o'-the-wisp, blue flame|4|48|0.5|0.5|2
+wisp-green|Will-o'-the-wisp, green flame|4|48|0.5|0.5|2
+light-pillar-blue|Light pillar, blue|4|48|0.9|0.9|1
+light-pillar-green|Light pillar, green|4|48|0.9|0.9|1
+light-pillar-purple|Light pillar, purple|4|48|0.9|0.9|1
+book-stack-red|Stack of books, red|8|58|0.5|0.5|1
+book-stack-blue|Stack of books, blue|8|58|0.5|0.5|1
+book-stack-green|Stack of books, green|8|58|0.5|0.5|1
+book-stack-brown|Stack of books, brown|8|58|0.5|0.5|1
+book-stack-mixed|Stack of books, mixed|8|58|0.5|0.5|1
+open-tome-plain|Open book, plain|8|58|0.6|0.4|1
+open-tome-illuminated|Open book, illuminated|8|58|0.6|0.4|1
+open-tome-spellbook|Open book, glowing spellbook|8|58|0.6|0.4|1
+scroll-heap-small|Heap of scrolls, small|8|58|0.7|0.6|1
+scroll-heap-large|Heap of scrolls, large|8|58|0.7|0.6|1
+reading-desk-pale|Reading desk, pale wood|8|58|1.2|0.7|1
+reading-desk-honey|Reading desk, honey wood|8|58|1.2|0.7|1
+reading-desk-walnut|Reading desk, walnut|8|58|1.2|0.7|1
+reading-desk-ebony|Reading desk, ebony|8|58|1.2|0.7|1
+reading-desk-mahogany|Reading desk, mahogany|8|58|1.2|0.7|1
+reading-desk-weathered|Reading desk, weathered wood|8|58|1.2|0.7|1
+writing-desk-pale|Writing desk, pale wood|8|58|1.2|0.7|1
+writing-desk-honey|Writing desk, honey wood|8|58|1.2|0.7|1
+writing-desk-walnut|Writing desk, walnut|8|58|1.2|0.7|1
+writing-desk-ebony|Writing desk, ebony|8|58|1.2|0.7|1
+writing-desk-mahogany|Writing desk, mahogany|8|58|1.2|0.7|1
+writing-desk-weathered|Writing desk, weathered wood|8|58|1.2|0.7|1
+library-stack-pale-full|Library stack, pale wood, full|8|58|2.4|0.8|1
+library-stack-pale-sparse|Library stack, pale wood, sparse|8|58|2.4|0.8|1
+library-stack-honey-full|Library stack, honey wood, full|8|58|2.4|0.8|1
+library-stack-honey-sparse|Library stack, honey wood, sparse|8|58|2.4|0.8|1
+library-stack-walnut-full|Library stack, walnut, full|8|58|2.4|0.8|1
+library-stack-walnut-sparse|Library stack, walnut, sparse|8|58|2.4|0.8|1
+library-stack-ebony-full|Library stack, ebony, full|8|58|2.4|0.8|1
+library-stack-ebony-sparse|Library stack, ebony, sparse|8|58|2.4|0.8|1
+library-stack-mahogany-full|Library stack, mahogany, full|8|58|2.4|0.8|1
+library-stack-mahogany-sparse|Library stack, mahogany, sparse|8|58|2.4|0.8|1
+library-stack-weathered-full|Library stack, weathered wood, full|8|58|2.4|0.8|1
+library-stack-weathered-sparse|Library stack, weathered wood, sparse|8|58|2.4|0.8|1
+globe-stand-bronze|Globe, bronze|8|59|0.7|0.7|1
+globe-stand-brass|Globe, brass|8|59|0.7|0.7|1
+globe-stand-silver|Globe, silver|8|59|0.7|0.7|1
+telescope-iron|Telescope, iron|8|59|1.4|0.6|1
+telescope-bronze|Telescope, bronze|8|59|1.4|0.6|1
+telescope-brass|Telescope, brass|8|59|1.4|0.6|1
+telescope-silver|Telescope, silver|8|59|1.4|0.6|1
+orrery-bronze|Orrery, bronze|8|59|1|1|1
+orrery-brass|Orrery, brass|8|59|1|1|1
+orrery-silver|Orrery, silver|8|59|1|1|1
+map-table-pale|Map table, pale wood|8|59|1.6|1.1|1
+map-table-honey|Map table, honey wood|8|59|1.6|1.1|1
+map-table-walnut|Map table, walnut|8|59|1.6|1.1|1
+map-table-ebony|Map table, ebony|8|59|1.6|1.1|1
+hourglass-bronze|Hourglass, bronze|8|59|0.4|0.4|1
+hourglass-brass|Hourglass, brass|8|59|0.4|0.4|1
+hourglass-silver|Hourglass, silver|8|59|0.4|0.4|1
+alchemy-table-pale|Alchemy table, pale wood|8|60|1.6|0.8|1
+alchemy-table-honey|Alchemy table, honey wood|8|60|1.6|0.8|1
+alchemy-table-walnut|Alchemy table, walnut|8|60|1.6|0.8|1
+alchemy-table-ebony|Alchemy table, ebony|8|60|1.6|0.8|1
+alchemy-table-mahogany|Alchemy table, mahogany|8|60|1.6|0.8|1
+alchemy-table-weathered|Alchemy table, weathered wood|8|60|1.6|0.8|1
+potion-shelf-honey-full|Potion shelf, honey wood, full|8|60|1.6|0.45|1
+potion-shelf-honey-sparse|Potion shelf, honey wood, sparse|8|60|1.6|0.45|1
+potion-shelf-walnut-full|Potion shelf, walnut, full|8|60|1.6|0.45|1
+potion-shelf-walnut-sparse|Potion shelf, walnut, sparse|8|60|1.6|0.45|1
+potion-shelf-ebony-full|Potion shelf, ebony, full|8|60|1.6|0.45|1
+potion-shelf-ebony-sparse|Potion shelf, ebony, sparse|8|60|1.6|0.45|1
+potion-bottles-red|Potion bottles, red|8|60|0.4|0.4|1
+potion-bottles-blue|Potion bottles, blue|8|60|0.4|0.4|1
+potion-bottles-green|Potion bottles, green|8|60|0.4|0.4|1
+potion-bottles-purple|Potion bottles, purple|8|60|0.4|0.4|1
+potion-bottles-amber|Potion bottles, amber|8|60|0.4|0.4|1
+potion-bottles-clear|Potion bottles, clear|8|60|0.4|0.4|1
+specimen-jars-eyes|Specimen jars, eyes|8|60|0.8|0.4|1
+specimen-jars-creatures|Specimen jars, creatures|8|60|0.8|0.4|1
+specimen-jars-herbs|Specimen jars, herbs|8|60|0.8|0.4|1
+alembic-bronze|Alembic, bronze|8|60|0.8|0.5|1
+alembic-brass|Alembic, brass|8|60|0.8|0.5|1
+alembic-silver|Alembic, silver|8|60|0.8|0.5|1
+crystal-ball-fire|Crystal ball, firelight|8|61|0.5|0.5|1
+crystal-ball-blue|Crystal ball, blue flame|8|61|0.5|0.5|1
+crystal-ball-green|Crystal ball, green flame|8|61|0.5|0.5|1
+crystal-ball-violet|Crystal ball, violet flame|8|61|0.5|0.5|1
+magic-mirror-bronze-blue|Magic mirror, bronze, blue flame|8|61|0.8|0.35|1
+magic-mirror-bronze-violet|Magic mirror, bronze, violet flame|8|61|0.8|0.35|1
+magic-mirror-brass-blue|Magic mirror, brass, blue flame|8|61|0.8|0.35|1
+magic-mirror-brass-violet|Magic mirror, brass, violet flame|8|61|0.8|0.35|1
+magic-mirror-silver-blue|Magic mirror, silver, blue flame|8|61|0.8|0.35|1
+magic-mirror-silver-violet|Magic mirror, silver, violet flame|8|61|0.8|0.35|1
+spellbook-lectern-fire|Spellbook lectern, firelight|8|61|0.8|0.6|1
+spellbook-lectern-blue|Spellbook lectern, blue flame|8|61|0.8|0.6|1
+spellbook-lectern-green|Spellbook lectern, green flame|8|61|0.8|0.6|1
+spellbook-lectern-violet|Spellbook lectern, violet flame|8|61|0.8|0.6|1
+staff-rack-honey|Staff rack, honey wood|8|61|1.2|0.4|1
+staff-rack-walnut|Staff rack, walnut|8|61|1.2|0.4|1
+staff-rack-ebony|Staff rack, ebony|8|61|1.2|0.4|1
+rune-tablets-granite|Rune tablets, granite|8|61|0.8|0.6|1
+rune-tablets-marble|Rune tablets, marble|8|61|0.8|0.6|1
+rune-tablets-sandstone|Rune tablets, sandstone|8|61|0.8|0.6|1
+forge-hearth-granite-lit|Forge, granite, lit|9|62|1.4|1.2|1
+forge-hearth-granite-cold|Forge, granite, cold|9|62|1.4|1.2|1
+forge-hearth-marble-lit|Forge, marble, lit|9|62|1.4|1.2|1
+forge-hearth-marble-cold|Forge, marble, cold|9|62|1.4|1.2|1
+forge-hearth-sandstone-lit|Forge, sandstone, lit|9|62|1.4|1.2|1
+forge-hearth-sandstone-cold|Forge, sandstone, cold|9|62|1.4|1.2|1
+anvil-block-iron-bare|Anvil on its block, iron, bare|9|62|0.9|0.6|1
+anvil-block-iron-tools|Anvil on its block, iron, with tools|9|62|0.9|0.6|1
+anvil-block-bronze-bare|Anvil on its block, bronze, bare|9|62|0.9|0.6|1
+anvil-block-bronze-tools|Anvil on its block, bronze, with tools|9|62|0.9|0.6|1
+quench-trough-pale|Quench trough, pale wood|9|62|1.2|0.6|1
+quench-trough-walnut|Quench trough, walnut|9|62|1.2|0.6|1
+quench-trough-weathered|Quench trough, weathered wood|9|62|1.2|0.6|1
+grinding-wheel-granite|Grinding wheel, granite|9|62|0.9|0.5|1
+grinding-wheel-sandstone|Grinding wheel, sandstone|9|62|0.9|0.5|1
+grinding-wheel-slate|Grinding wheel, slate|9|62|0.9|0.5|1
+bellows-brown|Bellows, brown leather|9|62|0.9|0.5|1
+bellows-black|Bellows, black leather|9|62|0.9|0.5|1
+ingot-stack-iron|Stack of ingots, iron|9|62|0.7|0.5|1
+ingot-stack-bronze|Stack of ingots, bronze|9|62|0.7|0.5|1
+ingot-stack-brass|Stack of ingots, brass|9|62|0.7|0.5|1
+ingot-stack-silver|Stack of ingots, silver|9|62|0.7|0.5|1
+ingot-stack-gold|Stack of ingots, gold|9|62|0.7|0.5|1
+ore-pile-iron|Pile of ore, iron|9|62|0.9|0.7|1
+ore-pile-copper|Pile of ore, copper|9|62|0.9|0.7|1
+ore-pile-silver|Pile of ore, silver|9|62|0.9|0.7|1
+ore-pile-gold|Pile of ore, gold|9|62|0.9|0.7|1
+smelter-lit|Smelter, lit|9|62|1.2|1.2|1
+smelter-cold|Smelter, cold|9|62|1.2|1.2|1
+workbench-pale-tidy|Workbench, pale wood, tidy|9|63|2|0.8|1
+workbench-pale-cluttered|Workbench, pale wood, cluttered|9|63|2|0.8|1
+workbench-honey-tidy|Workbench, honey wood, tidy|9|63|2|0.8|1
+workbench-honey-cluttered|Workbench, honey wood, cluttered|9|63|2|0.8|1
+workbench-walnut-tidy|Workbench, walnut, tidy|9|63|2|0.8|1
+workbench-walnut-cluttered|Workbench, walnut, cluttered|9|63|2|0.8|1
+workbench-ebony-tidy|Workbench, ebony, tidy|9|63|2|0.8|1
+workbench-ebony-cluttered|Workbench, ebony, cluttered|9|63|2|0.8|1
+workbench-mahogany-tidy|Workbench, mahogany, tidy|9|63|2|0.8|1
+workbench-mahogany-cluttered|Workbench, mahogany, cluttered|9|63|2|0.8|1
+workbench-weathered-tidy|Workbench, weathered wood, tidy|9|63|2|0.8|1
+workbench-weathered-cluttered|Workbench, weathered wood, cluttered|9|63|2|0.8|1
+lumber-stack-pale|Stack of lumber, pale wood|9|63|2.4|0.8|1
+lumber-stack-honey|Stack of lumber, honey wood|9|63|2.4|0.8|1
+lumber-stack-walnut|Stack of lumber, walnut|9|63|2.4|0.8|1
+lumber-stack-ebony|Stack of lumber, ebony|9|63|2.4|0.8|1
+lumber-stack-mahogany|Stack of lumber, mahogany|9|63|2.4|0.8|1
+lumber-stack-weathered|Stack of lumber, weathered wood|9|63|2.4|0.8|1
+sawhorse-pale|Sawhorse, pale wood|9|63|1.2|0.5|1
+sawhorse-walnut|Sawhorse, walnut|9|63|1.2|0.5|1
+sawhorse-weathered|Sawhorse, weathered wood|9|63|1.2|0.5|1
+tool-rack-pale|Tool rack, pale wood|9|63|1.4|0.3|1
+tool-rack-walnut|Tool rack, walnut|9|63|1.4|0.3|1
+tool-rack-weathered|Tool rack, weathered wood|9|63|1.4|0.3|1
+loom-pale|Loom, pale wood|9|64|1.6|1.2|1
+loom-walnut|Loom, walnut|9|64|1.6|1.2|1
+loom-weathered|Loom, weathered wood|9|64|1.6|1.2|1
+spinning-wheel-pale|Spinning wheel, pale wood|9|64|1|0.6|1
+spinning-wheel-walnut|Spinning wheel, walnut|9|64|1|0.6|1
+spinning-wheel-weathered|Spinning wheel, weathered wood|9|64|1|0.6|1
+dye-vat-crimson|Dye vat, crimson|9|64|0.9|0.9|1
+dye-vat-navy|Dye vat, navy|9|64|0.9|0.9|1
+dye-vat-green|Dye vat, green|9|64|0.9|0.9|1
+dye-vat-ochre|Dye vat, ochre|9|64|0.9|0.9|1
+dye-vat-violet|Dye vat, violet|9|64|0.9|0.9|1
+sewing-table-pale|Sewing table, pale wood|9|64|1.2|0.7|1
+sewing-table-walnut|Sewing table, walnut|9|64|1.2|0.7|1
+sewing-table-weathered|Sewing table, weathered wood|9|64|1.2|0.7|1
+cloth-bolts-crimson|Bolts of cloth, crimson|9|64|1|0.7|1
+cloth-bolts-navy|Bolts of cloth, navy|9|64|1|0.7|1
+cloth-bolts-green|Bolts of cloth, green|9|64|1|0.7|1
+cloth-bolts-ochre|Bolts of cloth, ochre|9|64|1|0.7|1
+cloth-bolts-violet|Bolts of cloth, violet|9|64|1|0.7|1
+cloth-bolts-black|Bolts of cloth, black|9|64|1|0.7|1
+cloth-bolts-white|Bolts of cloth, white|9|64|1|0.7|1
+cloth-bolts-teal|Bolts of cloth, teal|9|64|1|0.7|1
+potters-wheel-pale|Potter's wheel, pale wood|9|65|0.9|0.9|1
+potters-wheel-walnut|Potter's wheel, walnut|9|65|0.9|0.9|1
+potters-wheel-weathered|Potter's wheel, weathered wood|9|65|0.9|0.9|1
+kiln-granite-lit|Kiln, granite, lit|9|65|1.4|1.4|1
+kiln-granite-cold|Kiln, granite, cold|9|65|1.4|1.4|1
+kiln-marble-lit|Kiln, marble, lit|9|65|1.4|1.4|1
+kiln-marble-cold|Kiln, marble, cold|9|65|1.4|1.4|1
+kiln-sandstone-lit|Kiln, sandstone, lit|9|65|1.4|1.4|1
+kiln-sandstone-cold|Kiln, sandstone, cold|9|65|1.4|1.4|1
+pottery-rack-unfired|Pottery drying rack, unfired|9|65|1.6|0.45|1
+pottery-rack-glazed|Pottery drying rack, glazed|9|65|1.6|0.45|1
+hide-frame-brown|Hide stretching frame, brown|9|65|1.4|1.4|1
+hide-frame-pale|Hide stretching frame, pale|9|65|1.4|1.4|1
+tanning-vat-wooden|Tanning vat, wooden|9|65|1|1|1
+tanning-vat-clay|Tanning vat, clay|9|65|1|1|1
+mast-honey|Mast, honey wood|10|66|1|1|1
+mast-walnut|Mast, walnut|10|66|1|1|1
+mast-ebony|Mast, ebony|10|66|1|1|1
+mast-weathered|Mast, weathered wood|10|66|1|1|1
+ships-wheel-honey|Ship's wheel, honey wood|10|66|0.9|0.9|1
+ships-wheel-walnut|Ship's wheel, walnut|10|66|0.9|0.9|1
+ships-wheel-ebony|Ship's wheel, ebony|10|66|0.9|0.9|1
+ships-wheel-weathered|Ship's wheel, weathered wood|10|66|0.9|0.9|1
+capstan-pale|Capstan, pale wood|10|66|1.2|1.2|1
+capstan-walnut|Capstan, walnut|10|66|1.2|1.2|1
+capstan-weathered|Capstan, weathered wood|10|66|1.2|1.2|1
+deck-cannon-iron|Cannon, iron|10|66|1.8|0.8|1
+deck-cannon-bronze|Cannon, bronze|10|66|1.8|0.8|1
+deck-cannon-brass|Cannon, brass|10|66|1.8|0.8|1
+cannonballs-pyramid|Cannonballs, pyramid|10|66|0.6|0.6|1
+cannonballs-rack|Cannonballs, rack|10|66|0.6|0.6|1
+cargo-hatch-honey-shut|Cargo hatch, honey wood, shut|10|66|1.4|1.4|0
+cargo-hatch-honey-open|Cargo hatch, honey wood, open|10|66|1.4|1.4|0
+cargo-hatch-walnut-shut|Cargo hatch, walnut, shut|10|66|1.4|1.4|0
+cargo-hatch-walnut-open|Cargo hatch, walnut, open|10|66|1.4|1.4|0
+cargo-hatch-ebony-shut|Cargo hatch, ebony, shut|10|66|1.4|1.4|0
+cargo-hatch-ebony-open|Cargo hatch, ebony, open|10|66|1.4|1.4|0
+cargo-hatch-weathered-shut|Cargo hatch, weathered wood, shut|10|66|1.4|1.4|0
+cargo-hatch-weathered-open|Cargo hatch, weathered wood, open|10|66|1.4|1.4|0
+rigging-coil-rope|Coil, rope|10|66|0.7|0.7|0
+rigging-coil-chain|Coil, chain|10|66|0.7|0.7|0
+anchor-iron|Anchor, iron|10|66|1|1.2|0
+anchor-bronze|Anchor, bronze|10|66|1|1.2|0
+anchor-brass|Anchor, brass|10|66|1|1.2|0
+ship-bell-bronze|Ship's bell, bronze|10|66|0.6|0.6|1
+ship-bell-brass|Ship's bell, brass|10|66|0.6|0.6|1
+ship-bell-silver|Ship's bell, silver|10|66|0.6|0.6|1
+figurehead-mermaid|Figurehead, mermaid|10|66|1.4|0.6|1
+figurehead-dragon|Figurehead, dragon|10|66|1.4|0.6|1
+figurehead-lion|Figurehead, lion|10|66|1.4|0.6|1
+dock-boards-pale-short|Dock boards, pale wood, short|10|67|2|1.6|0
+dock-boards-pale-long|Dock boards, pale wood, long|10|67|3|1.6|0
+dock-boards-walnut-short|Dock boards, walnut, short|10|67|2|1.6|0
+dock-boards-walnut-long|Dock boards, walnut, long|10|67|3|1.6|0
+dock-boards-weathered-short|Dock boards, weathered wood, short|10|67|2|1.6|0
+dock-boards-weathered-long|Dock boards, weathered wood, long|10|67|3|1.6|0
+mooring-post-wooden|Mooring post, wooden|10|67|0.5|0.5|1
+mooring-post-iron|Mooring post, iron|10|67|0.5|0.5|1
+dock-crane-wooden|Dock crane, wooden|10|67|2.4|1.2|2
+dock-crane-iron-braced|Dock crane, iron-braced|10|67|2.4|1.2|2
+gangplank-pale|Gangplank, pale wood|10|67|0.8|2.6|0
+gangplank-walnut|Gangplank, walnut|10|67|0.8|2.6|0
+gangplank-weathered|Gangplank, weathered wood|10|67|0.8|2.6|0
+crab-pots-stacked|Crab pots, stacked|10|67|1|0.7|1
+crab-pots-scattered|Crab pots, scattered|10|67|1|0.7|1
+fishing-net-dry|Fishing net, dry|10|67|1.6|1.2|0
+fishing-net-wet|Fishing net, wet|10|67|1.6|1.2|0
+fish-crate-fresh|Fish crate, of fresh fish|10|67|0.8|0.6|1
+fish-crate-salted|Fish crate, of salted fish|10|67|0.8|0.6|1
+sailboat-crimson|Sailboat, crimson|10|68|4|1.6|1
+sailboat-navy|Sailboat, navy|10|68|4|1.6|1
+sailboat-green|Sailboat, green|10|68|4|1.6|1
+sailboat-ochre|Sailboat, ochre|10|68|4|1.6|1
+sailboat-black|Sailboat, black|10|68|4|1.6|1
+sailboat-white|Sailboat, white|10|68|4|1.6|1
+longboat-pale|Longboat, pale wood|10|68|5|1.4|1
+longboat-walnut|Longboat, walnut|10|68|5|1.4|1
+longboat-weathered|Longboat, weathered wood|10|68|5|1.4|1
+raft-pale|Raft, pale wood|10|68|2|1.6|0
+raft-walnut|Raft, walnut|10|68|2|1.6|0
+raft-weathered|Raft, weathered wood|10|68|2|1.6|0
+buoy-red|Buoy, red|10|68|0.6|0.6|1
+buoy-white|Buoy, white|10|68|0.6|0.6|1
+buoy-yellow|Buoy, yellow|10|68|0.6|0.6|1
+buoy-green|Buoy, green|10|68|0.6|0.6|1
+cargo-net-crates|Cargo net, of crates|10|69|1.6|1.4|1
+cargo-net-barrels|Cargo net, of barrels|10|69|1.6|1.4|1
+cargo-pile-crates|Cargo pile, crates|10|69|2|1.6|1
+cargo-pile-barrels|Cargo pile, barrels|10|69|2|1.6|1
+cargo-pile-sacks|Cargo pile, sacks|10|69|2|1.6|1
+cargo-pile-mixed|Cargo pile, mixed|10|69|2|1.6|1
+water-trough-honey-empty|Water trough, honey wood, empty|11|70|1.6|0.6|1
+water-trough-honey-full|Water trough, honey wood, full|11|70|1.6|0.6|1
+water-trough-walnut-empty|Water trough, walnut, empty|11|70|1.6|0.6|1
+water-trough-walnut-full|Water trough, walnut, full|11|70|1.6|0.6|1
+water-trough-weathered-empty|Water trough, weathered wood, empty|11|70|1.6|0.6|1
+water-trough-weathered-full|Water trough, weathered wood, full|11|70|1.6|0.6|1
+feed-trough-honey|Feed trough, honey wood|11|70|1.4|0.5|1
+feed-trough-walnut|Feed trough, walnut|11|70|1.4|0.5|1
+feed-trough-weathered|Feed trough, weathered wood|11|70|1.4|0.5|1
+chicken-coop-pale|Chicken coop, pale wood|11|70|2|1.3|1
+chicken-coop-honey|Chicken coop, honey wood|11|70|2|1.3|1
+chicken-coop-walnut|Chicken coop, walnut|11|70|2|1.3|1
+chicken-coop-weathered|Chicken coop, weathered wood|11|70|2|1.3|1
+animal-pen-small|Animal pen, small|11|70|2|2|0
+animal-pen-large|Animal pen, large|11|70|3|3|0
+beehive-skep-single|Beehive, straw skep, single|11|70|0.6|0.6|1
+beehive-skep-row|Beehive, straw skep, row of three|11|70|1.8|0.6|1
+beehive-box-single|Beehive, wooden box, single|11|70|0.6|0.6|1
+beehive-box-row|Beehive, wooden box, row of three|11|70|1.8|0.6|1
+kennel-honey|Kennel, honey wood|11|70|1|0.9|1
+kennel-walnut|Kennel, walnut|11|70|1|0.9|1
+kennel-weathered|Kennel, weathered wood|11|70|1|0.9|1
+stable-stall-honey|Stable stall, honey wood|11|70|2|3|0
+stable-stall-walnut|Stable stall, walnut|11|70|2|3|0
+stable-stall-weathered|Stable stall, weathered wood|11|70|2|3|0
+wheat-field-green|Wheat field, green|11|71|2|2|0
+wheat-field-golden|Wheat field, golden|11|71|2|2|0
+corn-rows-young|Corn rows, young|11|71|2|2|1
+corn-rows-tall|Corn rows, tall|11|71|2|2|1
+cabbage-rows-green|Cabbage rows, green|11|71|2|1.6|1
+cabbage-rows-purple|Cabbage rows, purple|11|71|2|1.6|1
+pumpkin-patch-small|Pumpkin patch, small|11|71|2|1.6|1
+pumpkin-patch-large|Pumpkin patch, large|11|71|2|1.6|1
+carrot-rows-young|Carrot rows, young|11|71|2|1.6|1
+carrot-rows-ready|Carrot rows, ready|11|71|2|1.6|1
+crop-rows-mixed|Crop rows, mixed|11|71|2|1.6|1
+crop-rows-beans|Crop rows, beans|11|71|2|1.6|1
+hay-bales-square|Hay bales, square|11|72|1.6|1.2|1
+hay-bales-round|Hay bales, round|11|72|1.6|1.2|1
+straw-heap-small|Heap of straw, small|11|72|1.2|1|0
+straw-heap-large|Heap of straw, large|11|72|1.2|1|0
+wheelbarrow-honey-empty|Wheelbarrow, honey wood, empty|11|72|1.4|0.7|1
+wheelbarrow-honey-loaded|Wheelbarrow, honey wood, loaded with soil|11|72|1.4|0.7|1
+wheelbarrow-walnut-empty|Wheelbarrow, walnut, empty|11|72|1.4|0.7|1
+wheelbarrow-walnut-loaded|Wheelbarrow, walnut, loaded with soil|11|72|1.4|0.7|1
+wheelbarrow-weathered-empty|Wheelbarrow, weathered wood, empty|11|72|1.4|0.7|1
+wheelbarrow-weathered-loaded|Wheelbarrow, weathered wood, loaded with soil|11|72|1.4|0.7|1
+plough-wooden|Plough, wooden|11|72|1.8|0.6|1
+plough-iron-shod|Plough, iron-shod|11|72|1.8|0.6|1
+milk-churns-silver|Milk churns, silver|11|72|0.9|0.5|1
+milk-churns-brass|Milk churns, brass|11|72|0.9|0.5|1
+water-pump-iron|Water pump, iron|11|72|0.7|0.6|1
+water-pump-wooden|Water pump, wooden|11|72|0.7|0.6|1
+woodpile-split|Woodpile, split|11|72|1.6|0.8|1
+woodpile-rounds|Woodpile, rounds|11|72|1.6|0.8|1
+chopping-block-honey|Chopping block, honey wood|11|72|0.8|0.8|1
+chopping-block-walnut|Chopping block, walnut|11|72|0.8|0.8|1
+chopping-block-weathered|Chopping block, weathered wood|11|72|0.8|0.8|1
+notice-board-honey|Notice board, honey wood|11|73|1.4|0.4|1
+notice-board-walnut|Notice board, walnut|11|73|1.4|0.4|1
+notice-board-weathered|Notice board, weathered wood|11|73|1.4|0.4|1
+outhouse-honey|Outhouse, honey wood|11|73|1|1|1
+outhouse-walnut|Outhouse, walnut|11|73|1|1|1
+outhouse-weathered|Outhouse, weathered wood|11|73|1|1|1
+village-well-granite|Village well, granite|11|73|1.8|1.8|2
+village-well-marble|Village well, marble|11|73|1.8|1.8|2
+village-well-sandstone|Village well, sandstone|11|73|1.8|1.8|2
+village-well-slate|Village well, slate|11|73|1.8|1.8|2
+village-well-basalt|Village well, basalt|11|73|1.8|1.8|2
+market-cross-granite|Market cross, granite|11|73|1.4|1.4|1
+market-cross-marble|Market cross, marble|11|73|1.4|1.4|1
+market-cross-sandstone|Market cross, sandstone|11|73|1.4|1.4|1
+scarecrow-figure-hat|Scarecrow, with a hat|11|73|1.2|0.6|1
+scarecrow-figure-sack|Scarecrow, with a sack head|11|73|1.2|0.6|1
+temple-altar-granite-bare|Temple altar, granite, bare|12|74|2|1|1
+temple-altar-granite-crimson|Temple altar, granite, crimson cloth|12|74|2|1|1
+temple-altar-granite-white|Temple altar, granite, white cloth|12|74|2|1|1
+temple-altar-marble-bare|Temple altar, marble, bare|12|74|2|1|1
+temple-altar-marble-crimson|Temple altar, marble, crimson cloth|12|74|2|1|1
+temple-altar-marble-white|Temple altar, marble, white cloth|12|74|2|1|1
+temple-altar-sandstone-bare|Temple altar, sandstone, bare|12|74|2|1|1
+temple-altar-sandstone-crimson|Temple altar, sandstone, crimson cloth|12|74|2|1|1
+temple-altar-sandstone-white|Temple altar, sandstone, white cloth|12|74|2|1|1
+temple-altar-slate-bare|Temple altar, slate, bare|12|74|2|1|1
+temple-altar-slate-crimson|Temple altar, slate, crimson cloth|12|74|2|1|1
+temple-altar-slate-white|Temple altar, slate, white cloth|12|74|2|1|1
+temple-altar-basalt-bare|Temple altar, basalt, bare|12|74|2|1|1
+temple-altar-basalt-crimson|Temple altar, basalt, crimson cloth|12|74|2|1|1
+temple-altar-basalt-white|Temple altar, basalt, white cloth|12|74|2|1|1
+offering-bowl-iron|Offering bowl, iron|12|74|0.6|0.6|1
+offering-bowl-bronze|Offering bowl, bronze|12|74|0.6|0.6|1
+offering-bowl-brass|Offering bowl, brass|12|74|0.6|0.6|1
+offering-bowl-silver|Offering bowl, silver|12|74|0.6|0.6|1
+offering-bowl-gold|Offering bowl, gold|12|74|0.6|0.6|1
+incense-burner-bronze|Incense burner, bronze|12|74|0.5|0.5|1
+incense-burner-brass|Incense burner, brass|12|74|0.5|0.5|1
+incense-burner-silver|Incense burner, silver|12|74|0.5|0.5|1
+holy-symbol-gold|Holy symbol on a stand, gold sun|12|74|0.7|0.4|1
+holy-symbol-silver|Holy symbol on a stand, silver moon|12|74|0.7|0.4|1
+pew-pale|Pew, pale wood|12|75|3|0.7|1
+pew-honey|Pew, honey wood|12|75|3|0.7|1
+pew-walnut|Pew, walnut|12|75|3|0.7|1
+pew-ebony|Pew, ebony|12|75|3|0.7|1
+pew-mahogany|Pew, mahogany|12|75|3|0.7|1
+pew-weathered|Pew, weathered wood|12|75|3|0.7|1
+prayer-mat-crimson|Prayer mat, crimson|12|75|0.8|1.4|0
+prayer-mat-navy|Prayer mat, navy|12|75|0.8|1.4|0
+prayer-mat-green|Prayer mat, green|12|75|0.8|1.4|0
+prayer-mat-ochre|Prayer mat, ochre|12|75|0.8|1.4|0
+prayer-mat-violet|Prayer mat, violet|12|75|0.8|1.4|0
+prayer-mat-black|Prayer mat, black|12|75|0.8|1.4|0
+prayer-mat-white|Prayer mat, white|12|75|0.8|1.4|0
+prayer-mat-teal|Prayer mat, teal|12|75|0.8|1.4|0
+font-basin-granite|Font, granite|12|75|1|1|1
+font-basin-marble|Font, marble|12|75|1|1|1
+font-basin-sandstone|Font, sandstone|12|75|1|1|1
+font-basin-slate|Font, slate|12|75|1|1|1
+font-basin-basalt|Font, basalt|12|75|1|1|1
+votive-rack-iron|Votive candle rack, iron|12|75|1.2|0.5|1
+votive-rack-bronze|Votive candle rack, bronze|12|75|1.2|0.5|1
+votive-rack-brass|Votive candle rack, brass|12|75|1.2|0.5|1
+temple-bell-bronze|Temple bell, bronze|12|75|1.4|1.4|2
+temple-bell-brass|Temple bell, brass|12|75|1.4|1.4|2
+temple-bell-silver|Temple bell, silver|12|75|1.4|1.4|2
+angel-statue-granite|Angel statue, granite|12|76|1.4|1|1
+angel-statue-marble|Angel statue, marble|12|76|1.4|1|1
+angel-statue-sandstone|Angel statue, sandstone|12|76|1.4|1|1
+wooden-shrine-honey|Wooden shrine, honey wood|12|76|1|0.8|1
+wooden-shrine-walnut|Wooden shrine, walnut|12|76|1|0.8|1
+wooden-shrine-ebony|Wooden shrine, ebony|12|76|1|0.8|1
+wayside-shrine-granite|Wayside shrine, granite|12|76|0.8|0.8|1
+wayside-shrine-marble|Wayside shrine, marble|12|76|0.8|0.8|1
+wayside-shrine-sandstone|Wayside shrine, sandstone|12|76|0.8|0.8|1
+reliquary-gold|Reliquary, gold|12|76|0.7|0.5|1
+reliquary-silver|Reliquary, silver|12|76|0.7|0.5|1
+gravestone-granite-rounded|Gravestone, granite, rounded|12|77|0.8|0.5|1
+gravestone-granite-cross|Gravestone, granite, cross|12|77|0.8|0.5|1
+gravestone-granite-slab|Gravestone, granite, slab|12|77|0.8|0.5|1
+gravestone-marble-rounded|Gravestone, marble, rounded|12|77|0.8|0.5|1
+gravestone-marble-cross|Gravestone, marble, cross|12|77|0.8|0.5|1
+gravestone-marble-slab|Gravestone, marble, slab|12|77|0.8|0.5|1
+gravestone-sandstone-rounded|Gravestone, sandstone, rounded|12|77|0.8|0.5|1
+gravestone-sandstone-cross|Gravestone, sandstone, cross|12|77|0.8|0.5|1
+gravestone-sandstone-slab|Gravestone, sandstone, slab|12|77|0.8|0.5|1
+gravestone-slate-rounded|Gravestone, slate, rounded|12|77|0.8|0.5|1
+gravestone-slate-cross|Gravestone, slate, cross|12|77|0.8|0.5|1
+gravestone-slate-slab|Gravestone, slate, slab|12|77|0.8|0.5|1
+gravestone-basalt-rounded|Gravestone, basalt, rounded|12|77|0.8|0.5|1
+gravestone-basalt-cross|Gravestone, basalt, cross|12|77|0.8|0.5|1
+gravestone-basalt-slab|Gravestone, basalt, slab|12|77|0.8|0.5|1
+grave-plot-fresh|Grave, freshly dug|12|77|1|2|0
+grave-plot-sunken|Grave, sunken|12|77|1|2|0
+grave-plot-open|Grave, open, dug|12|77|1|2|0
+tomb-chest-granite|Chest tomb, granite|12|77|1.2|2.2|1
+tomb-chest-marble|Chest tomb, marble|12|77|1.2|2.2|1
+tomb-chest-sandstone|Chest tomb, sandstone|12|77|1.2|2.2|1
+mausoleum-granite|Mausoleum, granite|12|77|3|3|1
+mausoleum-marble|Mausoleum, marble|12|77|3|3|1
+mausoleum-sandstone|Mausoleum, sandstone|12|77|3|3|1
+grave-railing-iron|Grave railing, iron|12|77|1.2|2.2|1
+grave-railing-bronze|Grave railing, bronze|12|77|1.2|2.2|1
+sword-rack-honey-full|Sword rack, honey wood, full|13|78|1.4|0.5|1
+sword-rack-honey-sparse|Sword rack, honey wood, sparse|13|78|1.4|0.5|1
+sword-rack-walnut-full|Sword rack, walnut, full|13|78|1.4|0.5|1
+sword-rack-walnut-sparse|Sword rack, walnut, sparse|13|78|1.4|0.5|1
+sword-rack-ebony-full|Sword rack, ebony, full|13|78|1.4|0.5|1
+sword-rack-ebony-sparse|Sword rack, ebony, sparse|13|78|1.4|0.5|1
+spear-rack-honey|Spear rack, honey wood|13|78|0.8|0.8|1
+spear-rack-walnut|Spear rack, walnut|13|78|0.8|0.8|1
+spear-rack-ebony|Spear rack, ebony|13|78|0.8|0.8|1
+bow-rack-honey|Bow rack, honey wood|13|78|1.4|0.4|1
+bow-rack-walnut|Bow rack, walnut|13|78|1.4|0.4|1
+bow-rack-ebony|Bow rack, ebony|13|78|1.4|0.4|1
+shield-rack-crimson|Shield rack, crimson|13|78|1.6|0.5|1
+shield-rack-navy|Shield rack, navy|13|78|1.6|0.5|1
+shield-rack-green|Shield rack, green|13|78|1.6|0.5|1
+shield-rack-ochre|Shield rack, ochre|13|78|1.6|0.5|1
+shield-rack-black|Shield rack, black|13|78|1.6|0.5|1
+shield-rack-white|Shield rack, white|13|78|1.6|0.5|1
+armour-stand-iron-plate|Armour stand, iron, plate|13|79|0.8|0.8|1
+armour-stand-iron-mail|Armour stand, iron, mail|13|79|0.8|0.8|1
+armour-stand-bronze-plate|Armour stand, bronze, plate|13|79|0.8|0.8|1
+armour-stand-bronze-mail|Armour stand, bronze, mail|13|79|0.8|0.8|1
+armour-stand-brass-plate|Armour stand, brass, plate|13|79|0.8|0.8|1
+armour-stand-brass-mail|Armour stand, brass, mail|13|79|0.8|0.8|1
+armour-stand-silver-plate|Armour stand, silver, plate|13|79|0.8|0.8|1
+armour-stand-silver-mail|Armour stand, silver, mail|13|79|0.8|0.8|1
+helmet-shelf-iron|Helmet shelf, iron|13|79|1.4|0.4|1
+helmet-shelf-bronze|Helmet shelf, bronze|13|79|1.4|0.4|1
+helmet-shelf-brass|Helmet shelf, brass|13|79|1.4|0.4|1
+round-shield-crimson|Round shield, crimson|13|79|0.7|0.7|1
+round-shield-navy|Round shield, navy|13|79|0.7|0.7|1
+round-shield-green|Round shield, green|13|79|0.7|0.7|1
+round-shield-ochre|Round shield, ochre|13|79|0.7|0.7|1
+round-shield-black|Round shield, black|13|79|0.7|0.7|1
+round-shield-white|Round shield, white|13|79|0.7|0.7|1
+war-banner-crimson-plain|War banner, crimson, plain|13|80|1|0.6|2
+war-banner-crimson-emblem|War banner, crimson, with an emblem|13|80|1|0.6|2
+war-banner-navy-plain|War banner, navy, plain|13|80|1|0.6|2
+war-banner-navy-emblem|War banner, navy, with an emblem|13|80|1|0.6|2
+war-banner-green-plain|War banner, green, plain|13|80|1|0.6|2
+war-banner-green-emblem|War banner, green, with an emblem|13|80|1|0.6|2
+war-banner-ochre-plain|War banner, ochre, plain|13|80|1|0.6|2
+war-banner-ochre-emblem|War banner, ochre, with an emblem|13|80|1|0.6|2
+war-banner-violet-plain|War banner, violet, plain|13|80|1|0.6|2
+war-banner-violet-emblem|War banner, violet, with an emblem|13|80|1|0.6|2
+war-banner-black-plain|War banner, black, plain|13|80|1|0.6|2
+war-banner-black-emblem|War banner, black, with an emblem|13|80|1|0.6|2
+war-banner-white-plain|War banner, white, plain|13|80|1|0.6|2
+war-banner-white-emblem|War banner, white, with an emblem|13|80|1|0.6|2
+war-banner-teal-plain|War banner, teal, plain|13|80|1|0.6|2
+war-banner-teal-emblem|War banner, teal, with an emblem|13|80|1|0.6|2
+ballista-honey|Ballista, honey wood|13|81|2|1.6|1
+ballista-walnut|Ballista, walnut|13|81|2|1.6|1
+ballista-ebony|Ballista, ebony|13|81|2|1.6|1
+catapult-honey|Catapult, honey wood|13|81|2.4|1.6|1
+catapult-walnut|Catapult, walnut|13|81|2.4|1.6|1
+barricade-spiked|Barricade, spiked|13|81|2|0.8|1
+barricade-planked|Barricade, planked|13|81|2|0.8|1
+barricade-carts|Barricade, of carts and crates|13|81|2|0.8|1
+caltrops-scattered|Caltrops, scattered|13|81|1.2|1|0
+caltrops-patch|Caltrops, dense patch|13|81|1.2|1|0
+arrow-bundle-few|Bundle of arrows, few|13|81|0.9|0.4|1
+arrow-bundle-many|Bundle of arrows, many|13|81|0.9|0.4|1
+quiver-brown|Quiver, brown leather|13|81|0.5|0.4|1
+quiver-black|Quiver, black leather|13|81|0.5|0.4|1
+war-drum-pale|War drum, pale hide|13|81|0.9|0.9|1
+war-drum-dark|War drum, dark hide|13|81|0.9|0.9|1
+war-drum-painted|War drum, painted hide|13|81|0.9|0.9|1`;
+
+export const DUNGEON_PROPS: readonly DungeonPropInfo[] = PROP_LINES.split("\n").map((line) => {
+  const [id, name, category, group, w, h, layer] = line.split("|");
+  return { id, name, category: CATEGORIES[+category], group: GROUPS[+group], w: +w, h: +h, layer: LAYERS[+layer] };
+});
 
 export const DUNGEON_MATERIALS: readonly DungeonMaterialInfo[] = [
   { id: "flagstone", name: "Flagstones", group: "floor" },

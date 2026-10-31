@@ -27,6 +27,7 @@ import {
   encodeTextures,
   inChunk,
   isBuildingFloor,
+  isDungeonStamp,
   isWalledFloor,
   sceneAreaCells,
   stampBlock,
@@ -39,6 +40,7 @@ import { sceneBounds } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
 import { changesWithoutSnow, makesOutdoors } from "./dungeonSeasons";
+import { dungeonObjects, whenDungeonObjects } from "./dungeonStamps";
 import { overlayRuleFor, textureMade, texturePattern, textureSwatch, whenTextureMade } from "./dungeonTextures";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
 import type { Placed } from "./stampGeom";
@@ -1658,6 +1660,8 @@ export class BuildRenderer {
   private cacheOY = 0;
   private paintDirty = new Set<number>();
   private paintAll = true;
+  /** Waiting for Dungeon's objects to load, to paint them in. */
+  private awaitingObjects = false;
   /**
    * Called when something drawn as a stand-in is ready to be drawn properly (one of Dungeon's
    * textures, made after it was first needed): the board draws again.
@@ -2201,6 +2205,15 @@ export class BuildRenderer {
     }
     for (const layer of layers) {
       for (const [id, ax, ay, turns, size, fine, n] of layer) {
+        // One of Dungeon's objects before they're loaded draws as nothing: all is painted again once they are.
+        if (!this.awaitingObjects && isDungeonStamp(id) && !dungeonObjects()) {
+          this.awaitingObjects = true;
+          whenDungeonObjects(() => {
+            this.awaitingObjects = false;
+            this.paintAll = true;
+            this.onReady?.();
+          });
+        }
         paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
       }
     }

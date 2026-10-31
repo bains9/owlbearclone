@@ -24,7 +24,9 @@ export const GUIDE: GuideSection[] = [
           "A character's card now sits on the right, above the bar at the bottom, so it doesn't cover the token you picked. Click the arrow at its top to fold it to their name, HP, AC, initiative and spell points; click again for attacks and spells. Each device remembers which.",
           "On a phone the card starts folded, and the bar at the bottom shows every button in rows (it used to scroll some out of sight). On touch screens each button says what it is."
         ],
-        "notes": []
+        "notes": [
+          "Tabletop also has about a third less to download before the map shows: Dungeon's objects and the season work load only when a map needs them."
+        ]
       },
       {
         "title": "A map's levels as one: up, down, and taking the party (31 October 2026)",
