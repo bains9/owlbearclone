@@ -911,6 +911,9 @@ button:disabled {
   opacity: 0.45;
   cursor: default;
 }
+.rounds-input {
+  width: 4.5em;
+}
 .spell-sp,
 .spell-left {
   font-size: 0.8em;

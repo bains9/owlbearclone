@@ -135,7 +135,9 @@ interface RoomInside {
   countBytes(owner: string, bytes: number): void;
   handleItems(ws: Sock, conn: Conn, msg: { t: "items"; upsert?: unknown[] }, seq: number | undefined): void;
   handleEph(ws: Sock, conn: Conn, e: unknown): void;
+  handle(ws: Sock, conn: Conn, msg: unknown, seq: number | undefined): Promise<void>;
   hello(conn: Conn): { items: Item[] };
+  initiative: { entries: { id: string; name: string; value: number; color: string; tokenId: string | null }[]; turn: number; round: number };
 }
 let RoomClass: { prototype: object };
 beforeAll(async () => {
@@ -227,6 +229,70 @@ describe("the last looks (protocol 8)", () => {
   it("put copies and after-images under the token, the rest over it", () => {
     for (const look of ["mirror", "blur", "haste"] as const) expect(tokenLookLayer(look), look).toBe("ground");
     expect(tokenLookLayer("blink")).toBe("air");
+  });
+});
+
+describe("spells that last so many rounds", () => {
+  const gmConn: Conn = { connId: "gmc", userId: GM_OWNER, name: "GM", color: "#ff0000", role: "gm", sid: "gmsid", v: 8 };
+  const spellOf = (id: string, rounds: number | undefined, over: Record<string, unknown> = {}): DrawingItem => ({
+    ...(sanitizeItem(onGoblin({ id, fx: "fog", spell: "Fog Cloud", on: undefined, ...(rounds ? { rounds } : {}), ...over }), "alice") as DrawingItem),
+    owner: "alice",
+  });
+  const fighting = (r: RoomInside, turn: number, round: number) => {
+    r.initiative = {
+      entries: [
+        { id: "ini1", name: "Goblin", value: 15, color: "#d62f2f", tokenId: null },
+        { id: "ini2", name: "Testa", value: 9, color: "#4f9dde", tokenId: null },
+      ],
+      turn,
+      round,
+    };
+  };
+
+  it("are kept with how many rounds are left, and only a whole number of them", () => {
+    expect(spellOf("fog000000001", 9).rounds).toBe(9);
+    expect(spellOf("fog000000001", undefined, { rounds: 1.5 }).rounds).toBeUndefined();
+    expect(spellOf("fog000000001", undefined, { rounds: 0 }).rounds).toBeUndefined();
+  });
+
+  it("count down as initiative goes round, and end when none are left; the rest are left alone", async () => {
+    const gm = sock(gmConn);
+    const watcher = sock(player(8, "nowa"));
+    const r = serverRoom([spellOf("long00000001", 2), spellOf("short0000001", 1), spellOf("forever00001", undefined)], [gm, watcher]);
+    fighting(r, 1, 1);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "step", dir: 1 } }, 1);
+    expect(r.initiative.round).toBe(2);
+    expect((r.items.get("long00000001") as DrawingItem).rounds).toBe(1);
+    expect(r.items.has("short0000001")).toBe(false);
+    expect((r.items.get("forever00001") as DrawingItem).rounds).toBeUndefined();
+    const sent = watcher.sent.find((m) => m.t === "items") as { upsert?: Item[]; delete?: string[] } | undefined;
+    expect(sent?.upsert?.map((i) => i.id)).toEqual(["long00000001"]);
+    expect(sent?.delete).toEqual(["short0000001"]);
+  });
+
+  it("don't count a turn within a round, give a round back on a step back, and aren't ended by clearing", async () => {
+    const gm = sock(gmConn);
+    const r = serverRoom([spellOf("long00000001", 2)], [gm]);
+    fighting(r, 0, 3);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "step", dir: 1 } }, 1);
+    expect((r.items.get("long00000001") as DrawingItem).rounds).toBe(2);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "step", dir: 1 } }, 2);
+    expect((r.items.get("long00000001") as DrawingItem).rounds).toBe(1);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "step", dir: -1 } }, 3);
+    expect((r.items.get("long00000001") as DrawingItem).rounds).toBe(2);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "clear" } }, 4);
+    expect((r.items.get("long00000001") as DrawingItem).rounds).toBe(2);
+  });
+
+  it("aren't shown to players when hidden, even as they end", async () => {
+    const gm = sock(gmConn);
+    const watcher = sock(player(8, "nowa"));
+    const r = serverRoom([spellOf("secret000001", 1, { hidden: true })], [gm, watcher]);
+    fighting(r, 1, 1);
+    await r.handle(gm, gm.conn, { t: "initiative.op", op: { op: "step", dir: 1 } }, 1);
+    expect(r.items.has("secret000001")).toBe(false);
+    expect(watcher.sent.some((m) => m.t === "items")).toBe(false);
+    expect((gm.sent.find((m) => m.t === "items") as { delete?: string[] } | undefined)?.delete).toEqual(["secret000001"]);
   });
 });
 
@@ -377,9 +443,9 @@ describe("in the guide", () => {
   const section = GUIDE.find((s) => s.id === "spells")!;
 
   it("is in What's new under every spell look, above the zones", () => {
-    expect(news.parts[1].title).toBe("Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)");
-    expect(news.parts[2].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
-    expect(news.parts[3].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
+    expect(news.parts[2].title).toBe("Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)");
+    expect(news.parts[3].title).toBe("Spells on tokens, and conjured things (31 October 2026)");
+    expect(news.parts[4].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
   });
 
   it("names every spell, and says how to put one on, conjure one and end one", () => {

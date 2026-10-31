@@ -811,9 +811,12 @@ export class Room extends DurableObject<Env> {
           return;
         }
         const next = applyInitOp(this.initiative, op);
+        const passed = op.op === "clear" ? 0 : next.round - this.initiative.round;
         this.setMeta("initiative", next);
         this.initiative = next;
         this.broadcastInitiative(conn.connId, seq);
+        // Spells that last so many rounds count down as rounds pass (not when the list is cleared).
+        if (passed) this.passRounds(passed);
         return;
       }
 
@@ -1413,6 +1416,77 @@ export class Room extends DurableObject<Env> {
   // ---------------------------------------------------------------- helpers
 
   /** Whether this connection is sent this item: the GM gets everything its code can draw. */
+  /**
+   * Rounds passing in initiative (`passed`, or back with a negative one): each spell that lasts so
+   * many rounds (DrawingItem.rounds) counts down, and one with none left ends. A step back gives
+   * each one still on the map its round back.
+   */
+  private passRounds(passed: number): void {
+    const next = new Map<string, Item | null>();
+    for (const item of this.items.values()) {
+      if (item.kind !== "drawing" || item.rounds === undefined) continue;
+      const left = item.rounds - passed;
+      next.set(item.id, left <= 0 ? null : { ...item, rounds: Math.min(LIMITS.spellRounds, left) });
+    }
+    this.changeItems(next);
+  }
+
+  /**
+   * Changes the Room makes itself, as from no one (a spell's rounds counting down, or running out):
+   * kept, and sent to every page that sees them.
+   */
+  private changeItems(next: Map<string, Item | null>): void {
+    if (!next.size) return;
+    const changes = [...next].map(([id, after]) => ({ id, before: this.items.get(id) ?? null, after }));
+    this.ctx.storage.transactionSync(() => {
+      for (const { id, after } of changes) {
+        if (after) {
+          this.sql.exec(
+            `INSERT INTO items (id, scene_id, data) VALUES (?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET scene_id = excluded.scene_id, data = excluded.data`,
+            id,
+            after.sceneId,
+            JSON.stringify(after),
+          );
+        } else {
+          this.sql.exec(`DELETE FROM items WHERE id = ?`, id);
+        }
+      }
+    });
+    const now = Date.now();
+    for (const { id, before, after } of changes) {
+      if (before) this.countBytes(before.owner, -(this.itemBytes.get(id) ?? 0));
+      if (after) {
+        const bytes = JSON.stringify(after).length;
+        this.items.set(id, after);
+        this.itemBytes.set(id, bytes);
+        this.countBytes(after.owner, bytes);
+      } else if (before) {
+        this.items.delete(id);
+        this.itemBytes.delete(id);
+        this.tombstones.set(id, before.owner);
+        this.sql.exec(
+          `INSERT INTO tombstones (id, owner, at) VALUES (?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET owner = excluded.owner, at = excluded.at`,
+          id,
+          before.owner,
+          now,
+        );
+      }
+    }
+    for (const target of this.ctx.getWebSockets()) {
+      const c = target.deserializeAttachment() as Conn | null;
+      if (!c) continue;
+      const upsert: Item[] = [];
+      const del: string[] = [];
+      for (const ch of changes) {
+        if (ch.after && this.sees(c, ch.after)) upsert.push(ch.after);
+        else if (ch.before && this.sees(c, ch.before)) del.push(ch.id);
+      }
+      if (upsert.length || del.length) this.send(target, { t: "items", by: "", ...(upsert.length ? { upsert } : {}), ...(del.length ? { delete: del } : {}) });
+    }
+  }
+
   private sees(c: Conn, item: Item): boolean {
     if ((c.v ?? 1) < versionFor(item)) return false;
     return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);

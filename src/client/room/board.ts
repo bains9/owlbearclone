@@ -79,12 +79,12 @@ import {
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
-import { FX_LOOKS, isFxLook, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
+import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
 import { drawZone, inZone, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { prop, propSprite } from "../dungeonLib/props";
-import { cantCast, castingAs, payForCast } from "../party";
+import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -2862,6 +2862,8 @@ export class Board implements BoardApi {
       spell: spell.name,
       on: t.id,
     };
+    const rounds = castRounds(this.room, spell.name);
+    if (rounds) item.rounds = rounds;
     this.room.change({ upsert: [item] });
     return true;
   }
@@ -2887,10 +2889,12 @@ export class Board implements BoardApi {
     }
     const cell = scene.grid.size;
     const dragged = Math.hypot(end.x - start.x, end.y - start.y) > cell * 0.3;
+    // Cast as a character at a higher level: the size that level gives.
+    const size = sizeAt(spell.size, spell.perLevel, castRaise(this.room, name));
     let points: number[];
     if (spell.shape === "circle") {
       const c = dragged ? start : end;
-      const r = Math.max(cell * 0.25, dragged ? Math.hypot(end.x - start.x, end.y - start.y) : this.spellReach(spell.size));
+      const r = Math.max(cell * 0.25, dragged ? Math.hypot(end.x - start.x, end.y - start.y) : this.spellReach(size));
       points = [c.x - r, c.y - r, c.x + r, c.y + r];
     } else if (dragged) {
       points = [Math.min(start.x, end.x), Math.min(start.y, end.y), Math.max(start.x, end.x), Math.max(start.y, end.y)];
@@ -2898,7 +2902,7 @@ export class Board implements BoardApi {
       if (points[3] - points[1] < cell * 0.5) points[3] = points[1] + cell * 0.5;
     } else {
       // A click: the spell's own size, a bridge lying across the map.
-      const h = Math.max(cell * 0.25, this.spellReach(spell.size) / 2);
+      const h = Math.max(cell * 0.25, this.spellReach(size) / 2);
       const w = spell.width ? Math.max(cell * 0.25, this.spellReach(spell.width) / 2) : h;
       points = [end.x - h, end.y - w, end.x + h, end.y + w];
     }
@@ -2916,6 +2920,8 @@ export class Board implements BoardApi {
       fx: spell.look,
       spell: spell.name,
     };
+    const rounds = castRounds(this.room, spell.name);
+    if (rounds) item.rounds = rounds;
     this.room.change({ upsert: [item] });
     return true;
   }
@@ -2955,7 +2961,7 @@ export class Board implements BoardApi {
       look: spell.look,
       a: [round(a.x), round(a.y)],
       b: [round(end.x), round(end.y)],
-      r: round(this.spellReach(spell.size)),
+      r: round(this.spellReach(sizeAt(spell.size, spell.perLevel, castRaise(this.room, name)))),
       ...(spell.spread ? { spread: spell.spread } : {}),
       ...(spell.color ? { color: spell.color } : {}),
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -3038,11 +3044,11 @@ export class Board implements BoardApi {
       c.beginPath();
       if (zone.shape === "circle") {
         const ctr = dragged ? aiming.start : at;
-        c.arc(ctr.x, ctr.y, dragged ? Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) : this.spellReach(zone.size), 0, Math.PI * 2);
+        c.arc(ctr.x, ctr.y, dragged ? Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) : this.spellReach(sizeAt(zone.size, zone.perLevel, castRaise(this.room, zone.name))), 0, Math.PI * 2);
       } else if (dragged) {
         c.rect(aiming.start.x, aiming.start.y, at.x - aiming.start.x, at.y - aiming.start.y);
       } else {
-        const h = this.spellReach(zone.size) / 2;
+        const h = this.spellReach(sizeAt(zone.size, zone.perLevel, castRaise(this.room, zone.name))) / 2;
         const w = zone.width ? this.spellReach(zone.width) / 2 : h;
         c.rect(at.x - h, at.y - w, 2 * h, 2 * w);
       }
@@ -3054,7 +3060,7 @@ export class Board implements BoardApi {
     const spell = spellFx(s.spellOpts.spell);
     if (!spell || !at) return;
     const cast = FX_LOOKS[spell.look].cast;
-    const reach = this.spellReach(spell.size);
+    const reach = this.spellReach(sizeAt(spell.size, spell.perLevel, castRaise(this.room, spell.name)));
     const color = s.me?.color ?? "#ffffff";
     c.save();
     c.setLineDash([8 * px, 6 * px]);
@@ -5179,7 +5185,10 @@ export class Board implements BoardApi {
           const hit = this.pickAt(this.localPos(e));
           cast = this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
         }
-        if (cast && as) payForCast(this.room, as);
+        if (cast && as) {
+          const lasting = zoneSpell(name) || tokenSpell(name) ? castRounds(this.room, name) : null;
+          payForCast(this.room, as, { target: target?.label || undefined, rounds: lasting });
+        }
         this.uiLayer.batchDraw();
         return;
       }

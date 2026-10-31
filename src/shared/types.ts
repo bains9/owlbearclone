@@ -304,6 +304,11 @@ export interface DrawingItem extends ItemBase {
    * goes (the drawing's own points stay where it was cast), and goes with it when it's deleted.
    */
   on?: string;
+  /**
+   * A spell that lasts so many rounds: how many are left. Initiative counts it down as rounds pass
+   * (the Room does, room.ts passRounds), and it ends when none are left. Missing: until it's ended.
+   */
+  rounds?: number;
 }
 
 /** rect: two corners. poly: a closed outline. stroke: a brush stroke along the points. */

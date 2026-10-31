@@ -212,6 +212,18 @@ export function spellCost(sp: string): number {
   return Math.max(0, Math.min(MAX_SPEND, n));
 }
 
+/** Spell points by the level a spell is cast at, as the sheets have them: "1→1 · 2→2 · 3→3 · 4→5 · 5→8 · ...". */
+export const COST_BY_LEVEL = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+
+/**
+ * What a spell costs cast at `level`: the sheet's SP at its own level, and the cost of the level
+ * above that. A cantrip ("7/day") costs nothing at any level.
+ */
+export function castCost(sp: string, own: number | null, level: number): number {
+  if (own === null || level <= own || /\/\s*day/i.test(sp)) return spellCost(sp);
+  return COST_BY_LEVEL[Math.min(9, level)];
+}
+
 /** A spell's name as something to pray for: what the sheet calls it, trimmed and not silly. */
 export function isSpellName(v: unknown): v is string {
   return typeof v === "string" && v.trim() === v && v.length >= 1 && v.length <= 60 && !/[\u0000-\u001f\u007f]/.test(v);

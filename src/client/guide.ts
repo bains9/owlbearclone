@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)",
+        "steps": [
+          "Leaving a spell on the map, set **Lasts** in the **Spells** bar to how many rounds it lasts. Initiative counts them down, and it ends by itself when they're up. Empty: until it's ended, as before.",
+          "Casting from a character's card puts a line in the chat: who cast what, on whom, what it cost.",
+          "A spell the sheet marks + can be cast at a higher level: choose **Level** in the bar. It costs that level's spell points, and a spell whose area grows with its level is drawn bigger."
+        ],
+        "notes": [
+          "Ending a spell by hand works as before, any time.",
+          "Spell sizes now follow the sheets' own wording: a sphere's metres are its radius (Fog Cloud: an 8 m radius a level). Fog Cloud, Fireball, Sunburst, Tiny Hut and a few others are bigger than they were. See **Spell effects**."
+        ]
+      },
+      {
         "title": "Cast a character's spells from their card: prayers and spell points used up (31 October 2026)",
         "steps": [
           "Click a caster's token: their card lists their **Spells** that show on the map, from their sheet's Spells tab.",
@@ -1553,7 +1565,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Fog, clouds, darkness and the swirling pattern are drawn over tokens; light, plants, spikes, a pit and water under them.",
           "With lighting on: players can't see into or through fog, clouds or darkness; darkness also puts out any light inside it; Light and Moonbeam light the dark around them, and Daylight a 20 m circle.",
-          "It's a drawing underneath: drag its dashed outline to move it, and hide it from players (**H**) like any drawing. Players can leave spells when the GM lets them draw."
+          "It's a drawing underneath: drag its dashed outline to move it, and hide it from players (**H**) like any drawing. Players can leave spells when the GM lets them draw.",
+          "**Lasts:** before you place it, set how many rounds it lasts in the bar (the sheets' rounds are filled in where they give them, like Wall of Fog's 9). As initiative goes round, its rounds count down (the bar's list shows how many are left), and it ends by itself when none are left. Leave it empty for a spell that lasts until it's ended. Going back a turn past the top of a round gives it its round back; clearing initiative doesn't end it."
         ]
       },
       {
@@ -1568,7 +1581,9 @@ export const GUIDE: GuideSection[] = [
           "Their spells come first in the bar's **Spell** list while you cast as them.",
           "**Prayed for:** a spell the sheet marks Pray or Memorize can be cast as many times as it's been prayed for today (×1, ×2 on the card; – for none). Their player or the GM clicks **Pray for today** on the card and sets each with − and +, then **Done**. Each cast uses one up; with none left it isn't cast. **New day** clears them all.",
           "What's been prayed for is kept in Tabletop, for every room, not read from the sheet.",
-          "**Spell points:** each cast takes the spell's cost at its own level off the character's sheet (the card's SP number; a cantrip costs none), and the card shows what's left. A spell that costs more than they have left is greyed out and isn't cast. Spending extra points on a spell (powercasting): take them off on the sheet.",
+          "**Spell points:** each cast takes the spell's cost off the character's sheet (the card's SP number at its own level; a cantrip costs none), and the card shows what's left. A spell that costs more than they have left is greyed out and isn't cast.",
+          "**A higher level:** a spell the sheet marks with + (it can take more points) can be cast at a higher level, up to the highest they cast at: choose it under **Level** in the bar, which says what each costs (the sheets' 1, 2, 3, 5, 8...). Spells whose area grows with the level (Fog Cloud 8 m a level, Fireball, Hail of Stones, Entangle, Wall of Fog...) are drawn that much bigger, and Wall of Fog lasts longer.",
+          "**In the chat:** each cast says who cast what, at what level, on whom, what it cost and how many prayers are left (\"Testa casts Fog Cloud at level 2 (2 SP).\"), so the table sees it and a slip can be put right on the sheet.",
           "Spells the sheet says can't be cast yet (\"not castable yet\") are listed under the rest, greyed. Ask DM ones say so when you point at them.",
           "A spell with nothing to show on the map (Detect Magic, say) isn't on the list."
         ]
@@ -1581,6 +1596,7 @@ export const GUIDE: GuideSection[] = [
           "A spell on a token: select the token and click the × on the spell in its bar, or click the token again with the same spell picked."
         ],
         "notes": [
+          "A spell placed with rounds to last ends by itself when initiative has counted them down; ending it by hand still works any time.",
           "The GM can end any spell; a player, only the ones they cast.",
           "**Undo** (Ctrl+Z) brings an ended spell back. The **Eraser** ends one that stays on the map. Deleting a token ends the spells on it."
         ]

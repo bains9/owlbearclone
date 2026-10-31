@@ -287,7 +287,7 @@ describe("where the data came from", () => {
 
   it("is in the guide: ninth in What's new, under the Build tool's library, and under Seasons", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[16].title).toBe("Maps from Dungeon get exact seasons (26 October 2026)");
+    expect(news.parts[17].title).toBe("Maps from Dungeon get exact seasons (26 October 2026)");
     const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Exact seasons for maps from Dungeon")!;
     const words = [...part.steps, ...part.notes].join("\n");
     expect(words).toContain("no project file to add");

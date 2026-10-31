@@ -3,8 +3,8 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { MAX_PRAYED, characterLabel, spellCost, type Character, type CharacterPlayer } from "../shared/characters";
-import { castList, type CastSpell } from "../shared/spellfx";
+import { MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer } from "../shared/characters";
+import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
 import { prepareImage } from "./api";
@@ -231,53 +231,108 @@ async function putPrayed(room: RoomClient, c: Character, body: { spell: string; 
   if (data.prayed) showPrayed(room, c.id, data.prayed);
 }
 
-/** A spell picked from a character's card: the Spells tool, with that spell, cast from their token. */
+/** A spell picked from a character's card: the Spells tool, with that spell, cast from their token at its own level. */
 export function castAs(room: RoomClient, tokenId: string, spell: string): void {
-  room.store.set({ spellOpts: { ...room.state.spellOpts, spell, caster: tokenId } });
+  room.store.set({ spellOpts: { ...room.state.spellOpts, spell, caster: tokenId, level: null } });
   room.setTool("spell");
 }
 
-/**
- * Casting as a character (the Spells tool's caster): who, and the spell as their list has it (none
- * when they don't have it). Null when no one is being cast as, or their token or sheet is gone.
- */
-export function castingAs(room: RoomClient, spell: string): { token: TokenItem; character: Character; entry: CastSpell | null } | null {
+/** Casting as a character: who, the spell as their list has it (null when they don't have it), and the level it's cast at. */
+export interface Casting {
+  token: TokenItem;
+  character: Character;
+  entry: CastSpell | null;
+  /**
+   * The level it's cast at: its own, or the one chosen in the Spells bar for a spell that can take
+   * more points, up to the highest they cast at. Null when their sheet doesn't give its level.
+   */
+  level: number | null;
+}
+
+/** Casting as a character (the Spells tool's caster). Null when no one is being cast as, or their token or sheet is gone. */
+export function castingAs(room: RoomClient, spell: string): Casting | null {
   const id = room.state.spellOpts.caster;
   const token = id ? room.state.items[id] : undefined;
   if (token?.kind !== "token") return null;
   const character = room.characterOf(token);
   if (!character) return null;
-  return { token, character, entry: castList(character).find((s) => s.name === spell) ?? null };
+  const list = castList(character);
+  const entry = list.find((s) => s.name === spell) ?? null;
+  const own = entry?.sheet.level ?? null;
+  const chosen = room.state.spellOpts.level ?? null;
+  const level = own === null ? null : entry?.raise && chosen && chosen > own ? Math.min(chosen, Math.max(own, highestLevel(list))) : own;
+  return { token, character, entry, level };
+}
+
+/** Levels above its own a spell is cast at now (0 unless cast as a character at a higher level). */
+export function castRaise(room: RoomClient, spell: string): number {
+  const as = castingAs(room, spell);
+  const own = as?.entry?.sheet.level;
+  return own != null && as?.level != null ? Math.max(0, as.level - own) : 0;
+}
+
+/**
+ * How many rounds a spell left on the map now lasts: as set in the Spells bar for it, or else the
+ * sheets' rounds at the level it's cast at. Null: until it's ended.
+ */
+export function castRounds(room: RoomClient, spell: string): number | null {
+  const lasts = room.state.spellOpts.lasts;
+  if (lasts && lasts.spell === spell) return lasts.rounds;
+  return roundsAt(spell, castRaise(room, spell));
+}
+
+/** What casting it costs: the sheet's spell points at its own level, or the cost of the level it's cast at. */
+export function castingCost(as: Pick<Casting, "entry" | "level">): number {
+  const e = as.entry;
+  return e ? castCost(e.sheet.sp, e.sheet.level, as.level ?? e.sheet.level ?? 0) : 0;
 }
 
 /**
  * Why a character can't cast a spell now, or null: it has to be prayed for and none are left today,
  * or it costs more spell points than their sheet has left.
  */
-export function cantCast(as: { character: Character; entry: CastSpell | null }): string | null {
+export function cantCast(as: Pick<Casting, "character" | "entry" | "level">): string | null {
   const e = as.entry;
   const c = as.character;
   const who = characterLabel(c);
   if (e?.prayer && e.left <= 0) return `${who} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. Pray for it on their card.`;
-  const cost = e ? spellCost(e.sheet.sp) : 0;
+  const cost = castingCost(as);
   if (e && cost && c.sp !== null && cost > c.sp) return `${who} has ${c.sp} spell point${c.sp === 1 ? "" : "s"} left, and ${e.name} costs ${cost}.`;
   return null;
 }
 
-/** After casting as a character: a prayer used up, and the spell points off their sheet. */
-export function payForCast(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+/**
+ * After casting as a character (when this page may: the GM's, or their player's): a line in the
+ * chat saying so, a prayer used up, and the spell points off their sheet.
+ */
+export function payForCast(room: RoomClient, as: Casting, what: { target?: string; rounds?: number | null } = {}): void {
+  if (mayPray(room, as.character)) room.sendChat(castLine(as, what));
   spendPrayer(room, as);
   spendSpellPoints(room, as);
 }
 
+/** The chat's line for a spell cast as a character: "Testa casts Fog Cloud at level 2 (2 SP, lasts 9 rounds)." */
+export function castLine(as: Pick<Casting, "character" | "entry" | "level">, what: { target?: string; rounds?: number | null } = {}): string {
+  const e = as.entry;
+  const name = e?.name ?? "a spell";
+  const higher = e && as.level !== null && e.sheet.level !== null && as.level > e.sheet.level ? ` at level ${as.level}` : "";
+  const cost = castingCost(as);
+  const notes = [
+    cost ? `${cost} SP` : "no SP",
+    ...(e?.prayer ? [`${Math.max(0, e.left - 1)} prayed left today`] : []),
+    ...(what.rounds ? [`lasts ${what.rounds} round${what.rounds === 1 ? "" : "s"}`] : []),
+  ];
+  return `${characterLabel(as.character)} casts ${name}${higher}${what.target ? ` on ${what.target}` : ""} (${notes.join(", ")}).`;
+}
+
 /**
- * After casting as a character: the spell's cost at its own level off their sheet's spell points
+ * After casting as a character: the spell's cost at the level cast off their sheet's spell points
  * (when this page may spend them: the GM's, or their player's). Shown here at once, and on other
  * pages with their next reading.
  */
-export function spendSpellPoints(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+export function spendSpellPoints(room: RoomClient, as: Pick<Casting, "character" | "entry" | "level">): void {
   const c = as.character;
-  const cost = as.entry ? spellCost(as.entry.sheet.sp) : 0;
+  const cost = castingCost(as);
   if (!cost || c.sp === null || !mayPray(room, c)) return;
   showSpellPoints(room, c.id, Math.max(0, c.sp - cost));
   const failed = (why?: string) => {

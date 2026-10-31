@@ -4,11 +4,11 @@
 // spell points up (the points on the sheet itself, through the GM's script).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { cantCast, castAs, castingAs, mayPray, newPrayerDay, setPrayed, spendPrayer, spendSpellPoints } from "../src/client/party";
+import { cantCast, castAs, castLine, castRaise, castRounds, castingAs, mayPray, newPrayerDay, payForCast, setPrayed, spendPrayer, spendSpellPoints } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
-import { MAX_PRAYED, MAX_SPEND, cleanCharacter, spellCost, type Character, type CharactersReply } from "../src/shared/characters";
+import { MAX_PRAYED, MAX_SPEND, castCost, cleanCharacter, spellCost, type Character, type CharactersReply } from "../src/shared/characters";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
-import { castList, tableSpellsFor } from "../src/shared/spellfx";
+import { castList, highestLevel, roundsAt, sizeAt, tableSpellsFor, zoneSpell } from "../src/shared/spellfx";
 import type { Player, Scene, TokenItem } from "../src/shared/types";
 
 interface Party {
@@ -315,6 +315,87 @@ async function runPost(body: unknown, sheet: { value: number; formula?: string; 
   return { out, written, props };
 }
 
+describe("casting at a higher level", () => {
+  it("costs the sheets' points for the level cast at (a cantrip nothing)", () => {
+    expect(castCost("1+", 1, 1)).toBe(1);
+    expect(castCost("1+", 1, 3)).toBe(3);
+    expect(castCost("1+", 1, 4)).toBe(5);
+    expect(castCost("2+", 2, 5)).toBe(8);
+    expect(castCost("7/day", 0, 3)).toBe(0);
+  });
+
+  it("goes up to the highest level the character casts at, and is its own level unless chosen", () => {
+    const room = page(theirPlayer);
+    castAs(room, "tok1", "Light");
+    expect(castingAs(room, "Light")!.level).toBe(1);
+    room.store.set({ spellOpts: { ...room.state.spellOpts, level: 3 } });
+    expect(castingAs(room, "Light")!.level).toBe(3);
+    expect(castRaise(room, "Light")).toBe(2);
+    room.store.set({ spellOpts: { ...room.state.spellOpts, level: 9 } });
+    // Their highest spell they can cast yet is Dispel Magic, at 3 (Earthmaw, at 4, isn't castable yet).
+    expect(castingAs(room, "Light")!.level).toBe(3);
+    expect(highestLevel(castList(room.state.party!.characters[0]))).toBe(3);
+  });
+
+  it("is refused when they can't afford that level, and says so", () => {
+    const room = page(theirPlayer);
+    room.store.set({ party: { ...room.state.party!, characters: [{ ...room.state.party!.characters[0], sp: 2 }] } });
+    castAs(room, "tok1", "Light");
+    room.store.set({ spellOpts: { ...room.state.spellOpts, level: 3 } });
+    expect(cantCast(castingAs(room, "Light")!)).toBe("Testa has 2 spell points left, and Light costs 3.");
+  });
+
+  it("grows a spell whose area grows with its level", () => {
+    expect(zoneSpell("Fog Cloud")).toMatchObject({ size: 8, perLevel: 8 });
+    expect(sizeAt(8, 8, 2)).toBe(24);
+    expect(sizeAt(5, undefined, 2)).toBe(5);
+    expect(sizeAt(undefined, 2, 1)).toBeUndefined();
+  });
+});
+
+describe("how long a spell left on the map lasts", () => {
+  it("is the sheets' rounds where they give them, growing with the level", () => {
+    expect(roundsAt("Wall of Fog", 0)).toBe(9);
+    expect(roundsAt("Wall of Fog", 1)).toBe(11);
+    expect(roundsAt("Fog Cloud", 0)).toBeNull();
+  });
+
+  it("is what's chosen in the Spells bar for that spell, or else the sheets'", () => {
+    const room = page(gm);
+    expect(castRounds(room, "Wall of Fog")).toBe(9);
+    room.store.set({ spellOpts: { ...room.state.spellOpts, lasts: { spell: "Wall of Fog", rounds: 3 } } });
+    expect(castRounds(room, "Wall of Fog")).toBe(3);
+    expect(castRounds(room, "Acid Rain")).toBe(8);
+    room.store.set({ spellOpts: { ...room.state.spellOpts, lasts: { spell: "Wall of Fog", rounds: null } } });
+    expect(castRounds(room, "Wall of Fog")).toBeNull();
+  });
+});
+
+describe("a cast in the chat", () => {
+  it("says who cast what, at what level, on whom, for how much, and the prayers left", () => {
+    const room = page(theirPlayer);
+    castAs(room, "tok1", "Light");
+    room.store.set({ spellOpts: { ...room.state.spellOpts, level: 3 } });
+    expect(castLine(castingAs(room, "Light")!)).toBe("Testa casts Light at level 3 (3 SP, 0 prayed left today).");
+    castAs(room, "tok1", "Faerie Fire");
+    expect(castLine(castingAs(room, "Faerie Fire")!, { target: "Goblin", rounds: 4 })).toBe("Testa casts Faerie Fire on Goblin (1 SP, lasts 4 rounds).");
+  });
+
+  it("is posted by the page that pays for it, and not by another player's", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, sp: 11, prayed: {} }));
+    const theirs = page(theirPlayer);
+    castAs(theirs, "tok1", "Faerie Fire");
+    const said = vi.spyOn(theirs, "sendChat").mockImplementation(() => {});
+    payForCast(theirs, castingAs(theirs, "Faerie Fire")!, { target: "Goblin" });
+    expect(said).toHaveBeenCalledWith("Testa casts Faerie Fire on Goblin (1 SP).");
+    const other = page(otherPlayer);
+    castAs(other, "tok1", "Faerie Fire");
+    const quiet = vi.spyOn(other, "sendChat").mockImplementation(() => {});
+    payForCast(other, castingAs(other, "Faerie Fire")!);
+    expect(quiet).not.toHaveBeenCalled();
+  });
+});
+
 describe("the GM's script, changing spell points", () => {
   const KEY = "k".repeat(43);
 
@@ -348,10 +429,14 @@ describe("the GM's script, changing spell points", () => {
 });
 
 describe("in the guide", () => {
-  it("leads What's new, and says how to cast from a card, pray for spells and what spell points come off", async () => {
-    expect(GUIDE[0].parts[0].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
+  it("leads What's new, and says how to cast from a card, pray for spells, what spell points come off, levels, rounds and the chat", async () => {
+    expect(GUIDE[0].parts[0].title).toBe("Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
     const text = JSON.stringify(GUIDE.find((s) => s.id === "spells"));
-    for (const words of ["**Pray for today**", "**New day**", "**Spells**", "**Spell points:**"]) expect(text).toContain(words);
+    for (const words of ["**Pray for today**", "**New day**", "**Spells**", "**Spell points:**", "**A higher level:**", "**Lasts:**", "**In the chat:**"]) expect(text).toContain(words);
+    const bar = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+    const toolbar = bar.readFileSync(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");
+    for (const words of ["<span>Level</span>", "<span>Lasts</span>", "<span>rounds</span>"]) expect(toolbar).toContain(words);
     expect(JSON.stringify(GUIDE.find((s) => s.id === "character-sheets"))).toContain("TABLE_KEY");
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const card = fs.readFileSync(new URL("../src/client/ui/CharacterCard.tsx", import.meta.url), "utf8");

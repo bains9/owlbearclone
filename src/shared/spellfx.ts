@@ -74,6 +74,8 @@ export interface SpellFx {
   spread?: number;
   /** The look's colour, for looks that take one. */
   color?: string;
+  /** Metres its size grows for each level it's cast above its own (Fireball's "SL+1 m"). */
+  perLevel?: number;
 }
 
 /**
@@ -109,23 +111,23 @@ export const SPELL_FX: SpellFx[] = [
   { name: "Ray of Fatigue", look: "ray", color: "#a0a8b8" },
   { name: "Ray of clumsiness", look: "ray", color: "#e0a040" },
   { name: "Ray of weakness", look: "ray", color: "#6ac06a" },
-  // The rest of the doc's looks. Spheres are their width ("SL+1 m sphere": 2 m across at the
-  // lowest level), cubes a circle as wide.
-  { name: "Fireball", look: "fire-burst", size: 1 },
-  { name: "Elemental Burst", look: "fire-burst", size: 1.5 },
+  // The rest of the doc's looks. A sphere's metres are its radius (as Fog Cloud's own text has
+  // it), a cube is a circle as wide.
+  { name: "Fireball", look: "fire-burst", size: 2, perLevel: 1 },
+  { name: "Elemental Burst", look: "fire-burst", size: 3 },
   { name: "Fire burst", look: "fire-burst", size: 1.5 },
   { name: "Fiery Cube", look: "fire-burst", size: 1.5 },
   { name: "Fire Rain", look: "fire-burst", size: 5 },
   { name: "Burning Hands", look: "flame-fan", size: 2, spread: 120 },
-  { name: "Frost bolt", look: "cold-burst", size: 1 },
+  { name: "Frost bolt", look: "cold-burst", size: 2, perLevel: 1 },
   { name: "Snowball Storm", look: "cold-burst", size: 10 },
-  { name: "Hail of Stones", look: "falling-stones", size: 3 },
+  { name: "Hail of Stones", look: "falling-stones", size: 3, perLevel: 2 },
   { name: "Scatterspray", look: "falling-stones", size: 1.5 },
   { name: "Stormvoice", look: "thunderclap", size: 5 },
   { name: "Breath of Bewilderment", look: "thunderclap", size: 1.5 },
   { name: "Battering Ram", look: "thunderclap", size: 0.75 },
-  { name: "Sunburst", look: "holy-flash", size: 7.5 },
-  { name: "Return to earth", look: "holy-flash", size: 7.5 },
+  { name: "Sunburst", look: "holy-flash", size: 15 },
+  { name: "Return to earth", look: "holy-flash", size: 15 },
   { name: "Lightning Bolt", look: "lightning", color: "#bfe0ff" },
   { name: "Lightning Strike", look: "lightning", color: "#bfe0ff" },
   { name: "Lightning Lance", look: "lightning", color: "#bfe0ff" },
@@ -162,28 +164,35 @@ export interface ZoneSpell {
   size: number;
   /** Metres: a rectangle this narrow instead of a square (a bridge), `size` long, across the map. */
   width?: number;
+  /** Metres `size` grows for each level it's cast above its own (Fog Cloud's "8 m × SL"). */
+  perLevel?: number;
+  /** Rounds it lasts at its own level, where the sheets give rounds; more for each level above. */
+  rounds?: number;
+  roundsPerLevel?: number;
 }
 
 /**
  * The party's spells that stay on the map, and a few like them. Sizes from the character sheets
- * at the lowest spell level: Fog Cloud "8m*SL sphere" (8 m across), Wall of Fog "6*SL+7m cube",
+ * at the spell's own level, growing for each level above where the sheet says so: Fog Cloud
+ * "8m*SL sphere" (an 8 m radius a level, as its own text has it), Wall of Fog "6*SL+7m cube",
  * Spike Growth "7-m-radius sphere", Pit "7m pit"; a drag makes any of them bigger or smaller.
+ * Rounds where the sheets give a duration in rounds (Wall of Fog "2*SL+2d4+2", taking 2d4 as 5).
  */
 export const ZONE_SPELLS: ZoneSpell[] = [
-  { name: "Fog Cloud", look: "fog", shape: "circle", size: 4 },
-  { name: "Wall of Fog", look: "fog", shape: "square", size: 13 },
-  { name: "Stinking Cloud", look: "poison-cloud", shape: "square", size: 7 },
+  { name: "Fog Cloud", look: "fog", shape: "circle", size: 8, perLevel: 8 },
+  { name: "Wall of Fog", look: "fog", shape: "square", size: 13, perLevel: 6, rounds: 9, roundsPerLevel: 2 },
+  { name: "Stinking Cloud", look: "poison-cloud", shape: "square", size: 7, rounds: 2, roundsPerLevel: 1 },
   { name: "Acid Cloud", look: "poison-cloud", shape: "circle", size: 10 },
   { name: "Darkness", look: "darkness", shape: "circle", size: 5 },
   { name: "Blackness", look: "darkness", shape: "circle", size: 7 },
   { name: "Light", look: "light", shape: "circle", size: 5 },
   { name: "Lasting flame", look: "light", shape: "circle", size: 4 },
-  { name: "Continual Light", look: "light", shape: "circle", size: 5 },
+  { name: "Continual Light", look: "light", shape: "circle", size: 10 },
   { name: "Daylight", look: "light", shape: "circle", size: 20 },
   { name: "Moonbeam", look: "moonbeam", shape: "circle", size: 2 },
-  { name: "Entangle", look: "vines", shape: "square", size: 8 },
+  { name: "Entangle", look: "vines", shape: "square", size: 8, perLevel: 2 },
   { name: "Plant Growth", look: "vines", shape: "circle", size: 6 },
-  { name: "Briartangle", look: "vines", shape: "circle", size: 6 },
+  { name: "Briartangle", look: "vines", shape: "circle", size: 24, perLevel: 6 },
   { name: "Spike Growth", look: "spikes", shape: "circle", size: 7 },
   { name: "Pit", look: "pit", shape: "square", size: 7 },
   { name: "Wall of Water", look: "water", shape: "square", size: 6 },
@@ -194,12 +203,12 @@ export const ZONE_SPELLS: ZoneSpell[] = [
   { name: "Zone of Truth", look: "marked", shape: "circle", size: 5 },
   { name: "Prayer", look: "marked", shape: "circle", size: 20 },
   { name: "Hallucinatory Forest", look: "marked", shape: "square", size: 8 },
-  { name: "Sound Bubble", look: "marked", shape: "circle", size: 1.5 },
+  { name: "Sound Bubble", look: "marked", shape: "circle", size: 3 },
   // The doc's other spells for these looks. Lights on an object get a few metres; a drag sizes any.
-  { name: "Magic Mist", look: "fog", shape: "circle", size: 14 },
-  { name: "Smoke Sphere", look: "fog", shape: "circle", size: 3 },
-  { name: "Create Smoke", look: "fog", shape: "circle", size: 20 },
-  { name: "Inkwater", look: "fog", shape: "circle", size: 7.5 },
+  { name: "Magic Mist", look: "fog", shape: "circle", size: 21, perLevel: 7 },
+  { name: "Smoke Sphere", look: "fog", shape: "circle", size: 3, rounds: 1 },
+  { name: "Create Smoke", look: "fog", shape: "circle", size: 20, rounds: 4 },
+  { name: "Inkwater", look: "fog", shape: "circle", size: 25, perLevel: 5 },
   { name: "Pyrotechnics", look: "fog", shape: "circle", size: 6 },
   { name: "Chilling Darkness", look: "darkness", shape: "square", size: 15 },
   { name: "Light (reversed)", look: "darkness", shape: "circle", size: 5 },
@@ -226,20 +235,20 @@ export const ZONE_SPELLS: ZoneSpell[] = [
   // The rest of the doc's zones (31 October 2026, protocol 8).
   { name: "Circle of Flame", look: "fire-ring", shape: "circle", size: 2 },
   { name: "Affect Fires", look: "fire-ring", shape: "circle", size: 3 },
-  { name: "Acid Rain", look: "acid", shape: "square", size: 20 },
+  { name: "Acid Rain", look: "acid", shape: "square", size: 20, rounds: 8, roundsPerLevel: 2 },
   { name: "Corrosive Solvent", look: "acid", shape: "circle", size: 0.75 },
   { name: "Web", look: "web", shape: "square", size: 6 },
   { name: "Mystic Rope", look: "web", shape: "circle", size: 1.5 },
   { name: "Grease", look: "grease", shape: "square", size: 3 },
   { name: "Lubricity", look: "grease", shape: "circle", size: 3 },
   { name: "Force Umbrella", look: "force-dome", shape: "circle", size: 3.5 },
-  { name: "Tiny Hut", look: "force-dome", shape: "circle", size: 3.5 },
-  { name: "Minor Ward", look: "force-dome", shape: "circle", size: 2.5 },
-  { name: "Magic Circle", look: "force-dome", shape: "circle", size: 2 },
+  { name: "Tiny Hut", look: "force-dome", shape: "circle", size: 7 },
+  { name: "Minor Ward", look: "force-dome", shape: "circle", size: 5 },
+  { name: "Magic Circle", look: "force-dome", shape: "circle", size: 4 },
   { name: "Protection from Spirits", look: "force-dome", shape: "circle", size: 3 },
-  { name: "Ward against Undead", look: "force-dome", shape: "circle", size: 5 },
+  { name: "Ward against Undead", look: "force-dome", shape: "circle", size: 15, perLevel: 5 },
   { name: "Spell Vortex", look: "force-dome", shape: "circle", size: 1 },
-  { name: "Forceward", look: "force-dome", shape: "square", size: 6, width: 0.5 },
+  { name: "Forceward", look: "force-dome", shape: "square", size: 24, width: 0.5, perLevel: 6 },
   { name: "Line of defence", look: "force-dome", shape: "square", size: 30, width: 1 },
 ];
 
@@ -265,6 +274,9 @@ export interface TokenSpell {
   look: TokenLook;
   /** The look's colour: a shell's (blue for force, gold for holy), an outline's, a weapon's flames. */
   color: string;
+  /** Rounds it lasts at its own level, where the sheets give rounds; more for each level above. */
+  rounds?: number;
+  roundsPerLevel?: number;
 }
 
 /**
@@ -363,6 +375,8 @@ export interface CastSpell {
   left: number;
   /** The sheet says it can't be cast yet ("Level 4: not castable yet"). */
   locked: boolean;
+  /** It can take more spell points ("2+" on the sheet): cast at a higher level. */
+  raise: boolean;
 }
 
 /**
@@ -378,7 +392,7 @@ export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
     for (const name of tableSpellsFor(s.name)) {
       if (seen.has(name)) continue;
       seen.add(name);
-      out.push({ name, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked });
+      out.push({ name, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked, raise: s.sp.includes("+") });
     }
   }
   return out.sort((a, b) => Number(a.locked) - Number(b.locked) || (a.sheet.level ?? 99) - (b.sheet.level ?? 99) || a.name.localeCompare(b.name));
@@ -410,4 +424,23 @@ export function cleanFx(raw: unknown): FxEvent | null {
     ...(typeof e.color === "string" && FX_COLOR.test(e.color) ? { color: e.color } : {}),
     seed: (e.seed as number) >>> 0,
   };
+}
+
+/** The highest level a character casts at: the highest of their spells the sheet doesn't say they can't cast yet. */
+export function highestLevel(list: readonly CastSpell[]): number {
+  return Math.min(9, Math.max(0, ...list.filter((s) => !s.locked).map((s) => s.sheet.level ?? 0)));
+}
+
+/** A spell's size cast `above` levels above its own: its own, grown by `perLevel` metres a level. */
+export function sizeAt(size: number | undefined, perLevel: number | undefined, above: number): number | undefined {
+  return size === undefined ? undefined : size + (perLevel ?? 0) * Math.max(0, above);
+}
+
+/**
+ * How many rounds a spell that stays lasts, cast `above` levels above its own, where the sheets give
+ * it in rounds; null (until it's ended) where they don't.
+ */
+export function roundsAt(name: string, above: number): number | null {
+  const s = zoneSpell(name) ?? tokenSpell(name);
+  return s?.rounds ? s.rounds + (s.roundsPerLevel ?? 0) * Math.max(0, above) : null;
 }

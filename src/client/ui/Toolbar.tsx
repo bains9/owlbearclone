@@ -60,9 +60,24 @@ import {
 import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
-import { CONJURED_SPELLS, FX_GROUPS, FX_LOOKS, SPELL_FX, TOKEN_SPELLS, ZONE_SPELLS, castList, spellFx, tokenSpell, zoneSpell, type FxCast } from "../../shared/spellfx";
+import {
+  CONJURED_SPELLS,
+  FX_GROUPS,
+  FX_LOOKS,
+  SPELL_FX,
+  TOKEN_SPELLS,
+  ZONE_SPELLS,
+  castList,
+  highestLevel,
+  sizeAt,
+  spellFx,
+  tokenSpell,
+  zoneSpell,
+  type FxCast,
+} from "../../shared/spellfx";
 import { spellChipLabel } from "./spellChips";
-import { characterLabel } from "../../shared/characters";
+import { castCost, characterLabel } from "../../shared/characters";
+import { castRaise, castRounds, castingAs } from "../party";
 import { foldOf } from "./objectGroups";
 import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
 import { FloorPicker, WallPicker } from "./FloorPicker";
@@ -1043,18 +1058,27 @@ function SpellOptions() {
   const spell = spellFx(o.spell);
   const zone = zoneSpell(o.spell);
   const cast = spell ? FX_LOOKS[spell.look].cast : "burst";
-  const size = spell?.size ? (spell.spread ? `${spell.size} m, ${spell.spread}°` : `${spell.size} m radius`) : "";
   const onToken = tokenSpell(o.spell);
+  // Cast at a higher level: bigger where the sheet says so, and its cost; the rounds a lasting spell lasts.
+  const casting = castingAs(room, o.spell);
+  const raise = castRaise(room, o.spell);
+  const own = casting?.entry?.sheet.level ?? null;
+  const top = casting?.entry?.raise && own !== null ? Math.max(own, highestLevel(castList(casting.character))) : null;
+  const rounds = zone || onToken ? castRounds(room, o.spell) : null;
+  const fxSize = sizeAt(spell?.size, spell?.perLevel, raise);
+  const zoneSize = sizeAt(zone?.size, zone?.perLevel, raise);
+  const size = fxSize ? (spell?.spread ? `${fxSize} m, ${spell.spread}°` : `${fxSize} m radius`) : "";
+  const stays = rounds ? `It lasts ${rounds} round${rounds === 1 ? "" : "s"} of initiative, or until it's ended.` : "It stays until it's ended.";
   const hint = onToken
-    ? "Click a token to put it on; it goes where the token goes. Click the token again to end it."
+    ? `Click a token to put it on; it goes where the token goes. Click the token again to end it.${rounds ? ` ${stays}` : ""}`
     : zone?.look === "spirit-weapon"
-      ? "Click to put it on the map; drag it round by its middle with Move & select. It stays until it's ended."
+      ? `Click to put it on the map; drag it round by its middle with Move & select. ${stays}`
       : zone?.width
-        ? `Click to lay it across the map (${zone.size} m by ${zone.width} m), or drag corner to corner. It stays until it's ended.`
+        ? `Click to lay it across the map (${zoneSize} m by ${zone.width} m), or drag corner to corner. ${stays}`
         : zone
           ? zone.shape === "circle"
-            ? `Click to leave it (${zone.size} m radius), or drag from its middle to size it. It stays until it's ended.`
-            : `Click to leave it (${zone.size} m square), or drag corner to corner. It stays until it's ended.`
+            ? `Click to leave it (${zoneSize} m radius), or drag from its middle to size it. ${stays}`
+            : `Click to leave it (${zoneSize} m square), or drag corner to corner. ${stays}`
           : `${as && cast !== "burst" && cast !== "strike" ? CAST_AS_HINTS[cast] : CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
   return (
     <div class="tool-options">
@@ -1070,7 +1094,7 @@ function SpellOptions() {
       )}
       <label class="field inline">
         <span>Spell</span>
-        <select value={o.spell} onChange={(e) => room.store.set({ spellOpts: { ...o, spell: e.currentTarget.value } })}>
+        <select value={o.spell} onChange={(e) => room.store.set({ spellOpts: { ...o, spell: e.currentTarget.value, level: null } })}>
           {theirs.length > 0 && (
             <optgroup label={`${who}'s spells`}>
               {theirs.map((sp) => (
@@ -1110,6 +1134,36 @@ function SpellOptions() {
           ))}
         </select>
       </label>
+      {casting?.entry && own !== null && top !== null && top > own && (
+        <label class="field inline" title="Cast at a higher level: it costs that level's spell points, and some spells grow">
+          <span>Level</span>
+          <select value={String(casting.level ?? own)} onChange={(e) => room.store.set({ spellOpts: { ...o, level: Number(e.currentTarget.value) } })}>
+            {Array.from({ length: top - own + 1 }, (_, i) => own + i).map((l) => (
+              <option key={l} value={String(l)}>
+                {l} ({castCost(casting.entry!.sheet.sp, own, l)} SP)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(zone || onToken) && (
+        <label class="field inline" title="How many rounds of initiative it lasts: it ends by itself when they've passed. Empty: until it's ended">
+          <span>Lasts</span>
+          <input
+            type="number"
+            class="rounds-input"
+            min={1}
+            max={999}
+            placeholder="∞"
+            value={rounds ?? ""}
+            onChange={(e) => {
+              const n = Math.round(Number(e.currentTarget.value));
+              room.store.set({ spellOpts: { ...o, lasts: { spell: o.spell, rounds: n >= 1 ? Math.min(999, n) : null } } });
+            }}
+          />
+          <span>rounds</span>
+        </label>
+      )}
       <span class="hint">{hint}</span>
       <LastingSpells />
     </div>

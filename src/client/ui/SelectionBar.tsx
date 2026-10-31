@@ -23,6 +23,7 @@ import {
 import { initiativeRoll } from "../../shared/characters";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
+import { roundsLeft } from "./spellChips";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
 import { isCompass, sceneSnaps } from "../../shared/types";
 import { PLAYER_COLORS } from "../identity";
@@ -201,11 +202,13 @@ function SpellsOn({ token }: { token: TokenItem }) {
             aria-label={`End ${d.spell ?? "this spell"}`}
             onClick={() => room.change({ delete: [d.id] })}
           >
-            {d.spell ?? "Spell"} <X size={12} />
+            {d.spell ?? "Spell"}
+            {roundsLeft(d)} <X size={12} />
           </button>
         ) : (
           <span key={d.id} class="chip" title="Only the GM or whoever cast it can end it">
             {d.spell ?? "Spell"}
+            {roundsLeft(d)}
           </span>
         ),
       )}
@@ -382,7 +385,10 @@ export function SelectionBar() {
     const d = drawings[0];
     return (
       <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
-        <span class="muted small">{d.spell ?? "Spell"}</span>
+        <span class="muted small">
+          {d.spell ?? "Spell"}
+          {d.rounds ? ` · ${d.rounds} round${d.rounds === 1 ? "" : "s"} left` : ""}
+        </span>
         {deletable && (
           <button class="btn btn-sm" title="End the spell: take it off the map (Undo brings it back)" onClick={() => deleteSelection(room)}>
             End spell

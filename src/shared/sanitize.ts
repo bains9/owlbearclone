@@ -27,6 +27,8 @@ export const LIMITS = {
   coord: 1_000_000,
   /** A spell effect's spell name (DrawingItem.spell). */
   spellName: 40,
+  /** Rounds a spell can last (DrawingItem.rounds). */
+  spellRounds: 999,
   pointNumbers: 10_000,
   label: 60,
   name: 60,
@@ -286,6 +288,8 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
     if (zone || onToken) {
       item.fx = r.fx as SpellLook;
       if (onToken) item.on = r.on as string;
+      const rounds = r.rounds;
+      if (typeof rounds === "number" && Number.isInteger(rounds) && rounds >= 1 && rounds <= LIMITS.spellRounds) item.rounds = rounds;
       const spell = cleanText(r.spell, LIMITS.spellName);
       if (spell) item.spell = spell;
     }

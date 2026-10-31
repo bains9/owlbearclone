@@ -179,7 +179,14 @@ export interface RoomState {
    * The Spells tool: the spell it casts (a name in SPELL_FX), and the token of the character it's
    * cast as when it was picked from their card's Spells list (cast from there, using up a prayer).
    */
-  spellOpts: { spell: string; caster?: string | null };
+  spellOpts: {
+    spell: string;
+    caster?: string | null;
+    /** Casting as a character, a spell that can take more points: the level it's cast at (null: its own). */
+    level?: number | null;
+    /** How many rounds a spell left on the map lasts, as chosen for it (null: until it's ended). */
+    lasts?: { spell: string; rounds: number | null } | null;
+  };
   /**
    * Set while the GM is lining the grid up by drawing a box on the map: how many
    * squares across the box will cover.
