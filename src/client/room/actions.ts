@@ -1,7 +1,7 @@
 // Actions on the current selection, shared by the keyboard shortcuts and the
 // selection bar.
 
-import { stepByCells } from "../../shared/geometry";
+import { stepByCells, type Point } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { ItemPatch, TokenItem } from "../../shared/types";
@@ -117,15 +117,17 @@ export function rotateSelection(room: RoomClient, degrees: number): void {
   if (patches.length) room.change({ patch: patches });
 }
 
-export function nudgeSelection(room: RoomClient, dx: number, dy: number): void {
+/** The arrow keys: the selected tokens a square (or hex) that way, but not one a wall stops (`blocked`, the board's). */
+export function nudgeSelection(room: RoomClient, dx: number, dy: number, blocked?: (from: Point, to: Point) => boolean): void {
   const scene = room.viewScene;
   if (!scene) return;
   const patches = selectedTokens(room)
     .filter((t) => room.canMoveItem(t))
-    .map((t) => {
+    .flatMap((t) => {
       // On hex grids, to a neighbouring hex (zigzagging where there's none straight up or across).
       const p = stepByCells(t, dx, dy, scene.grid);
-      return { id: t.id, set: { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 } };
+      if (blocked?.(t, p)) return [];
+      return [{ id: t.id, set: { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 } }];
     });
   if (patches.length) room.change({ patch: patches });
 }

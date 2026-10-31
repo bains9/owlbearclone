@@ -109,7 +109,7 @@ export interface SceneVision {
   /** The map file's doors: from one end to the other in scene units, and whether each is open. */
   doors: { line: [number, number, number, number]; open: boolean }[];
   /** The map file's lights: where, and how far they reach, in scene units. */
-  lights: { x: number; y: number; r: number }[];
+  lights: SceneLight[];
   /** The Build tool's doors that are open (build.ts edge keys); the rest are shut. */
   openEdges?: number[];
   /**
@@ -117,6 +117,19 @@ export interface SceneVision {
    * their character's own explored map. Missing or false: the whole party sees together.
    */
   perPlayer?: boolean;
+  /** Players' tokens go through walls and shut doors. Missing or false: walls stop them, as they stop sight. */
+  passWalls?: boolean;
+}
+
+/** A light on a scene (from its map file): where, how far it reaches, and how it looks. */
+export interface SceneLight {
+  x: number;
+  y: number;
+  r: number;
+  /** The colour it casts (#rrggbb): from the map file, or the GM's. Missing: plain light, no tint. */
+  color?: string;
+  /** It flickers, as a torch or a fire does. */
+  flicker?: boolean;
 }
 
 /** A distance in a unit, as a scene's grid names it ("m", "ft"). */

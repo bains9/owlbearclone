@@ -8,7 +8,7 @@ import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS, PARTY_LIGHT, SIGHT_RANGE } from "../shared/sanitize";
 import type { ScenePatch } from "../shared/protocol";
-import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneMapData, SceneVision, TokenItem } from "../shared/types";
+import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneLight, SceneMapData, SceneVision, TokenItem } from "../shared/types";
 import { defaultVisionDistances, importedUnits } from "../shared/units";
 import type { GridUnits } from "../shared/units";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
@@ -95,11 +95,17 @@ export function visionFromSight(sight: MapSight, perSquare: number, keep?: Scene
       const line = d.line.map(k) as [number, number, number, number];
       return { line, open: keep ? wasOpen.has(line.join(",")) || (d.open && !keep.doors.some((o) => o.line.join(",") === line.join(","))) : d.open };
     }),
-    lights: sight.lights.map((l) => ({ x: k(l.x), y: k(l.y), r: k(l.r) })),
+    lights: sight.lights.map((l) => {
+      const light: SceneLight = { x: k(l.x), y: k(l.y), r: k(l.r), ...(l.color ? { color: l.color } : {}) };
+      // The GM's colour and flicker for a light in the same spot are kept.
+      const was = keep?.lights.find((o) => o.x === light.x && o.y === light.y);
+      return was?.color || was?.flicker ? { ...light, ...(was.color ? { color: was.color } : {}), ...(was.flicker ? { flicker: true } : {}) } : light;
+    }),
     ...(keep?.openEdges?.length ? { openEdges: keep.openEdges } : {}),
     ...(keep
       ? {
           ...(keep.perPlayer ? { perPlayer: true } : {}),
+          ...(keep.passWalls ? { passWalls: true } : {}),
           ...(keep.night ? { night: true } : {}),
           ...(keep.sight ? { sight: keep.sight } : {}),
           ...(keep.light ? { light: keep.light } : {}),

@@ -211,7 +211,8 @@ describe("walls, doors and lights from a map file", () => {
     const sight = map.sight!;
     expect([sight.walls.length, sight.doors.length, sight.lights.length]).toEqual([13, 8, 7]);
     expect(sight.doors[0]).toEqual({ line: [4, 7, 4, 9], open: false });
-    expect(sight.lights[0]).toEqual({ x: 8, y: 10.6, r: 8 });
+    // With its colour from Dungeon (a torch's orange).
+    expect(sight.lights[0]).toEqual({ x: 8, y: 10.6, r: 8, color: "#ffa050" });
     // Its ambient light is a dark blue: the scene starts dark.
     expect(sight.daylight).toBe(false);
   });
@@ -298,11 +299,13 @@ describe("night by moon or starlight, and nightvision", () => {
 describe("in the guide", () => {
   it("is in What's new under erasing what you built, has a section of its own, and names the controls as Edit scene does", async () => {
     const { GUIDE } = await import("../src/client/guide");
-    expect(GUIDE[0].parts[10].title).toBe("Lighting and line of sight (29 October 2026)");
+    expect(GUIDE[0].parts[11].title).toBe("Lighting and line of sight (29 October 2026)");
     const section = GUIDE.find((s) => s.id === "lighting")!;
     expect(section.parts.map((p) => p.title)).toEqual([
       "Turn it on (GM)",
       "Doors (GM)",
+      "Lights (GM)",
+      "Walls stop tokens",
       "Who the party sees with",
       "What the party has explored",
       "Each player's own sight",
@@ -322,7 +325,7 @@ describe("in the guide", () => {
       "Night: moon or starlight",
     ]) {
       expect(ui, label).toContain(label);
-      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[10]), label).toContain(label);
+      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[11]), label).toContain(label);
     }
     // The fog tool's Look as, as the guide names it.
     const bar = await readFile(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");

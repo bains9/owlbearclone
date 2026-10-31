@@ -229,6 +229,8 @@ export interface RoomState {
    * which have no Alt (remembered in the browser).
    */
   tokenSnap: boolean;
+  /** GM, lighting on: the light picked on the map (its marker clicked), for its colour and flicker. */
+  lightPick: { sceneId: string; index: number } | null;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -513,6 +515,7 @@ export class RoomClient {
       },
       measureOpts: { shape: "ruler", keep: false },
       spellOpts: { spell: "Magic Missile" },
+      lightPick: null,
       textPrompt: null,
       mapImport: null,
       attachDD: null,

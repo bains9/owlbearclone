@@ -512,7 +512,13 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     const x = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
     const px = coord(x.x), py = coord(x.y), pr = coord(x.r);
     if (px === undefined || py === undefined || pr === undefined || pr <= 0) return undefined;
-    lights.push({ x: px, y: py, r: pr });
+    lights.push({
+      x: px,
+      y: py,
+      r: pr,
+      ...(typeof x.color === "string" && /^#[0-9a-f]{6}$/i.test(x.color) ? { color: x.color.toLowerCase() } : {}),
+      ...(x.flicker === true ? { flicker: true } : {}),
+    });
   }
   const light = sanitizeDistance(r.light), sight = sanitizeDistance(r.sight);
   const openEdges = Array.isArray(r.openEdges)
@@ -528,6 +534,7 @@ export function sanitizeVision(v: unknown): SceneVision | null | undefined {
     lights,
     ...(openEdges.length ? { openEdges } : {}),
     ...(r.perPlayer === true ? { perPlayer: true } : {}),
+    ...(r.passWalls === true ? { passWalls: true } : {}),
     ...(r.night === true ? { night: true } : {}),
     ...(light ? { light } : {}),
     ...(sight ? { sight } : {}),

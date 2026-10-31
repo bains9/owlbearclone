@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Coloured and flickering lights, and walls that stop tokens (31 October 2026)",
+        "steps": [
+          "With lighting on, players' tokens no longer go through walls or shut doors: dragged into one, a token stops there. The GM's tokens go anywhere.",
+          "GM: each light now has a marker on the map, a dot of its colour. Click it to give the light a colour, or tick **Flickers** for a torch or a fire.",
+          "In the dark or at night, a coloured light tints what it falls on, and a flickering one wavers."
+        ],
+        "notes": [
+          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture.",
+          "To let players' tokens through walls on a scene, untick **Walls and shut doors stop players' tokens** in **Edit scene**."
+        ]
+      },
+      {
         "title": "Every spell on a caster's card, even with nothing to show on the map (31 October 2026)",
         "steps": [
           "A caster's card now lists all their spells. One with nothing to show on the map (Detect Magic, Omen...) has a dashed chip.",
@@ -1023,6 +1035,29 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "A token standing on the marker is picked instead: move it aside first.",
           "Secret doors made with the Build tool are walls to the players' sight."
+        ]
+      },
+      {
+        "title": "Lights (GM)",
+        "steps": [
+          "With lighting on, each light from the map has a marker: a dot of its colour (pale yellow for plain light), dashed round when it flickers.",
+          "Click a marker. The **Light** bar shows: pick a colour, **Plain** for none, and tick **Flickers** for a torch or a fire.",
+          "Click anywhere else on the map, or the ×, when you're done."
+        ],
+        "notes": [
+          "In the dark or at night, a coloured light tints what it falls on, only as far as its light goes (never through a wall), and a flickering one wavers. By day they look the same as plain light.",
+          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture. Bringing a map in again from Dungeon keeps the colour and flicker you gave a light in the same spot."
+        ]
+      },
+      {
+        "title": "Walls stop tokens",
+        "steps": [
+          "With lighting on, a player's token dragged into a wall or a shut door stops there. Take it round through a doorway.",
+          "The arrow keys don't step a player's token through a wall either."
+        ],
+        "notes": [
+          "The GM's tokens go anywhere. To let players' tokens through on a scene, untick **Walls and shut doors stop players' tokens** in **Edit scene** › **Lighting and line of sight**.",
+          "Fog and darkness from spells block sight, but not tokens."
         ]
       },
       {

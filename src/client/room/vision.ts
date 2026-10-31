@@ -8,7 +8,7 @@
 // sorted by angle, are the polygon. Walls go in a grid of buckets, so a ray only tests the walls
 // in the buckets it crosses.
 
-import type { SceneVision, TokenItem } from "../../shared/types";
+import type { SceneLight, SceneVision, TokenItem } from "../../shared/types";
 import { GM_OWNER } from "../../shared/sanitize";
 
 /** A wall's stretch: [x0, y0, x1, y1] in scene units. */
@@ -292,6 +292,44 @@ export function insidePolygon(poly: readonly number[], x: number, y: number): bo
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * Where a token going from (x0, y0) towards (x1, y1) stops: `gap` short of the first wall (or shut
+ * door) in its way, or at (x1, y1) when nothing is.
+ */
+export function moveStop(index: WallIndex, x0: number, y0: number, x1: number, y1: number, gap: number): [number, number] {
+  const d = Math.hypot(x1 - x0, y1 - y0);
+  if (d < 1e-9) return [x1, y1];
+  const dx = (x1 - x0) / d, dy = (y1 - y0) / d;
+  const t = index.cast(x0, y0, dx, dy, d);
+  if (t >= d) return [x1, y1];
+  const s = Math.max(0, t - gap);
+  return [x0 + dx * s, y0 + dy * s];
+}
+
+/** The nearest light to a point within `near` (scene units): its index, or -1. For the GM's click. */
+export function lightNear(lights: readonly SceneLight[], x: number, y: number, near: number): number {
+  let best = -1;
+  let bestD = near;
+  lights.forEach((l, i) => {
+    const d = Math.hypot(l.x - x, l.y - y);
+    if (d <= bestD) {
+      best = i;
+      bestD = d;
+    }
+  });
+  return best;
+}
+
+/**
+ * How bright a flickering light is now (0.7 to 1), from the time in ms and a number of its own:
+ * a few waves out of step, so it wavers rather than pulses. Steady at 1 for one that doesn't.
+ */
+export function flickerAt(now: number, seed: number): number {
+  const t = now / 1000 + seed * 7.31;
+  const w = Math.sin(t * 9.1) * 0.5 + Math.sin(t * 14.7 + 1.3) * 0.3 + Math.sin(t * 23.3 + 2.1) * 0.2;
+  return 0.85 + 0.15 * w;
 }
 
 /** The nearest door to a point within `near` (scene units), if any: for the GM's click. */

@@ -36,6 +36,7 @@ import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
 import { voiceLink } from "../room/voiceLink";
 import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
+import { LightBar } from "./LightBar";
 import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
@@ -253,6 +254,7 @@ function RoomShell() {
           <PreviewBanner />
           <GridAlignBanner />
           <SelectionBar />
+          <LightBar />
           <BuildSelectionBar />
           <ZoomControls />
           <SpeakingOverlay />

@@ -48,13 +48,23 @@ export interface MapFile {
   sight?: MapSight;
 }
 
+/**
+ * A Universal VTT light's colour ("ffRRGGBB", alpha first) as #rrggbb, or undefined for none, a
+ * clear one, or white (or nearly): plain light.
+ */
+export function lightColor(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !/^[0-9a-f]{8}$/i.test(raw) || parseInt(raw.slice(0, 2), 16) === 0) return undefined;
+  const rgb = raw.slice(2).toLowerCase();
+  return [0, 2, 4].every((i) => parseInt(rgb.slice(i, i + 2), 16) >= 0xf0) ? undefined : `#${rgb}`;
+}
+
 /** A map file's walls, doors and lights, in squares from its picture's top-left corner. */
 export interface MapSight {
   /** Lines that block sight, each [x0, y0, x1, y1, ...]. */
   walls: number[][];
   doors: { line: [number, number, number, number]; open: boolean }[];
-  /** Where each light is, and how far it reaches. */
-  lights: { x: number; y: number; r: number }[];
+  /** Where each light is, how far it reaches, and its colour (#rrggbb) when it has one. */
+  lights: { x: number; y: number; r: number; color?: string }[];
   /** Whether the map is lit all over: its ambient light is bright (else it's dark but for the lights). */
   daylight: boolean;
 }
@@ -91,11 +101,14 @@ function sightOf(data: Record<string, unknown>, originX: number, originY: number
     if (!Array.isArray(b) || b.length < 2 || !isPos(b[0]) || !isPos(b[1])) continue;
     doors.push({ line: [b[0].x - originX, b[0].y - originY, b[1].x - originX, b[1].y - originY], open: (d as { closed?: unknown }).closed === false });
   }
+  // A light's colour, unless the picture has the lighting drawn into it already (it'd be tinted twice).
+  const baked = (data.environment as { baked_lighting?: unknown } | undefined)?.baked_lighting === true;
   const lights: MapSight["lights"] = [];
   for (const l of Array.isArray(data.lights) ? data.lights.slice(0, 1000) : []) {
     const p = (l as { position?: unknown } | null)?.position;
     const range = (l as { range?: unknown } | null)?.range;
-    if (isPos(p) && finite(range) && range > 0) lights.push({ x: p.x - originX, y: p.y - originY, r: Math.min(range, 200) });
+    const color = baked ? undefined : lightColor((l as { color?: unknown } | null)?.color);
+    if (isPos(p) && finite(range) && range > 0) lights.push({ x: p.x - originX, y: p.y - originY, r: Math.min(range, 200), ...(color ? { color } : {}) });
   }
   if (!walls.length && !doors.length && !lights.length) return undefined;
   // "ffRRGGBB" (alpha first): bright enough to see by, or dark.

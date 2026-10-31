@@ -38,7 +38,7 @@ import {
   stampBlock,
 } from "../../shared/terrain";
 import type { CellBounds, StampId } from "../../shared/terrain";
-import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
+import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneLight, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
 import { isCompass, sceneBounds } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
@@ -57,7 +57,7 @@ import { exploreGrid, exploreSlot, hasCell, onlyByNightvision } from "../../shar
 import { distanceSquares, visionSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
 import type { ExploreGrid, Explored } from "../../shared/explore";
-import { WallIndex, blockers, crackJoins, doorNear, doorSpots, isOwnSightToken, isSightToken, segmentsOf, sightPolygon, toggledDoor } from "./vision";
+import { WallIndex, blockers, crackJoins, doorNear, doorSpots, flickerAt, isOwnSightToken, isSightToken, lightNear, moveStop, segmentsOf, sightPolygon, toggledDoor } from "./vision";
 import type { DoorSpot, Seg } from "./vision";
 import {
   BuildEdit,
@@ -81,7 +81,7 @@ import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, is
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
 import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
-import { drawZone, inZone, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
+import { drawZone, inZone, rgba, seedOf, zoneEdges, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { prop, propSprite } from "../dungeonLib/props";
 import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
@@ -144,6 +144,12 @@ const PING_MS = 3500;
  * a second, half a screen's rate, and half the work for a tablet.
  */
 const ZONE_FRAME_MS = 30;
+/** How far short of a wall a player's token stops, in squares. */
+const WALL_GAP = 0.05;
+/** How strongly a light's colour tints what it falls on, at its heart. */
+const LIGHT_TINT = 0.3;
+/** The glow of a light that flickers but has no colour of its own: a torch's. */
+const TORCH_LIGHT = "#ffb060";
 /** The fog is drawn once into an image at most this many pixels on its long side. */
 const FOG_CACHE_MAX = 2560;
 /** The dark where the party can't see (lighting and line of sight). */
@@ -227,6 +233,8 @@ type Gesture =
       startWorld: Point;
       moved: boolean;
       lastEph: number;
+      /** Where each token has got to, when walls stop them (a player's, lighting on). */
+      at: Map<string, Point>;
     }
   | { kind: "marquee"; pointerId: number; start: Point; node: Konva.Rect; additive: boolean }
   | {
@@ -416,12 +424,20 @@ export class Board implements BoardApi {
    */
   private tokenLayer = new Konva.Layer();
   private tokenGroup = new Konva.Group();
-  private groundFx = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "ground") });
+  private groundFx = new Konva.Shape({
+    listening: false,
+    sceneFunc: (ctx) => {
+      this.drawLightGlows(native(ctx));
+      this.drawZones(native(ctx), "ground");
+    },
+  });
   private airFx = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "air") });
   /** Keeps the token layer drawing while a moving spell (fog, vines, water, a flyer...) is on the map. */
   private zoneAnim: Konva.Animation;
   /** When the moving spells were last drawn. */
   private zoneFrameAt = 0;
+  /** A spell that moves is on the map (one of the drawings last rendered). */
+  private zonesMove = false;
   /** The spell zones that change the lighting, as last given to the dark: when they change, it's made again. */
   private zoneSightKey = "";
   /** The spells on each token of the scene drawn (drawings with `on`), by the token's id. */
@@ -552,10 +568,12 @@ export class Board implements BoardApi {
     terrain: unknown;
     zones: string;
     index: WallIndex;
+    /** What stops a player's token: walls and shut doors (not fog or darkness, which only stop sight). */
+    moveIndex: WallIndex;
     doors: DoorSpot[];
     lights: number[][];
-    /** Where each light is and how far it reaches: the map's, and the spell zones' (Light, Moonbeam). */
-    spots: { x: number; y: number; r: number }[];
+    /** Where each light is and how far it reaches (and how it looks): the map's, and the spell zones' (Light, Moonbeam). */
+    spots: SceneLight[];
   } | null = null;
 
   private renderedSceneId: string | null = null;
@@ -957,9 +975,11 @@ export class Board implements BoardApi {
       this.bgLayer.batchDraw();
       this.fogDirty = true;
       this.fogLayer.batchDraw();
-      // The lighting may have changed (a door, day or dark, turned on or off).
+      // The lighting may have changed (a door, day or dark, turned on or off), and the lights' colours.
       this.redrawSight();
       this.uiLayer.batchDraw();
+      this.tokenLayer.batchDraw();
+      this.syncZoneAnim();
     }
 
     if (this.needsFit && scene) {
@@ -1247,9 +1267,8 @@ export class Board implements BoardApi {
       if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
     // Moving spells, flying tokens' bob and blinking ones' flicker: the token layer is drawn again and again then.
-    const moving = drawings.some((d) => d.fx && spellLookMoves(d.fx));
-    if (moving && !this.zoneAnim.isRunning()) this.zoneAnim.start();
-    else if (!moving && this.zoneAnim.isRunning()) this.zoneAnim.stop();
+    this.zonesMove = drawings.some((d) => d.fx && spellLookMoves(d.fx));
+    this.syncZoneAnim();
     this.tokenLayer.batchDraw();
     const sightKey = this.zoneSightKeyOf(drawings);
     if (sightKey !== this.zoneSightKey) {
@@ -1963,10 +1982,11 @@ export class Board implements BoardApi {
     // The map file's walls, with the cracks where one stops just short of another joined (a fifth of a square).
     // Fog and darkness (spell zones) stop sight at their edges, as walls do.
     const zoneWalls = zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "block" || ZONE_LOOKS[z.look].sight === "dark").flatMap(zoneEdges);
-    const walls = [...segmentsOf(v.walls), ...crackJoins(v.walls, size * 0.2), ...built.walls.map(toScene), ...zoneWalls];
+    const fixed = [...segmentsOf(v.walls), ...crackJoins(v.walls, size * 0.2), ...built.walls.map(toScene)];
     const doors = doorSpots(v, built.doors.map((d) => ({ key: d.key, line: toScene(d.line) })));
     const area = sceneBounds(scene);
-    const index = new WallIndex(blockers(walls, doors), area, size * 2);
+    const index = new WallIndex(blockers([...fixed, ...zoneWalls], doors), area, size * 2);
+    const moveIndex = new WallIndex(blockers(fixed, doors), area, size * 2);
     // The map's lights and the spell zones' lights, less any a darkness puts out.
     const dark = zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "dark");
     const spots = v.daylight
@@ -1975,12 +1995,91 @@ export class Board implements BoardApi {
           (l) => !dark.some((z) => inZone(z, l.x, l.y)),
         );
     const lights = spots.map((l) => sightPolygon(index, l.x, l.y, l.r));
-    this.sightGeom = { scene, vision: v, terrain, zones, index, doors, lights, spots };
+    this.sightGeom = { scene, vision: v, terrain, zones, index, moveIndex, doors, lights, spots };
     this.sightGeomVersion++;
     return this.sightGeom;
   }
 
   private sightGeomVersion = 0;
+
+  /**
+   * In the dark or at night, the lights' own colour (and a flickering one's waver), under the
+   * tokens: a glow out to its reach, only where it falls (clipped to its light's shape, so never
+   * through a wall). Plain light that doesn't flicker has none.
+   */
+  private drawLightGlows(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || v.daylight || !v.lights.some((l) => l.color || l.flicker)) return;
+    const geom = this.sightGeometry(scene, v);
+    const now = performance.now();
+    geom.spots.forEach((l, j) => {
+      if (!l.color && !l.flicker) return;
+      const poly = geom.lights[j];
+      const f = l.flicker ? flickerAt(now, j) : 1;
+      const r = l.r * (l.flicker ? 0.94 + 0.06 * f : 1);
+      const color = l.color ?? TORCH_LIGHT;
+      const g = c.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+      g.addColorStop(0, rgba(color, LIGHT_TINT * f));
+      g.addColorStop(0.6, rgba(color, LIGHT_TINT * 0.55 * f));
+      g.addColorStop(1, rgba(color, 0));
+      c.save();
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i) c.lineTo(poly[i], poly[i + 1]);
+        else c.moveTo(poly[i], poly[i + 1]);
+      }
+      c.closePath();
+      c.clip();
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(l.x, l.y, r, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    });
+  }
+
+  /** Moving spells on the map, or a flickering light in the dark: the token layer is drawn again and again then. */
+  private syncZoneAnim(): void {
+    const v = this.renderedScene?.vision;
+    const flicker = !!v?.on && !v.daylight && v.lights.some((l) => l.flicker);
+    const run = this.zonesMove || flicker;
+    if (run && !this.zoneAnim.isRunning()) this.zoneAnim.start();
+    else if (!run && this.zoneAnim.isRunning()) this.zoneAnim.stop();
+  }
+
+  /**
+   * What stops this page's tokens: with lighting on, a player's are stopped by walls and shut doors
+   * (unless the GM lets them through). Null when nothing does (the GM's never are).
+   */
+  private wallsFor(scene: Scene): WallIndex | null {
+    const v = scene.vision;
+    if (this.isGm || !v?.on || v.passWalls) return null;
+    return this.sightGeometry(scene, v).moveIndex;
+  }
+
+  /**
+   * Where a token let go of at `to` ends up, when walls stop it: there, if nothing's in the way from
+   * where it got to (`at`); else on its own square (snapped), or just where it got to.
+   */
+  private stoppedAt(walls: WallIndex, at: Point, to: Point, size: number, scene: Scene, snap: boolean): Point {
+    const clear = (p: Point) => {
+      const [x, y] = moveStop(walls, at.x, at.y, p.x, p.y, 0);
+      return x === p.x && y === p.y;
+    };
+    if (clear(to)) return to;
+    const own = snap ? snapTokenCenter(at, size, scene.grid) : at;
+    return clear(own) ? own : at;
+  }
+
+  /** For the arrow keys: whether a token's step from one point to another crosses a wall that stops it. */
+  private stepBlocked = (from: Point, to: Point): boolean => {
+    const scene = this.renderedScene;
+    const walls = scene ? this.wallsFor(scene) : null;
+    if (!walls) return false;
+    const [x, y] = moveStop(walls, from.x, from.y, to.x, to.y, 0);
+    return x !== to.x || y !== to.y;
+  };
 
   /**
    * Where the tokens this page sees with stand (`xy`: [x0, y0, ...]): the party's sight tokens, or
@@ -2393,7 +2492,35 @@ export class Board implements BoardApi {
       c.fill();
       c.stroke();
     }
+    // The lights: a dot of each one's colour (pale yellow for plain light), dashed round when it flickers.
+    const picked = this.room.state.lightPick;
+    v.lights.forEach((l, i) => {
+      const on = picked?.sceneId === scene.id && picked.index === i;
+      c.beginPath();
+      c.arc(l.x, l.y, r * 0.8, 0, Math.PI * 2);
+      c.fillStyle = l.color ?? "#fff6c8";
+      c.fill();
+      c.setLineDash(l.flicker ? [3 / s, 2 / s] : []);
+      c.strokeStyle = on ? "#4fd1ff" : "#fff";
+      c.lineWidth = (on ? 3 : 1.5) / s;
+      c.beginPath();
+      c.arc(l.x, l.y, r * 1.15, 0, Math.PI * 2);
+      c.stroke();
+    });
     c.restore();
+  }
+
+  /** GM, lighting on: a click on a light's marker picks it, to set its colour and flicker (true if it did). */
+  private lightClick(world: Point): boolean {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return false;
+    const i = lightNear(v.lights, world.x, world.y, Math.max(scene.grid.size * 0.3, 10 / this.stage.scaleX()));
+    if (i < 0) return false;
+    this.room.select([]);
+    this.room.store.set({ lightPick: { sceneId: scene.id, index: i } });
+    this.uiLayer.batchDraw();
+    return true;
   }
 
   /** GM, lighting on: a click on a door's marker opens or shuts it (true if it did). */
@@ -3282,8 +3409,12 @@ export class Board implements BoardApi {
     }
     switch (s.tool) {
       case "select":
-        // GM, lighting on: a click on a door's marker (not on a token) opens or shuts it.
-        if (this.isGm && !this.pickAt(pos) && this.doorClick(world)) return;
+        // GM, lighting on: a click on a door's marker (not on a token) opens or shuts it; on a light's, picks it.
+        if (this.isGm && !this.pickAt(pos) && (this.doorClick(world) || this.lightClick(world))) return;
+        if (s.lightPick) {
+          this.room.store.set({ lightPick: null });
+          this.uiLayer.batchDraw();
+        }
         this.selectDown(e.pointerId, pos, world, this.shiftHeld(e));
         return;
       case "draw":
@@ -3381,6 +3512,7 @@ export class Board implements BoardApi {
           startWorld: world,
           moved: false,
           lastEph: 0,
+          at: new Map(),
         };
       } else {
         this.startPan(pointerId, pos, hit.kind === "drawing" ? () => this.room.select([hit.id]) : undefined);
@@ -4903,10 +5035,18 @@ export class Board implements BoardApi {
         const dy = world.y - g.startWorld.y;
         // Tokens carry their centre; drawings carry how far they've moved.
         const moves: { id: string; x: number; y: number }[] = [];
+        const walls = this.wallsFor(scene);
         for (const [id, o] of g.origs) {
           const n = this.tokens.get(id);
           if (!n) continue;
-          const p = { x: o.x + dx, y: o.y + dy };
+          let p = { x: o.x + dx, y: o.y + dy };
+          if (walls) {
+            // A wall in the way: it stops there, until it's taken back round.
+            const from = g.at.get(id) ?? o;
+            const [x, y] = moveStop(walls, from.x, from.y, p.x, p.y, scene.grid.size * WALL_GAP);
+            p = { x, y };
+            g.at.set(id, p);
+          }
           n.group.position(p);
           moves.push({ id, x: round2(p.x), y: round2(p.y) });
         }
@@ -5262,12 +5402,14 @@ export class Board implements BoardApi {
         }
         const patches: ItemPatch[] = [];
         const finalMoves: { id: string; x: number; y: number }[] = [];
+        const walls = this.wallsFor(scene);
         for (const [id, o] of g.origs) {
           const item = items[id];
           if (!item || item.kind !== "token") continue;
           let p = { x: o.x + offset.x, y: o.y + offset.y };
           // A token that sat on the grid stays on it, whatever size the one being held is.
           if (snap && id !== g.id && isOnGrid(o, item.size, scene.grid)) p = snapTokenCenter(p, item.size, scene.grid);
+          if (walls) p = this.stoppedAt(walls, g.at.get(id) ?? o, p, item.size, scene, snap);
           const x = round2(p.x);
           const y = round2(p.y);
           if (x !== item.x || y !== item.y) patches.push({ id, set: { x, y } });
@@ -5863,19 +6005,19 @@ export class Board implements BoardApi {
         return;
       case "ArrowUp":
         e.preventDefault();
-        nudgeSelection(room, 0, -1);
+        nudgeSelection(room, 0, -1, this.stepBlocked);
         return;
       case "ArrowDown":
         e.preventDefault();
-        nudgeSelection(room, 0, 1);
+        nudgeSelection(room, 0, 1, this.stepBlocked);
         return;
       case "ArrowLeft":
         e.preventDefault();
-        nudgeSelection(room, -1, 0);
+        nudgeSelection(room, -1, 0, this.stepBlocked);
         return;
       case "ArrowRight":
         e.preventDefault();
-        nudgeSelection(room, 1, 0);
+        nudgeSelection(room, 1, 0, this.stepBlocked);
         return;
       case "+":
       case "=":

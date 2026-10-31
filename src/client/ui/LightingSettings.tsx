@@ -149,7 +149,14 @@ export function LightingSettings(props: { scene: Scene }) {
               ? "Players pick who they play in the party list (Tokens & images). Each sees through their character's token and the tokens they put down, and keeps their character's own explored map; a player with no token on this scene sees with the whole party. To check, use fog's player view and Look as."
               : "Off: the whole party sees together, through every character's token."}
           </p>
+          <label class="check">
+            <input type="checkbox" checked={!v.passWalls} onChange={(e) => set({ passWalls: e.currentTarget.checked ? undefined : true })} />
+            <span>Walls and shut doors stop players' tokens</span>
+          </label>
           <p class="small muted">Click a door's marker on the map to open or shut it (brown: shut; green: open). The fog of war still covers what it covers.</p>
+          <p class="small muted">
+            Click a light's marker (a dot of its colour) to give it a colour, or make it flicker like a torch. A light's colour from Dungeon comes with it.
+          </p>
           <p class="small muted">
             Places the party has seen stay on the map for players, dimmed, without the tokens in them
             {explored > 0 ? ` (${explored < 1 ? "under 1" : Math.round(explored)}% of this scene so far)` : ""}.
