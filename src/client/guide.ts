@@ -18,6 +18,15 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Tidier bars: spells on the map, the character card, and phones (31 October 2026)",
+        "steps": [
+          "With more than three spells on the map, the **Spells** bar shows one **On the map** button with how many. Click it for the list, newest first, and click a spell's × to end it.",
+          "A character's card now sits on the right, above the bar at the bottom, so it doesn't cover the token you picked. Click the arrow at its top to fold it to their name, HP, AC, initiative and spell points; click again for attacks and spells. Each device remembers which.",
+          "On a phone the card starts folded, and the bar at the bottom shows every button in rows (it used to scroll some out of sight). On touch screens each button says what it is."
+        ],
+        "notes": []
+      },
+      {
         "title": "A map's levels as one: up, down, and taking the party (31 October 2026)",
         "steps": [
           "A map with levels is now one entry in **Scenes**: click it to open its levels.",
@@ -1143,11 +1152,12 @@ export const GUIDE: GuideSection[] = [
         "title": "A character's card",
         "steps": [
           "Click a character's token on the map.",
-          "Their card shows above the bar at the bottom: HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
+          "Their card shows on the right, above the bar at the bottom (on a phone, over the bar): HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
           "Click an attack's first button to roll to hit (two d10 with the sheet's to-hit, its DEX bonus and the rest), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
           "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the most the weapon's dice can roll, without the bonuses (a 1d8 weapon adds 8, a 2d6 weapon 12). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
           "A rogue: for a hit that's a sneak attack, tick **Sneak attack** on the card before you roll damage. The damage adds a d6 for each rank of their Sneak Attack skill (one fewer with a bow, crossbow or thrown weapon), and the box unticks itself after the roll.",
-          "Click the arrow at the top right to open the character's sheet."
+          "Click the arrow at the top right to open the character's sheet.",
+          "Click the arrow beside it to fold the card to their name, HP, AC, initiative and spell points, and again to open it. Each device remembers which (a phone starts folded)."
         ],
         "notes": [
           "Click **Initiative** on the card to roll it in the chat (a d10 with their INT bonus).",
@@ -1648,7 +1658,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "End a spell",
         "steps": [
-          "With **Spells** picked, click the × beside a spell under **On the map** in the bar.",
+          "With **Spells** picked, click the × beside a spell under **On the map** in the bar. With more than three, click **On the map** first for the list of them all, newest first.",
           "Or select the spell (click its dashed outline with **Move & select**) and click **End spell**.",
           "A spell on a token: select the token and click the × on the spell in its bar, or click the token again with the same spell picked."
         ],

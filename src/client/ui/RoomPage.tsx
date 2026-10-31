@@ -42,7 +42,7 @@ import { SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
 import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
-import { Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
+import { Guard, Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
   const [profile, setProfile] = useState<Profile>(() => loadProfile());
@@ -245,33 +245,66 @@ function RoomShell() {
   }
   return (
     <div class="room">
-      <TopBar />
+      {/* Each bar and panel on its own: one that fails to draw leaves the rest (see Guard). */}
+      <Guard name="the top bar" retry={(s) => s.viewSceneId}>
+        <TopBar />
+      </Guard>
       <div class="main">
         <div class="stage-area">
           <BoardView />
-          <Toolbar />
-          <ToolOptions />
-          <BuildHints />
-          <PreviewBanner />
-          <GridAlignBanner />
-          <SelectionBar />
-          <LightBar />
-          <LevelBar />
-          <BuildSelectionBar />
-          <ZoomControls />
-          <SpeakingOverlay />
-          <VoiceHeldNotice />
-          <Toasts />
-          <NoteDialog />
-          <MapImportDialog />
-          <AttachDDDialog />
+          <Guard name="the toolbar" retry={(s) => s.tool}>
+            <Toolbar />
+          </Guard>
+          <Guard name="the tool's bar" retry={(s) => s.tool}>
+            <ToolOptions />
+          </Guard>
+          <Guard name="the Build tool's hints" retry={(s) => s.tool}>
+            <BuildHints />
+          </Guard>
+          <Guard name="the preview banner" retry={(s) => s.viewSceneId}>
+            <PreviewBanner />
+          </Guard>
+          <Guard name="the grid banner" retry={(s) => s.gridAlign}>
+            <GridAlignBanner />
+          </Guard>
+          <Guard name="the selection bar" retry={(s) => s.selection}>
+            <SelectionBar />
+          </Guard>
+          <Guard name="the Light bar" retry={(s) => s.lightPick}>
+            <LightBar />
+          </Guard>
+          <Guard name="the level bar" retry={(s) => s.viewSceneId}>
+            <LevelBar />
+          </Guard>
+          <Guard name="the Build tool's selection bar" retry={(s) => s.buildSel}>
+            <BuildSelectionBar />
+          </Guard>
+          <Guard name="the zoom buttons" retry={(s) => s.viewSceneId}>
+            <ZoomControls />
+          </Guard>
+          <Guard name="who's speaking" retry={(s) => s.viewSceneId}>
+            <SpeakingOverlay />
+            <VoiceHeldNotice />
+          </Guard>
+          <Guard name="the messages" retry={(s) => s.toasts}>
+            <Toasts />
+          </Guard>
+          <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD}`}>
+            <NoteDialog />
+            <MapImportDialog />
+            <AttachDDDialog />
+          </Guard>
           {status === "reconnecting" && (
             <div class="reconnecting">
               <WifiOff size={16} /> Connection lost. Reconnecting…
             </div>
           )}
         </div>
-        {panel && <SidePanel panel={panel} />}
+        {panel && (
+          <Guard name="the side panel" retry={(s) => s.panel}>
+            <SidePanel panel={panel} />
+          </Guard>
+        )}
       </div>
     </div>
   );

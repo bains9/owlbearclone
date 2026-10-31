@@ -602,15 +602,19 @@ describe("in Tabletop", () => {
     const library = await source("src/client/ui/LibraryPanel.tsx");
     expect(library.indexOf("<PartySection />")).toBeGreaterThan(0);
     expect(library.indexOf("<PartySection />")).toBeLessThan(library.indexOf("<h3>Quick token</h3>"));
-    // The card stands beside the bar, not in it: the bar scrolls sideways on phones, which would clip it.
+    // The card stands beside the bar, not in it (a phone's bar scrolls when it's very tall, which would
+    // clip it): over it on a phone, docked to the right above it on a bigger screen. It's guarded, so a
+    // card that fails to draw leaves the bar.
     const bar = await source("src/client/ui/SelectionBar.tsx");
-    expect(bar).toMatch(/<div class="selbar-stack".*\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>\r?\n\s*\{bar\}/);
+    expect(bar).toMatch(/<Guard name="the character card" retry=\{\(s\) => s\.party\}>\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>/);
+    expect(bar).toMatch(/<div class="selbar-stack".*\r?\n\s*\{card\}\r?\n\s*\{bar\}/);
+    expect(bar).toMatch(/\{bar\}\r?\n\s*<div class="card-dock".*\r?\n\s*\{card\}/);
     expect(bar).toContain("value: initiativeRoll(character)");
     expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("value: initiativeRoll(room.characterOf(t))");
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[14].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].parts[15].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
     expect(GUIDE[0].intro).toContain("The latest updates came out on 31 October 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);

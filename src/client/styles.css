@@ -823,6 +823,24 @@ button:disabled {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   text-align: left;
 }
+/* On a bigger screen the card keeps to the right, above the selection bar, clear of the middle of the map. */
+.card-dock {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--selbar-h, 52px) + 20px);
+  z-index: 11;
+  width: min(340px, calc(100% - 24px));
+}
+.card-dock > .character-card {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-height: min(50vh, calc(100vh - var(--selbar-h, 52px) - 200px));
+}
+.character-head-actions {
+  display: flex;
+  gap: 2px;
+}
 .character-head {
   display: flex;
   justify-content: space-between;
@@ -1446,6 +1464,23 @@ button:disabled {
 }
 .spell-zone:hover {
   border-color: var(--danger, #d9534f);
+}
+/* More than a few: one chip, and opened, a list across the bar that scrolls rather than covering the map. */
+.spell-zones-toggle {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+}
+.spell-zones.open {
+  flex-basis: 100%;
+}
+.spell-zones-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-height: 104px;
+  overflow-y: auto;
 }
 .chip {
   display: inline-flex;
@@ -2940,24 +2975,27 @@ kbd {
     max-width: none;
     bottom: 8px;
   }
-  /* The bar starts right of the toolbar, so the card lines up with its right end to stay on screen. */
+  /* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar. */
   .selbar-stack > .character-card {
-    left: auto;
+    left: 0;
     right: 0;
     transform: none;
-    width: min(340px, calc(100vw - 16px));
+    width: auto;
   }
+  /* The name shares its row with the size. */
   .selbar-label {
-    flex: 1;
-    min-width: 100px;
+    flex: 1 1 90px;
+    width: 0;
+    min-width: 90px;
   }
+  /* Above the selection bar, however many rows it takes (--selbar-h, SelectionBar.tsx). */
   .toasts {
     left: 60px;
-    bottom: 70px;
+    bottom: calc(var(--selbar-h, 54px) + 16px);
   }
   .preview-banner {
     top: auto;
-    bottom: 70px;
+    bottom: calc(var(--selbar-h, 54px) + 16px);
     max-width: calc(100% - 20px);
   }
 }
@@ -2990,20 +3028,30 @@ kbd {
   }
 }
 
-/* On narrow screens the selection bar is one scrolling row, so it stays short and
-   nothing (toasts, the preview banner) ends up on top of its buttons. */
+/* On narrow screens the selection bar wraps onto rows, so every button shows; the messages and the
+   preview banner move up above it (--selbar-h). A very tall one scrolls. */
 @media (max-width: 760px) {
   .selbar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
     justify-content: flex-start;
-    scrollbar-width: none;
+    max-height: 45vh;
+    overflow-y: auto;
   }
-  .selbar > * {
-    flex: none;
+}
+
+/* Touch screens have no tooltips: the selection bar's buttons say what they are, in a word. */
+@media (pointer: coarse) {
+  .selbar .icon-btn[data-short] {
+    flex-direction: column;
+    height: auto;
+    min-width: 40px;
+    padding: 4px 4px 2px;
+    gap: 1px;
   }
-  .selbar .swatches {
-    flex-wrap: nowrap;
+  .selbar .icon-btn[data-short]::after {
+    content: attr(data-short);
+    font-size: 10px;
+    line-height: 1.1;
+    opacity: 0.8;
   }
 }
 

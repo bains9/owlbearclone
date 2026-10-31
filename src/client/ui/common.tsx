@@ -1,6 +1,6 @@
 import { createContext } from "preact";
 import type { ComponentChildren } from "preact";
-import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useErrorBoundary, useRef, useState } from "preact/hooks";
 import { X } from "lucide-preact";
 import type { RoomClient, RoomState } from "../room/client";
 import type { LoadFailure } from "../updated";
@@ -16,6 +16,41 @@ export function useRoom(): RoomClient {
 
 export function useRoomState<T>(select: (s: RoomState) => T): T {
   return useStore(useRoom().store, select);
+}
+
+/** A phone-narrow window (760 px or less), as the styles have it. */
+export const NARROW = "(max-width: 760px)";
+
+/** Whether the window is phone-narrow, following it as it changes. */
+export function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => typeof matchMedia === "function" && matchMedia(NARROW).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const m = matchMedia(NARROW);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
+
+const noRetry = () => 0;
+
+/**
+ * Its children, or nothing while they fail to draw (a bug, or a sheet with something unexpected in
+ * it), so one bar or card failing never takes the rest of the page with it. The error goes to the
+ * console; it tries again when what `retry` picks from the room's state changes.
+ */
+export function Guard(props: { name: string; retry?: (s: RoomState) => unknown; children: ComponentChildren }) {
+  const [error, reset] = useErrorBoundary((err) => console.error(`Tabletop: ${props.name} couldn't be shown.`, err));
+  const key = useRoomState(props.retry ?? noRetry);
+  const shown = useRef(key);
+  useEffect(() => {
+    if (shown.current === key) return;
+    shown.current = key;
+    if (error) reset();
+  }, [key, error, reset]);
+  return error ? null : <>{props.children}</>;
 }
 
 export function cx(...names: (string | false | null | undefined)[]): string {

@@ -120,7 +120,7 @@ describe("drawing a zone", () => {
 describe("in the guide", () => {
   it("is in What's new under spells on tokens, and says how to leave and end a spell", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[7].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
+    expect(news.parts[8].title).toBe("Spells that stay: fog, darkness, light and more (31 October 2026)");
     const section = GUIDE.find((s) => s.id === "spells")!;
     const titles = section.parts.map((p) => p.title);
     expect(titles).toContain("Leave a spell on the map");

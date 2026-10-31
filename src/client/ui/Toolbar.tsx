@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   Armchair,
   BrickWall,
   Castle,
@@ -1012,35 +1014,51 @@ const CAST_HINTS: Record<FxCast, string> = {
   jump: "Drag from where they leave to where they arrive.",
 };
 
+/** Up to this many spells on the map show in the Spells bar; more fold into one "On the map" chip. */
+const SPELLS_SHOWN = 3;
+
 /**
  * The spells left on the scene being looked at (zones, and spells on tokens), each with an End:
  * the GM can end any of them, a player the ones they cast. Ending is a change like any other:
- * Undo brings it back.
+ * Undo brings it back. A few show in the bar; more fold away, newest first, into a list that
+ * scrolls, so the bar never covers the map.
  */
 function LastingSpells() {
   const room = useRoom();
   const items = useRoomState((s) => s.items);
   const sceneId = useRoomState((s) => s.viewSceneId);
   const me = useRoomState((s) => s.me);
+  const [open, setOpen] = useState(false);
   if (!me) return null;
-  const zones = Object.values(items).filter(
-    (i): i is DrawingItem => i.kind === "drawing" && i.sceneId === sceneId && !!i.fx && canDelete(i, me),
-  );
+  const zones = Object.values(items)
+    .filter((i): i is DrawingItem => i.kind === "drawing" && i.sceneId === sceneId && !!i.fx && canDelete(i, me))
+    .sort((a, b) => b.z - a.z);
   if (!zones.length) return null;
+  const chip = (z: DrawingItem) => (
+    <button
+      key={z.id}
+      class="chip spell-zone"
+      title={`End ${z.spell ?? "this spell"} (Undo brings it back)`}
+      aria-label={`End ${z.spell ?? "this spell"}`}
+      onClick={() => room.change({ delete: [z.id] })}
+    >
+      {spellChipLabel(z, items)} <X size={12} />
+    </button>
+  );
+  if (zones.length <= SPELLS_SHOWN) {
+    return (
+      <span class="spell-zones">
+        <span class="hint">On the map:</span>
+        {zones.map(chip)}
+      </span>
+    );
+  }
   return (
-    <span class="spell-zones">
-      <span class="hint">On the map:</span>
-      {zones.map((z) => (
-        <button
-          key={z.id}
-          class="chip spell-zone"
-          title={`End ${z.spell ?? "this spell"} (Undo brings it back)`}
-          aria-label={`End ${z.spell ?? "this spell"}`}
-          onClick={() => room.change({ delete: [z.id] })}
-        >
-          {spellChipLabel(z, items)} <X size={12} />
-        </button>
-      ))}
+    <span class={cx("spell-zones", open && "open")}>
+      <button class="chip spell-zones-toggle" aria-expanded={open} title={open ? "Fold the list away" : "The spells on the map, to end one"} onClick={() => setOpen(!open)}>
+        On the map: {zones.length} {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && <span class="spell-zones-list">{zones.map(chip)}</span>}
     </span>
   );
 }

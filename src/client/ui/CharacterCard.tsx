@@ -1,4 +1,6 @@
-// A character's card, over the selection bar when their token is selected (anyone at the table):
+// A character's card when their token is selected (anyone at the table), above the selection bar on
+// the right (over it, on a phone). It folds down to its name, HP, AC, initiative and SP, as each
+// device last chose (folded to begin with on a phone). Open, it has the rest:
 // HP, AC, initiative and spell points as their sheet has them now, their attacks as one-tap rolls
 // (to hit, and damage) in the chat, and a link to open the sheet itself. After your own natural 20
 // to hit with an attack (a critical hit), its damage button rolls the crit's damage until you roll it.
@@ -8,7 +10,7 @@
 // cast from their token with the Spells tool, any other from the card itself, as a line in the chat.
 
 import { useState } from "preact/hooks";
-import { Dices, ExternalLink } from "lucide-preact";
+import { ChevronDown, ChevronUp, Dices, ExternalLink } from "lucide-preact";
 import {
   DAMAGE_ROLLS,
   INITIATIVE_DIE,
@@ -27,7 +29,7 @@ import {
 import { castList, highestLevel, type CastSpell } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
 import { castAs, castFromCard, castLevel, castingCost, mayPray, newPrayerDay, setCharacterStrMatched, setPrayed } from "../party";
-import { cx, useRoom, useRoomState } from "./common";
+import { NARROW, cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
@@ -173,6 +175,31 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
   );
 }
 
+/** Where this device keeps whether character cards are folded ("1") or open ("0"). */
+const CARD_FOLDED = "tabletop-card-folded";
+
+/** Whether this device shows character cards folded: as last chosen here, else folded on a phone. */
+function useCardFolded(): [boolean, (folded: boolean) => void] {
+  const [folded, setFolded] = useState(() => {
+    try {
+      const kept = localStorage.getItem(CARD_FOLDED);
+      if (kept === "1" || kept === "0") return kept === "1";
+    } catch {
+      // No storage (a private window, say): the default.
+    }
+    return typeof matchMedia === "function" && matchMedia(NARROW).matches;
+  });
+  const choose = (next: boolean) => {
+    setFolded(next);
+    try {
+      localStorage.setItem(CARD_FOLDED, next ? "1" : "0");
+    } catch {
+      // Not kept: it's still folded or open until the page is reloaded.
+    }
+  };
+  return [folded, choose];
+}
+
 export function CharacterCard(props: { c: Character; tokenId?: string | null }) {
   const room = useRoom();
   const messages = useRoomState((s) => s.messages);
@@ -188,16 +215,31 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
   // Ticked for this character only (the card stays up when another token is picked).
   const [sneakFor, setSneakFor] = useState<string | null>(null);
   const sneak = sneakFor === c.id;
+  const [folded, setFolded] = useCardFolded();
+  const more = c.attacks.length > 0 || (c.spells?.length ?? 0) > 0;
   return (
-    <div class="character-card" onPointerDown={(e) => e.stopPropagation()}>
+    <div class={cx("character-card", folded && "folded")} onPointerDown={(e) => e.stopPropagation()}>
       <div class="character-head">
         <div>
           <div class="character-name">{c.name}</div>
           <div class="small muted">{[c.player, c.summary].filter(Boolean).join(" · ")}</div>
         </div>
-        <a class="icon-btn" href={c.url} target="_blank" rel="noopener noreferrer" title="Open the character sheet" aria-label="Open the character sheet">
-          <ExternalLink size={16} />
-        </a>
+        <div class="character-head-actions">
+          {more && (
+            <button
+              class="icon-btn"
+              aria-expanded={!folded}
+              title={folded ? "Open the card: attacks and spells" : "Fold the card: name, HP and stats only"}
+              aria-label={folded ? "Open the card" : "Fold the card"}
+              onClick={() => setFolded(!folded)}
+            >
+              {folded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
+          <a class="icon-btn" href={c.url} target="_blank" rel="noopener noreferrer" title="Open the character sheet" aria-label="Open the character sheet">
+            <ExternalLink size={16} />
+          </a>
+        </div>
       </div>
       {share !== null && (
         <div class="character-hp" title="Hit points, from the sheet">
@@ -227,13 +269,13 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
           </span>
         )}
       </div>
-      {ways.some((w) => w.sneak) && (
+      {!folded && ways.some((w) => w.sneak) && (
         <label class="character-sneak" title="Tick it for a hit that's a sneak attack: the damage roll adds the sneak attack dice from the sheet, then it unticks">
           <input type="checkbox" checked={sneak} onChange={(e) => setSneakFor(e.currentTarget.checked ? c.id : null)} />
           Sneak attack
         </label>
       )}
-      {ways.length > 0 && (
+      {!folded && ways.length > 0 && (
         <ul class="character-attacks">
           {ways.map((w, i) => {
             const hit = withModifier(TO_HIT_DIE, w.toHit);
@@ -281,7 +323,7 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
           })}
         </ul>
       )}
-      <CardSpells c={c} tokenId={props.tokenId ?? null} />
+      {!folded && <CardSpells c={c} tokenId={props.tokenId ?? null} />}
     </div>
   );
 }

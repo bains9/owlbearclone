@@ -476,9 +476,9 @@ describe("the GM's script, changing spell points", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and says how to cast from a card, pray for spells, what spell points come off, levels, rounds and the chat", async () => {
-    expect(GUIDE[0].parts[2].title).toBe("Every spell on a caster's card, even with nothing to show on the map (31 October 2026)");
-    expect(GUIDE[0].parts[3].title).toBe("Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)");
-    expect(GUIDE[0].parts[4].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
+    expect(GUIDE[0].parts[3].title).toBe("Every spell on a caster's card, even with nothing to show on the map (31 October 2026)");
+    expect(GUIDE[0].parts[4].title).toBe("Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)");
+    expect(GUIDE[0].parts[5].title).toBe("Cast a character's spells from their card: prayers and spell points used up (31 October 2026)");
     const text = JSON.stringify(GUIDE.find((s) => s.id === "spells"));
     for (const words of ["**Pray for today**", "**New day**", "**Spells**", "**Spell points:**", "**A higher level:**", "**Lasts:**", "**In the chat:**", "**Nothing on the map:**", "**Cast**"]) expect(text).toContain(words);
     const bar = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
