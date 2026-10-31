@@ -38,7 +38,7 @@ describe("a flipped token", () => {
     expect(bar).toContain('aria-label="Flip"');
     expect(bar).toContain("patch({ flipped: !t.flipped })");
     expect(await source("src/client/room/board.ts")).toContain("scaleX: flip");
-    expect(GUIDE[0].parts[1].title).toBe("Flip a token to face the other way (29 October 2026)");
-    expect(GUIDE[0].parts[1].steps.join(" ")).toContain("**Flip**");
+    expect(GUIDE[0].parts[2].title).toBe("Flip a token to face the other way (29 October 2026)");
+    expect(GUIDE[0].parts[2].steps.join(" ")).toContain("**Flip**");
   });
 });
