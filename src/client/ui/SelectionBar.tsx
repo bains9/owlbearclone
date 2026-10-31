@@ -342,6 +342,31 @@ export function SelectionBar() {
     );
   }
 
+  if (drawings.length === 1 && selected.length === 1 && drawings[0].fx) {
+    const d = drawings[0];
+    return (
+      <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
+        <span class="muted small">{d.spell ?? "Spell"}</span>
+        {deletable && (
+          <button class="btn btn-sm" title="End the spell: take it off the map (Undo brings it back)" onClick={() => deleteSelection(room)}>
+            End spell
+          </button>
+        )}
+        {gm && (
+          <button
+            class={cx("icon-btn", d.hidden && "active")}
+            title={d.hidden ? "Only you can see this (H)" : "Players can see this (H)"}
+            aria-label={d.hidden ? "Show to players" : "Hide from players"}
+            onClick={() => toggleHidden(room)}
+          >
+            {d.hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+        {common}
+      </div>
+    );
+  }
+
   if (drawings.length === selected.length) {
     const d = drawings[0];
     return (

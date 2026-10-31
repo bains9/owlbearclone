@@ -278,7 +278,7 @@ describe("night by moon or starlight, and nightvision", () => {
     const board = await readFile(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
     // Grey drawn as "saturation" takes the colour from the map and tokens under it.
     expect(board).toContain('this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";');
-    expect(board).toContain("this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);");
+    expect(board).toContain("this.stage.add(this.bgLayer, this.drawLayer, this.groundFxLayer, this.tokenLayer, this.airFxLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);");
     expect(board).toContain("this.monoLayer.visible(!gm || preview);");
     // Dim in the dark, whole on the explore grid (it's seen: explored, and its tokens show), and none where a light is.
     expect(board).toContain("paint(c, true, NIGHT_SHOWN);");
@@ -296,7 +296,7 @@ describe("night by moon or starlight, and nightvision", () => {
 describe("in the guide", () => {
   it("is in What's new under erasing what you built, has a section of its own, and names the controls as Edit scene does", async () => {
     const { GUIDE } = await import("../src/client/guide");
-    expect(GUIDE[0].parts[4].title).toBe("Lighting and line of sight (29 October 2026)");
+    expect(GUIDE[0].parts[5].title).toBe("Lighting and line of sight (29 October 2026)");
     const section = GUIDE.find((s) => s.id === "lighting")!;
     expect(section.parts.map((p) => p.title)).toEqual([
       "Turn it on (GM)",
@@ -320,7 +320,7 @@ describe("in the guide", () => {
       "Night: moon or starlight",
     ]) {
       expect(ui, label).toContain(label);
-      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[4]), label).toContain(label);
+      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[5]), label).toContain(label);
     }
     // The fog tool's Look as, as the guide names it.
     const bar = await readFile(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");

@@ -21,9 +21,12 @@ import type {
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
 import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
+import { isZoneLook } from "./zones";
 
 export const LIMITS = {
   coord: 1_000_000,
+  /** A spell effect's spell name (DrawingItem.spell). */
+  spellName: 40,
   pointNumbers: 10_000,
   label: 60,
   name: 60,
@@ -276,6 +279,12 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       item.text = text;
     }
     if (r.hidden === true) item.hidden = true;
+    // A spell effect that stays: only on a circle or a rectangle.
+    if (isZoneLook(r.fx) && (shape === "ellipse" || shape === "rect")) {
+      item.fx = r.fx;
+      const spell = cleanText(r.spell, LIMITS.spellName);
+      if (spell) item.spell = spell;
+    }
     return item;
   }
   if (r.kind === "fog") {

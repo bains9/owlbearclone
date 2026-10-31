@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Spells that stay: fog, darkness, light and more (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), pick a spell under **Zones that stay** in the bar: Fog Cloud, Wall of Fog, Acid Cloud, Darkness, Light, Moonbeam, Entangle, Spike Growth, Pit, Silence and more.",
+          "Click to leave it at the spell's own size, or drag to size it: a circle from its middle out, a rectangle corner to corner (for a wall)."
+        ],
+        "notes": [
+          "With lighting on, fog and clouds hide what's in and behind them from players, darkness does that and puts out the lights in it, and Light and Moonbeam light up the dark.",
+          "It stays until it's ended: the **Spells** bar lists what's **On the map**, each with an × that ends it, and a spell you select has **End spell**. The GM can end any of them; a player, the ones they cast. **Undo** brings one back.",
+          "Players can leave a spell when the GM lets them draw. See **Spell effects**."
+        ]
+      },
+      {
         "title": "Spell effects: cast a spell everyone sees (31 October 2026)",
         "steps": [
           "Pick **Spells** in the toolbar (the wand), or press **S**.",
@@ -27,7 +39,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Sizes come from the spell lists on the character sheets: Cloudburst rains on a 5 m radius, Frost Hands is a 2 m fan.",
           "Press on a token to cast from it, and let go on a token to aim at it.",
-          "This is the first set. Spells that stay on the map (fog, darkness, light, plants) and ones that change a token's look come next. See **Spell effects**."
+          "Spells that stay on the map came the same day (above). Ones that change a token's look come next. See **Spell effects**."
         ]
       },
       {
@@ -1433,7 +1445,7 @@ export const GUIDE: GuideSection[] = [
     "id": "spells",
     "title": "Spell effects",
     "audience": "everyone",
-    "intro": "The **Spells** tool plays a spell's effect on the map, once, for everyone in the room: a fan of frost, darts of force, rain, lightning from the sky. Nothing stays on the map afterwards, and nothing is rolled: it's for show, while the dice and the GM decide what it does.",
+    "intro": "The **Spells** tool shows a spell on the map for everyone in the room. Most go off once: a fan of frost, darts of force, rain, lightning from the sky. Some stay until they're ended: fog, darkness, light, plants, a pit. Nothing is rolled: the dice and the GM decide what a spell does.",
     "parts": [
       {
         "title": "Cast a spell",
@@ -1457,7 +1469,32 @@ export const GUIDE: GuideSection[] = [
           "**Bursts:** Cloudburst, Earthmaw, Needlestorm, Splinter Wood, Bless, Cure wounds (a sparkle), Call lightning (from the sky), Frost Hands and Colour Spray (fans from the caster).",
           "**Bolts and rays:** Magic Missile, Chromatic Orb, Ball Lightning, Divine bolt, Paralysis Bolt.",
           "**Comings and goings:** Portal I and Misty Step, a puff of mist where someone leaves and another where they arrive. Move the token yourself.",
-          "These are the party's spells that go off once. Spells that stay on the map (fog, darkness, light, plants, a pit) and ones that change how a token looks come next."
+          "**Zones that stay:** Fog Cloud, Wall of Fog, Stinking Cloud, Acid Cloud, Darkness, Blackness, Light, Lasting flame, Continual Light, Daylight, Moonbeam, Entangle, Plant Growth, Briartangle, Spike Growth, Pit, Wall of Water, Create Spring, Hypnotic Pattern, and marked areas for Silence, Battle Song, Zone of Truth, Prayer and Hallucinatory Forest (a dashed outline with the spell's name).",
+          "Spells that change how a token looks come next."
+        ]
+      },
+      {
+        "title": "Leave a spell on the map",
+        "steps": [
+          "Pick **Spells** in the toolbar, or press **S**.",
+          "Under **Zones that stay** in **Spell**, choose the spell.",
+          "Click to leave it at the spell's own size (the bar says how big), or drag to size it: a circle from its middle out, a rectangle corner to corner. A long thin rectangle makes a wall."
+        ],
+        "notes": [
+          "Fog, clouds, darkness and the swirling pattern are drawn over tokens; light, plants, spikes, a pit and water under them.",
+          "With lighting on: players can't see into or through fog, clouds or darkness; darkness also puts out any light inside it; Light and Moonbeam light the dark around them, and Daylight a 20 m circle.",
+          "It's a drawing underneath: drag its dashed outline to move it, and hide it from players (**H**) like any drawing. Players can leave spells when the GM lets them draw."
+        ]
+      },
+      {
+        "title": "End a spell",
+        "steps": [
+          "With **Spells** picked, click the × beside a spell under **On the map** in the bar.",
+          "Or select the spell (click its dashed outline with **Move & select**) and click **End spell**."
+        ],
+        "notes": [
+          "The GM can end any spell; a player, only the ones they cast.",
+          "**Undo** (Ctrl+Z) brings an ended spell back. The **Eraser** ends one too."
         ]
       }
     ]

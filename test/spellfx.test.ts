@@ -102,9 +102,9 @@ describe("playing an effect", () => {
 });
 
 describe("in the guide", () => {
-  it("leads What's new, and has a section with the tool's key", () => {
+  it("is in What's new under the zones, and has a section with the tool's key", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[0].title).toBe("Spell effects: cast a spell everyone sees (31 October 2026)");
+    expect(news.parts[1].title).toBe("Spell effects: cast a spell everyone sees (31 October 2026)");
     const section = GUIDE.find((s) => s.id === "spells")!;
     expect(JSON.stringify(section)).toContain("**S**");
     expect(JSON.stringify(GUIDE)).toContain("**Spells (S)**");

@@ -79,7 +79,9 @@ import {
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
-import { FX_LOOKS, spellFx } from "../../shared/spellfx";
+import { FX_LOOKS, spellFx, zoneSpell } from "../../shared/spellfx";
+import { ZONE_LOOKS } from "../../shared/zones";
+import { drawZone, inZone, seedOf, zoneEdges, zoneMoves, zoneOf, type Zone } from "./zonefx";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -391,6 +393,13 @@ export class Board implements BoardApi {
   private bgLayer = new Konva.Layer({ listening: false });
   private drawLayer = new Konva.Layer();
   private tokenLayer = new Konva.Layer();
+  /** Spell effects that stay on the map (drawings with fx): under the tokens (ground) and over them (air). */
+  private groundFxLayer = new Konva.Layer({ listening: false });
+  private airFxLayer = new Konva.Layer({ listening: false });
+  /** Keeps those layers drawing while a moving one (fog, vines, water...) is on the map. */
+  private zoneAnim: Konva.Animation;
+  /** The spell zones that change the lighting, as last given to the dark: when they change, it's made again. */
+  private zoneSightKey = "";
   /**
    * The night's black and white (Night lighting): where only nightvision sees, the map and tokens
    * under it lose their colour (its canvas blends as "saturation"). Players' views only.
@@ -509,7 +518,17 @@ export class Board implements BoardApi {
   private sightCanvas: HTMLCanvasElement | null = null;
   private sightMadeFrom = "";
   /** The scene's walls and doors, made into an index, and the lights' reach: remade when walls, doors or built walls change. */
-  private sightGeom: { scene: Scene; vision: SceneVision; terrain: unknown; index: WallIndex; doors: DoorSpot[]; lights: number[][] } | null = null;
+  private sightGeom: {
+    scene: Scene;
+    vision: SceneVision;
+    terrain: unknown;
+    zones: string;
+    index: WallIndex;
+    doors: DoorSpot[];
+    lights: number[][];
+    /** Where each light is and how far it reaches: the map's, and the spell zones' (Light, Moonbeam). */
+    spots: { x: number; y: number; r: number }[];
+  } | null = null;
 
   private renderedSceneId: string | null = null;
   private renderedScene: Scene | null = null;
@@ -614,7 +633,15 @@ export class Board implements BoardApi {
     this.sightLayer.add(this.sightNode);
     this.monoLayer.add(this.monoNode);
     this.uiLayer.add(this.previewGroup, this.rulerGroup, this.fxNode, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
-    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    this.groundFxLayer.add(new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "ground") }));
+    this.airFxLayer.add(new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "air") }));
+    this.stage.add(this.bgLayer, this.drawLayer, this.groundFxLayer, this.tokenLayer, this.airFxLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    // A zone follows its drawing: whenever the drawings are drawn (moved, dragged, changed), so are the zones.
+    this.drawLayer.on("draw", () => {
+      this.groundFxLayer.batchDraw();
+      this.airFxLayer.batchDraw();
+    });
+    this.zoneAnim = new Konva.Animation(() => {}, [this.groundFxLayer, this.airFxLayer]);
     // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
     this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
 
@@ -1173,6 +1200,16 @@ export class Board implements BoardApi {
       const shape = this.drawings.get(d.id)?.shape;
       if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
+    const moving = drawings.some((d) => d.fx && zoneMoves(d.fx));
+    if (moving && !this.zoneAnim.isRunning()) this.zoneAnim.start();
+    else if (!moving && this.zoneAnim.isRunning()) this.zoneAnim.stop();
+    this.groundFxLayer.batchDraw();
+    this.airFxLayer.batchDraw();
+    const sightKey = this.zoneSightKeyOf(drawings);
+    if (sightKey !== this.zoneSightKey) {
+      this.zoneSightKey = sightKey;
+      this.redrawSight();
+    }
 
     fogs.sort(byZ);
     const fogChanged = fogs.length !== this.fogItems.length || fogs.some((f, i) => f !== this.fogItems[i]);
@@ -1346,6 +1383,10 @@ export class Board implements BoardApi {
       hitStrokeWidth: Math.max(d.width, 14),
       ...(selected ? { shadowColor: SELECT_COLOR, shadowBlur: 14, shadowOpacity: 1, shadowForStrokeEnabled: true } : {}),
     };
+    if (d.fx) {
+      // A spell zone: its look is drawn in its own layer; this is the outline to grab it by.
+      Object.assign(base, { strokeWidth: 2, strokeScaleEnabled: false, dash: [8, 6], opacity: d.fx === "marked" ? 0 : 0.45, hitStrokeWidth: 16 });
+    }
     const fill = d.fill ? hexToRgba(d.color, 0.35) : undefined;
     const [x0, y0, x1, y1] = d.points;
     let shape: Konva.Shape;
@@ -1829,17 +1870,28 @@ export class Board implements BoardApi {
   private sightGeometry(scene: Scene, v: SceneVision): NonNullable<Board["sightGeom"]> {
     const terrain = this.build.model.index;
     const g = this.sightGeom;
-    if (g && g.vision === v && g.terrain === terrain && g.scene.grid === scene.grid && g.scene.bounds === scene.bounds && g.scene.width === scene.width) return g;
+    const zoneList = this.sightZones(scene);
+    const zones = this.zoneSightKey;
+    if (g && g.vision === v && g.terrain === terrain && g.zones === zones && g.scene.grid === scene.grid && g.scene.bounds === scene.bounds && g.scene.width === scene.width) return g;
     const { size, offsetX, offsetY } = scene.grid;
     const toScene = (l: readonly number[]): Seg => [offsetX + l[0] * size, offsetY + l[1] * size, offsetX + l[2] * size, offsetY + l[3] * size];
     const built = this.build.model.sightLines();
     // The map file's walls, with the cracks where one stops just short of another joined (a fifth of a square).
-    const walls = [...segmentsOf(v.walls), ...crackJoins(v.walls, size * 0.2), ...built.walls.map(toScene)];
+    // Fog and darkness (spell zones) stop sight at their edges, as walls do.
+    const zoneWalls = zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "block" || ZONE_LOOKS[z.look].sight === "dark").flatMap(zoneEdges);
+    const walls = [...segmentsOf(v.walls), ...crackJoins(v.walls, size * 0.2), ...built.walls.map(toScene), ...zoneWalls];
     const doors = doorSpots(v, built.doors.map((d) => ({ key: d.key, line: toScene(d.line) })));
     const area = sceneBounds(scene);
     const index = new WallIndex(blockers(walls, doors), area, size * 2);
-    const lights = v.daylight ? [] : v.lights.map((l) => sightPolygon(index, l.x, l.y, l.r));
-    this.sightGeom = { scene, vision: v, terrain, index, doors, lights };
+    // The map's lights and the spell zones' lights, less any a darkness puts out.
+    const dark = zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "dark");
+    const spots = v.daylight
+      ? []
+      : [...v.lights, ...zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "light").map((z) => ({ x: z.x, y: z.y, r: Math.max(z.rx, z.ry) }))].filter(
+          (l) => !dark.some((z) => inZone(z, l.x, l.y)),
+        );
+    const lights = spots.map((l) => sightPolygon(index, l.x, l.y, l.r));
+    this.sightGeom = { scene, vision: v, terrain, zones, index, doors, lights, spots };
     this.sightGeomVersion++;
     return this.sightGeom;
   }
@@ -2045,7 +2097,7 @@ export class Board implements BoardApi {
         c.clip();
         if (lit) {
           geom.lights.forEach((poly, j) => {
-            const l = v.lights[j];
+            const l = geom.spots[j];
             c.fillStyle = glow(l.x, l.y, l.r);
             trace(poly);
             c.fill();
@@ -2565,6 +2617,93 @@ export class Board implements BoardApi {
     return s.players.find((p) => p.connId === connId)?.color ?? "#ffffff";
   }
 
+  /** The spell zones on a scene that change the lighting (fog, darkness, light), as zones. */
+  private sightZones(scene: Scene): Zone[] {
+    const out: Zone[] = [];
+    for (const item of Object.values(this.room.state.items)) {
+      if (item.kind !== "drawing" || item.sceneId !== scene.id || !item.fx || !ZONE_LOOKS[item.fx].sight) continue;
+      if (item.shape !== "ellipse" && item.shape !== "rect") continue;
+      out.push(zoneOf(item.fx, item.shape, item.points, seedOf(item.id), item.color));
+    }
+    return out;
+  }
+
+  /** What about the drawings changes the lighting: the fog, darkness and light zones, where they are. */
+  private zoneSightKeyOf(drawings: readonly DrawingItem[]): string {
+    return drawings
+      .filter((d) => d.fx && ZONE_LOOKS[d.fx].sight)
+      .map((d) => `${d.id}:${d.fx}:${d.points.join(",")}`)
+      .sort()
+      .join("|");
+  }
+
+  /** The spell zones of one layer, each where its drawing is now (dragged too). */
+  private drawZones(c: CanvasRenderingContext2D, layer: "ground" | "air"): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const now = performance.now();
+    const px = 1 / this.stage.scaleX();
+    const gmView = this.isGm && !this.room.state.fogOpts.preview;
+    for (const n of this.drawings.values()) {
+      const d = n.item;
+      if (!d?.fx || ZONE_LOOKS[d.fx].layer !== layer || !n.shape.visible()) continue;
+      if (d.shape !== "ellipse" && d.shape !== "rect") continue;
+      const p = n.shape.position();
+      const dx = p.x - n.base.x, dy = p.y - n.base.y;
+      const pts = [d.points[0] + dx, d.points[1] + dy, d.points[2] + dx, d.points[3] + dy];
+      c.save();
+      if (d.hidden) c.globalAlpha = 0.5;
+      drawZone(c, zoneOf(d.fx, d.shape, pts, seedOf(d.id), d.color, d.spell), now, scene.grid.size, px, gmView);
+      c.restore();
+    }
+  }
+
+  /**
+   * A spell zone, let go: where it was clicked at the spell's own size, or as dragged (a circle
+   * from its middle out, a rectangle corner to corner). A drawing, so it's undone, erased and
+   * hidden like one, and players need the GM's leave to draw.
+   */
+  private placeZone(name: string, start: Point, end: Point): void {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    const spell = zoneSpell(name);
+    if (!scene || !s.me || !spell) return;
+    if (!this.isGm && !s.room?.settings.playersCanDraw) {
+      this.room.toast("The GM has turned drawing off, so spells can't be left on the map.", "error");
+      return;
+    }
+    const cell = scene.grid.size;
+    const dragged = Math.hypot(end.x - start.x, end.y - start.y) > cell * 0.3;
+    let points: number[];
+    if (spell.shape === "circle") {
+      const c = dragged ? start : end;
+      const r = Math.max(cell * 0.25, dragged ? Math.hypot(end.x - start.x, end.y - start.y) : this.spellReach(spell.size));
+      points = [c.x - r, c.y - r, c.x + r, c.y + r];
+    } else if (dragged) {
+      points = [Math.min(start.x, end.x), Math.min(start.y, end.y), Math.max(start.x, end.x), Math.max(start.y, end.y)];
+      if (points[2] - points[0] < cell * 0.5) points[2] = points[0] + cell * 0.5;
+      if (points[3] - points[1] < cell * 0.5) points[3] = points[1] + cell * 0.5;
+    } else {
+      const h = Math.max(cell * 0.25, this.spellReach(spell.size) / 2);
+      points = [end.x - h, end.y - h, end.x + h, end.y + h];
+    }
+    const item: DrawingItem = {
+      id: randomId(12),
+      sceneId: scene.id,
+      kind: "drawing",
+      z: this.room.nextZ(scene.id, "drawing"),
+      owner: s.me.userId,
+      shape: spell.shape === "circle" ? "ellipse" : "rect",
+      points: points.map(round2),
+      color: s.me.color,
+      width: 2,
+      fill: false,
+      fx: spell.look,
+      spell: spell.name,
+    };
+    this.room.change({ upsert: [item] });
+  }
+
   /** A spell's size in map pixels: a burst's radius or a cone's length, from its metres. */
   private spellReach(size: number | undefined): number {
     const grid = this.renderedScene?.grid;
@@ -2578,7 +2717,12 @@ export class Board implements BoardApi {
    */
   private castSpell(start: Point, end: Point): void {
     const scene = this.renderedScene;
-    const spell = spellFx(this.room.state.spellOpts.spell);
+    const name = this.room.state.spellOpts.spell;
+    if (zoneSpell(name)) {
+      this.placeZone(name, start, end);
+      return;
+    }
+    const spell = spellFx(name);
     if (!scene || !spell) return;
     const cast = FX_LOOKS[spell.look].cast;
     const far = Math.hypot(end.x - start.x, end.y - start.y);
@@ -2629,10 +2773,35 @@ export class Board implements BoardApi {
     for (const f of this.fxPlays) drawFx(c, f, now, px);
     const s = this.room.state;
     if (s.tool !== "spell" || this.room.display) return;
-    const spell = spellFx(s.spellOpts.spell);
     const g = this.gesture;
     const aiming = g.kind === "spell" ? g : null;
     const at = aiming?.end ?? this.spellHover;
+    const zone = zoneSpell(s.spellOpts.spell);
+    if (zone && at) {
+      const cell = this.renderedScene?.grid.size ?? 70;
+      const color = s.me?.color ?? "#ffffff";
+      const dragged = aiming && Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) > cell * 0.3;
+      c.save();
+      c.setLineDash([8 * px, 6 * px]);
+      c.lineWidth = 2 * px;
+      c.strokeStyle = color;
+      c.fillStyle = hexToRgba(color, 0.12);
+      c.beginPath();
+      if (zone.shape === "circle") {
+        const ctr = dragged ? aiming.start : at;
+        c.arc(ctr.x, ctr.y, dragged ? Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) : this.spellReach(zone.size), 0, Math.PI * 2);
+      } else if (dragged) {
+        c.rect(aiming.start.x, aiming.start.y, at.x - aiming.start.x, at.y - aiming.start.y);
+      } else {
+        const h = this.spellReach(zone.size) / 2;
+        c.rect(at.x - h, at.y - h, 2 * h, 2 * h);
+      }
+      c.fill();
+      c.stroke();
+      c.restore();
+      return;
+    }
+    const spell = spellFx(s.spellOpts.spell);
     if (!spell || !at) return;
     const cast = FX_LOOKS[spell.look].cast;
     const reach = this.spellReach(spell.size);

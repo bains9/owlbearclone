@@ -1347,6 +1347,21 @@ button:disabled {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
+/* The Spells bar's lasting spells, each a chip that ends it. */
+.spell-zones {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.spell-zone {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+}
+.spell-zone:hover {
+  border-color: var(--danger, #d9534f);
+}
 .chip {
   display: inline-flex;
   align-items: center;

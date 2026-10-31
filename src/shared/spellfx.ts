@@ -4,6 +4,7 @@
 
 import type { Ephemeral } from "./protocol";
 import { LIMITS } from "./sanitize";
+import type { ZoneLook } from "./zones";
 
 /** How a look is cast: where it's aimed from and to. */
 export type FxCast =
@@ -79,12 +80,58 @@ export function spellFx(name: string): SpellFx | undefined {
   return SPELL_FX.find((s) => s.name === name);
 }
 
-/** The Spells tool's groups, as its picker shows them. */
+/** The Spells tool's groups for spells that go off once, as its picker shows them (zones come after). */
 export const FX_GROUPS: { name: string; casts: FxCast[] }[] = [
   { name: "Bursts", casts: ["burst", "cone", "strike"] },
   { name: "Bolts and rays", casts: ["bolt"] },
   { name: "Comings and goings", casts: ["jump"] },
 ];
+
+/** A spell that stays on the map as a zone. */
+export interface ZoneSpell {
+  name: string;
+  look: ZoneLook;
+  /** A circle (a click places it, a drag sets its radius) or a rectangle (a drag goes corner to corner). */
+  shape: "circle" | "square";
+  /** Metres: a circle's radius, or a square's side, as the spell list has it at its lowest level. */
+  size: number;
+}
+
+/**
+ * The party's spells that stay on the map, and a few like them. Sizes from the character sheets
+ * at the lowest spell level: Fog Cloud "8m*SL sphere" (8 m across), Wall of Fog "6*SL+7m cube",
+ * Spike Growth "7-m-radius sphere", Pit "7m pit"; a drag makes any of them bigger or smaller.
+ */
+export const ZONE_SPELLS: ZoneSpell[] = [
+  { name: "Fog Cloud", look: "fog", shape: "circle", size: 4 },
+  { name: "Wall of Fog", look: "fog", shape: "square", size: 13 },
+  { name: "Stinking Cloud", look: "poison-cloud", shape: "square", size: 7 },
+  { name: "Acid Cloud", look: "poison-cloud", shape: "circle", size: 10 },
+  { name: "Darkness", look: "darkness", shape: "circle", size: 5 },
+  { name: "Blackness", look: "darkness", shape: "circle", size: 7 },
+  { name: "Light", look: "light", shape: "circle", size: 5 },
+  { name: "Lasting flame", look: "light", shape: "circle", size: 4 },
+  { name: "Continual Light", look: "light", shape: "circle", size: 5 },
+  { name: "Daylight", look: "light", shape: "circle", size: 20 },
+  { name: "Moonbeam", look: "moonbeam", shape: "circle", size: 2 },
+  { name: "Entangle", look: "vines", shape: "square", size: 8 },
+  { name: "Plant Growth", look: "vines", shape: "circle", size: 6 },
+  { name: "Briartangle", look: "vines", shape: "circle", size: 6 },
+  { name: "Spike Growth", look: "spikes", shape: "circle", size: 7 },
+  { name: "Pit", look: "pit", shape: "square", size: 7 },
+  { name: "Wall of Water", look: "water", shape: "square", size: 6 },
+  { name: "Create Spring", look: "water", shape: "circle", size: 1.5 },
+  { name: "Hypnotic Pattern", look: "hypnotic", shape: "circle", size: 5 },
+  { name: "Silence", look: "marked", shape: "circle", size: 5 },
+  { name: "Battle Song", look: "marked", shape: "circle", size: 10 },
+  { name: "Zone of Truth", look: "marked", shape: "circle", size: 5 },
+  { name: "Prayer", look: "marked", shape: "circle", size: 20 },
+  { name: "Hallucinatory Forest", look: "marked", shape: "square", size: 8 },
+];
+
+export function zoneSpell(name: string): ZoneSpell | undefined {
+  return ZONE_SPELLS.find((s) => s.name === name);
+}
 
 /** A colour the Room passes on: #rrggbb. */
 export const FX_COLOR = /^#[0-9a-f]{6}$/i;
