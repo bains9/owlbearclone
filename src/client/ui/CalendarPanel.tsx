@@ -38,6 +38,35 @@ export function DateChip() {
   );
 }
 
+/**
+ * The date on the map itself (top right), for everyone, table displays too, so every map says
+ * what day it is without opening the panel. The GM can keep it to the panel (showOnMap).
+ */
+export function DateOverlay() {
+  const room = useRoom();
+  const cal = useRoomState((s) => s.calendar);
+  if (!cal || cal.showOnMap === false) return null;
+  const d = dateOf(cal, cal.today);
+  const w = weatherOf(cal, cal.today);
+  const note = cal.weatherNotes[String(cal.today)];
+  const body = (
+    <>
+      <CalendarDays size={14} />
+      <span class="date-overlay-day">
+        {cal.weekdays[d.weekday - 1]} {d.day} {cal.months[d.month]?.name}, Year {d.year}
+      </span>
+      <WeatherIcon w={w} size={14} />
+      <span class="date-overlay-weather muted">{note ?? w.text}</span>
+    </>
+  );
+  if (room.display) return <div class="date-overlay">{body}</div>;
+  return (
+    <button class="date-overlay" title="Open the calendar" onClick={() => room.setPanel("calendar")}>
+      {body}
+    </button>
+  );
+}
+
 function WeatherIcon(props: { w: Weather; size: number }) {
   const { w, size } = props;
   if (w.precipitation !== "none") {
@@ -379,6 +408,10 @@ function GmDayControls(props: { cal: Calendar; busy: boolean; act: (what: () => 
             Keep
           </button>
         </span>
+      </label>
+      <label class="check small">
+        <input type="checkbox" checked={cal.showOnMap !== false} onChange={(e) => act(() => patchCalendar(room, { showOnMap: e.currentTarget.checked }))} />
+        <span>Show the date and weather on every map (table displays too)</span>
       </label>
       <button class="btn btn-sm" disabled={busy} title="A fresh roll of the weather for every day from here on" onClick={() => act(() => patchCalendar(room, { newWeather: true }))}>
         <RefreshCw size={14} /> New weather for the whole calendar

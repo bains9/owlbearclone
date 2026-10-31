@@ -142,6 +142,7 @@ export async function calendarRoute(request: Request, env: Env, pathname: string
     if (typeof b.name === "string") c.name = cleanText(b.name, CALENDAR_LIMITS.name) || c.name;
     if (typeof b.climate === "string" && c.climates.some((x) => x.name === b.climate)) c.climate = b.climate;
     if (b.newWeather === true) c.weatherSeed = Math.floor(Math.random() * 1e9) + 1;
+    if (typeof b.showOnMap === "boolean") c.showOnMap = b.showOnMap;
     const reroll = int(b.reroll);
     if (reroll !== null) c.rerolls[String(reroll)] = Math.min(999, (c.rerolls[String(reroll)] ?? 0) + 1);
     if (b.note && typeof b.note === "object") {

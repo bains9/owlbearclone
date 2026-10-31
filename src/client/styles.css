@@ -3834,3 +3834,40 @@ kbd {
 .cal-import {
   margin-top: 6px;
 }
+
+/* The date on every map: top right, with today's weather; a table display's is bigger, to read across the table. */
+.date-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(60vw, 520px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.date-overlay-day {
+  white-space: nowrap;
+}
+:where(.stage-area.narrow) .date-overlay-weather {
+  display: none;
+}
+.display-room .date-overlay {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  font-size: 20px;
+  padding: 8px 14px;
+  cursor: default;
+}
+.display-room .date-overlay svg {
+  width: 20px;
+  height: 20px;
+}

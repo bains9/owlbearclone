@@ -92,6 +92,8 @@ export interface Calendar {
   logCategory: string;
   /** Where it was brought in from, for a sync. */
   source?: { fc: string; at: number };
+  /** The date shown on every map (the top right corner, table displays too); false keeps it to the panel. */
+  showOnMap?: boolean;
 }
 
 export const CALENDAR_LIMITS = {
@@ -844,6 +846,7 @@ export function sanitizeCalendar(raw: unknown): Calendar | null {
     categories,
     logCategory: str(r.logCategory, 40),
   };
+  if (r.showOnMap === false) cal.showOnMap = false;
   if (!cal.climates.some((c) => c.name === cal.climate)) cal.climate = cal.climates[0].name;
   if (!cal.seasons.length) cal.seasons = fresh.seasons;
   if (!seasonsLength(cal)) cal.seasons = cal.seasons.map((s) => ({ ...s, transition: 90 }));

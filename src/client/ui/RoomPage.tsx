@@ -23,7 +23,7 @@ import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
 import { ProblemsDialog } from "./ProblemsDialog";
-import { CalendarPanel, DateChip } from "./CalendarPanel";
+import { CalendarPanel, DateChip, DateOverlay } from "./CalendarPanel";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
@@ -304,6 +304,9 @@ function RoomShell() {
           </div>
           <TopRight>
             <FpsMeter />
+            <Guard name="the date" retry={(s) => s.calendarVersion}>
+              <DateOverlay />
+            </Guard>
             <Guard name="the level bar" retry={(s) => s.viewSceneId}>
               <LevelBar />
             </Guard>

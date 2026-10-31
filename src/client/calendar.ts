@@ -12,6 +12,8 @@ export interface CalendarPatch {
   climate?: string;
   /** A new seed: the weather from here on rolled afresh. */
   newWeather?: true;
+  /** The date on every map, or only in the panel. */
+  showOnMap?: boolean;
   /** A day whose weather is rolled again (epoch). */
   reroll?: number;
   /** The GM's own words for a day's weather (null takes them away). */

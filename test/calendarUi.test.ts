@@ -13,6 +13,10 @@ describe("the calendar on the page", () => {
     expect(page).toContain('{ id: "calendar", label: "Calendar", icon: CalendarDays },');
     expect(page).toContain('else if (props.panel === "calendar") body = <CalendarPanel />;');
     expect(page).toContain("<DateChip />");
+    // ...and on every map, the table display's too, unless the GM keeps it to the panel.
+    expect(page).toContain("<DateOverlay />");
+    expect(read("src/client/ui/TableDisplay.tsx")).toContain("{hasHello && <DateOverlay />}");
+    expect(read("src/client/ui/CalendarPanel.tsx")).toContain("if (!cal || cal.showOnMap === false) return null;");
     expect(read("src/client/room/client.ts")).toContain('export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings";');
   });
 

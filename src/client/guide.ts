@@ -31,6 +31,7 @@ export const GUIDE: GuideSection[] = [
           "The weather is rolled day by day for the region, the same every time it's looked at: a cold spell lasts a few days, rain is likelier in a wet season. A click rolls today's again; **New weather for the whole calendar** rolls every day afresh.",
           "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
           "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
+          "The date and today's weather show at the top right of every map, table displays included; a click opens the panel. GM: untick **Show the date and weather on every map** to keep them to the panel.",
           "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
         ]
       },
