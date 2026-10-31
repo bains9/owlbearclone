@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   Castle,
   CircleQuestionMark,
+  Ellipsis,
   CornerUpLeft,
   EyeOff,
   House,
@@ -19,6 +20,7 @@ import {
 import { roomUrl } from "../api";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
+import type { ComponentChildren } from "preact";
 import type { Profile } from "../identity";
 import { Board } from "../room/board";
 import { RoomClient } from "../room/client";
@@ -38,11 +40,11 @@ import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
 import { LevelBar } from "./LevelBar";
 import { LightBar } from "./LightBar";
-import { SelectionBar } from "./SelectionBar";
+import { CardDock, SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
 import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
-import { Guard, Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
+import { Guard, Modal, RoomContext, Swatches, copyText, cx, useClearOfBars, useRoom, useRoomState, useStageHeight } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
   const [profile, setProfile] = useState<Profile>(() => loadProfile());
@@ -258,36 +260,49 @@ function RoomShell() {
           <Guard name="the tool's bar" retry={(s) => s.tool}>
             <ToolOptions />
           </Guard>
-          <Guard name="the Build tool's hints" retry={(s) => s.tool}>
-            <BuildHints />
-          </Guard>
-          <Guard name="the preview banner" retry={(s) => s.viewSceneId}>
-            <PreviewBanner />
-          </Guard>
           <Guard name="the grid banner" retry={(s) => s.gridAlign}>
             <GridAlignBanner />
           </Guard>
-          <Guard name="the selection bar" retry={(s) => s.selection}>
-            <SelectionBar />
-          </Guard>
-          <Guard name="the Light bar" retry={(s) => s.lightPick}>
-            <LightBar />
-          </Guard>
-          <Guard name="the level bar" retry={(s) => s.viewSceneId}>
-            <LevelBar />
-          </Guard>
-          <Guard name="the Build tool's selection bar" retry={(s) => s.buildSel}>
-            <BuildSelectionBar />
+          {/* Each edge of the map stacks what's there, so nothing lands on anything else. */}
+          <BottomBars>
+            {/* A phone's "Only you can see this scene" (a bigger screen has it in the top bar). */}
+            <Guard name="the preview banner" retry={(s) => s.viewSceneId}>
+              <PreviewBanner />
+            </Guard>
+            <Guard name="the selection bar" retry={(s) => s.selection}>
+              <SelectionBar />
+            </Guard>
+            <Guard name="the Light bar" retry={(s) => s.lightPick}>
+              <LightBar />
+            </Guard>
+            <Guard name="the Build tool's selection bar" retry={(s) => s.buildSel}>
+              <BuildSelectionBar />
+            </Guard>
+          </BottomBars>
+          <div class="corner-bl">
+            <Guard name="the messages" retry={(s) => s.toasts}>
+              <Toasts />
+            </Guard>
+            <Guard name="the Build tool's hints" retry={(s) => s.tool}>
+              <BuildHints />
+            </Guard>
+          </div>
+          <TopRight>
+            <Guard name="the level bar" retry={(s) => s.viewSceneId}>
+              <LevelBar />
+            </Guard>
+            <Guard name="who's speaking" retry={(s) => s.viewSceneId}>
+              <SpeakingOverlay />
+            </Guard>
+          </TopRight>
+          <Guard name="the character card" retry={(s) => s.selection}>
+            <CardDock />
           </Guard>
           <Guard name="the zoom buttons" retry={(s) => s.viewSceneId}>
             <ZoomControls />
           </Guard>
-          <Guard name="who's speaking" retry={(s) => s.viewSceneId}>
-            <SpeakingOverlay />
+          <Guard name="the voice notice" retry={(s) => s.viewSceneId}>
             <VoiceHeldNotice />
-          </Guard>
-          <Guard name="the messages" retry={(s) => s.toasts}>
-            <Toasts />
           </Guard>
           <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD}`}>
             <NoteDialog />
@@ -345,7 +360,6 @@ function TopBar() {
   const players = allPlayers.filter((p) => !p.display);
   const displays = allPlayers.length - players.length;
   const outdated = useRoomState((s) => s.outdated);
-  const [copied, setCopied] = useState(false);
   const [help, setHelp] = useState(false);
   const [display, setDisplay] = useState(false);
   // Marks the top bar while "Only you can see this scene" is in it, for the room it makes (CSS).
@@ -394,50 +408,17 @@ function TopBar() {
           </span>
         ))}
       </div>
-      <button
-        class="icon-btn"
-        title="Copy invite link"
-        aria-label="Copy invite link"
-        onClick={async () => {
-          if (await copyText(roomUrl(room.roomId))) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          } else {
-            room.toast(`Invite link: ${roomUrl(room.roomId)}`);
-          }
-        }}
-      >
-        {copied ? <span class="small">Copied</span> : <Link size={18} />}
-      </button>
       {gm && <SeasonButton />}
-      {gm && (
-        <button
-          class="icon-btn hide-narrow display-btn"
-          title={displays ? `Table display (${displays} connected)` : "Table display: show the map on a second screen"}
-          aria-label="Table display"
-          onClick={() => setDisplay(true)}
-        >
-          <Monitor size={18} />
-          {displays > 0 && <span class="live-dot" />}
-        </button>
-      )}
-      {gm && (
-        <a
-          class="icon-btn hide-narrow"
-          href={DUNGEON_URL}
-          target="dungeon"
-          title="Dungeon, the map maker (opens in its own tab)"
-          aria-label="Dungeon"
-          onClick={(e) => {
-            if (openDungeon()) e.preventDefault();
-          }}
-        >
-          <Castle size={18} />
-        </a>
-      )}
-      <button class="icon-btn hide-narrow" title="Help & shortcuts" aria-label="Help and shortcuts" onClick={() => setHelp(true)}>
-        <CircleQuestionMark size={18} />
-      </button>
+      <MoreMenu
+        gm={gm}
+        displays={displays}
+        onCopy={async () => {
+          if (await copyText(roomUrl(room.roomId))) room.toast("Invite link copied.");
+          else room.toast(`Invite link: ${roomUrl(room.roomId)}`);
+        }}
+        onDisplay={() => setDisplay(true)}
+        onHelp={() => setHelp(true)}
+      />
       <div class="topbar-sep" />
       {PANELS.filter((p) => !p.gm || gm).map((p) => (
         <button
@@ -455,6 +436,122 @@ function TopBar() {
       {help && <HelpDialog onClose={() => setHelp(false)} />}
       {display && <TableDisplayDialog onClose={() => setDisplay(false)} />}
     </header>
+  );
+}
+
+/**
+ * The top bar's More (the three dots): what's used now and then, kept out of the bar so it stays
+ * short. Copy invite link and Help & shortcuts for everyone; Table display and Dungeon for the GM.
+ * On a phone, where the bar has room for little, it's how to reach them at all.
+ */
+function MoreMenu(props: { gm: boolean; displays: number; onCopy: () => void; onDisplay: () => void; onHelp: () => void }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  // As the season's pop-up does: a click elsewhere or Escape closes it, and a click on the map
+  // that only closes it does nothing else.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current || wrap.current.contains(e.target as Node)) return;
+      setOpen(false);
+      if ((e.target as Element | null)?.closest?.(".board")) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector(".modal-backdrop")) return;
+      e.stopPropagation();
+      setOpen(false);
+      btn.current?.focus();
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+  const pick = (then: () => void) => () => {
+    setOpen(false);
+    then();
+  };
+  return (
+    <div class="more-wrap" ref={wrap}>
+      <button
+        ref={btn}
+        class={cx("icon-btn", open && "active")}
+        title={props.displays ? `More (${props.displays} table display${props.displays === 1 ? "" : "s"} connected)` : "More"}
+        aria-label="More"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Ellipsis size={18} />
+        {props.displays > 0 && <span class="live-dot" />}
+      </button>
+      {open && (
+        <div class="more-pop" role="menu" aria-label="More">
+          <button class="more-item" role="menuitem" onClick={pick(props.onCopy)}>
+            <Link size={16} /> Copy invite link
+          </button>
+          {props.gm && (
+            <button class="more-item" role="menuitem" onClick={pick(props.onDisplay)}>
+              <Monitor size={16} /> Table display
+              {props.displays > 0 && <span class="small muted">{props.displays} connected</span>}
+            </button>
+          )}
+          {props.gm && (
+            <a
+              class="more-item"
+              role="menuitem"
+              href={DUNGEON_URL}
+              target="dungeon"
+              title="Dungeon, the map maker (opens in its own tab)"
+              aria-label="Dungeon"
+              onClick={(e) => {
+                setOpen(false);
+                if (openDungeon()) e.preventDefault();
+              }}
+            >
+              <Castle size={16} /> Dungeon, the map maker
+            </a>
+          )}
+          <button class="more-item" role="menuitem" onClick={pick(props.onHelp)}>
+            <CircleQuestionMark size={16} /> Help & shortcuts
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The bars along the bottom in the middle (the selection's, a light's, Build › Select's), one
+ * under the other when there's more than one. Measured (--bottom-h), so the corners keep above.
+ */
+function BottomBars(props: { children: ComponentChildren }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useStageHeight(ref, "--bottom-h");
+  return (
+    <div class="bottom-bars" ref={ref}>
+      {props.children}
+    </div>
+  );
+}
+
+/**
+ * The top right: the level bar and who's speaking, one under the other, the pair moved down below
+ * a tool's bar (or the season note) when they'd meet it.
+ */
+function TopRight(props: { children: ComponentChildren }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useClearOfBars(ref, true, ".tool-options, .board-season-note.shown");
+  return (
+    <div class="corner-tr" ref={ref}>
+      {props.children}
+    </div>
   );
 }
 

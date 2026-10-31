@@ -33,8 +33,10 @@ describe("the character card", () => {
 
   it("keeps to the right above the bar on a bigger screen, and is as wide as the bar on a phone", () => {
     const css = read("src/client/styles.css");
-    expect(css).toMatch(/\.card-dock \{[^}]*right: 12px;[^}]*bottom: calc\(var\(--selbar-h, 52px\) \+ 20px\);/);
-    expect(css).toMatch(/\.selbar-stack > \.character-card \{\s*left: 0;\s*right: 0;\s*transform: none;\s*width: auto;/);
+    // Above the zoom buttons, and above the bars along the bottom however tall (--bottom-h).
+    expect(css).toMatch(/\.card-dock \{[^}]*right: 10px;[^}]*bottom: max\(64px, calc\(12px \+ var\(--bottom-h, 0px\)\)\);/);
+    // On a phone it's in the stack's flow (measured with it), so the messages sit above it too.
+    expect(css).toMatch(/\.selbar-stack > \.character-card \{\s*position: static;\s*left: 0;\s*right: 0;\s*transform: none;\s*width: auto;/);
   });
 });
 
@@ -42,9 +44,8 @@ describe("the selection bar", () => {
   it("wraps on a phone, with the messages and the preview banner above it, however tall", () => {
     const css = read("src/client/styles.css");
     expect(css).not.toContain("overflow-x: auto;\n    justify-content: flex-start;\n    scrollbar-width: none;");
-    expect(css).toMatch(/\.toasts \{\s*left: 60px;\s*bottom: calc\(var\(--selbar-h, 54px\) \+ 16px\);/);
-    const bar = read("src/client/ui/SelectionBar.tsx");
-    expect(bar).toContain('area.style.setProperty("--selbar-h", `${bar.offsetHeight}px`)');
+    expect(css).toMatch(/\.corner-bl \{\s*left: 60px;\s*right: 8px;\s*bottom: calc\(8px \+ var\(--bottom-h, 0px\)\);/);
+    expect(read("src/client/ui/RoomPage.tsx")).toContain('useStageHeight(ref, "--bottom-h");');
   });
 
   it("says what each button is in a word on touch screens", () => {

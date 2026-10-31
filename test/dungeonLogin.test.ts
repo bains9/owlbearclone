@@ -182,7 +182,7 @@ describe("the guide", () => {
     expect(news.parts[22].title).toBe("Dungeon signs in with Tabletop (26 October 2026)");
     expect(news.parts[23].title).toBe("Extend a map past its edges (26 October 2026)");
     const entry = text(news.parts[22]);
-    for (const what of ["**Dungeon**", "**Table**", "castle button", "See **Open Dungeon, the map maker**"]) expect(entry).toContain(what);
+    for (const what of ["**Dungeon**", "**Table**", "**More** › **Dungeon, the map maker**", "See **Open Dungeon, the map maker**"]) expect(entry).toContain(what);
     expect(all.some((p) => p.title === "Open Dungeon, the map maker")).toBe(true);
     expect(all.some((p) => p.title === "Dungeon uses this sign-in")).toBe(true);
   });

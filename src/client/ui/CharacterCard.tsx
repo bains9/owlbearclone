@@ -106,6 +106,13 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
   const pray = (spell: string, left: number) => void setPrayed(room, c, spell, left).catch((err: Error) => room.toast(err.message, "error"));
   const who = characterLabel(c);
   const casting = !praying && picked?.id === c.id ? castable.find((s) => s.name === picked.name && !s.onMap) : undefined;
+  // What can't be cast now (not prayed for today, or too dear for the spell points left), greyed.
+  const outNow = (s: CastSpell) => {
+    const cost = spellCost(s.sheet.sp);
+    return (s.prayer && s.left <= 0) || (cost > 0 && c.sp !== null && cost > c.sp);
+  };
+  // What can be cast now first, each part still by level.
+  const shown = [...castable].sort((a, b) => Number(outNow(a)) - Number(outNow(b)));
   return (
     <div class="character-spells">
       <div class="character-spells-head">
@@ -138,10 +145,10 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
         </ul>
       ) : (
         <div class="spell-chips">
-          {castable.map((s) => {
+          {shown.map((s) => {
             const cost = spellCost(s.sheet.sp);
             const broke = cost > 0 && c.sp !== null && cost > c.sp;
-            const out = (s.prayer && s.left <= 0) || broke;
+            const out = outNow(s);
             const how = s.prayer ? (s.left <= 0 ? "Not prayed for today" : `Prayed for: ${s.left} left today`) : s.sheet.prayer === "Ask DM" ? "Ask the GM" : "";
             const pays = cost ? (broke ? `Costs ${cost} SP: not enough left` : `${cost} SP off their sheet`) : `${s.sheet.sp || "No"} SP`;
             const what = s.onMap ? `Cast ${s.name} from ${who}` : can ? `Cast ${s.name} as ${who}: nothing on the map, a line in the chat` : `Only the GM or ${who}'s player can cast ${s.name}`;

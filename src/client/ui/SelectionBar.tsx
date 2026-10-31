@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
 import {
@@ -218,30 +218,29 @@ function SpellsOn({ token }: { token: TokenItem }) {
 }
 
 /**
- * How tall the selection bar is (as --selbar-h on the board's area, gone without one): a phone puts
- * the messages and the preview banner above it, and a bigger screen the character card.
+ * A character's card on a bigger screen: on the right, above the zoom buttons and the bars along
+ * the bottom, clear of the middle of the map, where the token picked most often is. (A phone's
+ * sits over the selection bar: SelectionBar.)
  */
-function useBarHeight(): void {
-  useLayoutEffect(() => {
-    const area = document.querySelector<HTMLElement>(".stage-area");
-    if (!area) return;
-    const bar = area.querySelector<HTMLElement>(":scope > .selbar-stack, :scope > .selbar:not(.build-selbar)");
-    if (!bar) {
-      area.style.removeProperty("--selbar-h");
-      return;
-    }
-    const set = () => area.style.setProperty("--selbar-h", `${bar.offsetHeight}px`);
-    set();
-    const watch = new ResizeObserver(set);
-    watch.observe(bar);
-    return () => watch.disconnect();
-  });
+export function CardDock() {
+  useRoomState((s) => s.party);
+  const room = useRoom();
+  const narrow = useNarrow();
+  const t = useRoomState((s) => (s.selection.length === 1 ? s.items[s.selection[0]] : undefined));
+  const character = !narrow && t?.kind === "token" && !isCompass(t) ? room.characterOf(t) : null;
+  if (!character || t?.kind !== "token") return null;
+  return (
+    <div class="card-dock" onPointerDown={(e) => e.stopPropagation()}>
+      <Guard name="the character card" retry={(s) => s.party}>
+        <CharacterCard c={character} tokenId={t.id} />
+      </Guard>
+    </div>
+  );
 }
 
 export function SelectionBar() {
   // A character token's card follows their sheet as it's read again.
   useRoomState((s) => s.party);
-  useBarHeight();
   const narrow = useNarrow();
   const room = useRoom();
   const selection = useRoomState((s) => s.selection);
@@ -401,29 +400,15 @@ export function SelectionBar() {
         <SpellsOn token={t} />
       </div>
     );
-    if (!character) return bar;
-    const card = (
-      <Guard name="the character card" retry={(s) => s.party}>
-        <CharacterCard c={character} tokenId={t.id} />
-      </Guard>
-    );
-    // On a phone the card sits over the bar, as wide as it. On a bigger screen it keeps to the right
-    // above the bar, clear of the middle of the map, where the token picked most often is.
-    if (narrow) {
-      return (
-        <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
-          {card}
-          {bar}
-        </div>
-      );
-    }
+    // On a phone the card sits over the bar, as wide as it; a bigger screen's is CardDock's.
+    if (!character || !narrow) return bar;
     return (
-      <>
+      <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
+        <Guard name="the character card" retry={(s) => s.party}>
+          <CharacterCard c={character} tokenId={t.id} />
+        </Guard>
         {bar}
-        <div class="card-dock" onPointerDown={(e) => e.stopPropagation()}>
-          {card}
-        </div>
-      </>
+      </div>
     );
   }
 

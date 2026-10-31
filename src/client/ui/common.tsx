@@ -1,6 +1,6 @@
 import { createContext } from "preact";
 import type { ComponentChildren } from "preact";
-import { useContext, useEffect, useErrorBoundary, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useErrorBoundary, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { X } from "lucide-preact";
 import type { RoomClient, RoomState } from "../room/client";
 import type { LoadFailure } from "../updated";
@@ -32,6 +32,55 @@ export function useNarrow(): boolean {
     return () => m.removeEventListener("change", on);
   }, []);
   return narrow;
+}
+
+/**
+ * Keeps the board's area told how tall one of its containers is, plus the gap above it (0 when
+ * it's empty), as a CSS variable: the bars along the bottom (--bottom-h), which the corners keep
+ * above. Measured as it changes, however many rows its bars wrap to.
+ */
+export function useStageHeight(ref: { current: HTMLElement | null }, name: string, gap = 8): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const area = el?.parentElement;
+    if (!el || !area) return;
+    const set = () => area.style.setProperty(name, `${el.offsetHeight ? el.offsetHeight + gap : 0}px`);
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(el);
+    return () => {
+      watch.disconnect();
+      area.style.removeProperty(name);
+    };
+  }, [name, gap]);
+}
+
+/**
+ * Moves something at the top of the map down below anything it would cover there (a tool's bar,
+ * the season note), as they come, go and change height: checked as it changes and a few times a
+ * second while `shown`.
+ */
+export function useClearOfBars(ref: { current: HTMLElement | null }, shown: boolean, obstacles: string): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const area = el?.parentElement;
+    if (!shown || !el || !area) return;
+    const place = () => {
+      const a = area.getBoundingClientRect();
+      const right = a.right - (parseFloat(getComputedStyle(el).right) || 0);
+      const left = right - el.offsetWidth;
+      let top = 10;
+      const bars = [...area.querySelectorAll<HTMLElement>(obstacles)]
+        .map((b) => b.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.right > left && r.left < right)
+        .sort((p, q) => p.top - q.top);
+      for (const r of bars) if (r.top - a.top < top + el.offsetHeight) top = Math.max(top, r.bottom - a.top + 8);
+      el.style.top = `${Math.round(top)}px`;
+    };
+    place();
+    const timer = setInterval(place, 250);
+    return () => clearInterval(timer);
+  });
 }
 
 const noRetry = () => 0;

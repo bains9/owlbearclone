@@ -22,7 +22,10 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "With more than three spells on the map, the **Spells** bar shows one **On the map** button with how many. Click it for the list, newest first, and click a spell's × to end it.",
           "A character's card now sits on the right, above the bar at the bottom, so it doesn't cover the token you picked. Click the arrow at its top to fold it to their name, HP, AC, initiative and spell points; click again for attacks and spells. Each device remembers which.",
-          "On a phone the card starts folded, and the bar at the bottom shows every button in rows (it used to scroll some out of sight). On touch screens each button says what it is."
+          "On a phone the card starts folded, and the bar at the bottom shows every button in rows (it used to scroll some out of sight). On touch screens each button says what it is.",
+          "**Copy invite link**, **Help & shortcuts**, and for the GM **Table display** and **Dungeon**, are now under **More** (the three dots) in the top bar, so it stays short. On a phone that's also how to reach them.",
+          "Spells a character can cast now come first on their card; the greyed ones follow.",
+          "Messages, the level bar, who's speaking and the bars along the bottom each keep to their own place, so none lands on another."
         ],
         "notes": [
           "Tabletop also has about a third less to download before the map shows: Dungeon's objects and the season work load only when a map needs them."
@@ -306,7 +309,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Dungeon signs in with Tabletop (26 October 2026)",
         "steps": [
-          "GM: click **Dungeon** on your list of rooms, or the castle button (**Dungeon**) in a room's top bar. Dungeon, the map maker, opens in its own tab.",
+          "GM: click **Dungeon** on your list of rooms, or **More** › **Dungeon, the map maker** in a room's top bar. Dungeon, the map maker, opens in its own tab.",
           "In Dungeon, click **Table** to come back."
         ],
         "notes": [
@@ -526,7 +529,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Seasons in one click (28 September 2026)",
         "steps": [
-          "GM: in the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "GM: in the top bar, click the season button (a sun behind a cloud, left of **More**, the three dots).",
           "Pick **Spring**, **Summer**, **Autumn** or **Winter**, then how drastic."
         ],
         "notes": [
@@ -610,7 +613,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The eraser takes tokens too (earlier that evening): drag the **Eraser** over tokens as well as drawings and notes. Locked tokens are never erased, and players can only erase their own drawings, notes and tokens. See **Drawing and notes**.",
           "This guide: step-by-step help for players and the GM. Open it from **How to use Tabletop** on the start page, or from **Read the full guide** in a room's **Help & shortcuts** box. When something goes wrong, look in **Troubleshooting**.",
-          "The table display (GM): show the map on a second screen or a TV, exactly as players see it. Click the monitor button in the top bar, then **Open display window**. See **Showing the map on a second screen or a TV**.",
+          "The table display (GM): show the map on a second screen or a TV, exactly as players see it. Click **More** (the three dots) in the top bar, then **Table display** and **Open display window**. See **Showing the map on a second screen or a TV**.",
           "Google sign-in (GM): sign in with **Sign in with Google** on the start page instead of typing the GM password. See **Signing in as the GM**.",
           "Bringing in maps (GM): **New scene** takes Owlbear Rodeo backups (.ob2) with their fog and tokens, and Dungeondraft and other Universal VTT files with their exact grid. You can also drop or paste a map straight onto the board, and the grid can be read from a file name such as `Crypt 30x20.jpg`. See **Moving from Owlbear Rodeo** and **Adding maps**.",
           "Steadier connections (everyone): when a dropped connection comes back, the changes you made meanwhile now arrive exactly once. None go missing (as long as you don't reload the page), and none are applied twice.",
@@ -686,8 +689,8 @@ export const GUIDE: GuideSection[] = [
           "Look at the top left for the room's name. The name of the scene you're looking at is just underneath it, in smaller grey text.",
           "GM: click the house button (**All rooms**) at the far left to go back to your list of rooms.",
           "Hover over the coloured circles to see who's in the room.",
-          "Click the link button (**Copy invite link**) to copy the room link. It says **Copied** for a moment.",
-          "Click the question-mark button (**Help & shortcuts**) to see the keyboard shortcuts.",
+          "Click **More** (the three dots) and **Copy invite link** to copy the room link. A message says it's copied.",
+          "Click **More** and **Help & shortcuts** to see the keyboard shortcuts.",
           "Click one of the buttons at the right-hand end to open a panel."
         ],
         "notes": [
@@ -696,8 +699,8 @@ export const GUIDE: GuideSection[] = [
           "Everyone is counted once for each tab or window they have the room open in. If a name shows up twice, that person has the room open twice.",
           "Players see the Tabletop logo where the GM has the house button.",
           "If your browser won't let the page copy, a message pops up showing the invite link so you can copy it yourself.",
-          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\").",
-          "The castle button (GM only, **Dungeon**) opens Dungeon, the map maker, in its own tab (see \"Open Dungeon, the map maker\")."
+          "**More** › **Table display** (GM only) is for showing the map on a second screen (see \"Showing the map on a second screen or a TV\"). **More** shows a green dot while a display is connected.",
+          "**More** › **Dungeon, the map maker** (GM only) opens Dungeon in its own tab (see \"Open Dungeon, the map maker\")."
         ]
       },
       {
@@ -718,7 +721,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Help and keyboard shortcuts",
         "steps": [
-          "Click the question-mark button in the top bar.",
+          "Click **More** (the three dots) in the top bar, then **Help & shortcuts**.",
           "Read the list in the **Help & shortcuts** box.",
           "Press Esc, click the **X**, or click outside the box to close it."
         ],
@@ -857,7 +860,7 @@ export const GUIDE: GuideSection[] = [
           "Tap the **X** (**Close**) at the top of the panel to see the map again."
         ],
         "notes": [
-          "On narrow screens, the coloured circles showing who's here and the **Help & shortcuts** button are hidden to save space (for the GM, so is **Table display**). You can still see who's here at the top of the **Chat & dice** panel.",
+          "On narrow screens, the coloured circles showing who's here are hidden to save space (and, for the GM, the season button). You can still see who's here at the top of the **Chat & dice** panel; **Help & shortcuts** and **Table display** are under **More**.",
           "The zoom buttons move to the top-right corner (or the bottom right while a tool's options are showing), and the percentage is hidden.",
           "The selection bar becomes a single row. Swipe it sideways to reach more buttons.",
           "With a phone held sideways, the toolbar scrolls if it doesn't fit.",
@@ -2179,7 +2182,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Open Dungeon, the map maker",
         "steps": [
-          "Click **Dungeon** next to **Sign out**. In a room, click the castle button (**Dungeon**) in the top bar instead.",
+          "Click **Dungeon** next to **Sign out**. In a room, click **More** (the three dots) in the top bar, then **Dungeon, the map maker**.",
           "Dungeon opens in a tab of its own. Draw your map there; Dungeon saves it in this browser as you go.",
           "To come back, click **Table** in Dungeon's top bar."
         ],
@@ -2213,7 +2216,7 @@ export const GUIDE: GuideSection[] = [
           "Anyone with the link can join as a player, so keep it within your group.",
           "A room link is the site's address, then /r/, then a 12-character code of letters and numbers.",
           "If **Copied** doesn't appear on the start page, your browser didn't allow the copy, and no message appears. Open the room, open **Room settings**, click in the **Invite link** box (it selects the whole link) and copy it yourself.",
-          "You can also copy the link from inside the room: use the link button in the top bar, or **Invite link** and **Copy** in **Room settings**."
+          "You can also copy the link from inside the room: use **More** › **Copy invite link** in the top bar, or **Invite link** and **Copy** in **Room settings**."
         ]
       },
       {
@@ -2951,7 +2954,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Put a scene in season",
         "steps": [
           "Go to the scene: the live one, or one you're previewing.",
-          "In the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "In the top bar, click the season button (a sun behind a cloud, left of **More**, the three dots).",
           "Pick **Spring**, **Summer**, **Autumn** or **Winter**.",
           "Pick how drastic, gentlest first: **Frost**, **Snow** or **Deep snow** for Winter; **Turning**, **Autumn** or **Late autumn**; **Budding**, **Blossom** or **Full bloom**; **Lush**, **Dry** or **Drought**.",
           "To go back to the map as it was drawn, pick **As drawn**."
@@ -3112,7 +3115,7 @@ export const GUIDE: GuideSection[] = [
           "Fog always goes on the scene you're looking at, even if players are on a different scene.",
           "The fog tool keeps your choices (**Reveal** or **Hide**, the shape, the brush size and **Snap**) while the room is open, even when you switch to another tool and back. Reloading the page resets them to **Reveal**, **Brush**, 2 squares and **Snap** ticked.",
           "Fog keys don't work while you're typing in a box, while a dialog is open, or while a slider or tick box still has the keyboard.",
-          "The main fog keys (**F**, **[** and **]**, the polygon keys, Undo and Redo) are also listed under **Help & shortcuts**, the question-mark button in the top bar. **Esc** isn't on that list. On a narrow screen, such as a phone, the question-mark button is hidden."
+          "The main fog keys (**F**, **[** and **]**, the polygon keys, Undo and Redo) are also listed under **Help & shortcuts**, under **More** (the three dots) in the top bar. **Esc** isn't on that list."
         ]
       },
       {
@@ -3439,7 +3442,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Open the display",
         "steps": [
-          "In your room, click the **monitor** button in the top bar (next to the **?** button). The **Table display** box opens.",
+          "In your room, click **More** (the three dots) in the top bar, then **Table display**. The **Table display** box opens.",
           "Click **Open display window**. A new window opens with just the map.",
           "Drag that window onto your second monitor.",
           "Double-click the map for full screen. Double-click again to leave full screen."
@@ -3447,13 +3450,13 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "For a TV, click **Copy display link** and open the link in the TV's browser, or cast the display window from Chrome (the **⋮** menu, then **Cast**).",
           "Keep the display link to yourself. Anyone with it sees the map as players do, and where you're looking.",
-          "The monitor button shows a green dot while a display is connected."
+          "**More** (the three dots) in the top bar shows a green dot while a display is connected."
         ]
       },
       {
         "title": "Choose what the display shows",
         "steps": [
-          "Open **Table display** again from the monitor button.",
+          "Open **Table display** again from **More** in the top bar.",
           "Under **The display shows**, pick **The whole live scene** to fit the whole map to the screen.",
           "Or pick **What I'm looking at, while I'm on the live scene**: the display then zooms and pans along with you."
         ],
@@ -3503,8 +3506,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Anyone with this link can join as a player, so only share it with your group.",
-          "The **Copy invite link** button in the top bar copies the same link. Players have that button too.",
-          "If your browser won't copy, the **Copy invite link** button in the top bar shows the link in a pop-up instead, so you can copy it yourself."
+          "**Copy invite link**, under **More** in the top bar, copies the same link. Players have it too.",
+          "If your browser won't copy, **Copy invite link** shows the link in a message instead, so you can copy it yourself."
         ]
       },
       {
@@ -3622,7 +3625,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "See the list in the app",
         "steps": [
-          "Click the **Help & shortcuts** button (the question mark) in the top bar."
+          "Click **More** (the three dots) in the top bar, then **Help & shortcuts**."
         ],
         "notes": [
           "On narrow screens such as phones, this button is hidden."

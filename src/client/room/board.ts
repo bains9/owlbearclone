@@ -680,7 +680,13 @@ export class Board implements BoardApi {
     this.monoLayer.add(this.monoNode);
     this.uiLayer.add(this.previewGroup, this.rulerGroup, this.fxNode, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
     this.tokenLayer.add(this.groundFx, this.tokenGroup, this.airFx);
+    // Konva warns of more than five layers on every page. These seven are on purpose: the night's
+    // black and white needs a canvas of its own to blend, and the dark, the fog and what's drawn
+    // over them each cut holes in their own (see each). Only that one warning is left out.
+    const warn = Konva.showWarnings;
+    Konva.showWarnings = false;
     this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    Konva.showWarnings = warn;
     // A zone follows its drawing: whenever the drawings are drawn (moved, dragged, changed), so are the zones.
     // (A spell on a token follows the token: they're drawn together.)
     this.drawLayer.on("draw", () => this.tokenLayer.batchDraw());

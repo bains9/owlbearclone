@@ -606,9 +606,12 @@ describe("in Tabletop", () => {
     // clip it): over it on a phone, docked to the right above it on a bigger screen. It's guarded, so a
     // card that fails to draw leaves the bar.
     const bar = await source("src/client/ui/SelectionBar.tsx");
-    expect(bar).toMatch(/<Guard name="the character card" retry=\{\(s\) => s\.party\}>\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>/);
-    expect(bar).toMatch(/<div class="selbar-stack".*\r?\n\s*\{card\}\r?\n\s*\{bar\}/);
-    expect(bar).toMatch(/\{bar\}\r?\n\s*<div class="card-dock".*\r?\n\s*\{card\}/);
+    expect(bar).toMatch(
+      /<div class="selbar-stack".*\r?\n\s*<Guard name="the character card" retry=\{\(s\) => s\.party\}>\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>\r?\n\s*<\/Guard>\r?\n\s*\{bar\}/,
+    );
+    expect(bar).toMatch(
+      /<div class="card-dock".*\r?\n\s*<Guard name="the character card" retry=\{\(s\) => s\.party\}>\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>/,
+    );
     expect(bar).toContain("value: initiativeRoll(character)");
     expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("value: initiativeRoll(room.characterOf(t))");
   });

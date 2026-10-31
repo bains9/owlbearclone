@@ -485,6 +485,59 @@ button:disabled {
 .season-wrap {
   position: relative;
 }
+/* The top bar's More: what's used now and then (RoomPage.tsx MoreMenu). */
+.more-wrap {
+  position: relative;
+}
+.more-wrap > .icon-btn {
+  position: relative;
+}
+.more-pop {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.more-item:hover,
+.more-item:focus-visible {
+  background: var(--panel-2);
+}
+.more-item .small {
+  margin-left: auto;
+}
+/* A phone: the whole width, under the top bar (its button sits too far left to hang from). */
+@media (max-width: 760px) {
+  .more-pop {
+    position: fixed;
+    top: 50px;
+    left: 8px;
+    right: 8px;
+    min-width: 0;
+  }
+}
 .season-pop {
   position: absolute;
   top: 42px;
@@ -792,6 +845,66 @@ button:disabled {
 /* A character token's selection bar with their card over it (CharacterCard.tsx). The stack
    stands where the bar would and the bar inside it is in the flow, so the bar's sideways
    scrolling on narrow screens can't clip the card away. */
+/* Each edge of the map stacks what's there (RoomPage.tsx), so nothing lands on anything else.
+   Along the bottom in the middle: a phone's preview banner, then the bars (the selection's, a
+   light's, Build › Select's), measured as --bottom-h (their height and a gap; 0 without one).
+   Bottom left: the messages, over the Build tool's hints, both above those bars. Top right: the
+   level bar over who's speaking, the pair moved below a tool's bar when they'd meet it. Bottom
+   right: the zoom buttons, and on a bigger screen a character's card above them and the bars. */
+.bottom-bars {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(760px, calc(100% - 220px));
+  pointer-events: none;
+}
+.bottom-bars > * {
+  pointer-events: auto;
+}
+.bottom-bars > .selbar,
+.bottom-bars > .selbar-stack,
+.bottom-bars > .preview-banner {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  max-width: 100%;
+}
+.corner-bl {
+  position: absolute;
+  left: 66px;
+  right: 250px;
+  bottom: calc(12px + var(--bottom-h, 0px));
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.corner-tr {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 120px);
+  pointer-events: none;
+}
+.corner-tr > .level-bar {
+  pointer-events: auto;
+}
 .selbar-stack {
   position: absolute;
   left: 50%;
@@ -826,8 +939,8 @@ button:disabled {
 /* On a bigger screen the card keeps to the right, above the selection bar, clear of the middle of the map. */
 .card-dock {
   position: absolute;
-  right: 12px;
-  bottom: calc(var(--selbar-h, 52px) + 20px);
+  right: 10px;
+  bottom: max(64px, calc(12px + var(--bottom-h, 0px)));
   z-index: 11;
   width: min(340px, calc(100% - 24px));
 }
@@ -835,7 +948,7 @@ button:disabled {
   position: static;
   transform: none;
   width: 100%;
-  max-height: min(50vh, calc(100vh - var(--selbar-h, 52px) - 200px));
+  max-height: min(50vh, calc(100vh - var(--bottom-h, 0px) - 200px));
 }
 .character-head-actions {
   display: flex;
@@ -1266,14 +1379,10 @@ button:disabled {
 }
 
 .toasts {
-  position: absolute;
-  left: 66px;
-  bottom: 12px;
-  z-index: 15;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: min(360px, calc(100% - 80px));
+  max-width: min(360px, 100%);
   pointer-events: none;
 }
 .toast {
@@ -1685,13 +1794,9 @@ button:disabled {
   cursor: pointer;
 }
 
-/* Over the map: who's talking. It never takes a click, and moves down clear of a tool's bar
-   (useClearOfBars); if it ever meets one anyway, the bar is on top. */
+/* Over the map: who's talking (top right, under the level bar). It never takes a click; the
+   corner moves down clear of a tool's bar (useClearOfBars). */
 .speaking-overlay {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 9;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -2144,17 +2249,13 @@ button:disabled {
 }
 /* GM, on a map's level: which one, Up and Down, and taking the party up or down. */
 .level-bar {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 11;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
   padding: 4px 8px;
-  max-width: calc(100% - 120px);
+  max-width: 100%;
   background: rgba(26, 29, 36, 0.96);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2534,9 +2635,6 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   margin: 12px 0 8px;
-}
-.display-btn {
-  position: relative;
 }
 .live-dot {
   position: absolute;
@@ -2949,11 +3047,11 @@ kbd {
   .zoom .zoom-level {
     display: none;
   }
-  .speaking-overlay {
+  .corner-tr {
     right: 60px;
   }
   /* The zoom buttons go down to the bottom corner while a tool's bar is open. */
-  .tool-options ~ .speaking-overlay {
+  .stage-area:has(> .tool-options) > .corner-tr {
     right: 10px;
   }
   .speaking-chip {
@@ -2963,24 +3061,29 @@ kbd {
   .speaking-chip .speaking-bars {
     display: none;
   }
+  /* ...above whatever is along the bottom. */
   .tool-options ~ .zoom {
     top: auto;
-    bottom: 12px;
+    bottom: calc(12px + var(--bottom-h, 0px));
   }
-  .selbar,
-  .selbar-stack {
+  .bottom-bars {
     left: 60px;
     right: 8px;
     transform: none;
+    width: auto;
     max-width: none;
     bottom: 8px;
+    align-items: stretch;
   }
-  /* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar. */
+  /* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar.
+     It's part of the stack (measured with it), so the messages sit above it too. */
   .selbar-stack > .character-card {
+    position: static;
     left: 0;
     right: 0;
     transform: none;
     width: auto;
+    margin-bottom: 8px;
   }
   /* The name shares its row with the size. */
   .selbar-label {
@@ -2988,15 +3091,11 @@ kbd {
     width: 0;
     min-width: 90px;
   }
-  /* Above the selection bar, however many rows it takes (--selbar-h, SelectionBar.tsx). */
-  .toasts {
+  /* Above the bars along the bottom, however many rows they take. */
+  .corner-bl {
     left: 60px;
-    bottom: calc(var(--selbar-h, 54px) + 16px);
-  }
-  .preview-banner {
-    top: auto;
-    bottom: calc(var(--selbar-h, 54px) + 16px);
-    max-width: calc(100% - 20px);
+    right: 8px;
+    bottom: calc(8px + var(--bottom-h, 0px));
   }
 }
 
@@ -3028,8 +3127,8 @@ kbd {
   }
 }
 
-/* On narrow screens the selection bar wraps onto rows, so every button shows; the messages and the
-   preview banner move up above it (--selbar-h). A very tall one scrolls. */
+/* On narrow screens the selection bar wraps onto rows, so every button shows; the messages sit
+   above it (--bottom-h). A very tall one scrolls. */
 @media (max-width: 760px) {
   .selbar {
     justify-content: flex-start;
@@ -3090,10 +3189,6 @@ kbd {
 }
 /* The Build tool's controls, along the bottom on a computer (as Dungeondraft shows them). */
 .build-hints {
-  position: absolute;
-  left: 66px;
-  bottom: 12px;
-  z-index: 9;
   display: none;
   /* One line, so the toasts above it always clear it. */
   flex-wrap: nowrap;
@@ -3101,7 +3196,7 @@ kbd {
   white-space: nowrap;
   align-items: center;
   gap: 4px 14px;
-  max-width: calc(100% - 250px);
+  max-width: 100%;
   padding: 6px 10px;
   background: rgba(26, 29, 36, 0.9);
   border: 1px solid var(--border);
@@ -3116,9 +3211,6 @@ kbd {
 @media (hover: hover) and (min-width: 761px) {
   .build-hints {
     display: flex;
-  }
-  .build-hints ~ .toasts {
-    bottom: 56px;
   }
   .build-options .build-touch-hint {
     display: none;
@@ -3401,15 +3493,10 @@ kbd {
   .build-slider {
     display: none;
   }
-  /* The zoom buttons, down in the corner while a tool's bar is open, move up above the
-     floating bar while it's there, so it doesn't cover them. */
-  .build-selbar ~ .zoom {
-    bottom: 64px;
-  }
-  /* While a tool's bar is open the zoom buttons stand in the bottom corner, so toasts stop
-     short of them rather than covering Zoom in and Zoom out. */
-  .tool-options ~ .toasts {
-    max-width: min(360px, calc(100% - 124px));
+  /* While a tool's bar is open the zoom buttons stand in the bottom corner, so the messages
+     stop short of them rather than covering Zoom in and Zoom out. */
+  .stage-area:has(> .tool-options) > .corner-bl {
+    right: 64px;
   }
 }
 /* On the narrowest phones (320 px) the floating bar's buttons close up, so all seven fit. */
@@ -3423,19 +3510,19 @@ kbd {
   }
 }
 /* On a tablet (or a phone held sideways) the floating bar stays one row in the middle, even
-   beside a side panel. The zoom buttons sit above it, and toasts above those, so nothing
-   covers a button (a tap on a toast only closes the toast). */
+   beside a side panel. The zoom buttons and the messages sit above it, so nothing covers a
+   button (a tap on a message only closes it). */
 @media (hover: none) and (min-width: 761px) {
-  .selbar.build-selbar {
-    flex-wrap: nowrap;
-    width: max-content;
+  .bottom-bars:has(> .build-selbar) {
     max-width: calc(100% - 20px);
   }
-  .build-selbar ~ .zoom {
-    bottom: 64px;
+  .bottom-bars > .selbar.build-selbar {
+    flex-wrap: nowrap;
+    width: max-content;
+    max-width: 100%;
   }
-  .build-selbar ~ .toasts {
-    bottom: 116px;
+  .stage-area:has(> .bottom-bars > .build-selbar) > .zoom {
+    bottom: calc(12px + var(--bottom-h, 0px));
   }
 }
 /* The Build tool's modes wrap onto a second row rather than running under a side panel. */

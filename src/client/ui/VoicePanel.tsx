@@ -1,7 +1,7 @@
 // Voice chat's controls: its part of the Chat & dice panel, the microphone button in the
 // zoom box, and the overlay on the map showing who's talking.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import { Headphones, Mic, MicOff, PhoneOff, VolumeX } from "lucide-preact";
 import type { VoicePeer } from "../../shared/voice";
@@ -257,48 +257,16 @@ export function VoiceHeldNotice() {
   );
 }
 
-/** What the overlay keeps clear of: a tool's bar, and the season note on a narrow screen. */
-const OBSTACLES = ".tool-options, .board-season-note.shown";
-
-/**
- * Moves the overlay down below anything at the top of the map it would cover. Checked as
- * it changes and a few times a second while it's showing (bars open and change height).
- */
-function useClearOfBars(ref: { current: HTMLDivElement | null }, shown: boolean): void {
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const area = el?.parentElement;
-    if (!shown || !el || !area) return;
-    const place = () => {
-      const a = area.getBoundingClientRect();
-      const right = a.right - (parseFloat(getComputedStyle(el).right) || 0);
-      const left = right - el.offsetWidth;
-      let top = 10;
-      const bars = [...area.querySelectorAll<HTMLElement>(OBSTACLES)]
-        .map((b) => b.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.right > left && r.left < right)
-        .sort((p, q) => p.top - q.top);
-      for (const r of bars) if (r.top - a.top < top + el.offsetHeight) top = Math.max(top, r.bottom - a.top + 8);
-      el.style.top = `${Math.round(top)}px`;
-    };
-    place();
-    const timer = setInterval(place, 250);
-    return () => clearInterval(timer);
-  });
-}
-
 /** Over the map, while in voice chat: whoever is talking right now, in the order they joined. */
 export function SpeakingOverlay() {
   const on = useVoice((s) => s.status === "on");
   const speaking = useVoice((s) => s.speaking);
   const peers = useVoice((s) => s.peers);
   const myId = useVoice((s) => s.self?.connId);
-  const ref = useRef<HTMLDivElement>(null);
   const list = on ? peers.filter((p) => speaking.includes(p.connId)) : [];
-  useClearOfBars(ref, list.length > 0);
   if (!list.length) return null;
   return (
-    <div class="speaking-overlay" aria-hidden="true" ref={ref}>
+    <div class="speaking-overlay" aria-hidden="true">
       {list.map((p) => (
         <div key={p.connId} class="speaking-chip" style={{ borderColor: p.color }}>
           <span class="voice-avatar" style={{ background: p.color }}>
