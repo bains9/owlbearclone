@@ -34,6 +34,7 @@ import {
   Pentagon,
   Plus,
   Pointer,
+  WandSparkles,
   RectangleHorizontal,
   Redo2,
   Ruler,
@@ -59,6 +60,7 @@ import {
 import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
+import { FX_GROUPS, FX_LOOKS, SPELL_FX, spellFx, type FxCast } from "../../shared/spellfx";
 import { foldOf } from "./objectGroups";
 import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
 import { FloorPicker, WallPicker } from "./FloorPicker";
@@ -88,6 +90,7 @@ const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?:
   { id: "build", label: "Build the map: floors, walls, doors, objects", key: "B", icon: Hammer, gm: true },
   { id: "measure", label: "Measure", key: "M", icon: Ruler },
   { id: "pointer", label: "Pointer", key: "P", icon: Pointer },
+  { id: "spell", label: "Spells: cast an effect everyone sees", key: "S", icon: WandSparkles },
 ];
 
 export const DRAW_COLORS = ["#ffffff", "#111111", "#e4572e", "#f3a712", "#e8d33f", "#5bba6f", "#4f9dde", "#b45fd6"];
@@ -131,6 +134,7 @@ export function ToolOptions() {
   if (tool === "build") return <BuildOptions />;
   if (tool === "erase") return <EraseOptions />;
   if (tool === "measure") return <MeasureHint />;
+  if (tool === "spell") return <SpellOptions />;
   if (tool === "pointer") return <div class="tool-options hint">Hold and drag to point; click to ping a spot. Everyone sees it, table display too.</div>;
   return null;
 }
@@ -973,6 +977,48 @@ const MEASURE_TOOLS: { id: MeasureShape; label: string; icon: typeof Pencil }[] 
   { id: "square", label: "Cube", icon: Square },
   { id: "beam", label: "Line (one square wide)", icon: RectangleHorizontal },
 ];
+
+/** How each kind of spell is cast, as the Spells bar says it. */
+const CAST_HINTS: Record<FxCast, string> = {
+  burst: "Click where it goes.",
+  strike: "Click where it strikes.",
+  cone: "Drag from the caster the way it goes.",
+  bolt: "Drag from the caster to the target.",
+  jump: "Drag from where they leave to where they arrive.",
+};
+
+/** The Spells tool's bar: which spell, and how to cast it. Everyone in the room sees it play. */
+function SpellOptions() {
+  const room = useRoom();
+  const o = useRoomState((s) => s.spellOpts);
+  const spell = spellFx(o.spell);
+  const cast = spell ? FX_LOOKS[spell.look].cast : "burst";
+  const size = spell?.size ? (spell.spread ? `${spell.size} m, ${spell.spread}°` : `${spell.size} m radius`) : "";
+  return (
+    <div class="tool-options">
+      <label class="field inline">
+        <span>Spell</span>
+        <select value={o.spell} onChange={(e) => room.store.set({ spellOpts: { ...o, spell: e.currentTarget.value } })}>
+          {FX_GROUPS.map((g) => (
+            <optgroup key={g.name} label={g.name}>
+              {SPELL_FX.filter((sp) => g.casts.includes(FX_LOOKS[sp.look].cast))
+                .sort((x, y) => x.name.localeCompare(y.name))
+                .map((sp) => (
+                  <option key={sp.name} value={sp.name}>
+                    {sp.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <span class="hint">
+        {CAST_HINTS[cast]}
+        {size && ` ${size}.`} Everyone sees it.
+      </span>
+    </div>
+  );
+}
 
 function MeasureHint() {
   const room = useRoom();

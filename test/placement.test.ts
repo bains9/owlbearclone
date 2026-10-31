@@ -113,7 +113,7 @@ describe("in the guide", () => {
   const all = (id: string) => JSON.stringify(section(id));
 
   it("is in What's new under scattering, naming the setting and the magnet", () => {
-    const entry = section("whats-new").parts[1];
+    const entry = section("whats-new").parts[2];
     expect(entry.title).toBe("Place tokens and objects anywhere (31 October 2026)");
     expect(JSON.stringify(entry)).toContain("**Never snap to the grid**");
     expect(JSON.stringify(entry)).toContain("tap the magnet");

@@ -20,6 +20,7 @@ import type { InitOp } from "../shared/initiative";
 import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } from "../shared/permissions";
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
+import { cleanFx } from "../shared/spellfx";
 import {
   DEFAULT_SETTINGS,
   GM_OWNER,
@@ -1280,6 +1281,10 @@ export class Room extends DurableObject<Env> {
     } else if (e.k === "pointer") {
       if (!finite(e.x) || !finite(e.y)) return;
       clean = { k: "pointer", sceneId: e.sceneId, x: e.x, y: e.y, ...(e.ping === true ? { ping: true } : {}) };
+    } else if (e.k === "fx") {
+      const fx = cleanFx(e);
+      if (!fx) return;
+      clean = fx;
     } else {
       return;
     }

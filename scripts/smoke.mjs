@@ -560,6 +560,19 @@ async function main() {
     "live drags of hidden tokens don't reach players",
   );
 
+  // A spell effect (the Spells tool): a player's reaches everyone, tidied; one the Room doesn't know doesn't.
+  gm.clear();
+  bob.clear();
+  alice.send({ t: "eph", e: { k: "fx", sceneId, look: "nope", a: [0, 0], b: [1, 1], r: 0, seed: 1 } });
+  alice.send({ t: "eph", e: { k: "fx", sceneId, look: "orb", a: [10.123, 20], b: [300, 200], r: 0, color: "#ff5ad0", seed: 77, extra: "x" } });
+  const fx = await gm.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  const fxBob = await bob.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  check(
+    fx?.e.look === "orb" && fx.e.a[0] === 10.12 && fx.e.color === "#ff5ad0" && !("extra" in fx.e) && fxBob?.e.seed === 77 &&
+      gm.msgs.filter((m) => m.t === "eph" && m.e.k === "fx").length === 1,
+    "a spell effect reaches everyone, and one the Room doesn't know doesn't",
+  );
+
   alice.clear();
   bob.clear();
   alice.send({ t: "roll", expr: "2d20kh1+5" });

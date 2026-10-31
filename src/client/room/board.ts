@@ -79,6 +79,8 @@ import {
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
+import { FX_LOOKS, spellFx } from "../../shared/spellfx";
+import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
   CLIPBOARD_MAX,
@@ -218,6 +220,8 @@ type Gesture =
       points: number[];
       node: Konva.Shape;
     }
+  /** The Spells tool: aimed from start (the caster, snapped to a token pressed on) to end. */
+  | { kind: "spell"; pointerId: number; start: Point; end: Point }
   /** Built: (GM) it passed over floor or objects built with the Build tool, which it doesn't take. */
   | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean; built: boolean }
   | { kind: "fog-rect"; pointerId: number; start: Point; end: Point; node: Konva.Rect }
@@ -405,6 +409,11 @@ export class Board implements BoardApi {
   private gridNode: Konva.Shape;
   private fogNode: Konva.Shape;
   private trailNode: Konva.Shape;
+  /** Spell effects playing (the Spells tool's, and others'), and the aim of the next one. */
+  private fxNode: Konva.Shape;
+  private fxPlays: FxPlay[] = [];
+  /** Where the mouse is, for the Spells tool's preview before a press. */
+  private spellHover: Point | null = null;
   /** Compass roses again, over the fog where it covers them: a compass is never hidden by fog. */
   private compassFogNode: Konva.Shape;
   /**
@@ -558,6 +567,10 @@ export class Board implements BoardApi {
       listening: false,
       sceneFunc: (ctx) => this.drawTrails(native(ctx)),
     });
+    this.fxNode = new Konva.Shape({
+      listening: false,
+      sceneFunc: (ctx) => this.drawSpells(native(ctx)),
+    });
     this.compassFogNode = new Konva.Shape({
       listening: false,
       sceneFunc: (ctx) => this.drawCompassesOnFog(native(ctx)),
@@ -600,7 +613,7 @@ export class Board implements BoardApi {
     this.fogLayer.add(this.fogNode, this.compassFogNode);
     this.sightLayer.add(this.sightNode);
     this.monoLayer.add(this.monoNode);
-    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
+    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.fxNode, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
     this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
     // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
     this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
@@ -622,6 +635,10 @@ export class Board implements BoardApi {
     on(el, "pointercancel", this.onPointerUp);
     on(el, "pointerleave", () => {
       this.pointerPos = null;
+      if (this.spellHover) {
+        this.spellHover = null;
+        this.uiLayer.batchDraw();
+      }
       this.updateBrushCursor(null);
       this.setHover(null);
     });
@@ -2444,6 +2461,8 @@ export class Board implements BoardApi {
       if (now - p.t < PING_MS) active = true;
       else this.pings.delete(id);
     }
+    this.fxPlays = this.fxPlays.filter((f) => now - f.t0 < fxDuration(f.look));
+    if (this.fxPlays.length) active = true;
     const wall = Date.now();
     let rulersChanged = false;
     for (const [id, r] of this.remoteRulers) {
@@ -2546,6 +2565,113 @@ export class Board implements BoardApi {
     return s.players.find((p) => p.connId === connId)?.color ?? "#ffffff";
   }
 
+  /** A spell's size in map pixels: a burst's radius or a cone's length, from its metres. */
+  private spellReach(size: number | undefined): number {
+    const grid = this.renderedScene?.grid;
+    return grid && size ? distanceSquares({ d: size, unit: "m" }, grid) * grid.size : 0;
+  }
+
+  /**
+   * The Spells tool, let go: the picked spell plays here and on everyone's screen. A burst goes
+   * where it was let go; a cone points from the caster towards it; a bolt or a jump goes from
+   * the caster to it.
+   */
+  private castSpell(start: Point, end: Point): void {
+    const scene = this.renderedScene;
+    const spell = spellFx(this.room.state.spellOpts.spell);
+    if (!scene || !spell) return;
+    const cast = FX_LOOKS[spell.look].cast;
+    const far = Math.hypot(end.x - start.x, end.y - start.y);
+    if ((cast === "bolt" || cast === "jump" || cast === "cone") && far < scene.grid.size * 0.3) {
+      this.room.toast(cast === "cone" ? "Drag from the caster the way the spell goes." : "Drag from the caster to the target.");
+      return;
+    }
+    const round = (v: number) => Math.round(v * 100) / 100;
+    const area = cast === "burst" || cast === "strike";
+    const a = area ? end : start;
+    const fx: Extract<Ephemeral, { k: "fx" }> = {
+      k: "fx",
+      sceneId: scene.id,
+      look: spell.look,
+      a: [round(a.x), round(a.y)],
+      b: [round(end.x), round(end.y)],
+      r: round(this.spellReach(spell.size)),
+      ...(spell.spread ? { spread: spell.spread } : {}),
+      ...(spell.color ? { color: spell.color } : {}),
+      seed: Math.floor(Math.random() * 2 ** 31),
+    };
+    this.playFx(fx);
+    this.room.sendEph(fx);
+  }
+
+  /** Starts an effect playing here. */
+  private playFx(e: Extract<Ephemeral, { k: "fx" }>): void {
+    const grid = this.renderedScene?.grid;
+    if (!grid || this.fxPlays.length > 40) return;
+    this.fxPlays.push({
+      look: e.look,
+      a: { x: e.a[0], y: e.a[1] },
+      b: { x: e.b[0], y: e.b[1] },
+      r: e.r,
+      spread: e.spread ?? 90,
+      color: e.color ?? "#ffffff",
+      seed: e.seed,
+      t0: performance.now(),
+      cell: grid.size,
+    });
+    this.startAnim();
+  }
+
+  /** The effects playing, and (Spells tool) where the next one would go. */
+  private drawSpells(c: CanvasRenderingContext2D): void {
+    const now = performance.now();
+    const px = 1 / this.stage.scaleX();
+    for (const f of this.fxPlays) drawFx(c, f, now, px);
+    const s = this.room.state;
+    if (s.tool !== "spell" || this.room.display) return;
+    const spell = spellFx(s.spellOpts.spell);
+    const g = this.gesture;
+    const aiming = g.kind === "spell" ? g : null;
+    const at = aiming?.end ?? this.spellHover;
+    if (!spell || !at) return;
+    const cast = FX_LOOKS[spell.look].cast;
+    const reach = this.spellReach(spell.size);
+    const color = s.me?.color ?? "#ffffff";
+    c.save();
+    c.setLineDash([8 * px, 6 * px]);
+    c.lineWidth = 2 * px;
+    c.strokeStyle = color;
+    c.fillStyle = hexToRgba(color, 0.12);
+    if (cast === "burst" || cast === "strike") {
+      c.beginPath();
+      c.arc(at.x, at.y, Math.max(reach, 6 * px), 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+    } else if (aiming) {
+      const from = aiming.start;
+      if (cast === "cone") {
+        const dir = Math.atan2(at.y - from.y, at.x - from.x);
+        const h = (((spell.spread ?? 90) / 2) * Math.PI) / 180;
+        c.beginPath();
+        c.moveTo(from.x, from.y);
+        c.arc(from.x, from.y, reach, dir - h, dir + h);
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else {
+        c.beginPath();
+        c.moveTo(from.x, from.y);
+        c.lineTo(at.x, at.y);
+        c.stroke();
+        c.setLineDash([]);
+        c.beginPath();
+        c.arc(at.x, at.y, 6 * px, 0, Math.PI * 2);
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+
   private addTrail(key: string, color: string, p: Point): void {
     let trail = this.trails.get(key);
     if (!trail) {
@@ -2564,6 +2690,10 @@ export class Board implements BoardApi {
       if (!this.room.display) return;
       this.followRect = e.rect;
       this.applyDisplayView();
+      return;
+    }
+    if (e.k === "fx") {
+      this.playFx(e);
       return;
     }
     if (e.k === "pointer") {
@@ -2753,6 +2883,14 @@ export class Board implements BoardApi {
             : snapToVertex(world, scene.grid);
         this.gesture = { kind: "measure", pointerId: e.pointerId, shape, start, end: start, lastEph: 0 };
         this.setLocalRuler(start, start, shape);
+        return;
+      }
+      case "spell": {
+        // Cast from a token pressed on, from its middle.
+        const hit = this.pickAt(pos);
+        const start = hit?.kind === "token" ? { x: hit.x, y: hit.y } : world;
+        this.gesture = { kind: "spell", pointerId: e.pointerId, start, end: world };
+        this.uiLayer.batchDraw();
         return;
       }
       case "pointer":
@@ -4283,6 +4421,10 @@ export class Board implements BoardApi {
       this.pointerPos = pos;
       this.updateBrushCursor(world);
       if (this.room.state.tool === "build") this.setHover(world);
+      if (this.room.state.tool === "spell") {
+        this.spellHover = world;
+        this.uiLayer.batchDraw();
+      }
     }
     if (!this.pointers.has(e.pointerId)) {
       if (this.poly) this.updatePolyPreview(world);
@@ -4421,6 +4563,10 @@ export class Board implements BoardApi {
         return;
       case "erase":
         this.eraseAt(g, pos);
+        return;
+      case "spell":
+        g.end = world;
+        this.uiLayer.batchDraw();
         return;
       case "build-scatter":
         if (!g.last && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
@@ -4597,6 +4743,13 @@ export class Board implements BoardApi {
           }
         }
         return;
+      case "spell": {
+        // Aimed at a token let go over: its middle.
+        const hit = this.pickAt(this.localPos(e));
+        this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
+        this.uiLayer.batchDraw();
+        return;
+      }
       case "build-scatter":
         // A tap on a touch screen is one dab, there.
         if (!g.last) this.scatterAlong(g, world);
@@ -4835,6 +4988,9 @@ export class Board implements BoardApi {
       case "build-erase-objects":
         this.build.hideStamps([]);
         this.bgLayer.batchDraw();
+        break;
+      case "spell":
+        this.uiLayer.batchDraw();
         break;
       case "build-scatter":
         // The drag's one undo step is on top: take it back.
@@ -5247,6 +5403,10 @@ export class Board implements BoardApi {
       case "P":
         room.setTool("pointer");
         return;
+      case "s":
+      case "S":
+        room.setTool("spell");
+        return;
       case "h":
       case "H":
         toggleHidden(room);
@@ -5307,7 +5467,7 @@ export class Board implements BoardApi {
     else if (tool === "build" && s.buildOpts.mode === "select") {
       // Select: a drag on an object moves it, and anywhere else draws a box.
       cursor = g.kind === "build-move-sel" ? "grabbing" : g.kind === "build-box" ? "crosshair" : this.hoverObject ? "move" : "default";
-    } else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer") cursor = "crosshair";
+    } else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer" || tool === "spell") cursor = "crosshair";
     else if (tool === "erase") cursor = "cell";
     this.el.style.cursor = cursor;
   }

@@ -31,6 +31,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   build: "Build the map",
   measure: "Measure",
   pointer: "Pointer",
+  spell: "Spells",
 };
 
 export const HEX_TOAST = "Building works on a square grid. Switch this scene to squares in Edit scene.";

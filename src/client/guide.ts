@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Spell effects: cast a spell everyone sees (31 October 2026)",
+        "steps": [
+          "Pick **Spells** in the toolbar (the wand), or press **S**.",
+          "Choose the spell in the bar: Magic Missile, Chromatic Orb, Frost Hands, Colour Spray, Cloudburst, Call lightning and the rest of the party's spells that go off once.",
+          "Click where it goes, or drag from the caster to the target, as the bar says. It plays on everyone's screen, the table display too."
+        ],
+        "notes": [
+          "Sizes come from the spell lists on the character sheets: Cloudburst rains on a 5 m radius, Frost Hands is a 2 m fan.",
+          "Press on a token to cast from it, and let go on a token to aim at it.",
+          "This is the first set. Spells that stay on the map (fog, darkness, light, plants) and ones that change a token's look come next. See **Spell effects**."
+        ]
+      },
+      {
         "title": "Scatter forests on the fly (31 October 2026)",
         "steps": [
           "GM: in the Build tool's **Objects**, pick **Scatter**, pick a tree (Nature › Leafy trees or Evergreens), and drag over the map. Trees appear under the brush at random, each turned its own way and a little bigger or smaller.",
@@ -625,6 +638,7 @@ export const GUIDE: GuideSection[] = [
           "**Build the map (B)**: GM only. Paint rooms, walls, doors, terrain and objects onto the grid, with modes named after Dungeondraft's tools.",
           "**Measure (M)**: a ruler and spell areas.",
           "**Pointer (P)**: hold and drag to point. Everyone sees the trail.",
+          "**Spells (S)**: cast a spell's effect, such as Magic Missile or Cloudburst, that everyone sees play.",
           "**Undo (Ctrl+Z)** and **Redo (Ctrl+Shift+Z)** only cover your own changes on the scene you're looking at. They're greyed out when there's nothing to undo or redo.",
           "Undo only remembers changes you've made since you opened the page. Reloading clears it."
         ]
@@ -1411,6 +1425,39 @@ export const GUIDE: GuideSection[] = [
           "It disappears for everyone when you let go, unless you pinned it.",
           "If you hold a ruler or spell area still for more than about 8 seconds, it disappears for everyone else until you move it again.",
           "GM: if you're looking at a scene the players aren't on, they don't see your ruler, spell areas, pointer or token drags."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "spells",
+    "title": "Spell effects",
+    "audience": "everyone",
+    "intro": "The **Spells** tool plays a spell's effect on the map, once, for everyone in the room: a fan of frost, darts of force, rain, lightning from the sky. Nothing stays on the map afterwards, and nothing is rolled: it's for show, while the dice and the GM decide what it does.",
+    "parts": [
+      {
+        "title": "Cast a spell",
+        "steps": [
+          "Pick **Spells** in the toolbar (the wand), or press **S**.",
+          "Choose the spell from **Spell** in the bar.",
+          "Do what the bar says: click where it goes for an area, drag from the caster the way it goes for a fan, or drag from the caster to the target for a bolt or a ray.",
+          "Let go. It plays for everyone, the table display too."
+        ],
+        "notes": [
+          "Press on a token to cast from its middle, and let go on a token to aim at its middle.",
+          "Before you click, a dashed outline shows where an area spell will land and how big it is. While you drag, it shows the fan or the line.",
+          "Sizes come from the spell lists on the character sheets, in metres, and fit any scene: Cloudburst rains on a 5 m radius, Earthmaw opens 5 m across, Call lightning strikes 3 m round, Frost Hands is a 2 m fan of 120°, Colour Spray a 7 m fan.",
+          "Players can cast too. Effects play over everything, fog and darkness included, so a player sees a spell go off even where they can't see the map."
+        ]
+      },
+      {
+        "title": "The spells so far",
+        "steps": [],
+        "notes": [
+          "**Bursts:** Cloudburst, Earthmaw, Needlestorm, Splinter Wood, Bless, Cure wounds (a sparkle), Call lightning (from the sky), Frost Hands and Colour Spray (fans from the caster).",
+          "**Bolts and rays:** Magic Missile, Chromatic Orb, Ball Lightning, Divine bolt, Paralysis Bolt.",
+          "**Comings and goings:** Portal I and Misty Step, a puff of mist where someone leaves and another where they arrive. Move the token yourself.",
+          "These are the party's spells that go off once. Spells that stay on the map (fog, darkness, light, plants, a pit) and ones that change how a token looks come next."
         ]
       }
     ]
@@ -3367,6 +3414,7 @@ export const GUIDE: GuideSection[] = [
           "**E**: Eraser (drawings, notes and tokens)",
           "**M**: Measure",
           "**P**: Pointer",
+          "**S**: Spells",
           "**F**: Fog of war (GM)",
           "**B**: Build the map (GM)",
           "**X**: **Select** in Build the map, and back again (GM)"

@@ -2,6 +2,7 @@
 
 import type { TemplateShape } from "./geometry";
 import type { InitOp } from "./initiative";
+import type { FxLook } from "./spellfx";
 import type {
   Asset,
   ChatMessage,
@@ -37,6 +38,12 @@ export type Ephemeral =
   | { k: "ruler"; sceneId: string; points: number[] | null; label?: string; shape?: MeasureShape }
   /** The pointer: a point on its trail, or with ping, a click that marks a spot for a few seconds. */
   | { k: "pointer"; sceneId: string; x: number; y: number; ping?: boolean }
+  /**
+   * A spell effect played once (the Spells tool), in map pixels: from a (the caster, or a burst's
+   * middle) to b (the target, or where a cone points); r is a burst's radius or a cone's length,
+   * spread a cone's width in degrees, and seed makes everyone see the same sparks.
+   */
+  | { k: "fx"; sceneId: string; look: FxLook; a: [number, number]; b: [number, number]; r: number; spread?: number; color?: string; seed: number }
   /**
    * GM only, to table displays: the part of the live scene the GM is looking at, as
    * [x, y, width, height] in map pixels, or null to show the whole scene.

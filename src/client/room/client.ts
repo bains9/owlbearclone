@@ -53,7 +53,7 @@ import { NO_MAP_LOAD } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { voiceLink } from "./voiceLink";
 
-export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
+export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer" | "spell";
 
 /** Tools only the GM has. */
 export const GM_TOOLS: ToolId[] = ["fog", "build"];
@@ -175,6 +175,8 @@ export interface RoomState {
   fogOpts: FogOptions;
   buildOpts: BuildOptions;
   measureOpts: MeasureOptions;
+  /** The Spells tool: the spell it casts (a name in SPELL_FX). */
+  spellOpts: { spell: string };
   /**
    * Set while the GM is lining the grid up by drawing a box on the map: how many
    * squares across the box will cover.
@@ -500,6 +502,7 @@ export class RoomClient {
         selectReturn: null,
       },
       measureOpts: { shape: "ruler", keep: false },
+      spellOpts: { spell: "Magic Missile" },
       textPrompt: null,
       mapImport: null,
       attachDD: null,
