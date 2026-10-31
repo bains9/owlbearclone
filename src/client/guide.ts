@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Place tokens and objects anywhere (31 October 2026)",
+        "steps": [
+          "GM: in **Room settings**, under **Placing things**, tick **Never snap to the grid**. In every scene, tokens and the Build tool's objects then go exactly where they're put: a forest can be as dense as you like, and a crowd of monsters can stand shoulder to shoulder.",
+          "On a phone or tablet, which has no Alt key: select a token and tap the magnet in its bar. Tokens you let go of on that device then stay exactly where you put them. Tap it again to snap them to the grid."
+        ],
+        "notes": [
+          "The magnet works on a computer too, for instance where Alt and a drag moves windows instead. It's remembered on each device, and it only shows in a scene that snaps.",
+          "With **Never snap to the grid** ticked, each scene's **Snap tokens** box and the Build tool's **Snap to squares** are greyed out, and rulers and spell areas aren't snapped either."
+        ]
+      },
+      {
         "title": "Erasing what you built (31 October 2026)",
         "steps": [
           "GM: in the Build tool's **Objects**, pick **Erase** (it was **Remove**) and drag over objects to erase every one the drag passes over, such as a row of trees. A click still erases just the one on top. With a mouse, holding **Alt** does the same while you place objects.",
@@ -701,7 +712,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "With **Draw**, the **Eraser**, **Measure**, **Pointer**, or (GM) **Fog of war** or **Build the map** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
           "The zoom buttons work on touch screens too.",
-          "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard."
+          "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard.",
+          "Tokens snap to the grid when you let go, and there's no Alt key to stop it. Select a token and tap the magnet in its bar: tokens you let go of then stay exactly where you put them, on this device, until you tap it again."
         ]
       },
       {
@@ -801,7 +813,8 @@ export const GUIDE: GuideSection[] = [
           "To place a token between squares, hold **Alt** as you let go."
         ],
         "notes": [
-          "Tokens only snap when the scene's **Snap tokens** box is ticked. The GM sets this in the **Scenes** panel, under **Grid**, and it's on by default.",
+          "Tokens only snap when the scene's **Snap tokens** box is ticked. The GM sets this in the **Scenes** panel, under **Grid**, and it's on by default. With **Never snap to the grid** ticked in **Room settings**, tokens never snap, in any scene.",
+          "Without Alt (on a phone or tablet, say): select the token and click or tap the magnet in its bar. Tokens you let go of on this device then stay exactly where you put them. Click it again to snap them. The magnet only shows where the scene snaps.",
           "Everyone else looking at the same scene sees the token move while you drag it.",
           "To nudge a token one square, select it and press an arrow key. On a hex grid it moves to the next hex.",
           "Dragging empty map moves your view instead of a token.",
@@ -2352,7 +2365,7 @@ export const GUIDE: GuideSection[] = [
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],
         "notes": [
-          "To place objects closer together than squares allow, untick **Snap to squares** in the bar. Each then goes exactly where you click, to a sixteenth of a square. Tick it again for whole squares. It's remembered in this browser.",
+          "To place objects closer together than squares allow, untick **Snap to squares** in the bar (in a room with **Never snap to the grid** ticked in **Room settings**, it's already off and greyed out). Each then goes exactly where you click, to a sixteenth of a square. Tick it again for whole squares. It's remembered in this browser.",
           "A click always places a new object, even on top of another (a chair at a table), but never an exact copy on top of the same object. To move, turn or delete objects already placed, use **Select**. With a mouse you can also drag one to move it without switching.",
           "While you place objects, the mouse wheel turns them: zoom with **Ctrl** and the wheel, or pinch on a trackpad. Two fingers on a trackpad still move the map.",
           "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
@@ -2577,7 +2590,8 @@ export const GUIDE: GuideSection[] = [
           "Drag **Line opacity** to make the lines fainter or stronger."
         ],
         "notes": [
-          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel snap too, unless you hold Alt as you let go of them."
+          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel snap too, unless you hold Alt as you let go of them.",
+          "With **Never snap to the grid** ticked in **Room settings**, **Snap tokens** is greyed out and unticked: no scene snaps."
         ]
       },
       {
@@ -3153,7 +3167,7 @@ export const GUIDE: GuideSection[] = [
     "id": "room-settings",
     "title": "Room settings and backups",
     "audience": "gm",
-    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, backups, and the option to delete the room.",
+    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, whether anything snaps to the grid, backups, and the option to delete the room.",
     "parts": [
       {
         "title": "Open Room settings",
@@ -3216,6 +3230,19 @@ export const GUIDE: GuideSection[] = [
           "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",
           "A message says how many scenes were switched, for example \"Switched 3 scenes to metres. Undo (Ctrl+Z) switches them back.\" If no scene needs switching, the box just changes, with no window.",
           "Everyone's rulers and spell areas follow straight away. Each scene can still have its own distance under **Distance** in **Edit scene**."
+        ]
+      },
+      {
+        "title": "Never snap to the grid",
+        "steps": [
+          "Under **Placing things**, tick **Never snap to the grid**."
+        ],
+        "notes": [
+          "In every scene of this room, for everyone, tokens go exactly where they're put or let go of, and so do the Build tool's objects: dense forests, or a crowd of monsters bunched up.",
+          "Each scene's **Snap tokens** box and the Build tool's **Snap to squares** are greyed out while it's ticked, and rulers and spell areas aren't snapped either.",
+          "Untick it and each scene's **Snap tokens** box decides again, as before. Tokens and objects already placed stay where they are.",
+          "Walls, doors and floors still follow the grid lines: only tokens and objects go anywhere.",
+          "A part of the map 16 by 16 squares holds up to 256 objects, however close together they are."
         ]
       },
       {

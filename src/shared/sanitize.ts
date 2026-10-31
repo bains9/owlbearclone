@@ -627,12 +627,14 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
 export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSettings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const metric = bool(r.metric) ?? current.metric;
+  const freePlacement = bool(r.freePlacement) ?? current.freePlacement;
   return {
     playersCanDraw: bool(r.playersCanDraw) ?? current.playersCanDraw,
     playersCanAddTokens: bool(r.playersCanAddTokens) ?? current.playersCanAddTokens,
     playersMoveAll: bool(r.playersMoveAll) ?? current.playersMoveAll,
     // Left out (a page from before metres, say) keeps what the room has; a room that never had it stays without.
     ...(metric !== undefined ? { metric } : {}),
+    ...(freePlacement !== undefined ? { freePlacement } : {}),
   };
 }
 

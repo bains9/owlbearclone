@@ -12,6 +12,7 @@ import {
   FlipHorizontal2,
   Lock,
   LockOpen,
+  Magnet,
   RotateCcw,
   RotateCw,
   SendToBack,
@@ -22,7 +23,7 @@ import { initiativeRoll } from "../../shared/characters";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
-import { isCompass } from "../../shared/types";
+import { isCompass, sceneSnaps } from "../../shared/types";
 import { PLAYER_COLORS } from "../identity";
 import {
   deleteSelection,
@@ -39,6 +40,34 @@ import { CommitInput, Swatches, cx, useRoom, useRoomState } from "./common";
 import { DRAW_COLORS } from "./Toolbar";
 
 const RING_COLORS = ["#e4572e", "#f3a712", "#5bba6f", "#4f9dde", "#b45fd6", "#ffffff"];
+
+/**
+ * Whether tokens this device lets go of snap to the grid: Alt held, for touch screens (and
+ * desktops that keep Alt+drag for moving windows). Only where the scene snaps: otherwise
+ * there's nothing to switch.
+ */
+function SnapSwitch() {
+  const room = useRoom();
+  const on = useRoomState((s) => s.tokenSnap);
+  const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : undefined));
+  const settings = useRoomState((s) => s.room?.settings);
+  if (!scene || !sceneSnaps(scene, settings)) return null;
+  return (
+    <button
+      class={cx("icon-btn", on && "active")}
+      title={
+        on
+          ? "Snaps to the grid when you let go (on this device). Click to place tokens exactly where you let go."
+          : "Placed exactly where you let go (on this device). Click to snap tokens to the grid again."
+      }
+      aria-label="Snap to the grid"
+      aria-pressed={on}
+      onClick={() => room.setTokenSnap(!on)}
+    >
+      <Magnet size={18} />
+    </button>
+  );
+}
 
 /**
  * A token's size in squares, with the D&D sizes they stand for (a size not in the list, such as
@@ -243,6 +272,7 @@ export function SelectionBar() {
                 <FlipHorizontal2 size={18} />
               </button>
             )}
+            <SnapSwitch />
           </>
         )}
         {gm && (
@@ -362,6 +392,7 @@ export function SelectionBar() {
           <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" onClick={() => rotateSelection(room, 45)}>
             <RotateCw size={18} />
           </button>
+          <SnapSwitch />
         </>
       )}
       {tokens.length > 0 && (gm || room.state.room?.settings.playersCanAddTokens) && (

@@ -455,9 +455,9 @@ describe("erasing what's built", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
   const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
 
-  it("leads What's new, with the bar's word for it", () => {
-    expect(news.parts[0].title).toBe("Erasing what you built (31 October 2026)");
-    expect(news.parts[0].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
+  it("is in What's new under placing things anywhere, with the bar's word for it", () => {
+    expect(news.parts[1].title).toBe("Erasing what you built (31 October 2026)");
+    expect(news.parts[1].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
   });
 
   it("is in the guide where the eraser and objects are explained", () => {

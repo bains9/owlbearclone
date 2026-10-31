@@ -197,9 +197,9 @@ describe("the guide", () => {
   };
 
   it("has the move sixteenth in What's new, under the voice chat and dice entries", () => {
-    expect(news.parts[15].title).toBe("Voice chat (24 October 2026)");
-    expect(news.parts[16].title).toBe('"Only you can see this scene" moved to the top bar (22 October 2026)');
-    const entry = text(news.parts[16].title);
+    expect(news.parts[16].title).toBe("Voice chat (24 October 2026)");
+    expect(news.parts[17].title).toBe('"Only you can see this scene" moved to the top bar (22 October 2026)');
+    const entry = text(news.parts[17].title);
     for (const what of ["top bar", "**Show to players**", "**Back to live scene**", "Build tool's objects", "crossed-out eye", "phone"]) {
       expect(entry).toContain(what);
     }
@@ -217,7 +217,7 @@ describe("the guide", () => {
     for (const l of lines) expect(l, l).toMatch(/near the bottom of the map/);
     for (const l of lines) expect(l, l).not.toMatch(/banner across the map|banner on the map|"Only you can see this scene\.?" banner/);
     // The new entry tells a touch screen how to read it all, and what happens to the circles and Reload.
-    const entry = text(news.parts[16].title);
+    const entry = text(news.parts[17].title);
     expect(entry).toContain("tap the eye");
     expect(entry).toContain("**Reload**");
     expect(entry).toContain("coloured circles");

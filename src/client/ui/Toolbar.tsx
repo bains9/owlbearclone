@@ -706,9 +706,19 @@ function BuildOptions() {
 function ObjectSnap() {
   const room = useRoom();
   const snap = useRoomState((s) => s.objectSnap);
+  // Room settings › Never snap to the grid: off for everyone, and not this browser's to change.
+  const never = useRoomState((s) => !!s.room?.settings.freePlacement);
   return (
-    <label class="check" title="Untick to place and move objects anywhere, not only on whole squares (the arrow keys then move a quarter square)">
-      <input type="checkbox" checked={snap} onChange={(e) => room.setObjectSnap(e.currentTarget.checked)} /> Snap to squares
+    <label
+      class="check"
+      title={
+        never
+          ? "Off in every scene: Room settings › Never snap to the grid"
+          : "Untick to place and move objects anywhere, not only on whole squares (the arrow keys then move a quarter square)"
+      }
+    >
+      <input type="checkbox" checked={snap && !never} disabled={never} onChange={(e) => room.setObjectSnap(e.currentTarget.checked)} /> Snap
+      to squares
     </label>
   );
 }

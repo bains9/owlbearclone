@@ -376,6 +376,17 @@ export interface RoomSettings {
    * Missing on rooms made before it existed, which measure in feet.
    */
   metric?: boolean;
+  /**
+   * Never snap to the grid: in every scene, tokens and the Build tool's objects go exactly where
+   * they're put, whatever a scene's own Snap tokens box or a browser's Snap to squares says
+   * (rulers and spell areas aren't snapped either). Missing: off.
+   */
+  freePlacement?: boolean;
+}
+
+/** Whether a scene snaps tokens (and rulers and spell areas) to its grid, in a room with these settings. */
+export function sceneSnaps(scene: Pick<Scene, "grid">, settings: Pick<RoomSettings, "freePlacement"> | null | undefined): boolean {
+  return scene.grid.snap && !settings?.freePlacement;
 }
 
 export interface RoomInfo {

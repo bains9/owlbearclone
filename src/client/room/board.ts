@@ -2466,7 +2466,7 @@ export class Board implements BoardApi {
   private rulerNode(r: Ruler, scale: number): Konva.Group {
     const k = 1 / scale;
     const g = new Konva.Group();
-    const grid = this.renderedScene?.grid;
+    const grid = this.renderedScene && this.measureGrid(this.renderedScene);
     if (r.shape !== "ruler" && grid) {
       const t = templateGeometry(r.shape, r.a, r.b, grid);
       const area = {
@@ -2725,7 +2725,7 @@ export class Board implements BoardApi {
       case "measure": {
         const shape = s.measureOpts.shape;
         // Rulers run centre to centre; spell templates start on a grid intersection.
-        const start = !scene.grid.snap
+        const start = !this.room.snaps(scene)
           ? world
           : shape === "ruler"
             ? snapToCellCenter(world, scene.grid)
@@ -3139,7 +3139,7 @@ export class Board implements BoardApi {
     const scene = this.renderedScene!;
     const g = scene.grid;
     const all = sceneAreaCells(scene, g);
-    const snap = this.room.state.objectSnap ? Math.round : snapPos;
+    const snap = this.room.objectSnaps() ? Math.round : snapPos;
     const col = snap((p.x - g.offsetX) / g.size - n / 2);
     const row = snap((p.y - g.offsetY) / g.size - n / 2);
     return {
@@ -3629,7 +3629,7 @@ export class Board implements BoardApi {
     const from = this.turnBase?.keys === keys ? this.turnBase : { base: ctx.cur, deg: 0, keys };
     const deg = (((from.deg + delta) % 360) + 360) % 360;
     // Off the grid, or with Snap to squares off, they turn exactly about their middle.
-    const free = !this.room.state.objectSnap || from.base.some((p) => !onGrid(p));
+    const free = !this.room.objectSnaps() || from.base.some((p) => !onGrid(p));
     const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds, free), coalesce);
     if (r.ok) this.turnBase = { base: from.base, deg, keys: keysOf(r.refs) };
   }
@@ -3743,7 +3743,7 @@ export class Board implements BoardApi {
     }
     const at = this.pointerPos ? this.toWorld(this.pointerPos) : this.viewCenter();
     let placed: Placed[] | null;
-    if (this.room.state.objectSnap) {
+    if (this.room.objectSnaps()) {
       const cell = cellAt(at.x, at.y, scene.grid);
       placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
     } else {
@@ -3817,7 +3817,7 @@ export class Board implements BoardApi {
       kind: "build-move-sel",
       pointerId,
       grab: this.cellsAt(from),
-      free: !this.room.state.objectSnap,
+      free: !this.room.objectSnaps(),
       refs: r.refs,
       orig,
       shift: { dCol: 0, dRow: 0 },
@@ -4137,7 +4137,7 @@ export class Board implements BoardApi {
       this.room.toast("The GM has turned drawing off, so templates can't be pinned.", "error");
       return;
     }
-    const t = templateGeometry(shape, a, b, scene.grid);
+    const t = templateGeometry(shape, a, b, this.measureGrid(scene));
     const base = {
       id: randomId(12),
       sceneId: scene.id,
@@ -4158,13 +4158,18 @@ export class Board implements BoardApi {
     this.room.change({ upsert: [item] });
   }
 
+  /** A scene's grid as rulers and spell areas go by it: not snapped in a room whose tokens never snap. */
+  private measureGrid(scene: Scene): Scene["grid"] {
+    return { ...scene.grid, snap: this.room.snaps(scene) };
+  }
+
   private setLocalRuler(a: Point, b: Point, shape: MeasureShape): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const label =
       shape === "ruler"
         ? formatDistance(cellDistance(a, b, scene.grid), scene.grid)
-        : templateGeometry(shape, a, b, scene.grid).label;
+        : templateGeometry(shape, a, b, this.measureGrid(scene)).label;
     this.localRuler = { a, b, label, shape, color: this.room.state.me?.color ?? "#fff", expires: Infinity };
     this.renderRulers();
   }
@@ -4398,7 +4403,7 @@ export class Board implements BoardApi {
         return;
       }
       case "measure": {
-        const end = scene.grid.snap && g.shape === "ruler" ? snapToCellCenter(world, scene.grid) : world;
+        const end = this.room.snaps(scene) && g.shape === "ruler" ? snapToCellCenter(world, scene.grid) : world;
         if (end.x === g.end.x && end.y === g.end.y) return;
         g.end = end;
         this.setLocalRuler(g.start, end, g.shape);
@@ -4559,7 +4564,7 @@ export class Board implements BoardApi {
         }
         this.itemsDirty = true;
         const items = this.room.state.items;
-        const snap = scene.grid.snap && !e.altKey;
+        const snap = this.room.tokenSnaps(scene) && !e.altKey;
         let offset = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
         const lead = items[g.id];
         const leadOrig = g.origs.get(g.id);
@@ -5046,7 +5051,7 @@ export class Board implements BoardApi {
     }
     if (selecting) {
       // A square (Shift: 5); with Snap to squares off, a quarter square (Shift: a square).
-      const nudge = this.room.state.objectSnap ? (e.shiftKey ? 5 : 1) : e.shiftKey ? 1 : 0.25;
+      const nudge = this.room.objectSnaps() ? (e.shiftKey ? 5 : 1) : e.shiftKey ? 1 : 0.25;
       switch (key) {
         case "Delete":
         case "Backspace":

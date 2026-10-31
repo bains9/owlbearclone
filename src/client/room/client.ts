@@ -30,7 +30,7 @@ import type {
   SceneMapData,
   TokenItem,
 } from "../../shared/types";
-import { compassesOn, isCompass, sceneBounds, sceneMiddle } from "../../shared/types";
+import { compassesOn, isCompass, sceneBounds, sceneMiddle, sceneSnaps } from "../../shared/types";
 import { LIMITS } from "../../shared/sanitize";
 import { switchUnits } from "../../shared/units";
 import type { GridUnits } from "../../shared/units";
@@ -204,6 +204,12 @@ export interface RoomState {
    * to a sixteenth of a square, when it's off (remembered in the browser).
    */
   objectSnap: boolean;
+  /**
+   * Tokens this device puts down or lets go of snap to the grid, where the scene snaps (on to
+   * begin with). Off, they go exactly where they're put, as with Alt held: for touch screens,
+   * which have no Alt (remembered in the browser).
+   */
+  tokenSnap: boolean;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -349,6 +355,7 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
 const SEASONS_OFF_KEY = "tabletop-seasons-off";
 const WHEEL_TURNS_KEY = "tabletop-wheel-turns";
 const OBJECT_SNAP_KEY = "tabletop-object-snap";
+const TOKEN_SNAP_KEY = "tabletop-token-snap";
 
 /** Whether this device has seasonal looks turned off (remembered in the browser). */
 function loadSeasonsOff(): boolean {
@@ -373,6 +380,15 @@ function loadWheelTurns(): WheelPref {
 function loadObjectSnap(): boolean {
   try {
     return localStorage.getItem(OBJECT_SNAP_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/** Whether tokens this device puts down snap to the grid (remembered in the browser; on to begin with). */
+function loadTokenSnap(): boolean {
+  try {
+    return localStorage.getItem(TOKEN_SNAP_KEY) !== "0";
   } catch {
     return true;
   }
@@ -491,6 +507,7 @@ export class RoomClient {
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
       objectSnap: displayKey === null ? loadObjectSnap() : true,
+      tokenSnap: displayKey === null ? loadTokenSnap() : true,
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -1334,7 +1351,7 @@ export class RoomClient {
     const scene = this.viewScene;
     if (!scene || !s.me || !this.isGm || !this.compassesFit(scene.id, 1)) return null;
     const raw = this.board?.viewCenter() ?? sceneMiddle(scene);
-    const pos = scene.grid.snap ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
+    const pos = this.tokenSnaps(scene) ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
     const compass: TokenItem = {
       id: randomId(12),
       sceneId: scene.id,
@@ -1410,8 +1427,8 @@ export class RoomClient {
   }
 
   /**
-   * A new token, centred on `at` (snapped to the grid when the scene snaps, unless `free`:
-   * Alt held as it's dropped) or near the middle of the view, clear of other tokens.
+   * A new token, centred on `at` (snapped to the grid when the scene and this device snap,
+   * unless `free`: Alt held as it's dropped) or near the middle of the view, clear of other tokens.
    */
   addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden" | "character">>, at?: Point, free = false): TokenItem | null {
     const s = this.state;
@@ -1423,7 +1440,7 @@ export class RoomClient {
     }
     const size = opts.size ?? 1;
     const raw = at ?? this.board?.viewCenter() ?? sceneMiddle(scene);
-    let pos = scene.grid.snap && !(at && free) ? snapTokenCenter(raw, size, scene.grid) : raw;
+    let pos = this.tokenSnaps(scene) && !(at && free) ? snapTokenCenter(raw, size, scene.grid) : raw;
     if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
       id: randomId(12),
@@ -1482,7 +1499,7 @@ export class RoomClient {
       candidates.sort((a, b) => Math.hypot(...a) - Math.hypot(...b) || angle(a) - angle(b));
       for (const [dx, dy] of candidates) {
         const raw = { x: p.x + dx * step.x, y: p.y + dy * step.y };
-        const q = hex ? snapTokenCenter(raw, 1, scene.grid) : raw;
+        const q = hex && this.tokenSnaps(scene) ? snapTokenCenter(raw, 1, scene.grid) : raw;
         if (q.x < area.x0 || q.y < area.y0 || q.x > area.x1 || q.y > area.y1) continue;
         if (free(q)) return q;
       }
@@ -1548,6 +1565,33 @@ export class RoomClient {
       // Not remembered, but still applies until the page reloads.
     }
     this.store.set({ objectSnap: on });
+  }
+
+  /** Whether tokens this device puts down or lets go of snap to the grid, where the scene snaps. */
+  setTokenSnap(on: boolean): void {
+    if (this.display) return;
+    try {
+      if (on) localStorage.removeItem(TOKEN_SNAP_KEY);
+      else localStorage.setItem(TOKEN_SNAP_KEY, "0");
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ tokenSnap: on });
+  }
+
+  /** Whether objects placed and moved in the Build tool go on whole squares: this browser's choice, unless the room never snaps. */
+  objectSnaps(): boolean {
+    return this.state.objectSnap && !this.state.room?.settings.freePlacement;
+  }
+
+  /** Whether a scene snaps tokens, rulers and spell areas to its grid: its own box, unless the room never snaps. */
+  snaps(scene: Pick<Scene, "grid">): boolean {
+    return sceneSnaps(scene, this.state.room?.settings);
+  }
+
+  /** Whether a token this device puts down or lets go of on a scene snaps to its grid (Alt aside). */
+  tokenSnaps(scene: Pick<Scene, "grid">): boolean {
+    return this.snaps(scene) && this.state.tokenSnap;
   }
 
   /**

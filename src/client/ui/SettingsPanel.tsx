@@ -113,6 +113,21 @@ export function SettingsPanel() {
         Edit scene.
       </p>
 
+      <h3>Placing things</h3>
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={!!st.freePlacement}
+          onChange={(e) => room.updateRoom({ settings: { freePlacement: e.currentTarget.checked } })}
+        />
+        Never snap to the grid
+      </label>
+      <p class="small muted">
+        In every scene, for everyone: tokens and the Build tool's objects go exactly where they're put, so a forest can be
+        dense and a crowd of monsters bunched up. Rulers and spell areas aren't snapped either. Off, each scene's Snap tokens
+        box decides.
+      </p>
+
       <h3>Move the group</h3>
       <p class="small muted">
         Send everyone in this room to another of your rooms. Their pages switch to it, and voice chat carries on.

@@ -635,6 +635,8 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const g = s.grid;
   const assets = useRoomState((st) => st.assets);
   const metric = useRoomState((st) => isMetric(st.room?.settings));
+  // Room settings › Never snap to the grid: no scene snaps, whatever its own box says.
+  const never = useRoomState((st) => !!st.room?.settings.freePlacement);
   const [pickMap, setPickMap] = useState(false);
   const [alignCells, setAlignCells] = useState(3);
   const [fogReset, setFogReset] = useState<null | "cover" | "clear">(null);
@@ -820,8 +822,9 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <label class="check">
           <input type="checkbox" checked={g.show} onChange={(e) => grid({ show: e.currentTarget.checked })} /> Show grid
         </label>
-        <label class="check">
-          <input type="checkbox" checked={g.snap} onChange={(e) => grid({ snap: e.currentTarget.checked })} /> Snap tokens
+        <label class="check" title={never ? "Off in every scene: Room settings › Never snap to the grid" : undefined}>
+          <input type="checkbox" checked={g.snap && !never} disabled={never} onChange={(e) => grid({ snap: e.currentTarget.checked })} /> Snap
+          tokens
         </label>
         <label class="field inline">
           <span>Colour</span>
