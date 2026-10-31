@@ -256,12 +256,35 @@ export function castingAs(room: RoomClient, spell: string): Casting | null {
   if (token?.kind !== "token") return null;
   const character = room.characterOf(token);
   if (!character) return null;
-  const list = castList(character);
-  const entry = list.find((s) => s.name === spell) ?? null;
+  const entry = castList(character).find((s) => s.name === spell) ?? null;
+  return { token, character, entry, level: castLevel(character, entry, room.state.spellOpts.level ?? null) };
+}
+
+/**
+ * The level a character casts a spell at: its own, or the one chosen for a spell that can take more
+ * points, up to the highest they cast at. Null when their sheet doesn't give its level.
+ */
+export function castLevel(character: Character, entry: CastSpell | null, chosen: number | null): number | null {
   const own = entry?.sheet.level ?? null;
-  const chosen = room.state.spellOpts.level ?? null;
-  const level = own === null ? null : entry?.raise && chosen && chosen > own ? Math.min(chosen, Math.max(own, highestLevel(list))) : own;
-  return { token, character, entry, level };
+  if (own === null) return null;
+  return entry?.raise && chosen && chosen > own ? Math.min(chosen, Math.max(own, highestLevel(castList(character)))) : own;
+}
+
+/**
+ * A spell the Spells tool has nothing to show for, cast from the character's card (on the GM's page,
+ * or their player's): a line in the chat, a prayer used up and its points off their sheet. False when
+ * this page may not, or they can't cast it now (and a toast says why).
+ */
+export function castFromCard(room: RoomClient, character: Character, entry: CastSpell, chosen: number | null = null): boolean {
+  if (!mayPray(room, character)) return false;
+  const as = { character, entry, level: castLevel(character, entry, chosen) };
+  const why = cantCast(as);
+  if (why) {
+    room.toast(why, "error");
+    return false;
+  }
+  payForCast(room, as);
+  return true;
 }
 
 /** Levels above its own a spell is cast at now (0 unless cast as a character at a higher level). */
@@ -305,7 +328,7 @@ export function cantCast(as: Pick<Casting, "character" | "entry" | "level">): st
  * After casting as a character (when this page may: the GM's, or their player's): a line in the
  * chat saying so, a prayer used up, and the spell points off their sheet.
  */
-export function payForCast(room: RoomClient, as: Casting, what: { target?: string; rounds?: number | null } = {}): void {
+export function payForCast(room: RoomClient, as: Pick<Casting, "character" | "entry" | "level">, what: { target?: string; rounds?: number | null } = {}): void {
   if (mayPray(room, as.character)) room.sendChat(castLine(as, what));
   spendPrayer(room, as);
   spendSpellPoints(room, as);

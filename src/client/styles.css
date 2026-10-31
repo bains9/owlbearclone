@@ -906,10 +906,27 @@ button:disabled {
 .spell-chip:hover:not(:disabled) {
   border-color: var(--accent, #4fd1ff);
 }
+/* A spell with nothing on the map: cast from the card, into the chat. */
+.spell-chip.plain {
+  border-style: dashed;
+}
+.spell-chip.picked {
+  border-color: var(--accent, #4fd1ff);
+}
 .spell-chip.out,
 .spell-chip:disabled {
   opacity: 0.45;
   cursor: default;
+}
+.spell-cast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.spell-cast-name {
+  font-weight: 600;
 }
 .rounds-input {
   width: 4.5em;

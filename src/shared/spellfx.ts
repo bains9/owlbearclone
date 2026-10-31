@@ -345,6 +345,11 @@ function spellKey(name: string): string {
     .trim();
 }
 
+/** A spell's name as its sheet writes it, without a "(R)" or "(1)" after it: Detect Magic (1) is Detect Magic. */
+function sheetSpellName(name: string): string {
+  return name.replace(/\s*\((r|\d+)\)\s*$/i, "").replace(/\s+/g, " ").trim();
+}
+
 let tableNames: Map<string, string> | null = null;
 
 /**
@@ -363,10 +368,12 @@ export function tableSpellsFor(sheetName: string): string[] {
   return out;
 }
 
-/** One of a character's spells that the Spells tool can show, for the Spells list on their card. */
+/** One of a character's spells, for the Spells list on their card. */
 export interface CastSpell {
-  /** The Spells tool's name for it. */
+  /** The Spells tool's name for it, or for one it has nothing to show for, the sheet's (without "(R)" or "(1)"). */
   name: string;
+  /** The Spells tool shows it on the map. Without, it's cast from the card: a line in the chat, its prayer and points used. */
+  onMap: boolean;
   /** The spell on the sheet it comes from. */
   sheet: CharacterSpell;
   /** It has to be prayed for (Pray) or memorised (Memorize) each day before it can be cast. */
@@ -380,8 +387,9 @@ export interface CastSpell {
 }
 
 /**
- * The spells on a character's sheet that the Spells tool can show, with what's been prayed for
- * today: the castable ones first, by level, then the ones the sheet says can't be cast yet.
+ * The spells on a character's sheet, with what's been prayed for today: the castable ones first, by
+ * level, then the ones the sheet says can't be cast yet. One the Spells tool can show goes by its
+ * name there (and its reverse too); one it can't, by the sheet's.
  */
 export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
   const out: CastSpell[] = [];
@@ -389,10 +397,12 @@ export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
   for (const s of c.spells ?? []) {
     const prayer = /^(pray|memori[sz]e)$/i.test(s.prayer);
     const locked = /not castable/i.test(s.note);
-    for (const name of tableSpellsFor(s.name)) {
-      if (seen.has(name)) continue;
+    const shown = tableSpellsFor(s.name);
+    const names = shown.length ? shown : [sheetSpellName(s.name)];
+    for (const name of names) {
+      if (!name || seen.has(name)) continue;
       seen.add(name);
-      out.push({ name, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked, raise: s.sp.includes("+") });
+      out.push({ name, onMap: shown.length > 0, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked, raise: s.sp.includes("+") });
     }
   }
   return out.sort((a, b) => Number(a.locked) - Number(b.locked) || (a.sheet.level ?? 99) - (b.sheet.level ?? 99) || a.name.localeCompare(b.name));

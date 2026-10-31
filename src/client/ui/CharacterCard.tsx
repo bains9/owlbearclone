@@ -4,8 +4,8 @@
 // to hit with an attack (a critical hit), its damage button rolls the crit's damage until you roll it.
 // A rogue's card has a Sneak attack box: ticked, the next damage roll adds the sheet's sneak attack
 // dice for that weapon (fewer when it's ranged or thrown, as the sheet has them), then unticks.
-// A caster's card lists their spells that can be shown on the map, to cast from their token, with
-// what they've prayed for today.
+// A caster's card lists their spells, with what they've prayed for today: one the map can show is
+// cast from their token with the Spells tool, any other from the card itself, as a line in the chat.
 
 import { useState } from "preact/hooks";
 import { Dices, ExternalLink } from "lucide-preact";
@@ -13,6 +13,7 @@ import {
   DAMAGE_ROLLS,
   INITIATIVE_DIE,
   MAX_PRAYED,
+  castCost,
   spellCost,
   TO_HIT_DIE,
   attackLabel,
@@ -23,9 +24,9 @@ import {
   withModifier,
   type Character,
 } from "../../shared/characters";
-import { castList } from "../../shared/spellfx";
+import { castList, highestLevel, type CastSpell } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
-import { castAs, mayPray, newPrayerDay, setCharacterStrMatched, setPrayed } from "../party";
+import { castAs, castFromCard, castLevel, castingCost, mayPray, newPrayerDay, setCharacterStrMatched, setPrayed } from "../party";
 import { cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -49,10 +50,49 @@ function critPending(messages: readonly ChatMessage[], userId: string | undefine
  * be cast as many times as it's been prayed for today: their player or the GM chooses that here,
  * and each cast uses one up. New day clears them.
  */
+/** A spell with nothing on the map, cast from the card: at which level (for one that can take more points), then Cast. */
+function CardCast(props: { c: Character; s: CastSpell; chosen: number | null; onLevel: (level: number) => void; onClose: () => void }) {
+  const room = useRoom();
+  const { c, s } = props;
+  const own = s.sheet.level;
+  const top = s.raise && own !== null ? Math.max(own, highestLevel(castList(c))) : null;
+  const level = castLevel(c, s, props.chosen);
+  const cost = castingCost({ entry: s, level });
+  return (
+    <div class="spell-cast">
+      <span class="spell-cast-name">{s.name}</span>
+      {own !== null && top !== null && top > own && (
+        <label class="field inline">
+          <span>Level</span>
+          <select value={level ?? own} onChange={(e) => props.onLevel(Number(e.currentTarget.value))}>
+            {Array.from({ length: top - own + 1 }, (_, i) => own + i).map((n) => (
+              <option key={n} value={n}>
+                {`${n} (${castCost(s.sheet.sp, own, n)} SP)`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <span class="small muted">
+        {cost ? `${cost} SP` : "No SP"}
+        {s.prayer ? `, 1 of ${s.left} prayed` : ""}
+      </span>
+      <button class="btn btn-sm btn-primary" onClick={() => castFromCard(room, c, s, props.chosen) && props.onClose()}>
+        Cast
+      </button>
+      <button class="btn btn-sm" onClick={props.onClose}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function CardSpells(props: { c: Character; tokenId: string | null }) {
   const room = useRoom();
   const { c, tokenId } = props;
   const [prayingFor, setPrayingFor] = useState<string | null>(null);
+  // A spell with nothing on the map, picked to cast from the card (for this character only), and the level chosen.
+  const [picked, setPicked] = useState<{ id: string; name: string; level: number | null } | null>(null);
   const list = castList(c);
   if (!list.length) return null;
   const can = mayPray(room, c);
@@ -63,6 +103,7 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
   const prayers = castable.filter((s, i) => s.prayer && castable.findIndex((x) => x.sheet.name === s.sheet.name) === i);
   const pray = (spell: string, left: number) => void setPrayed(room, c, spell, left).catch((err: Error) => room.toast(err.message, "error"));
   const who = characterLabel(c);
+  const casting = !praying && picked?.id === c.id ? castable.find((s) => s.name === picked.name && !s.onMap) : undefined;
   return (
     <div class="character-spells">
       <div class="character-spells-head">
@@ -101,13 +142,14 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
             const out = (s.prayer && s.left <= 0) || broke;
             const how = s.prayer ? (s.left <= 0 ? "Not prayed for today" : `Prayed for: ${s.left} left today`) : s.sheet.prayer === "Ask DM" ? "Ask the GM" : "";
             const pays = cost ? (broke ? `Costs ${cost} SP: not enough left` : `${cost} SP off their sheet`) : `${s.sheet.sp || "No"} SP`;
+            const what = s.onMap ? `Cast ${s.name} from ${who}` : can ? `Cast ${s.name} as ${who}: nothing on the map, a line in the chat` : `Only the GM or ${who}'s player can cast ${s.name}`;
             return (
               <button
                 key={s.name}
-                class={cx("chip spell-chip", out && "out")}
-                disabled={!tokenId || out}
-                title={[`Cast ${s.name} from ${who}`, pays, how].filter(Boolean).join(" · ")}
-                onClick={() => tokenId && castAs(room, tokenId, s.name)}
+                class={cx("chip spell-chip", !s.onMap && "plain", out && "out", casting === s && "picked")}
+                disabled={(s.onMap ? !tokenId : !can) || out}
+                title={[what, pays, how].filter(Boolean).join(" · ")}
+                onClick={() => (s.onMap ? tokenId && castAs(room, tokenId, s.name) : setPicked({ id: c.id, name: s.name, level: null }))}
               >
                 {s.name}
                 <span class="spell-sp">{s.sheet.sp}</span>
@@ -116,6 +158,15 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
             );
           })}
         </div>
+      )}
+      {casting && (
+        <CardCast
+          c={c}
+          s={casting}
+          chosen={picked?.level ?? null}
+          onLevel={(level) => setPicked({ id: c.id, name: casting.name, level })}
+          onClose={() => setPicked(null)}
+        />
       )}
       {!praying && locked.length > 0 && <div class="small muted">Not castable yet: {locked.map((s) => s.name).join(", ")}</div>}
     </div>

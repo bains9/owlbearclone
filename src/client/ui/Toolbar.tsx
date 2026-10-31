@@ -1054,7 +1054,7 @@ function SpellOptions() {
   const casterToken = useRoomState((s) => (s.spellOpts.caster ? s.items[s.spellOpts.caster] : undefined));
   const as = casterToken?.kind === "token" ? room.characterOf(casterToken) : null;
   const who = as ? characterLabel(as) : "";
-  const theirs = as ? castList(as).filter((sp) => !sp.locked) : [];
+  const theirs = as ? castList(as).filter((sp) => sp.onMap && !sp.locked) : [];
   const spell = spellFx(o.spell);
   const zone = zoneSpell(o.spell);
   const cast = spell ? FX_LOOKS[spell.look].cast : "burst";

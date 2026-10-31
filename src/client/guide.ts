@@ -18,6 +18,16 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Every spell on a caster's card, even with nothing to show on the map (31 October 2026)",
+        "steps": [
+          "A caster's card now lists all their spells. One with nothing to show on the map (Detect Magic, Omen...) has a dashed chip.",
+          "Click it, choose its **Level** if it can take more points, and click **Cast**. It goes in the chat and uses up its prayer and spell points, as other casts do."
+        ],
+        "notes": [
+          "Only the GM and the character's player can cast these from the card."
+        ]
+      },
+      {
         "title": "Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)",
         "steps": [
           "Leaving a spell on the map, set **Lasts** in the **Spells** bar to how many rounds it lasts. Initiative counts them down, and it ends by itself when they're up. Empty: until it's ended, as before.",
@@ -1097,7 +1107,7 @@ export const GUIDE: GuideSection[] = [
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
-          "A caster's card lists their **Spells** that show on the map: click one to cast it from them, and its spell points come off their sheet. See **Spell effects**.",
+          "A caster's card lists their **Spells**: click one to cast it from them, and its spell points come off their sheet. See **Spell effects**.",
           "A bow or crossbow matched to the character's strength adds their STR bonus to its damage, as a melee weapon does. GM: click **STR** beside it on their card to mark it (every room); it lights up, and everyone's card adds the bonus.",
           "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet."
         ]
@@ -1572,7 +1582,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Cast from a character's card",
         "steps": [
-          "Click the character's token. Their card lists their **Spells** that show on the map (spell points beside each).",
+          "Click the character's token. Their card lists their **Spells** (spell points beside each).",
           "Click a spell. The **Spells** tool is picked with it, and the bar says **As** and their name: it's cast from their token, which has a dashed ring.",
           "Cast it as usual, but a bolt, a fan or a jump needs only a click: on the target, the way it goes, or where they arrive.",
           "To cast as nobody, click the × beside their name in the bar."
@@ -1585,7 +1595,7 @@ export const GUIDE: GuideSection[] = [
           "**A higher level:** a spell the sheet marks with + (it can take more points) can be cast at a higher level, up to the highest they cast at: choose it under **Level** in the bar, which says what each costs (the sheets' 1, 2, 3, 5, 8...). Spells whose area grows with the level (Fog Cloud 8 m a level, Fireball, Hail of Stones, Entangle, Wall of Fog...) are drawn that much bigger, and Wall of Fog lasts longer.",
           "**In the chat:** each cast says who cast what, at what level, on whom, what it cost and how many prayers are left (\"Testa casts Fog Cloud at level 2 (2 SP).\"), so the table sees it and a slip can be put right on the sheet.",
           "Spells the sheet says can't be cast yet (\"not castable yet\") are listed under the rest, greyed. Ask DM ones say so when you point at them.",
-          "A spell with nothing to show on the map (Detect Magic, say) isn't on the list."
+          "**Nothing on the map:** a spell with nothing to show (Detect Magic, Omen...) has a dashed chip. Click it, choose its **Level** if it can take more points, and click **Cast**: it goes in the chat and uses up its prayer and spell points, with nothing drawn. Only the GM and the character's player can cast these."
         ]
       },
       {
