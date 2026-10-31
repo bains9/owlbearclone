@@ -59,7 +59,7 @@ describe("the frame-rate readout", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and the lights, card and party parts say how", () => {
-    expect(GUIDE[0].parts[1].title).toBe("A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)");
+    expect(GUIDE[0].parts[2].title).toBe("A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     for (const words of ["**Add a light**", "Drag a marker to move its light.", "**Ki:**", "**New day for the party**", "?fps"]) expect(all).toContain(words);
   });

@@ -101,7 +101,9 @@ export type ClientAction =
   /** GM only: the party forgets what it's explored of a scene. */
   | { t: "explore.reset"; sceneId: string }
   /** GM only: the list of problems on devices (shared/problems.ts) is cleared. */
-  | { t: "problems.clear" };
+  | { t: "problems.clear" }
+  /** GM only: the campaign's calendar changed (shared/calendar.ts): everyone reads it again. */
+  | { t: "calendar.changed"; version: number };
 
 /**
  * Every change carries a seq that counts up within one browser tab (the `sid` the
@@ -171,6 +173,8 @@ export type ServerMsg =
   | { t: "outdated" }
   /** To the GM: what failed on people's devices, newest first (on joining, and as it changes). */
   | { t: "problems"; problems: Problem[] }
+  /** The campaign's calendar changed: read it again (its version, to skip one already read). */
+  | { t: "calendar"; version: number }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

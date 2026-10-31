@@ -7,6 +7,7 @@ import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, ke
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
 import { deviceOf, type Problem } from "../../shared/problems";
+import type { Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -59,7 +60,7 @@ export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" |
 
 /** Tools only the GM has. */
 export const GM_TOOLS: ToolId[] = ["fog", "build"];
-export type PanelId = "chat" | "scenes" | "library" | "initiative" | "settings";
+export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings";
 export type Status = "connecting" | "open" | "reconnecting" | "notfound" | "deleted";
 
 export interface DrawOptions {
@@ -244,6 +245,9 @@ export interface RoomState {
   newDayUndo: NewDayUndo | null;
   /** GM: what failed on people's devices, newest first (shared/problems.ts). */
   problems: Problem[];
+  /** The campaign's calendar (shared/calendar.ts), as this page may see it; null before the GM makes one. */
+  calendar: Calendar | null;
+  calendarVersion: number;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -535,6 +539,8 @@ export class RoomClient {
       stageNarrow: false,
       newDayUndo: null,
       problems: [],
+      calendar: null,
+      calendarVersion: 0,
       textPrompt: null,
       mapImport: null,
       attachDD: null,
@@ -1023,6 +1029,10 @@ export class RoomClient {
         this.store.set({ problems: msg.problems });
         return;
 
+      case "calendar":
+        if (msg.version !== this.state.calendarVersion) void this.refreshCalendar();
+        return;
+
       case "outdated":
         // A newer Tabletop is running. A table display (nothing to lose, and nobody at it
         // to click anything) reloads itself; anyone else gets a reload button.
@@ -1501,13 +1511,37 @@ export class RoomClient {
     }
   }
 
+  /** Reads the campaign's calendar again (on joining, when told it changed, and now and then). */
+  async refreshCalendar(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const res = await fetch(`/api/rooms/${this.roomId}/calendar`, { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return;
+      const got = (await res.json()) as { calendar: Calendar | null; version: number };
+      if (this.disposed || typeof got?.version !== "number") return;
+      this.store.set({ calendar: got.calendar ?? null, calendarVersion: got.version });
+    } catch {
+      // Offline: the next reading tries again.
+    }
+  }
+
+  /** GM: the calendar as just changed here, and everyone told to read it again. */
+  calendarChanged(calendar: Calendar | null, version: number): void {
+    this.store.set({ calendar, calendarVersion: version });
+    if (this.isGm) this.submit({ t: "calendar.changed", version });
+  }
+
   private partyTimer: ReturnType<typeof setInterval> | null = null;
 
   private startParty(): void {
     if (this.partyTimer || typeof window === "undefined") return;
     void this.refreshParty();
+    void this.refreshCalendar();
+    let ticks = 0;
     this.partyTimer = setInterval(() => {
-      if (document.visibilityState === "visible") void this.refreshParty();
+      if (document.visibilityState !== "visible") return;
+      void this.refreshParty();
+      if (++ticks % 5 === 0) void this.refreshCalendar();
     }, PARTY_MS);
   }
 

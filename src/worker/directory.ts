@@ -53,6 +53,7 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_players (user_id TEXT PRIMARY KEY, sheet_id TEXT NOT NULL, name TEXT NOT NULL, at INTEGER NOT NULL)`);
       // The spells a character has prayed for (or memorised) today, and how many casts each has left.
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_prayed (sheet_id TEXT NOT NULL, spell TEXT NOT NULL, left INTEGER NOT NULL, PRIMARY KEY (sheet_id, spell))`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS blobs (name TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL)`);
     });
   }
 
@@ -171,6 +172,19 @@ export class Directory extends DurableObject<Env> {
   /** A new day: nothing prayed for. */
   clearCharacterPrayed(sheetId: string): void {
     this.sql.exec(`DELETE FROM character_prayed WHERE sheet_id = ?`, sheetId);
+  }
+
+  /** The campaign's calendar (shared/calendar.ts) as JSON, with how many times it's been changed; null before one is made. */
+  calendar(): { json: string; version: number } | null {
+    const row = this.sql.exec<{ value: string; version: number }>(`SELECT value, version FROM blobs WHERE name = 'calendar'`).toArray()[0];
+    return row ? { json: row.value, version: row.version } : null;
+  }
+
+  /** Keeps the calendar: its new version number. */
+  setCalendar(json: string): number {
+    const version = (this.calendar()?.version ?? 0) + 1;
+    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('calendar', ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = excluded.version`, json, version);
+    return version;
   }
 
   /** Nobody plays a character any more. */

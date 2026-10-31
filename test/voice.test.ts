@@ -641,8 +641,8 @@ describe("the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
 
   it("has voice chat following the group twelfth in What's new, under the Build tool's library, maps from Dungeon, Dungeon's sign-in and extending maps, and says how to move it", () => {
-    expect(news.parts[26].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
-    const entry = [...news.parts[26].steps, ...news.parts[26].notes].join("\n");
+    expect(news.parts[27].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
+    const entry = [...news.parts[27].steps, ...news.parts[27].notes].join("\n");
     for (const what of ["**Room settings**", "**Move the group**", "**Send everyone**", "carries on", "Table displays stay"]) expect(entry).toContain(what);
     const part = GUIDE.find((s) => s.id === "room-settings")?.parts.find((p) => p.title === "Move everyone to another room") ??
       GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Move everyone to another room");
@@ -652,10 +652,10 @@ describe("the guide", () => {
   const all = (parts: { steps: string[]; notes: string[] }[]) => parts.flatMap((p) => [...p.steps, ...p.notes]).join("\n");
 
   it("has the microphone fix fourteenth in What's new, under the rooms and the dice, then voice chat", () => {
-    expect(news.parts[28].title).toBe("Voice chat: the microphone works now (25 October 2026)");
-    expect(all([news.parts[28]])).toContain("**Voice chat: Tabletop can't use your microphone**");
-    expect(news.parts[29].title).toBe("Voice chat (24 October 2026)");
-    const entry = all([news.parts[29]]);
+    expect(news.parts[29].title).toBe("Voice chat: the microphone works now (25 October 2026)");
+    expect(all([news.parts[29]])).toContain("**Voice chat: Tabletop can't use your microphone**");
+    expect(news.parts[30].title).toBe("Voice chat (24 October 2026)");
+    const entry = all([news.parts[30]]);
     for (const what of ["**Join voice**", "**Left Shift**", "**Hold to talk**", "**Mute**", "top right of the map", "8 people", "headphones", "See **Voice chat**"]) {
       expect(entry).toContain(what);
     }
@@ -664,7 +664,7 @@ describe("the guide", () => {
   it("names only labels the panel really shows, and the default key by its name", async () => {
     const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
     const panel = await readFile(new URL("../src/client/ui/VoicePanel.tsx", import.meta.url), "utf8");
-    const words = `${all(news.parts.slice(28, 30))}\n${all(voice.parts)}`;
+    const words = `${all(news.parts.slice(29, 31))}\n${all(voice.parts)}`;
     const labels = [...new Set(words.match(/\*\*[^*]+\*\*/g) ?? [])].map((b) => b.slice(2, -2));
     expect(labels.length).toBeGreaterThan(10);
     // Keys, the panel itself, and labels built from the key or the name: checked below.

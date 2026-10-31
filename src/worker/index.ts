@@ -11,6 +11,7 @@ import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_SPEND } from "../shared/characters";
+import { calendarRoute, roomCalendar } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -202,6 +203,10 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   }
 
   // The party's character sheets (characters.ts): where the GM's script is, and characters' own pictures.
+  // The campaign's calendar (calendarRoutes.ts): the GM changes it, brings it in from Fantasy Calendar, or takes it away.
+  const calendar = await calendarRoute(request, env, pathname, method);
+  if (calendar) return calendar;
+
   if (pathname === "/api/characters/source") {
     if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
     const directory = env.DIRECTORY.getByName("main");
@@ -401,6 +406,9 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     }
 
     // The party, read from their character sheets, for anyone at this table (characters.ts).
+    // The campaign's calendar, for anyone at this table (calendarRoutes.ts).
+    if (sub === "/calendar" && method === "GET") return roomCalendar(request, env, roomId);
+
     if (sub === "/characters" && method === "GET") {
       const directory = env.DIRECTORY.getByName("main");
       if (!(await directory.listRooms()).some((r) => r.id === roomId)) return fail(404, "Room not found.");

@@ -18,6 +18,22 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)",
+        "steps": [
+          "Click **Calendar** in the top bar (or the date beside the room's name). The day the game is at is at the top, with its season, the weather and the moons.",
+          "Click a day in the month to see what's on it; the arrows go a month back or on, and the month's name goes back to today.",
+          "GM: the arrows beside the date move the game a day back or on. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
+          "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
+          "GM: under **Bring in, keep a copy, or take away**, paste a public Fantasy Calendar link and click **Bring it in**: its months, weekdays, moons, seasons, regions, categories and events all come over, and its hidden events stay the GM's eyes only. **Sync** later brings its changes over again and keeps what was made here."
+        ],
+        "notes": [
+          "The moons' phases, the day of a season and the days a repeating event falls on (the last Tenday of a month, the night two moons are full) are worked out as Fantasy Calendar does, and checked against it.",
+          "The weather is rolled day by day for the region, the same every time it's looked at: a cold spell lasts a few days, rain is likelier in a wet season. A click rolls today's again; **New weather for the whole calendar** rolls every day afresh.",
+          "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
+          "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it."
+        ]
+      },
+      {
         "title": "New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)",
         "steps": [
           "GM: **New day for the party** now says what it's about to do, and to how many characters. Click **Start the new day** to go ahead, or **Cancel**.",

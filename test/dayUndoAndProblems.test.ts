@@ -192,7 +192,7 @@ describe("problems on devices", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and says how", () => {
-    expect(GUIDE[0].parts[0].title).toBe("New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     for (const words of ["**Start the new day**", "**Undo the new day**", "**Problems on devices**", "version 7 says which it is"]) expect(all).toContain(words);
   });

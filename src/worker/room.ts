@@ -920,6 +920,13 @@ export class Room extends DurableObject<Env> {
         this.addProblem(conn, msg);
         return;
 
+      case "calendar.changed": {
+        if (!gm) return this.deny(ws);
+        const version = (msg as { version?: unknown }).version;
+        this.broadcast({ t: "calendar", version: typeof version === "number" && Number.isFinite(version) ? version : 0 });
+        return;
+      }
+
       case "problems.clear":
         if (!gm) return this.deny(ws);
         this.problems = [];

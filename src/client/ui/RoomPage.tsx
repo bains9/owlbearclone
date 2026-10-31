@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  CalendarDays,
   Castle,
   CircleQuestionMark,
   Ellipsis,
@@ -22,6 +23,7 @@ import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
 import { ProblemsDialog } from "./ProblemsDialog";
+import { CalendarPanel, DateChip } from "./CalendarPanel";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
@@ -358,6 +360,7 @@ const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boo
   { id: "chat", label: "Chat & dice", icon: MessageSquare },
   { id: "library", label: "Tokens & images", icon: Images },
   { id: "initiative", label: "Initiative", icon: Swords },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "scenes", label: "Scenes", icon: Layers, gm: true },
   { id: "settings", label: "Room settings", icon: Settings, gm: true },
 ];
@@ -397,6 +400,7 @@ function TopBar() {
         {sceneName && <span class="scene-name">{sceneName}</span>}
       </div>
       <PreviewChip />
+      <DateChip />
       <div class="spacer" />
       {outdated && (
         <button
@@ -599,6 +603,7 @@ function SidePanel(props: { panel: PanelId }) {
   if (props.panel === "chat") body = <ChatPanel />;
   else if (props.panel === "library") body = <LibraryPanel />;
   else if (props.panel === "initiative") body = <InitiativePanel />;
+  else if (props.panel === "calendar") body = <CalendarPanel />;
   else if (props.panel === "scenes" && gm) body = <ScenesPanel />;
   else if (props.panel === "settings" && gm) body = <SettingsPanel />;
   return (

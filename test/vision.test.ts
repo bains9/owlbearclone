@@ -300,7 +300,7 @@ describe("night by moon or starlight, and nightvision", () => {
 describe("in the guide", () => {
   it("is in What's new under erasing what you built, has a section of its own, and names the controls as Edit scene does", async () => {
     const { GUIDE } = await import("../src/client/guide");
-    expect(GUIDE[0].parts[15].title).toBe("Lighting and line of sight (29 October 2026)");
+    expect(GUIDE[0].parts[16].title).toBe("Lighting and line of sight (29 October 2026)");
     const section = GUIDE.find((s) => s.id === "lighting")!;
     expect(section.parts.map((p) => p.title)).toEqual([
       "Turn it on (GM)",
@@ -326,7 +326,7 @@ describe("in the guide", () => {
       "Night: moon or starlight",
     ]) {
       expect(ui, label).toContain(label);
-      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[15]), label).toContain(label);
+      expect(JSON.stringify(section) + JSON.stringify(GUIDE[0].parts[16]), label).toContain(label);
     }
     // The fog tool's Look as, as the guide names it.
     const bar = await readFile(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");
