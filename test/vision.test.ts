@@ -198,8 +198,8 @@ describe("how far the party sees and its light reaches, as distances", () => {
     expect(ui).toContain("The party's own light, in {unitName} ({squaresText(squares.light)})");
     expect(ui).toContain('How far the party sees, in {unitName} ({squares.sight > 0 ? squaresText(squares.sight) : "0: as far as the walls allow"})');
     expect(ui).toContain("set({ [which]: { d: tenth(Math.min(n, most)), unit: unitName } });");
-    const board = await readFile(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
-    expect(board).toContain("const squares = visionSquares(v, scene.grid);");
+    const sight = await readFile(new URL("../src/client/room/boardSight.ts", import.meta.url), "utf8");
+    expect(sight).toContain("const squares = visionSquares(v, scene.grid);");
   });
 });
 
@@ -284,11 +284,12 @@ describe("night by moon or starlight, and nightvision", () => {
     expect(board).toContain("this.tokenLayer.add(this.groundFx, this.tokenGroup, this.airFx);");
     expect(board).toContain("this.monoLayer.visible(!gm || preview);");
     // Dim in the dark, whole on the explore grid (it's seen: explored, and its tokens show), and none where a light is.
-    expect(board).toContain("paint(c, true, NIGHT_SHOWN);");
-    expect(board).toContain("paint(sc);");
-    expect(board).toContain("paint(mc, false, 1, MONO_OUT);");
-    expect(board).toContain("paint(mc, true, 0);");
-    expect(board).toContain("(range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size)");
+    const sight = await readFile(new URL("../src/client/room/boardSight.ts", import.meta.url), "utf8");
+    expect(sight).toContain("paint(c, true, NIGHT_SHOWN);");
+    expect(sight).toContain("paint(sc);");
+    expect(sight).toContain("paint(mc, false, 1, MONO_OUT);");
+    expect(sight).toContain("paint(mc, true, 0);");
+    expect(sight).toContain("(range ? Math.min(range, n * scene.grid.size) : n * scene.grid.size)");
     expect(board).toContain('const metres = isNight ? nightvisionOf(this.room.characterOf(t)) : 0;');
     const ui = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");
     expect(ui).toContain("set({ daylight: false, night: true })");

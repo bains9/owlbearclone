@@ -224,11 +224,11 @@ describe("explored places seen only by nightvision", () => {
     expect(room).toContain("const next = addExplored(had, cells, lit, total);");
     expect(room).toContain("cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });");
     expect(room).toContain("for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells, lit);");
-    const board = await source("src/client/room/board.ts");
-    expect(board).toContain("const grey = known ? this.greyPicture(known, grid) : null;");
-    expect(board).toContain("this.monoShown = anyNight || !!grey;");
-    expect(board).toContain("if (anyNight || known?.lit) {");
-    expect(board).toContain("this.room.explore(scene.id, grid.key, fresh, who, freshLit);");
+    const sight = await source("src/client/room/boardSight.ts");
+    expect(sight).toContain("const grey = known ? this.greyPicture(known, grid) : null;");
+    expect(sight).toContain("this.monoShown = anyNight || !!grey;");
+    expect(sight).toContain("if (anyNight || known?.lit) {");
+    expect(sight).toContain("this.room.explore(scene.id, grid.key, fresh, who, freshLit);");
   });
 });
 

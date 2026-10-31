@@ -128,7 +128,8 @@ describe("walls that stop tokens", () => {
     expect(board).toContain("if (walls) p = this.stoppedAt(walls, g.at.get(id) ?? o, p, item.size, scene, snap);");
     expect(board).toContain("nudgeSelection(room, 0, 1, this.stepBlocked);");
     // Fog and darkness stop sight, not tokens.
-    expect(board).toContain("const moveIndex = new WallIndex(blockers(fixed, doors), area, size * 2);");
+    const sight = await readFile(new URL("../src/client/room/boardSight.ts", import.meta.url), "utf8");
+    expect(sight).toContain("const moveIndex = new WallIndex(blockers(fixed, doors), area, size * 2);");
     // The lights' glow, under the tokens; a flickering one keeps the layer drawing.
     expect(board).toContain("this.drawLightGlows(native(ctx));");
     expect(board).toContain("const flicker = !!v?.on && !v.daylight && v.lights.some((l) => l.flicker);");
