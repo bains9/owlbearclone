@@ -38,6 +38,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The magnet works on a computer too, for instance where Alt and a drag moves windows instead. It's remembered on each device, and it only shows in a scene that snaps.",
+          "Picture files dropped on the map from your computer now go exactly where you let go with **Alt** held, like tokens dragged in from the panels.",
           "With **Never snap to the grid** ticked, each scene's **Snap tokens** box and the Build tool's **Snap to squares** are greyed out, and rulers and spell areas aren't snapped either."
         ]
       },
@@ -812,6 +813,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
+          "They snap into the square where you let go, when the scene snaps. To put them exactly where you let go, hold **Alt** as you drop them (or turn snapping off with the magnet in a token's bar).",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
           "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. Pictures dropped together with a Dungeondraft project file (.dungeondraft_map) all go to the **New scene** window, whatever their size, and the project file's data is attached to the new scene for exact seasons. A project file dropped on its own onto a scene whose picture could be its export opens the **Dungeondraft data** window for that scene; otherwise it waits in the **New scene** window for its export.",
           "If a player drops a map file (a Dungeondraft or other Universal VTT file, a Dungeondraft project file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."

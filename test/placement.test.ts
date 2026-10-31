@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
 import { RoomClient } from "../src/client/room/client";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
@@ -60,6 +60,29 @@ describe("never snap to the grid (Room settings)", () => {
     expect(room.state.objectSnap).toBe(true);
     expect(room.objectSnaps()).toBe(false);
     expect(client().objectSnaps()).toBe(true);
+  });
+});
+
+describe("picture files dropped on the map", () => {
+  it("snap where the scene snaps, and go exactly where they land with Alt held", async () => {
+    const room = client();
+    vi.spyOn(room, "upload").mockResolvedValue([{ id: "a1" }, { id: "a2" }] as Awaited<ReturnType<RoomClient["upload"]>>);
+    const placed = () =>
+      Object.values(room.state.items)
+        .filter((i) => i.kind === "token")
+        .map((t) => [t.x, t.y]);
+    await room.uploadTokens([], { x: 100, y: 100 }, true);
+    // In a row, a square apart, exactly where they were dropped.
+    expect(placed()).toEqual([
+      [100, 100],
+      [170, 100],
+    ]);
+    room.store.set({ items: {} });
+    await room.uploadTokens([], { x: 100, y: 100 });
+    expect(placed()).toEqual([
+      [105, 105],
+      [175, 105],
+    ]);
   });
 });
 

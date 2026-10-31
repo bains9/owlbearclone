@@ -1801,14 +1801,17 @@ export class RoomClient {
     return out;
   }
 
-  /** Uploads token images and places them in a row starting at `at`. */
-  async uploadTokens(files: File[], at?: Point): Promise<void> {
+  /**
+   * Uploads token images and places them in a row starting at `at` (snapped as the scene and
+   * this device snap, unless `free`: Alt held as they were dropped).
+   */
+  async uploadTokens(files: File[], at?: Point, free = false): Promise<void> {
     const scene = this.viewScene;
     const assets = await this.upload(files, "token");
     let x = at?.x;
     for (const asset of assets) {
       const p = x !== undefined && at ? { x, y: at.y } : undefined;
-      this.addToken({ assetId: asset.id, label: "" }, p);
+      this.addToken({ assetId: asset.id, label: "" }, p, free);
       if (x !== undefined && scene) x += scene.grid.size;
     }
   }

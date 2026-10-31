@@ -4951,7 +4951,7 @@ export class Board implements BoardApi {
       void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden, free);
       return;
     }
-    void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
+    void this.takeFiles([...(e.dataTransfer?.files ?? [])], world, free);
   };
 
   /**
@@ -5016,8 +5016,9 @@ export class Board implements BoardApi {
    * With a Dungeondraft project file among them, every image goes with it (sortDroppedFiles);
    * a project file dropped on its own attaches to the scene being viewed when its picture
    * could be that map's export, else waits in the new-scene dialog for its export (design 2.1 A).
+   * Free: Alt was held as they were dropped, so the tokens go exactly there.
    */
-  private async takeFiles(files: File[], at: Point | null): Promise<void> {
+  private async takeFiles(files: File[], at: Point | null, free = false): Promise<void> {
     const sorted = await sortDroppedFiles(files, this.isGm);
     if (sorted.refused) this.room.toast("Only the GM can add maps.", "error");
     if (sorted.lone) {
@@ -5030,7 +5031,7 @@ export class Board implements BoardApi {
       }
     }
     if (sorted.maps.length) this.room.store.set({ mapImport: sorted.maps });
-    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at);
+    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at, free);
   }
 
   /** Shift held for a click or drag, unless it's held to talk (voice chat), when tokens and the map still move. */
