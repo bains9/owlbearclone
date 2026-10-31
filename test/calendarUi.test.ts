@@ -64,6 +64,9 @@ describe("the calendar at the Worker", () => {
     // An event from Fantasy Calendar keeps its link to it through a change here.
     expect(routes).toContain("if (old?.fc !== undefined) e.fc = old.fc;");
     expect(read("src/worker/directory.ts")).toContain("setCalendar(json: string): number {");
+    // A scene's season can be pinned against the calendar's, in its Season pop-up.
+    expect(read("src/client/ui/SeasonPicker.tsx")).toContain("<span>Keep this season when the calendar's changes</span>");
+    expect(read("src/shared/sanitize.ts")).toContain("...(r.pinned === true ? { pinned: true } : {})");
   });
 });
 

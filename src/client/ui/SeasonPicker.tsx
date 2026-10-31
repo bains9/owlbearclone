@@ -149,6 +149,12 @@ export function SeasonPicker(props: { scene: Scene }) {
           </button>
         </div>
       )}
+      {season && (
+        <label class="check small" title="With the calendar set to put scenes in its season, this one keeps the season chosen here">
+          <input type="checkbox" checked={!!season.pinned} onChange={(e) => set({ ...season, ...(e.currentTarget.checked ? { pinned: true } : { pinned: undefined }) })} />
+          <span>Keep this season when the calendar's changes</span>
+        </label>
+      )}
       <p class="small muted season-note">
         {!season
           ? "One click puts the map in season: snow, autumn leaves, blossom or drought. Tokens and drawings stay as they are."
