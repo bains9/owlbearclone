@@ -40,7 +40,7 @@ describe("the edges of the map", () => {
     for (const sel of [".toasts", ".level-bar", ".speaking-overlay", ".build-hints"]) expect(rule(css, sel), sel).not.toContain("position: absolute");
     expect(rule(css, ".corner-bl")).toContain("bottom: calc(12px + var(--bottom-h, 0px));");
     expect(rule(css, ".bottom-bars")).toContain("flex-direction: column;");
-    expect(css).toContain(".stage-area:has(> .tool-options) > .corner-tr {");
+    expect(css).toContain(":where(.stage-area.narrow:has(> .tool-options)) > .corner-tr {");
     expect(read("src/client/ui/common.tsx")).toContain("area.style.setProperty(name, `${el.offsetHeight ? el.offsetHeight + gap : 0}px`);");
   });
 });

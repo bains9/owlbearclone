@@ -20,18 +20,33 @@ export function useRoomState<T>(select: (s: RoomState) => T): T {
 
 /** A phone-narrow window (760 px or less), as the styles have it. */
 export const NARROW = "(max-width: 760px)";
+/** The map's area is phone-narrow at this width or less (as NARROW is for the window). */
+export const NARROW_STAGE = 760;
 
-/** Whether the window is phone-narrow, following it as it changes. */
-export function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => typeof matchMedia === "function" && matchMedia(NARROW).matches);
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const m = matchMedia(NARROW);
-    const on = () => setNarrow(m.matches);
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return narrow;
+/**
+ * Marks the map's area (`ref`'s parent) narrow while it's no wider than a phone's: on a phone, or
+ * on a tablet beside the side panel. Its bars then stack as a phone's do (.stage-area.narrow in the
+ * styles), and the room's stageNarrow tells what's drawn (the character card joins the selection
+ * bar's stack). Followed as the area changes size: a panel opening or closing, a phone turned.
+ */
+export function useStageNarrow(ref: { current: HTMLElement | null }): void {
+  const room = useRoom();
+  useLayoutEffect(() => {
+    const area = ref.current?.parentElement;
+    if (!area) return;
+    const set = () => {
+      const narrow = area.clientWidth <= NARROW_STAGE;
+      area.classList.toggle("narrow", narrow);
+      if (room.state.stageNarrow !== narrow) room.store.set({ stageNarrow: narrow });
+    };
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(area);
+    return () => {
+      watch.disconnect();
+      area.classList.remove("narrow");
+    };
+  }, [room]);
 }
 
 /**

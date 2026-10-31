@@ -38,7 +38,7 @@ import {
 } from "../room/actions";
 import { COMPASS_DIAL_STEP, dialValue, turnBy } from "../room/compass";
 import { TOKEN_SIZES, sizeOptionLabel } from "../room/tokenSizes";
-import { CommitInput, Guard, Swatches, cx, useNarrow, useRoom, useRoomState } from "./common";
+import { CommitInput, Guard, Swatches, cx, useRoom, useRoomState } from "./common";
 import { DRAW_COLORS } from "./Toolbar";
 
 const RING_COLORS = ["#e4572e", "#f3a712", "#5bba6f", "#4f9dde", "#b45fd6", "#ffffff"];
@@ -218,14 +218,15 @@ function SpellsOn({ token }: { token: TokenItem }) {
 }
 
 /**
- * A character's card on a bigger screen: on the right, above the zoom buttons and the bars along
- * the bottom, clear of the middle of the map, where the token picked most often is. (A phone's
- * sits over the selection bar: SelectionBar.)
+ * A character's card on a wider map: on the right, above the zoom buttons and the bars along the
+ * bottom, clear of the middle of the map, where the token picked most often is. (On a map as
+ * narrow as a phone's, a tablet's beside the side panel too, it sits over the selection bar:
+ * SelectionBar.)
  */
 export function CardDock() {
   useRoomState((s) => s.party);
   const room = useRoom();
-  const narrow = useNarrow();
+  const narrow = useRoomState((s) => s.stageNarrow);
   const t = useRoomState((s) => (s.selection.length === 1 ? s.items[s.selection[0]] : undefined));
   const character = !narrow && t?.kind === "token" && !isCompass(t) ? room.characterOf(t) : null;
   if (!character || t?.kind !== "token") return null;
@@ -241,7 +242,7 @@ export function CardDock() {
 export function SelectionBar() {
   // A character token's card follows their sheet as it's read again.
   useRoomState((s) => s.party);
-  const narrow = useNarrow();
+  const narrow = useRoomState((s) => s.stageNarrow);
   const room = useRoom();
   const selection = useRoomState((s) => s.selection);
   const items = useRoomState((s) => s.items);
@@ -400,7 +401,7 @@ export function SelectionBar() {
         <SpellsOn token={t} />
       </div>
     );
-    // On a phone the card sits over the bar, as wide as it; a bigger screen's is CardDock's.
+    // On a narrow map (a phone's) the card sits over the bar, as wide as it; a wider map's is CardDock's.
     if (!character || !narrow) return bar;
     return (
       <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>

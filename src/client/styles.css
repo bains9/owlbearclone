@@ -890,6 +890,10 @@ button:disabled {
   gap: 6px;
   pointer-events: none;
 }
+/* Beside a character's card, the messages stop short of it (it's 340 px wide, 10 px in). */
+.stage-area:has(> .card-dock) > .corner-bl {
+  right: 360px;
+}
 .corner-tr {
   position: absolute;
   top: 10px;
@@ -1516,12 +1520,10 @@ button:disabled {
 }
 /* On a phone the zoom buttons are down the right-hand side: the note goes left of them.
    While a tool's options bar is open, MapLoading puts it just below the bar instead. */
-@media (max-width: 760px) {
-  .board-season-note {
-    top: 10px;
-    bottom: auto;
-    right: 58px;
-  }
+:where(.stage-area.narrow) .board-season-note {
+  top: 10px;
+  bottom: auto;
+  right: 58px;
 }
 /* On a table display, big enough to read from across the table. */
 .display-room .map-loading-card {
@@ -3054,72 +3056,76 @@ kbd {
   .topbar-sep {
     display: none;
   }
-  .tool {
-    width: 38px;
-    height: 38px;
-  }
-  .tool-options {
-    left: 60px;
-    max-width: calc(100% - 70px);
-  }
-  .zoom {
-    flex-direction: column-reverse;
-    bottom: auto;
-    top: 10px;
-  }
-  .zoom .zoom-level {
-    display: none;
-  }
-  .corner-tr {
-    right: 60px;
-  }
-  /* The zoom buttons go down to the bottom corner while a tool's bar is open. */
-  .stage-area:has(> .tool-options) > .corner-tr {
-    right: 10px;
-  }
-  .speaking-chip {
-    padding: 3px;
-  }
-  .speaking-chip .speaking-name,
-  .speaking-chip .speaking-bars {
-    display: none;
-  }
-  /* ...above whatever is along the bottom. */
-  .tool-options ~ .zoom {
-    top: auto;
-    bottom: calc(12px + var(--bottom-h, 0px));
-  }
-  .bottom-bars {
-    left: 60px;
-    right: 8px;
-    transform: none;
-    width: auto;
-    max-width: none;
-    bottom: 8px;
-    align-items: stretch;
-  }
-  /* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar.
-     It's part of the stack (measured with it), so the messages sit above it too. */
-  .selbar-stack > .character-card {
-    position: static;
-    left: 0;
-    right: 0;
-    transform: none;
-    width: auto;
-    margin-bottom: 8px;
-  }
-  /* The name shares its row with the size. */
-  .selbar-label {
-    flex: 1 1 90px;
-    width: 0;
-    min-width: 90px;
-  }
-  /* Above the bars along the bottom, however many rows they take. */
-  .corner-bl {
-    left: 60px;
-    right: 8px;
-    bottom: calc(8px + var(--bottom-h, 0px));
-  }
+}
+
+/* A map as narrow as a phone's: on a phone, or on a tablet beside the side panel (the board's area
+   is marked .narrow by its width, useStageNarrow). Its bars stack along the edges as a phone's do.
+   (:where keeps each rule as strong as it was under a media query.) */
+:where(.stage-area.narrow) .tool {
+  width: 38px;
+  height: 38px;
+}
+:where(.stage-area.narrow) .tool-options {
+  left: 60px;
+  max-width: calc(100% - 70px);
+}
+:where(.stage-area.narrow) .zoom {
+  flex-direction: column-reverse;
+  bottom: auto;
+  top: 10px;
+}
+:where(.stage-area.narrow) .zoom .zoom-level {
+  display: none;
+}
+:where(.stage-area.narrow) .corner-tr {
+  right: 60px;
+}
+/* The zoom buttons go down to the bottom corner while a tool's bar is open. */
+:where(.stage-area.narrow:has(> .tool-options)) > .corner-tr {
+  right: 10px;
+}
+:where(.stage-area.narrow) .speaking-chip {
+  padding: 3px;
+}
+:where(.stage-area.narrow) .speaking-chip .speaking-name,
+:where(.stage-area.narrow) .speaking-chip .speaking-bars {
+  display: none;
+}
+/* ...above whatever is along the bottom. */
+:where(.stage-area.narrow) .tool-options ~ .zoom {
+  top: auto;
+  bottom: calc(12px + var(--bottom-h, 0px));
+}
+:where(.stage-area.narrow) .bottom-bars {
+  left: 60px;
+  right: 8px;
+  transform: none;
+  width: auto;
+  max-width: none;
+  bottom: 8px;
+  align-items: stretch;
+}
+/* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar.
+   It's part of the stack (measured with it), so the messages sit above it too. */
+:where(.stage-area.narrow) .selbar-stack > .character-card {
+  position: static;
+  left: 0;
+  right: 0;
+  transform: none;
+  width: auto;
+  margin-bottom: 8px;
+}
+/* The name shares its row with the size. */
+:where(.stage-area.narrow) .selbar-label {
+  flex: 1 1 90px;
+  width: 0;
+  min-width: 90px;
+}
+/* Above the bars along the bottom, however many rows they take. */
+:where(.stage-area.narrow) .corner-bl {
+  left: 60px;
+  right: 8px;
+  bottom: calc(8px + var(--bottom-h, 0px));
 }
 
 /* ------------------------------------------------------------- touch screens and short screens */
@@ -3152,12 +3158,10 @@ kbd {
 
 /* On narrow screens the selection bar wraps onto rows, so every button shows; the messages sit
    above it (--bottom-h). A very tall one scrolls. */
-@media (max-width: 760px) {
-  .selbar {
-    justify-content: flex-start;
-    max-height: 45vh;
-    overflow-y: auto;
-  }
+:where(.stage-area.narrow) .selbar {
+  justify-content: flex-start;
+  max-height: 45vh;
+  overflow-y: auto;
 }
 
 /* Touch screens have no tooltips: the selection bar's buttons say what they are, in a word. */
@@ -3231,11 +3235,11 @@ kbd {
 .build-hints kbd {
   font-size: 11px;
 }
-@media (hover: hover) and (min-width: 761px) {
-  .build-hints {
+@media (hover: hover) {
+  :where(.stage-area:not(.narrow)) .build-hints {
     display: flex;
   }
-  .build-options .build-touch-hint {
+  :where(.stage-area:not(.narrow)) .build-options .build-touch-hint {
     display: none;
   }
 }
@@ -3401,35 +3405,33 @@ kbd {
 .build-live {
   color: var(--warn);
 }
-@media (max-width: 760px) {
-  .build-options .seg-label {
-    display: none;
-  }
-  /* Without their labels the modes and Back need less room, so Back still fits beside Copy
-     and Paste on most phones. */
-  .build-options .seg-btn.wide {
-    padding: 0 7px;
-  }
-  .build-options .hint:not(.build-live) {
-    display: none;
-  }
-  /* One row that scrolls sideways, so the bar never covers much of the board. */
-  .build-options {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .build-options > * {
-    flex: none;
-  }
-  /* Phones: the chosen object's or floor's picture alone on the bar. */
-  .build-options .lib-current-name,
-  .build-options .lib-recent {
-    display: none;
-  }
-  .build-options .build-live {
-    font-size: 12px;
-  }
+:where(.stage-area.narrow) .build-options .seg-label {
+  display: none;
+}
+/* Without their labels the modes and Back need less room, so Back still fits beside Copy
+   and Paste on most phones. */
+:where(.stage-area.narrow) .build-options .seg-btn.wide {
+  padding: 0 7px;
+}
+:where(.stage-area.narrow) .build-options .hint:not(.build-live) {
+  display: none;
+}
+/* One row that scrolls sideways, so the bar never covers much of the board. */
+:where(.stage-area.narrow) .build-options {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:where(.stage-area.narrow) .build-options > * {
+  flex: none;
+}
+/* Phones: the chosen object's or floor's picture alone on the bar. */
+:where(.stage-area.narrow) .build-options .lib-current-name,
+:where(.stage-area.narrow) .build-options .lib-recent {
+  display: none;
+}
+:where(.stage-area.narrow) .build-options .build-live {
+  font-size: 12px;
 }
 
 .brush-size {
@@ -3502,7 +3504,7 @@ kbd {
   background: var(--accent);
   color: var(--accent-ink);
 }
-@media (hover: none), (max-width: 760px) {
+@media (hover: none) {
   .selbar.build-selbar {
     display: flex;
   }
@@ -3511,16 +3513,20 @@ kbd {
     display: none;
   }
 }
-@media (max-width: 760px) {
-  /* Sliders fight the bar's sideways scrolling: the buttons either side of them stay. */
-  .build-slider {
-    display: none;
-  }
-  /* While a tool's bar is open the zoom buttons stand in the bottom corner, so the messages
-     stop short of them rather than covering Zoom in and Zoom out. */
-  .stage-area:has(> .tool-options) > .corner-bl {
-    right: 64px;
-  }
+:where(.stage-area.narrow) .selbar.build-selbar {
+  display: flex;
+}
+:where(.stage-area.narrow) .build-options .build-sel-more {
+  display: none;
+}
+/* Sliders fight the bar's sideways scrolling: the buttons either side of them stay. */
+:where(.stage-area.narrow) .build-slider {
+  display: none;
+}
+/* While a tool's bar is open the zoom buttons stand in the bottom corner, so the messages
+   stop short of them rather than covering Zoom in and Zoom out. */
+:where(.stage-area.narrow:has(> .tool-options)) > .corner-bl {
+  right: 64px;
 }
 /* On the narrowest phones (320 px) the floating bar's buttons close up, so all seven fit. */
 @media (max-width: 359px) {
@@ -3535,25 +3541,23 @@ kbd {
 /* On a tablet (or a phone held sideways) the floating bar stays one row in the middle, even
    beside a side panel. The zoom buttons and the messages sit above it, so nothing covers a
    button (a tap on a message only closes it). */
-@media (hover: none) and (min-width: 761px) {
-  .bottom-bars:has(> .build-selbar) {
+@media (hover: none) {
+  :where(.stage-area:not(.narrow)) .bottom-bars:has(> .build-selbar) {
     max-width: calc(100% - 20px);
   }
-  .bottom-bars > .selbar.build-selbar {
+  :where(.stage-area:not(.narrow)) .bottom-bars > .selbar.build-selbar {
     flex-wrap: nowrap;
     width: max-content;
     max-width: 100%;
   }
-  .stage-area:has(> .bottom-bars > .build-selbar) > .zoom {
+  :where(.stage-area:not(.narrow):has(> .bottom-bars > .build-selbar)) > .zoom {
     bottom: calc(12px + var(--bottom-h, 0px));
   }
 }
 /* The Build tool's modes wrap onto a second row rather than running under a side panel. */
-@media (min-width: 761px) {
-  .build-options .build-modes {
-    flex-wrap: wrap;
-    max-width: 100%;
-  }
+:where(.stage-area:not(.narrow)) .build-options .build-modes {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 /* On a short screen (a phone held sideways) the Build tool's bar leaves out its hints and the
    words beside its icons, as it does on a phone held upright, so beside a side panel it
@@ -3582,11 +3586,9 @@ kbd {
 .preview-banner.align-banner {
   top: 64px;
 }
-@media (max-width: 760px) {
-  .preview-banner.align-banner {
-    top: 10px;
-    bottom: auto;
-  }
+:where(.stage-area.narrow) .preview-banner.align-banner {
+  top: 10px;
+  bottom: auto;
 }
 .send-room {
   flex: 1;

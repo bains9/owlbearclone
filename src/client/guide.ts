@@ -27,7 +27,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Ki left today is kept in Tabletop, like what's been prayed for; a new day fills it.",
           "GM: spell points back to full and ki need the sheets' script's new version (6). See **Set up the character sheets (GM)**.",
-          "To see how smoothly the map runs on a device, add ?fps to the room's link: the frames a second show at the top right (?fps=0 takes it away)."
+          "To see how smoothly the map runs on a device, add ?fps to the room's link: the frames a second show at the top right (?fps=0 takes it away).",
+          "On a tablet with the side panel open, the map is as narrow as a phone's, so its bars now stack as they do on a phone: the card over the selection bar, the zoom buttons at the top right, and nothing covering anything."
         ]
       },
       {

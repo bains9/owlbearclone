@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-preact";
 import { roomUrl } from "../api";
+import { layoutCheck } from "../layoutCheck";
 import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
@@ -45,7 +46,7 @@ import { CardDock, SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
 import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
-import { Guard, Modal, RoomContext, Swatches, copyText, cx, useClearOfBars, useRoom, useRoomState, useStageHeight } from "./common";
+import { Guard, Modal, RoomContext, Swatches, copyText, cx, useClearOfBars, useRoom, useRoomState, useStageHeight, useStageNarrow } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
   const [profile, setProfile] = useState<Profile>(() => loadProfile());
@@ -150,10 +151,12 @@ function openRoom(roomId: string, profile: Profile): RoomClient {
     const st = room.state.status;
     if (st === "deleted" || st === "notfound") voiceLink.stop(roomId);
   });
-  // Development builds only: lets you inspect the room from the browser console, and test
-  // voice chat in two tabs without a microphone (?fakemic).
+  // Development builds only: lets you inspect the room from the browser console, check that the
+  // bars round the map keep clear of each other (__layoutCheck()), and test voice chat in two
+  // tabs without a microphone (?fakemic).
   if (import.meta.env.DEV) {
     (window as unknown as { __room: RoomClient }).__room = room;
+    (window as unknown as { __layoutCheck: typeof layoutCheck }).__layoutCheck = layoutCheck;
     voiceLink.voice.allowFakeMic = true;
     (window as unknown as { __voice: typeof voiceLink }).__voice = voiceLink;
   }
@@ -539,6 +542,7 @@ function MoreMenu(props: { gm: boolean; displays: number; onCopy: () => void; on
 function BottomBars(props: { children: ComponentChildren }) {
   const ref = useRef<HTMLDivElement>(null);
   useStageHeight(ref, "--bottom-h");
+  useStageNarrow(ref);
   return (
     <div class="bottom-bars" ref={ref}>
       {props.children}

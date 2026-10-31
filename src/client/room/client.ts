@@ -233,6 +233,11 @@ export interface RoomState {
   lightPick: { sceneId: string; index: number } | null;
   /** GM: Add a light was clicked (Edit scene › Lighting): the next click on that scene's map places one. */
   lightAdd: { sceneId: string } | null;
+  /**
+   * The map's area is as narrow as a phone's (a phone, or a tablet beside the side panel): its
+   * bars stack as on a phone, the character card in the selection bar's stack (useStageNarrow).
+   */
+  stageNarrow: boolean;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -521,6 +526,7 @@ export class RoomClient {
       spellOpts: { spell: "Magic Missile" },
       lightPick: null,
       lightAdd: null,
+      stageNarrow: false,
       textPrompt: null,
       mapImport: null,
       attachDD: null,
