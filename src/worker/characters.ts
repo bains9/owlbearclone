@@ -92,13 +92,13 @@ export async function spendOnSheet(
  * A new day's rest (GM): a character's spell points back to full on their sheet, through the GM's
  * script (version 6 on): POST {key, id, rest: true}. Their spell points now, or why not.
  */
-export async function restOnSheet(source: string, key: string, sheetId: string, fetcher: typeof fetch = fetch): Promise<{ sp: number } | { error: string }> {
+export async function restOnSheet(source: string, key: string, sheetId: string, fetcher: typeof fetch = fetch, gain?: number): Promise<{ sp: number } | { error: string }> {
   let res: Response;
   try {
     res = await fetcher(source, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ key, id: sheetId, rest: true }),
+      body: JSON.stringify({ key, id: sheetId, rest: true, ...(gain ? { gain } : {}) }),
       redirect: "follow",
       signal: AbortSignal.timeout(SCRIPT_MS),
     });

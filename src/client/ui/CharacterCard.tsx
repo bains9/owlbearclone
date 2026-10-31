@@ -277,8 +277,8 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
   const [filling, setFilling] = useState(false);
   const fillUp = () => {
     setFilling(true);
-    restSpellPoints(room, c)
-      .then(() => room.toast(`${who}'s spell points are back to full on their sheet.`))
+    restSpellPoints(room, c, "long")
+      .then((added) => room.toast(`${who}'s long rest: ${added} spell point${added === 1 ? "" : "s"} back on their sheet.`))
       .catch((err: Error) => room.toast(err.message, "error"))
       .finally(() => setFilling(false));
   };
@@ -335,8 +335,8 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
               <button
                 class="link-btn sp-full"
                 disabled={filling}
-                title="Spell points back to full on their sheet"
-                aria-label="Spell points back to full on their sheet"
+                title="A long rest: spell points back on their sheet by the handbook's rule (3 × level + CON + spell stat)"
+                aria-label="A long rest: spell points back on their sheet"
                 onClick={fillUp}
               >
                 <BatteryFull size={14} />

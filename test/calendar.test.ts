@@ -24,6 +24,7 @@ import {
   INDOORS,
   isIndoors,
   isNight,
+  snowDepth,
   sanitizeCalendar,
   seasonLookOf,
   seasonOf,
@@ -231,6 +232,17 @@ describe("the time of day, and a scene's own weather", () => {
     expect(isIndoors({}, 0.5)).toBe(false);
     expect(isIndoors({ region: "Hot desert", vision: { on: true, daylight: false } }, 0.02)).toBe(false);
     expect(isIndoors(null)).toBe(false);
+  });
+
+  it("lies deeper in snow for a few days after it falls, and a thaw clears it", () => {
+    const c = fixture();
+    const depths = oracle.map((r) => snowDepth({ ...c, climate: "Tundra" }, r.epoch));
+    expect(depths.every((d) => d >= 1 && d <= 3)).toBe(true);
+    // On the tundra, somewhere in winter there's snow on the ground; in summer (warm) there's none.
+    expect(depths.slice(0, 90).some((d) => d > 1)).toBe(true);
+    // In a temperate summer (warm every day) there's none.
+    expect(oracle.slice(180, 270).every((r) => snowDepth(c, r.epoch) === 1)).toBe(true);
+    expect(snowDepth({ ...c, climate: "Hot desert" }, 418)).toBe(1);
   });
 
   it("rolls a scene's own region when it has one", () => {

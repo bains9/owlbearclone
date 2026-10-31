@@ -10,7 +10,7 @@ import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
-import { MAX_SPEND } from "../shared/characters";
+import { MAX_SPEND, restGain } from "../shared/characters";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
@@ -320,7 +320,12 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     if (!(await isGm(request, env))) return fail(403, "Only the GM can give spell points back.");
     const source = await directory.charactersSource();
     if (!source) return fail(409, "The character sheets aren't set up.");
-    const done = await restOnSheet(source, await directory.charactersKey(), restMatch[1]);
+    // How many come back: by the handbook's rule, from what the sheet says (the script's version 8 on).
+    const kind = (await readJson(request))?.kind === "successive" ? "successive" : "long";
+    const who = (await readParty({ directory, files: env.FILES }, caches.default)).characters.find((c) => c.id === restMatch[1]);
+    const gain = who ? restGain(who, kind) : null;
+    if (gain === null) return fail(409, "Their sheet doesn't say how spell points come back: the GM needs to update the sheets' script (Help › Set up the character sheets).");
+    const done = await restOnSheet(source, await directory.charactersKey(), restMatch[1], fetch, gain);
     if ("error" in done) return fail(502, done.error);
     await forgetParty({ directory }, caches.default);
     return json({ ok: true, sp: done.sp });

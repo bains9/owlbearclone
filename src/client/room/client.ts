@@ -7,7 +7,7 @@ import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, ke
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
 import { deviceOf, type Problem } from "../../shared/problems";
-import { eventsOn, isNight, seasonLookOf, type Calendar } from "../../shared/calendar";
+import { INDOORS, eventsOn, isNight, seasonLookOf, snowDepth, type Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
@@ -1573,8 +1573,11 @@ export class RoomClient {
     if (!look) return;
     for (const scene of Object.values(this.state.scenes)) {
       const season = scene.season;
-      if (!season || season.pinned || season.look === look) continue;
-      this.changeScene(scene.id, { season: { ...season, look } }, {});
+      if (!season || season.pinned) continue;
+      // In winter the snow lies as deep as it's fallen these last days, where the scene is.
+      const level = look === "winter" ? snowDepth(calendar, calendar.today, scene.region === INDOORS ? undefined : scene.region) : season.level;
+      if (season.look === look && season.level === level) continue;
+      this.changeScene(scene.id, { season: { ...season, look, level } }, {});
     }
   }
 

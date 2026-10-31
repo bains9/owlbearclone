@@ -35,6 +35,7 @@ export const GUIDE: GuideSection[] = [
           "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
           "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
           "The date and today's weather show at the top right of every map, table displays included; a click opens the panel. GM: untick **Show the date and weather on every map** to keep them to the panel.",
+          "The speaker button beside today's weather plays a soft rain or wind on wet or windy days, on that device only (off unless turned on; browsers only play after a click). With scenes following the calendar's season, winter snow lies deeper for a few days after it falls, and a thaw clears it.",
           "A table display shows the day at a glance for a minute when the day changes: the date, the weather, the moons and what's on. **A copy for Fantasy Calendar** (under Bring in, keep a copy, or take away) is a file in Fantasy Calendar's own shape, with the events and log made here, for importing there.",
           "When the GM moves the day, a line in the chat says where the game is now and what the weather's like, and everyone gets a note of what's on that day (the GM's eyes-only events only to the GM).",
           "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
@@ -43,14 +44,14 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)",
         "steps": [
-          "GM: **New day for the party** now says what it's about to do, and to how many characters. Click **Start the new day** to go ahead, or **Cancel**.",
+          "GM: **New day for the party** now says what it's about to do, and to how many characters. Click **Start the new day** to go ahead, or **Cancel**. Spell points come back by the handbook's rule, not to full: a **long rest** gives 3 × caster level + CON bonus + spell-stat bonus (WIS for clerics and their kind, INT for mages); a **successive long rest** (a second day of rest) 3 × (level + CON + stat); or leave them alone.",
           "For half an hour after, **Undo the new day** puts everyone's prayers and ki back as they were, and takes the spell points it added back off their sheets (a spell cast since still counts).",
-          "GM: when a character is short of spell points, the battery beside **SP** on their card puts theirs alone back to full on their sheet.",
+          "GM: when a character is short of spell points, the battery beside **SP** on their card gives that one a long rest's spell points on their sheet.",
           "GM: if something couldn't be shown on someone's screen (their card, a bar), an amber dot appears on **More**. Open **More** › **Problems on devices** to see who, on what device, and what went wrong, and **Clear the list** when it's dealt with."
         ],
         "notes": [
           "Whatever failed is left out and the rest of the page carries on; a reload often fixes it. The list helps find what keeps going wrong, on a player's tablet say.",
-          "The sheets' script's version 7 says which it is, so the party in **Tokens & images** tells the GM when a newer one is out."
+          "The sheets' script's version 8 reads how each caster's spell points come back (the class with spell-point dice, its level, CON and spell-stat bonuses), and says its version, so the party in **Tokens & images** tells the GM when a newer one is out."
         ]
       },
       {

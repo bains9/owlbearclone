@@ -26,7 +26,7 @@
 // A new character: make a copy of a sheet in that folder; Tabletop finds it within a minute or two.
 
 // This script's version: Tabletop tells the GM when a newer one is out (shared/characters.ts SCRIPT_VERSION).
-const VERSION = 7;
+const VERSION = 8;
 
 function doGet() {
   const folderId = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
@@ -100,7 +100,37 @@ function card(ss) {
     attacks: attacks,
     spells: spellsOf(ss),
     ki: kiOf(ss, [[at(0, 'Class'), at(0, 'Level · XP')], [at(0, 'Second class (optional)'), at(0, 'Second class level · XP')]]),
+    rest: restOf(v, at),
   };
+}
+
+/**
+ * How a caster's spell points come back (the handbook's spell point recuperation), or null for
+ * someone without spell points: the level of the class with spell-point dice (the "Spell points"
+ * row under PROGRESSION), their CON bonus, and the bonus of that class's spell stat (WIS for
+ * clerics and their kind, INT for mages), as the ATTRIBUTES rows have them.
+ */
+function restOf(v, at) {
+  let dice1 = '', dice2 = '';
+  for (let i = 0; i < v.length; i++) {
+    if (String(v[i][5]).trim() !== 'Spell points') continue;
+    dice1 = String(v[i][6]).trim();
+    dice2 = String(v[i][7]).trim();
+    break;
+  }
+  const which = dice1 ? 1 : dice2 ? 2 : 0;
+  if (!which) return null;
+  const cls = which === 1 ? at(0, 'Class') : at(0, 'Second class (optional)');
+  const level = Number(which === 1 ? at(0, 'Level · XP') : at(0, 'Second class level · XP'));
+  const bonusOf = function (attr) {
+    for (let i = 0; i < v.length; i++) if (String(v[i][0]).trim() === attr) return Number(String(v[i][2]).replace('+', '').trim());
+    return NaN;
+  };
+  const divine = /cleric|shaman|druid|priest|paladin/i.test(cls);
+  const con = bonusOf('CON');
+  const primary = bonusOf(divine ? 'WIS' : 'INT');
+  if (!(level > 0) || isNaN(con) || isNaN(primary)) return null;
+  return { level: level, con: con, primary: primary };
 }
 
 /**
@@ -211,8 +241,11 @@ function doPost(e) {
     const now = Number(cell.getValue()) || 0;
     if (rest) {
       if (!Number.isFinite(most) || most < 0) return reply({ error: 'Their sheet has no Maximum spell points.' });
-      if (now !== most) cell.setValue(most);
-      return reply({ sp: most });
+      // With a gain (version 8 on): that many back, up to the maximum. Without: back to the maximum.
+      const gain = Number(body.gain);
+      const next = Number.isInteger(gain) && gain > 0 ? Math.min(most, now + gain) : most;
+      if (now !== next) cell.setValue(next);
+      return reply({ sp: next });
     }
     if (spend > now) return reply({ error: 'Not enough spell points.', sp: now });
     cell.setValue(now - spend);

@@ -3,7 +3,7 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { KI_KEY, MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer, type KiAbility } from "../shared/characters";
+import { KI_KEY, MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer, type KiAbility, type RestKind } from "../shared/characters";
 import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
@@ -264,7 +264,7 @@ export function spendKi(room: RoomClient, c: Character, a: KiAbility): boolean {
  * first thing that went wrong, if anything. What it changed is kept for a while (newDayUndo), so
  * the GM can take it back.
  */
-export async function newPartyDay(room: RoomClient, rest: boolean): Promise<{ done: number; error: string | null }> {
+export async function newPartyDay(room: RoomClient, rest: RestKind | null): Promise<{ done: number; error: string | null }> {
   const party = room.state.party?.characters ?? [];
   const undo: NewDayUndo = { at: Date.now(), characters: [] };
   const results = await Promise.allSettled(
@@ -273,7 +273,7 @@ export async function newPartyDay(room: RoomClient, rest: boolean): Promise<{ do
       if (c.kiLeft !== undefined) was.kiLeft = c.kiLeft;
       undo.characters.push(was);
       await newPrayerDay(room, c);
-      if (rest && c.maxSp !== null) was.added = await restSpellPoints(room, c);
+      if (rest && c.maxSp !== null) was.added = await restSpellPoints(room, c, rest);
     }),
   );
   const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
@@ -322,10 +322,11 @@ export async function undoNewDay(room: RoomClient): Promise<string | null> {
  * GM: a character's spell points back to full on their sheet: shown here at once. How many it
  * added (from their spell points as last read).
  */
-export async function restSpellPoints(room: RoomClient, c: Character): Promise<number> {
+export async function restSpellPoints(room: RoomClient, c: Character, kind: RestKind = "long"): Promise<number> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/rest?room=${encodeURIComponent(room.roomId)}`, {
     method: "POST",
-    headers: { "X-Tabletop-User": room.profileInfo.uid },
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ kind }),
     credentials: "same-origin",
   });
   const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };

@@ -1012,6 +1012,20 @@ export function toFantasyCalendar(c: Calendar): Record<string, unknown> {
   return { name: c.name, static_data, dynamic_data, events, event_categories, categories: event_categories };
 }
 
+/**
+ * How deep the snow lies on a day, for a scene's winter look (SceneSeason.level): 1 with no snow
+ * in the last six days, 2 with a day or two of it, 3 with more. A thaw (a day above 4 °C) clears it.
+ */
+export function snowDepth(c: Calendar, epoch: number, region?: string | null): 1 | 2 | 3 {
+  let days = 0;
+  for (let k = 0; k < 6; k++) {
+    const w = weatherOf(c, epoch - k, region);
+    if (w.high > 4) break;
+    if (w.precipitation !== "none" && w.kind === "snow") days += w.precipitation === "heavy" ? 2 : 1;
+  }
+  return days === 0 ? 1 : days <= 2 ? 2 : 3;
+}
+
 /** A scene's Weather region set to this: indoors or underground, so no weather reaches it. */
 export const INDOORS = "indoors";
 

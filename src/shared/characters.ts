@@ -51,6 +51,8 @@ export interface Character {
   sneakRank?: number | null;
   /** Their STR damage bonus, the sheet's "Melee damage" (null when it isn't there). */
   strBonus?: number | null;
+  /** How their spell points come back (the handbook's rule): the caster class's level, their CON bonus, and its spell stat's bonus. Null for no caster. */
+  rest?: SpellRest | null;
   /**
    * The ranged weapons (by the sheet's name for them) the GM marked as matched to their strength,
    * which add their STR bonus to damage like a melee weapon (kept by the Worker, for every room).
@@ -133,7 +135,7 @@ export interface CharacterPlayer {
  * The newest version of the GM's character sheets script (scripts/character-sheets.gs, its VERSION):
  * the GM is told when theirs is older.
  */
-export const SCRIPT_VERSION = 7;
+export const SCRIPT_VERSION = 8;
 
 export interface CharactersReply {
   /** Whether the GM has set up the character sheets (Room settings › Character sheets). */
@@ -231,6 +233,7 @@ export function cleanCharacter(raw: unknown): Character | null {
     attacks,
     sneakRank: rank !== null && rank >= 1 ? Math.min(20, Math.round(rank)) : null,
     strBonus: str === null ? null : bonus(str),
+    rest: restOf(r.rest),
     // Made from the id, so a card only ever opens that character's own sheet.
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
     ...(spells ? { spells } : {}),
@@ -324,6 +327,36 @@ export function attackLabel(who: string, weapon: string, what: AttackRollKind): 
  * DEX bonus for a weapon the character is proficient with, and the rest the sheet works out).
  */
 export const TO_HIT_DIE = "2d10";
+
+export interface SpellRest {
+  level: number;
+  con: number;
+  primary: number;
+}
+
+function restOf(v: unknown): SpellRest | null {
+  const x = v as { level?: unknown; con?: unknown; primary?: unknown } | null;
+  if (!x || typeof x !== "object") return null;
+  const n = (y: unknown) => (typeof y === "number" && Number.isFinite(y) ? Math.round(y) : typeof y === "string" && y.trim() !== "" && Number.isFinite(Number(y)) ? Math.round(Number(y)) : null);
+  const level = n(x.level), con = n(x.con), primary = n(x.primary);
+  if (level === null || level < 1 || level > 60 || con === null || primary === null) return null;
+  return { level, con: Math.max(-10, Math.min(10, con)), primary: Math.max(-10, Math.min(10, primary)) };
+}
+
+/** A rest's kind: the first long rest after a day with activity, or a successive one (a second day of rest). */
+export type RestKind = "long" | "successive";
+
+/**
+ * The spell points a rest gives back (the handbook's spell point recuperation): a long rest
+ * 3 × level + CON bonus + spell-stat bonus; a successive long rest 3 × (level + CON + stat).
+ * Null when the sheet doesn't say (a script before version 8, or no caster).
+ */
+export function restGain(c: Pick<Character, "rest">, kind: RestKind): number | null {
+  const r = c.rest;
+  if (!r) return null;
+  const gain = kind === "long" ? 3 * r.level + r.con + r.primary : 3 * (r.level + r.con + r.primary);
+  return Math.max(0, gain);
+}
 
 /** The die rolled for initiative, by the group's handbook: one d10, with the sheet's initiative bonus (its INT bonus) added. */
 export const INITIATIVE_DIE = "1d10";

@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { kiLeft, kiLine, newPartyDay, spendKi } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
-import { KI_KEY, MAX_KI, cleanCharacter, type Character, type CharactersReply } from "../src/shared/characters";
+import { KI_KEY, MAX_KI, cleanCharacter, restGain, type Character, type CharactersReply } from "../src/shared/characters";
 import { DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
 import type { Player } from "../src/shared/types";
 
@@ -88,6 +88,16 @@ describe("ki on the card", () => {
   });
 });
 
+describe("spell points coming back by the handbook's rule", () => {
+  it("is 3 × level + CON + spell stat for a long rest, 3 × their sum for a successive one, and unknown without the sheet's say", () => {
+    const shi = cleanCharacter({ id: SHEET, name: "Hana Kiri", rest: { level: 3, con: 1, primary: 1 } })!;
+    expect([restGain(shi, "long"), restGain(shi, "successive")]).toEqual([11, 15]);
+    expect(restGain(cleanCharacter({ id: SHEET, name: "Testa" })!, "long")).toBeNull();
+    expect(cleanCharacter({ id: SHEET, name: "T", rest: { level: "5", con: "+2", primary: "0" } })!.rest).toEqual({ level: 5, con: 2, primary: 0 });
+    expect(cleanCharacter({ id: SHEET, name: "T", rest: { level: 0, con: 1, primary: 1 } })!.rest).toBeNull();
+  });
+});
+
 describe("a new day for the party", () => {
   it("clears everyone's prayers and fills their ki, and puts their spell points back on their sheets", async () => {
     const room = page(gm, samurai({ sp: 4, kiLeft: 2, prayed: { Silence: 1 } }));
@@ -95,17 +105,17 @@ describe("a new day for the party", () => {
     const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
       String(input).includes("/rest?") ? Response.json({ ok: true, sp: 15 }) : Response.json({ ok: true, prayed: {} }),
     );
-    expect(await newPartyDay(room, true)).toEqual({ done: 1, error: null });
+    expect(await newPartyDay(room, "long")).toEqual({ done: 1, error: null });
     const c = room.state.party!.characters[0];
     expect([c.prayed, c.kiLeft, c.sp]).toEqual([{}, undefined, 15]);
     const calls = sent.mock.calls.map(([u, i]) => [String(u).replace(/\?.*/, ""), (i as RequestInit).method, (i as RequestInit).body ?? null]);
     expect(calls).toEqual([
       [`/api/characters/${SHEET}/prayed`, "PUT", JSON.stringify({ newDay: true })],
-      [`/api/characters/${SHEET}/rest`, "POST", null],
+      [`/api/characters/${SHEET}/rest`, "POST", JSON.stringify({ kind: "long" })],
     ]);
     // Without the spell points, only the day.
     sent.mockClear();
-    await newPartyDay(room, false);
+    await newPartyDay(room, null);
     expect(sent.mock.calls.map(([u]) => String(u).replace(/\?.*/, ""))).toEqual([`/api/characters/${SHEET}/prayed`]);
   });
 
@@ -115,7 +125,7 @@ describe("a new day for the party", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
       String(input).includes("/rest?") ? Response.json({ error: "The character sheets' script can't fill spell points up yet." }, { status: 502 }) : Response.json({ ok: true, prayed: {} }),
     );
-    const out = await newPartyDay(room, true);
+    const out = await newPartyDay(room, "long");
     expect(out.error).toMatch(/can't fill spell points up yet/);
   });
 
@@ -124,6 +134,10 @@ describe("a new day for the party", () => {
     expect(await party.restOnSheet("https://script.example/exec", "k".repeat(43), SHEET, fetcher as unknown as typeof fetch)).toEqual({ sp: 15 });
     const [, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ key: "k".repeat(43), id: SHEET, rest: true });
+    // With a gain (version 8 on), the script adds that many.
+    const adds = vi.fn(async () => Response.json({ sp: 10 }));
+    await party.restOnSheet("https://script.example/exec", "k", SHEET, adds as unknown as typeof fetch, 11);
+    expect(JSON.parse(String((adds.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toMatchObject({ rest: true, gain: 11 });
     const old = vi.fn(async () => Response.json({ error: "That isn’t a number of spell points." }));
     expect(await party.restOnSheet("https://script.example/exec", "k", SHEET, old as unknown as typeof fetch)).toMatchObject({ error: expect.stringContaining("needs to update it") });
   });

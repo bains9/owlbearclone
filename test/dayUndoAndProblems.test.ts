@@ -40,7 +40,7 @@ describe("a new day for the party", () => {
   it("asks first, saying what it'll do to how many, and offers Undo for half an hour", () => {
     const ui = read("src/client/ui/PartySection.tsx");
     expect(ui).toContain("onClick={() => setAsking(true)}");
-    expect(ui).toContain("A new day for {who}: prayers cleared and ki full{rest ? \", and spell points back to full on their sheets\" : \"\"}.");
+    expect(ui).toContain("A new day for {who}: prayers cleared and ki full{rest !== \"none\" ? `, and a ${restName(rest)}'s spell points back on their sheets` : \"\"}.");
     for (const words of ["Start the new day", "Cancel", "Undo the new day"]) expect(ui).toContain(words);
     expect(read("src/client/party.ts")).toContain("export const NEW_DAY_UNDO_MS = 30 * 60 * 1000;");
   });
@@ -53,7 +53,7 @@ describe("a new day for the party", () => {
       if (url.includes("/spend?")) return Response.json({ ok: true, sp: 15 - JSON.parse(String(init?.body)).spend });
       return Response.json({ ok: true, prayed: {} });
     });
-    await newPartyDay(room, true);
+    await newPartyDay(room, "long");
     expect(room.state.newDayUndo?.characters).toEqual([{ id: SHEET, prayed: { "Light (R)": 1, Bless: 0 }, kiLeft: 2, added: 11 }]);
     // A spell cast since: 3 off, so 12 now.
     room.store.set({ party: { ...room.state.party!, characters: [{ ...room.state.party!.characters[0], sp: 12 }] } });
@@ -74,7 +74,7 @@ describe("a new day for the party", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
       String(input).includes("/rest?") ? Response.json({ ok: true, sp: 15 }) : Response.json({ ok: true, sp: 0, prayed: {} }),
     );
-    await newPartyDay(room, true);
+    await newPartyDay(room, "long");
     room.store.set({ party: { ...room.state.party!, characters: [{ ...room.state.party!.characters[0], sp: 5 }] } });
     const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, sp: 0, prayed: {} }));
     await undoNewDay(room);
@@ -86,7 +86,7 @@ describe("one character's spell points back to full", () => {
   it("is the GM's, beside their spell points on the card, when they're short", () => {
     const card = read("src/client/ui/CharacterCard.tsx");
     expect(card).toContain("{gm && c.sp < c.maxSp && (");
-    expect(card).toContain('aria-label="Spell points back to full on their sheet"');
+    expect(card).toContain('aria-label="A long rest: spell points back on their sheet"');
   });
 
   it("fills their sheet up and says how many it added", async () => {
@@ -101,6 +101,8 @@ describe("the sheets' script's version", () => {
   it("is the one Tabletop expects, said with every reading", () => {
     const gs = read("scripts/character-sheets.gs");
     expect(gs).toContain(`const VERSION = ${SCRIPT_VERSION};`);
+    expect(gs).toContain("rest: restOf(v, at),");
+    expect(gs).toContain("const next = Number.isInteger(gain) && gain > 0 ? Math.min(most, now + gain) : most;");
     expect(gs).toContain("return reply({ version: VERSION, characters: characters, unread: unread });");
   });
 

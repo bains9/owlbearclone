@@ -31,6 +31,8 @@ import {
 import { deleteCalendar, eventId, importCalendar, logLine, patchCalendar } from "../calendar";
 import { NewPartyDay } from "./PartySection";
 import { outdoorKey } from "../room/seasons";
+import { playWeatherSound, setWeatherSoundWanted, stopWeatherSound, weatherSoundWanted } from "../weatherSound";
+import { Volume2, VolumeX } from "lucide-preact";
 import { cx, useRoom, useRoomState } from "./common";
 
 /** The date in the top bar: a click opens the panel. */
@@ -132,6 +134,34 @@ export function DayCard() {
       )}
       {events.length > 0 && <div class="day-card-events">{events.map((e) => e.name).join(" · ")}</div>}
     </div>
+  );
+}
+
+/** Rain and wind to hear, on this device only, once turned on here (a browser plays only after a click). */
+export function WeatherSoundButton() {
+  const cal = useRoomState((s) => s.calendar);
+  const region = useSceneRegion();
+  const indoors = useIndoors();
+  const [on, setOn] = useState(weatherSoundWanted);
+  const w = cal && !indoors ? weatherOf(cal, cal.today, region === INDOORS ? undefined : region) : null;
+  useEffect(() => {
+    if (on) playWeatherSound(w);
+    else stopWeatherSound();
+  }, [on, w?.text]);
+  if (!cal) return null;
+  return (
+    <button
+      class={cx("icon-btn", on && "active")}
+      title={on ? "Rain and wind sound: on (this device)" : "Rain and wind sound: off (this device)"}
+      aria-label={on ? "Turn the weather's sound off" : "Turn the weather's sound on"}
+      aria-pressed={on}
+      onClick={() => {
+        setWeatherSoundWanted(!on);
+        setOn(!on);
+      }}
+    >
+      {on ? <Volume2 size={14} /> : <VolumeX size={14} />}
+    </button>
   );
 }
 
@@ -331,6 +361,7 @@ export function CalendarPanel() {
         <div class="cal-weather">
           <WeatherIcon w={weather} size={18} />
           <span>{note ?? weather.text}</span>
+          <WeatherSoundButton />
           {gm && (
             <button class="icon-btn" title="Roll today's weather again" aria-label="Roll today's weather again" disabled={busy} onClick={() => act(() => patchCalendar(room, { reroll: today, note: { epoch: today, text: null } }))}>
               <RefreshCw size={14} />

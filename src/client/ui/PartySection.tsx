@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ImagePlus, PersonStanding, Sunrise, Undo2, UserRound, UserRoundCheck } from "lucide-preact";
-import { SCRIPT_VERSION, type Character, type CharacterPlayer } from "../../shared/characters";
+import { SCRIPT_VERSION, type Character, type CharacterPlayer, type RestKind } from "../../shared/characters";
 import { classFigureOf, figureOf } from "../npcs/pcTokens";
 import { PC_FIGURE_CHOICES } from "../npcs/table";
 import {
@@ -172,6 +172,8 @@ function PartyRow(props: { c: Character; gm: boolean }) {
   );
 }
 
+const restName = (kind: RestKind | "none") => (kind === "successive" ? "successive long rest" : "long rest");
+
 /**
  * GM: a new day for the whole party: nothing prayed for and ki full on every card, and, ticked,
  * everyone's spell points back to full on their sheets. It asks first, since it changes every
@@ -181,7 +183,7 @@ export function NewPartyDay() {
   const room = useRoom();
   const count = useRoomState((s) => s.party?.characters.length ?? 0);
   const undo = useRoomState((s) => s.newDayUndo);
-  const [rest, setRest] = useState(true);
+  const [rest, setRest] = useState<RestKind | "none">("long");
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   // Undo goes when its half hour is up.
@@ -194,9 +196,9 @@ export function NewPartyDay() {
     setAsking(false);
     setBusy(true);
     try {
-      const { error } = await newPartyDay(room, rest);
+      const { error } = await newPartyDay(room, rest === "none" ? null : rest);
       if (error) room.toast(error, "error");
-      else room.toast(rest ? "A new day: prayers cleared, ki full, and spell points back to full on the sheets." : "A new day: prayers cleared and ki full.");
+      else room.toast(rest !== "none" ? `A new day: prayers cleared, ki full, and a ${restName(rest)}'s spell points back on the sheets.` : "A new day: prayers cleared and ki full.");
     } finally {
       setBusy(false);
     }
@@ -216,7 +218,7 @@ export function NewPartyDay() {
       {asking ? (
         <div class="party-day-ask" role="group" aria-label="Start a new day?">
           <span class="small">
-            A new day for {who}: prayers cleared and ki full{rest ? ", and spell points back to full on their sheets" : ""}.
+            A new day for {who}: prayers cleared and ki full{rest !== "none" ? `, and a ${restName(rest)}'s spell points back on their sheets` : ""}.
           </span>
           <span class="party-day-buttons">
             <button class="btn btn-sm btn-primary" onClick={() => void go()}>
@@ -232,9 +234,13 @@ export function NewPartyDay() {
           <Sunrise size={14} /> New day for the party
         </button>
       )}
-      <label class="check small">
-        <input type="checkbox" checked={rest} onChange={(e) => setRest(e.currentTarget.checked)} />
-        <span>and spell points back to full on their sheets</span>
+      <label class="field inline small">
+        <span>Spell points</span>
+        <select value={rest} onChange={(e) => setRest(e.currentTarget.value as RestKind | "none")}>
+          <option value="long">Long rest: 3 × level + CON + spell stat</option>
+          <option value="successive">Successive long rest: 3 × (level + CON + spell stat)</option>
+          <option value="none">Not touched</option>
+        </select>
       </label>
       {undo && !asking && (
         <button class="btn btn-sm" disabled={busy} title="Prayers, ki and spell points as they were before it" onClick={() => void back()}>
