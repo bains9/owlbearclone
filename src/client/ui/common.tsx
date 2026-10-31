@@ -122,6 +122,28 @@ export function Guard(props: { name: string; retry?: (s: RoomState) => unknown; 
   return error ? null : <>{props.children}</>;
 }
 
+/** Whether this browser can show the page full screen (not an iPhone's). */
+export function canFullscreen(): boolean {
+  return typeof document !== "undefined" && document.fullscreenEnabled === true;
+}
+
+/** The page full screen, or back out of it. */
+export function toggleFullscreen(): void {
+  if (document.fullscreenElement) void document.exitFullscreen();
+  else void document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+/** Whether the page is full screen now, following it as it changes. */
+export function useFullscreen(): boolean {
+  const [on, setOn] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
+  useEffect(() => {
+    const sync = () => setOn(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  return on;
+}
+
 export function cx(...names: (string | false | null | undefined)[]): string {
   return names.filter(Boolean).join(" ");
 }

@@ -881,7 +881,7 @@ button:disabled {
 .corner-bl {
   position: absolute;
   left: 66px;
-  right: 250px;
+  right: 290px;
   bottom: calc(12px + var(--bottom-h, 0px));
   z-index: 15;
   display: flex;

@@ -30,7 +30,8 @@ export const GUIDE: GuideSection[] = [
           "The moons' phases, the day of a season and the days a repeating event falls on (the last Tenday of a month, the night two moons are full) are worked out as Fantasy Calendar does, and checked against it.",
           "The weather is rolled day by day for the region, the same every time it's looked at: a cold spell lasts a few days, rain is likelier in a wet season. A click rolls today's again; **New weather for the whole calendar** rolls every day afresh.",
           "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
-          "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it."
+          "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
+          "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
         ]
       },
       {

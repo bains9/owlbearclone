@@ -30,6 +30,8 @@ import {
   Eye,
   EyeOff,
   Maximize,
+  Maximize2,
+  Minimize2,
   Minus,
   MousePointer2,
   Pencil,
@@ -99,7 +101,7 @@ import {
   selectionStatus,
 } from "../room/buildInput";
 import type { BuildAction, BuildOptions as BuildOpts, ToolId } from "../room/client";
-import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
+import { ConfirmDialog, Swatches, canFullscreen, cx, toggleFullscreen, useFullscreen, useRoom, useRoomState } from "./common";
 import { VoiceMicButton } from "./VoicePanel";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
@@ -1231,6 +1233,7 @@ function MeasureHint() {
 }
 
 export function ZoomControls() {
+  const full = useFullscreen();
   const room = useRoom();
   const zoom = useRoomState((s) => s.zoom);
   return (
@@ -1248,6 +1251,11 @@ export function ZoomControls() {
       <button class="tool" title="Fit the scene (0)" aria-label="Fit the scene" onClick={() => room.board?.fit()}>
         <Maximize size={18} />
       </button>
+      {canFullscreen() && (
+        <button class="tool" title={full ? "Leave full screen" : "Full screen"} aria-label={full ? "Leave full screen" : "Full screen"} onClick={toggleFullscreen}>
+          {full ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+        </button>
+      )}
     </div>
   );
 }

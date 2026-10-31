@@ -6,6 +6,7 @@ import { Copy, ExternalLink, WifiOff } from "lucide-preact";
 import { randomId } from "../../shared/ids";
 import { api, displayUrl } from "../api";
 import { RoomClient } from "../room/client";
+import { toggleFullscreen } from "./common";
 import { Modal, RoomContext, copyText, cx, useRoom, useRoomState } from "./common";
 import { BoardView } from "./RoomPage";
 
@@ -132,10 +133,6 @@ function DisplayRoom(props: { roomId: string; displayKey: string }) {
   );
 }
 
-function toggleFullscreen(): void {
-  if (document.fullscreenElement) void document.exitFullscreen();
-  else void document.documentElement.requestFullscreen?.().catch(() => {});
-}
 
 function DisplayShell() {
   const status = useRoomState((s) => s.status);
