@@ -24,6 +24,7 @@ import {
   Circle,
   CloudFog,
   Eraser,
+  SprayCan,
   Eye,
   EyeOff,
   Maximize,
@@ -58,6 +59,8 @@ import {
 import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
 import { StampPicker } from "./StampPicker";
+import { foldOf } from "./objectGroups";
+import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
 import { FloorPicker, WallPicker } from "./FloorPicker";
 import { isFloorFor, type FloorChoice } from "./floorGroups";
 import { RECENT_OBJECTS, loadRecent, recentFloorsKey, saveRecent, withRecent } from "./recentPicks";
@@ -584,6 +587,14 @@ function BuildOptions() {
               Place
             </button>
             <button
+              class={cx("seg-btn wide", o.stampMode === "scatter" && "active")}
+              title="Scatter: drag a brush to paint objects at random, for forests ([ and ] change its size)"
+              aria-pressed={o.stampMode === "scatter"}
+              onClick={() => set({ stampMode: "scatter" })}
+            >
+              <SprayCan size={14} /> Scatter
+            </button>
+            <button
               class={cx("seg-btn wide", o.stampMode === "remove" && "active")}
               title="Erase objects: click one, or drag over several (or hold Alt while you click or drag)"
               aria-pressed={o.stampMode === "remove"}
@@ -594,92 +605,102 @@ function BuildOptions() {
           </div>
           <StampPicker
             value={o.stamp}
-            placing={o.stampMode === "place"}
+            placing={o.stampMode !== "remove"}
             recent={recentObjects}
             onPick={(id) => {
               // A Dungeon object starts at its natural size; switching between the first sixteen
               // keeps the size the GM set, unless the last one was a Dungeon object.
               const stampSize = isDungeonStamp(id) ? naturalStampSize(id) : isDungeonStamp(o.stamp) ? 1 : o.stampSize;
-              set({ stamp: id, stampMode: "place", stampSize });
+              set({ stamp: id, stampMode: o.stampMode === "scatter" ? "scatter" : "place", stampSize });
               const next = withRecent(recentObjects, id);
               setRecentObjects(next);
               saveRecent(RECENT_OBJECTS, next);
             }}
           />
-          <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
-            <span class="seg-label build-group-label">Size</span>
-            <button
-              class="seg-btn"
-              title="Smaller (Alt+wheel)"
-              aria-label="Smaller"
-              disabled={o.stampSize <= STAMP_SIZE_MIN}
-              onClick={() => set({ stampSize: snapSize(o.stampSize - STAMP_SIZE_STEP) })}
-            >
-              <Minus size={14} />
-            </button>
-            <Slider
-              min={STAMP_SIZE_MIN}
-              max={STAMP_SIZE_MAX}
-              step={STAMP_SIZE_STEP}
-              value={o.stampSize}
-              label="Size"
-              onInput={(v) => set({ stampSize: snapSize(v) })}
-            />
-            <button
-              class="seg-btn"
-              title="Bigger (Alt+wheel)"
-              aria-label="Bigger"
-              disabled={o.stampSize >= STAMP_SIZE_MAX}
-              onClick={() => set({ stampSize: snapSize(o.stampSize + STAMP_SIZE_STEP) })}
-            >
-              <Plus size={14} />
-            </button>
-            <span class="build-readout">{formatSize(o.stampSize)}</span>
-          </div>
-          <div class="seg build-turn" role="group" aria-label="Turn" title="Turn (mouse wheel; Z and the wheel: 5°)">
-            <span class="seg-label build-group-label">Turn</span>
-            <button
-              class="seg-btn"
-              title="Turn left 15° ([)"
-              aria-label="Turn left 15°"
-              onClick={() => set({ stampDeg: snapDeg(o.stampDeg - 15) })}
-            >
-              <RotateCcw size={14} />
-            </button>
-            <Slider
-              min={0}
-              max={360 - STAMP_DEG_STEP}
-              step={STAMP_DEG_STEP}
-              value={o.stampDeg}
-              label="Turn"
-              onInput={(v) => set({ stampDeg: snapDeg(v) })}
-            />
-            <button
-              class="seg-btn"
-              title="Turn right 15° (])"
-              aria-label="Turn right 15°"
-              onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 15) })}
-            >
-              <RotateCw size={14} />
-            </button>
-            <span class="build-readout">{formatDeg(o.stampDeg)}</span>
-          </div>
-          <button
-            class="seg-btn stamp-turn"
-            title="Turn 90° (right-click)"
-            aria-label="Turn 90°"
-            onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 90) })}
-          >
-            <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
-          </button>
-          <ObjectSnap />
+          {o.stampMode === "scatter" ? (
+            <ScatterOptions o={o} set={set} />
+          ) : (
+            <>
+              <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
+                <span class="seg-label build-group-label">Size</span>
+                <button
+                  class="seg-btn"
+                  title="Smaller (Alt+wheel)"
+                  aria-label="Smaller"
+                  disabled={o.stampSize <= STAMP_SIZE_MIN}
+                  onClick={() => set({ stampSize: snapSize(o.stampSize - STAMP_SIZE_STEP) })}
+                >
+                  <Minus size={14} />
+                </button>
+                <Slider
+                  min={STAMP_SIZE_MIN}
+                  max={STAMP_SIZE_MAX}
+                  step={STAMP_SIZE_STEP}
+                  value={o.stampSize}
+                  label="Size"
+                  onInput={(v) => set({ stampSize: snapSize(v) })}
+                />
+                <button
+                  class="seg-btn"
+                  title="Bigger (Alt+wheel)"
+                  aria-label="Bigger"
+                  disabled={o.stampSize >= STAMP_SIZE_MAX}
+                  onClick={() => set({ stampSize: snapSize(o.stampSize + STAMP_SIZE_STEP) })}
+                >
+                  <Plus size={14} />
+                </button>
+                <span class="build-readout">{formatSize(o.stampSize)}</span>
+              </div>
+              <div class="seg build-turn" role="group" aria-label="Turn" title="Turn (mouse wheel; Z and the wheel: 5°)">
+                <span class="seg-label build-group-label">Turn</span>
+                <button
+                  class="seg-btn"
+                  title="Turn left 15° ([)"
+                  aria-label="Turn left 15°"
+                  onClick={() => set({ stampDeg: snapDeg(o.stampDeg - 15) })}
+                >
+                  <RotateCcw size={14} />
+                </button>
+                <Slider
+                  min={0}
+                  max={360 - STAMP_DEG_STEP}
+                  step={STAMP_DEG_STEP}
+                  value={o.stampDeg}
+                  label="Turn"
+                  onInput={(v) => set({ stampDeg: snapDeg(v) })}
+                />
+                <button
+                  class="seg-btn"
+                  title="Turn right 15° (])"
+                  aria-label="Turn right 15°"
+                  onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 15) })}
+                >
+                  <RotateCw size={14} />
+                </button>
+                <span class="build-readout">{formatDeg(o.stampDeg)}</span>
+              </div>
+              <button
+                class="seg-btn stamp-turn"
+                title="Turn 90° (right-click)"
+                aria-label="Turn 90°"
+                onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 90) })}
+              >
+                <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
+              </button>
+              <ObjectSnap />
+            </>
+          )}
         </>
       )}
       {o.mode === "select" && (
         <SelectOptions sel={sel} clip={clip} back={backLabel(o.selectReturn)} act={(a) => room.board?.buildAction(a)} />
       )}
       <span class="hint build-touch-hint">
-        {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object, or drag over several, to erase them." : TOUCH_HINTS[o.mode]}
+        {o.mode === "stamps" && o.stampMode === "remove"
+          ? "Tap an object, or drag over several, to erase them."
+          : o.mode === "stamps" && o.stampMode === "scatter"
+            ? "Drag to scatter objects. Two fingers move the map."
+            : TOUCH_HINTS[o.mode]}
       </span>
       {live && <span class="hint build-live">Players see this scene as you build.</span>}
       <ImportDungeondraft />
@@ -696,6 +717,58 @@ function BuildOptions() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Objects › Scatter: whether to mix the picked object's group, how big the brush is, and how
+ * close together it puts things. Objects it scatters always go anywhere, turned at random,
+ * each at its own size give or take a fifth.
+ */
+function ScatterOptions(props: { o: BuildOpts; set: (x: Partial<BuildOpts>) => void }) {
+  const { o, set } = props;
+  const sc = o.scatter;
+  const fold = foldOf(o.stamp);
+  const put = (x: Partial<BuildOpts["scatter"]>) => set({ scatter: { ...sc, ...x } });
+  return (
+    <>
+      <label
+        class="check"
+        title={
+          fold
+            ? `Mix: scatter all ${fold.ids.length} of ${fold.name}, picked at random. Untick to scatter only the one you picked.`
+            : "Only Dungeon's objects come in groups to mix. Pick one of those (Nature has trees, rocks and bushes) to mix its group."
+        }
+      >
+        <input type="checkbox" checked={!!fold && sc.mix} disabled={!fold} onChange={(e) => put({ mix: e.currentTarget.checked })} /> Mix{" "}
+        {fold ? fold.name.toLowerCase() : "its group"}
+      </label>
+      <div class="seg" role="group" aria-label="Brush size" title="Brush size in squares across ([ and ] change it)">
+        {SCATTER_BRUSHES.map((n) => (
+          <button
+            key={n}
+            class={cx("seg-btn", sc.brush === n && "active")}
+            aria-label={`${n} square brush`}
+            aria-pressed={sc.brush === n}
+            onClick={() => put({ brush: n })}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <div class="seg" role="group" aria-label="Density" title="How close together: sparse leaves gaps, dense lets treetops crowd">
+        {(Object.keys(SCATTER_DENSITY_LABELS) as ScatterDensity[]).map((d) => (
+          <button
+            key={d}
+            class={cx("seg-btn wide", sc.density === d && "active")}
+            aria-pressed={sc.density === d}
+            onClick={() => put({ density: d })}
+          >
+            {SCATTER_DENSITY_LABELS[d]}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 

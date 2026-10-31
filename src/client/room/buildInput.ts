@@ -189,6 +189,8 @@ export const BURST_MS = 700;
 /**
  * Whether a new build step may fold into the undo entry on top: the same burst, the same
  * scene, a build step, the last one folded in at most BURST_MS ago, and nothing to redo.
+ * `held`: the burst is a drag still held down (the scatter brush), which is one step however
+ * long it pauses; its key is new for each drag.
  */
 export function canFold(
   top: { sceneId: string | null; steps?: unknown; coalesce?: { key: string; at: number } } | undefined,
@@ -196,9 +198,10 @@ export function canFold(
   sceneId: string,
   now: number,
   redoEmpty: boolean,
+  held = false,
 ): boolean {
   if (!top || !top.steps || !top.coalesce || !redoEmpty) return false;
-  return top.coalesce.key === key && top.sceneId === sceneId && now - top.coalesce.at <= BURST_MS;
+  return top.coalesce.key === key && top.sceneId === sceneId && (held || now - top.coalesce.at <= BURST_MS);
 }
 
 /**
@@ -292,6 +295,7 @@ export function buildHints(
       ];
     case "stamps":
       if (o.stampMode === "remove") return [["Click an object", "erase"], ["Drag", "erase all it passes"], pan, zoom, select];
+      if (o.stampMode === "scatter") return [["Drag", "scatter"], ["[ ]", "brush size"], ["Alt+drag", "erase"], zoom, pan, select];
       return turns
         ? [
             ["Click", "place"],

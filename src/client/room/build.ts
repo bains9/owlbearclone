@@ -355,6 +355,24 @@ export class BuildModel {
     return this.stampsAtPoint(u, v, pad)[0] ?? null;
   }
 
+  /** Objects whose middle is within r cells of (u, v): what the scatter brush keeps its distance from. */
+  placedNear(u: number, v: number, r: number): Placed[] {
+    const out: Placed[] = [];
+    // An object's middle is at most 1½ squares from its block's top-left cell.
+    for (let cy = chunkOf(Math.floor(v - r - 2)); cy <= chunkOf(Math.floor(v + r)); cy++) {
+      for (let cx = chunkOf(Math.floor(u - r - 2)); cx <= chunkOf(Math.floor(u + r)); cx++) {
+        const ch = this.index.chunks.get(ckey(cx, cy));
+        if (!ch) continue;
+        for (const s of ch.stamps) {
+          const p = placedOf(cx, cy, s);
+          const m = centreOf(p);
+          if (Math.hypot(m.x - u, m.y - v) <= r) out.push(p);
+        }
+      }
+    }
+    return out;
+  }
+
   /** Objects whose middle is in a box (in cells, edges included, corners either way round), in drawing order. */
   stampsInBox(u0: number, v0: number, u1: number, v1: number): StampHit[] {
     const x0 = Math.min(u0, u1);

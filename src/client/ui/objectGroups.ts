@@ -33,3 +33,12 @@ export function searchObjects(query: string): StampId[] {
 export function groupOf(id: StampId): string {
   return libraryGroupOf(OBJECT_GROUPS, id);
 }
+
+/**
+ * The fold a Dungeon object is in, in the picker ("Leafy trees" in Nature): what the scatter
+ * brush mixes. Null for Tabletop's own sixteen, which have no fold.
+ */
+export function foldOf(id: StampId): { name: string; ids: StampId[] } | null {
+  for (const g of OBJECT_GROUPS) for (const p of g.parts ?? []) if (p.ids.includes(id)) return p;
+  return null;
+}

@@ -89,8 +89,8 @@ describe("in the guide", () => {
   const section = (id: string) => GUIDE.find((s) => s.id === id)!;
   const all = (id: string) => JSON.stringify(section(id));
 
-  it("leads What's new, naming the setting and the magnet", () => {
-    const entry = section("whats-new").parts[0];
+  it("is in What's new under scattering, naming the setting and the magnet", () => {
+    const entry = section("whats-new").parts[1];
     expect(entry.title).toBe("Place tokens and objects anywhere (31 October 2026)");
     expect(JSON.stringify(entry)).toContain("**Never snap to the grid**");
     expect(JSON.stringify(entry)).toContain("tap the magnet");

@@ -37,7 +37,7 @@ import {
   snapSize,
   stampBlock,
 } from "../../shared/terrain";
-import type { CellBounds } from "../../shared/terrain";
+import type { CellBounds, StampId } from "../../shared/terrain";
 import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
 import { isCompass, sceneBounds } from "../../shared/types";
 import { fileUrl } from "../api";
@@ -78,6 +78,8 @@ import {
 } from "./build";
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
+import { SCATTER_BRUSHES, scatterDab } from "./scatter";
+import { foldOf } from "../ui/objectGroups";
 import {
   CLIPBOARD_MAX,
   canResize,
@@ -243,6 +245,13 @@ type Gesture =
    * object on top.
    */
   | { kind: "build-erase-objects"; pointerId: number; refs: StampRef[]; start: Point; moved: boolean; last: Point; pad: number }
+  /**
+   * Build › Objects › Scatter: dabs of the brush along a drag, from the last dab. Each dab is
+   * applied at once and folds into one undo step (key). Touch waits for the finger to move
+   * (start: where it went down), so a pinch doesn't leave trees behind. Full: a part of the
+   * map had no room for more.
+   */
+  | { kind: "build-scatter"; pointerId: number; last: Point | null; start: Point; key: string; applied: boolean; full: boolean }
   /** Build tool: painting floor with the brush (from the last point), or dragging out a rectangle or oval of it. */
   | { kind: "build-paint"; pointerId: number; last: Point; erase: boolean }
   | { kind: "build-rect"; pointerId: number; start: Cell; end: Cell; erase: boolean; circle: boolean }
@@ -1530,6 +1539,18 @@ export class Board implements BoardApi {
         }
       }
     }
+    const scattering = o.mode === "stamps" && o.stampMode === "scatter" && !alt;
+    if (scattering && p && (gesture.kind === "none" || gesture.kind === "build-scatter")) {
+      // The brush's circle.
+      c.save();
+      dashed();
+      c.strokeStyle = SELECT_COLOR;
+      c.lineWidth = 2 / scale;
+      c.beginPath();
+      c.arc(p.x, p.y, (o.scatter.brush / 2) * size, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
     if (moving) {
       // Too many to draw the objects themselves every frame: just their outlines.
       const art = moving.orig.length <= GHOST_ART_MAX;
@@ -1543,8 +1564,8 @@ export class Board implements BoardApi {
           box(at);
         }
       }
-    } else if (!p || gesture.kind !== "none" || o.mode === "select") {
-      // Nothing under the mouse to show.
+    } else if (!p || gesture.kind !== "none" || o.mode === "select" || scattering) {
+      // Nothing under the mouse to show (or only the scatter brush, drawn above).
     } else if (o.mode === "building" || o.mode === "terrain") {
       const n = o.shape[o.mode] === "brush" ? this.brushCells() : 1;
       const at = this.brushAt(p, n);
@@ -3094,6 +3115,21 @@ export class Board implements BoardApi {
           this.bgLayer.batchDraw();
           return;
         }
+        if (o.stampMode === "scatter") {
+          this.newBurst();
+          const g: Extract<Gesture, { kind: "build-scatter" }> = {
+            kind: "build-scatter",
+            pointerId,
+            last: null,
+            start: pos,
+            key: `scatter|${this.burstKey()}`,
+            applied: false,
+            full: false,
+          };
+          this.gesture = g;
+          if (mouse) this.scatterAlong(g, world);
+          return;
+        }
         const grab = mouse && !alt ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
         this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", grab };
         return;
@@ -3386,12 +3422,12 @@ export class Board implements BoardApi {
    * between). With a burst's key (see newBurst), it folds into the undo step before it
    * when that's from the same burst; without one it's a step of its own, and ends the burst.
    */
-  private applyBuild(edit: BuildEdit, coalesce?: string): void {
+  private applyBuild(edit: BuildEdit, coalesce?: string, held = false): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const before = this.room.state.items;
     const ops = edit.ops();
-    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops, edit.pairs()), coalesce);
+    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops, edit.pairs()), coalesce, held);
     this.build.update(sceneTerrain(this.room.state.items, scene.id));
     this.build.endDraft();
     this.bgLayer.batchDraw();
@@ -3437,6 +3473,49 @@ export class Board implements BoardApi {
     const edit = new BuildEdit(this.room.state.items, scene.id);
     setPortal(edit, col, row, side, alt ? "wall" : this.room.state.buildOpts.doorStyle);
     this.applyBuild(edit);
+  }
+
+  /** What the scatter brush puts down: the picked object, or with Mix its whole group in the picker ("Leafy trees"). */
+  private scatterIds(): readonly StampId[] {
+    const o = this.room.state.buildOpts;
+    return (o.scatter.mix && foldOf(o.stamp)?.ids) || [o.stamp];
+  }
+
+  /**
+   * Objects › Scatter: dabs of the brush from the last dab to this point, a quarter of the
+   * brush apart, each applied at once into the drag's one undo step.
+   */
+  private scatterAlong(g: Extract<Gesture, { kind: "build-scatter" }>, world: Point): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const o = this.room.state.buildOpts;
+    const brush = o.scatter.brush;
+    const b = this.cellsAt(world);
+    const a = g.last ? this.cellsAt(g.last) : null;
+    const gap = a ? Math.hypot(b.u - a.u, b.v - a.v) : 0;
+    // The first dab, then one each quarter of the brush the pointer moves.
+    if (a && gap < brush / 4) return;
+    g.last = world;
+    const steps = a ? Math.min(40, Math.floor(gap / (brush / 4))) : 1;
+    const all = sceneAreaCells(scene, scene.grid);
+    const inside = (c: CellBounds) => c.c0 >= all.c0 && c.r0 >= all.r0 && c.c1 <= all.c1 && c.r1 <= all.r1;
+    const spec = { ids: this.scatterIds(), brush, density: o.scatter.density };
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    // What this move has added so far counts for its next dabs, before it's applied.
+    const pending: Placed[] = [];
+    const near = (x: number, y: number, r: number) => [...this.build.model.placedNear(x, y, r), ...pending];
+    for (let i = 1; i <= steps; i++) {
+      const u = a ? a.u + ((b.u - a.u) * i) / steps : b.u;
+      const v = a ? a.v + ((b.v - a.v) * i) / steps : b.v;
+      for (const p of scatterDab(spec, u, v, near, inside)) {
+        const r = edit.addPlaced(p);
+        if (r.ok) pending.push(p);
+        else if (r.reason === "full") g.full = true;
+      }
+    }
+    if (!pending.length) return;
+    this.applyBuild(edit, g.key, true);
+    g.applied = true;
   }
 
   /**
@@ -4343,6 +4422,10 @@ export class Board implements BoardApi {
       case "erase":
         this.eraseAt(g, pos);
         return;
+      case "build-scatter":
+        if (!g.last && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        this.scatterAlong(g, world);
+        return;
       case "build-erase-objects":
         if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
         g.moved = true;
@@ -4513,6 +4596,12 @@ export class Board implements BoardApi {
             break;
           }
         }
+        return;
+      case "build-scatter":
+        // A tap on a touch screen is one dab, there.
+        if (!g.last) this.scatterAlong(g, world);
+        if (g.full) this.room.toast(BUILD_TOASTS.full, "error");
+        this.newBurst();
         return;
       case "build-erase-objects":
         // Where the pointer let go, in case its last move wasn't sent on its own.
@@ -4746,6 +4835,11 @@ export class Board implements BoardApi {
       case "build-erase-objects":
         this.build.hideStamps([]);
         this.bgLayer.batchDraw();
+        break;
+      case "build-scatter":
+        // The drag's one undo step is on top: take it back.
+        if (g.applied) this.room.undo();
+        this.newBurst();
         break;
       case "build-box":
         g.node.destroy();
@@ -4984,7 +5078,7 @@ export class Board implements BoardApi {
     if (mod) {
       const k = key.toLowerCase();
       const g = this.gesture.kind;
-      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select" || g === "build-erase-objects")) {
+      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select" || g === "build-erase-objects" || g === "build-scatter")) {
         this.cancelGesture();
       }
       if (k === "z") {
@@ -5037,6 +5131,10 @@ export class Board implements BoardApi {
       const deg = dir * (e.shiftKey ? 5 : 15);
       if ((o.mode === "building" || o.mode === "terrain") && o.shape[o.mode] === "brush") {
         room.store.set({ buildOpts: { ...o, brush: Math.min(5, Math.max(1, o.brush + dir)) } });
+      } else if (o.mode === "stamps" && o.stampMode === "scatter") {
+        const sizes: readonly number[] = SCATTER_BRUSHES;
+        const i = Math.max(0, Math.min(sizes.length - 1, sizes.indexOf(o.scatter.brush) + dir));
+        room.store.set({ buildOpts: { ...o, scatter: { ...o.scatter, brush: sizes[i] } } });
       } else if (o.mode === "stamps") {
         room.store.set({ buildOpts: { ...o, stampDeg: snapDeg(o.stampDeg + deg) } });
       } else if (selecting) {

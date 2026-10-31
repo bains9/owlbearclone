@@ -595,9 +595,9 @@ describe("the guide (6.2)", () => {
   it("has the exact seasons entry eighteenth in What's new, under the 25, 24, 22 and 5 October ones, above the NPCs", () => {
     // "evening": two other 4 October entries ("Measure in metres", and "NPC tokens by race and class (..., later)")
     // come after it, newest first.
-    expect(whatsNew.parts[18].title).toBe("Clearer messages after an update (5 October 2026)");
-    expect(whatsNew.parts[19].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(whatsNew.parts[20].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(whatsNew.parts[19].title).toBe("Clearer messages after an update (5 October 2026)");
+    expect(whatsNew.parts[20].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(whatsNew.parts[21].title).toBe("NPC tokens by race and class (4 October 2026, later)");
     expect(whatsNew.parts.map((p) => p.title)).toContain("Dungeondraft project files explained (30 September 2026)");
   });
 

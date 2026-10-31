@@ -47,6 +47,7 @@ import { composeBuildUndo } from "./build";
 import { canFold, canFoldPlain, pressX } from "./buildInput";
 import { COMPASS_COLOR, COMPASS_LABEL, COMPASS_SIZE } from "./compass";
 import type { SelectReturn, WheelPref } from "./buildInput";
+import type { ScatterDensity } from "./scatter";
 import type { SceneDataState } from "./mapData";
 import { NO_MAP_LOAD } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
@@ -119,7 +120,13 @@ export interface BuildOptions {
   stampSize: number;
   /** Objects: degrees clockwise of the next one placed, 0-355 in 5° steps. */
   stampDeg: number;
-  stampMode: "place" | "remove";
+  /** Objects: a click places one, a drag scatters them at random (Scatter), or a click or drag erases them. */
+  stampMode: "place" | "scatter" | "remove";
+  /**
+   * Objects › Scatter: the brush's size in squares across, how close together it puts them,
+   * and whether it mixes the picked object's group ("Leafy trees") or scatters just that one.
+   */
+  scatter: { brush: number; density: ScatterDensity; mix: boolean };
   /** Select: where X (or Back) goes back to. */
   selectReturn: SelectReturn | null;
 }
@@ -489,6 +496,7 @@ export class RoomClient {
         stampSize: 1,
         stampDeg: 0,
         stampMode: "place",
+        scatter: { brush: 4, density: "medium", mix: true },
         selectReturn: null,
       },
       measureOpts: { shape: "ruler", keep: false },
@@ -1105,13 +1113,14 @@ export class RoomClient {
    * A change whose undo and redo are worked out when they're used, from the state as it
    * is then (a build step, which must never put back more than it changed). With a
    * `coalesce` key, it folds into the step on top when that one is from the same burst
-   * (turning with the mouse wheel, say), so one undo takes back the whole burst.
+   * (turning with the mouse wheel, say), so one undo takes back the whole burst. `held`: the
+   * burst is a drag still held down (the scatter brush), one step however long it pauses.
    */
-  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>, coalesce?: string): void {
+  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
     const now = Date.now();
     const top = this.undoStack.at(-1);
-    if (coalesce !== undefined && top?.steps && canFold(top, coalesce, sceneId, now, !this.redoStack.length)) {
+    if (coalesce !== undefined && top?.steps && canFold(top, coalesce, sceneId, now, !this.redoStack.length, held)) {
       top.steps = composeBuildUndo(top.steps, steps);
       top.coalesce = { key: coalesce, at: now };
     } else {

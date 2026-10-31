@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Scatter forests on the fly (31 October 2026)",
+        "steps": [
+          "GM: in the Build tool's **Objects**, pick **Scatter**, pick a tree (Nature › Leafy trees or Evergreens), and drag over the map. Trees appear under the brush at random, each turned its own way and a little bigger or smaller.",
+          "With **Mix leafy trees** (or whichever group the object is in) ticked, it mixes every tree in that group; untick it to scatter only the one you picked.",
+          "Pick the brush's size (2 to 12 squares across, or **[** and **]**) and how close together: **Sparse**, **Medium** or **Dense**."
+        ],
+        "notes": [
+          "Going over the same ground again fills the gaps and no more, so you can't pile trees on trees. Treetops spread over flowers and fallen leaves, and bushes fit under trees.",
+          "Each drag is one step for **Undo**. Hold **Alt** and drag to erase objects instead.",
+          "It works for any object: rocks, bushes, mushrooms, gravestones. See **Scatter a forest** under **Building a map**."
+        ]
+      },
+      {
         "title": "Place tokens and objects anywhere (31 October 2026)",
         "steps": [
           "GM: in **Room settings**, under **Placing things**, tick **Never snap to the grid**. In every scene, tokens and the Build tool's objects then go exactly where they're put: a forest can be as dense as you like, and a crowd of monsters can stand shoulder to shoulder.",
@@ -2378,6 +2391,25 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Scatter a forest",
+        "steps": [
+          "Pick **Objects**, then **Scatter** (the spray can).",
+          "Pick an object, for example a tree from **Nature** › **Leafy trees** or **Evergreens**.",
+          "Leave **Mix** ticked to mix every object in its group (it names the group: **Mix leafy trees**), or untick it to scatter only the one you picked.",
+          "Pick the brush's size in squares across (**2** to **12**, or press **[** and **]**) and how close together: **Sparse**, **Medium** or **Dense**.",
+          "Drag over the map. A dashed circle shows the brush."
+        ],
+        "notes": [
+          "Each object goes anywhere, not on whole squares, turned at random and up to a fifth bigger or smaller than its own size. To change one afterwards, use **Select**.",
+          "Going over the same ground again only fills the gaps: **Sparse** leaves space between them, **Medium** lets them touch, and **Dense** lets treetops crowd over each other.",
+          "Only objects of the same layer keep apart: treetops spread over flowers and fallen leaves, and bushes fit under trees. So scatter the trees first, then bushes or flowers under them.",
+          "Each drag is one step for **Undo**. Hold **Alt** and drag to erase objects instead, or pick **Erase**.",
+          "On a phone or tablet, drag with one finger to scatter; two fingers move the map. A single tap scatters once, where you tap.",
+          "A part of the map 16 by 16 squares holds up to 256 objects. When the brush reaches that, a message says so and it scatters only where there's room.",
+          "Only Dungeon's objects come in groups. With one of Tabletop's own sixteen picked, **Mix** is greyed out and the brush scatters just that one."
+        ]
+      },
+      {
         "title": "Select: move, turn, size, copy and delete",
         "steps": [
           "Press **X**, or pick **Select** in the Build tool's bar. **X** again, or **Back** in the bar, goes back to what you were using.",
@@ -2408,7 +2440,7 @@ export const GUIDE: GuideSection[] = [
           "Undo only takes back what that step changed. If you build in two tabs at once (a laptop and a tablet, say), undoing in one never wipes what you built in the other.",
           "What you build is saved with the scene straight away, and it's included in the room's backups.",
           "Changing the grid's size or offset in **Edit scene** moves the build along with it.",
-          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead, except with **Erase** picked in **Objects**, when a drag erases. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
+          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead, except with **Scatter** or **Erase** picked in **Objects**, when a drag scatters or erases. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
         ]
       }
     ]
