@@ -11,7 +11,7 @@ import {
   INDOORS,
   dateText,
   dayLine,
-  isIndoors,
+  weatherHere,
   timeLine,
   epochOf,
   eventsOn,
@@ -35,21 +35,64 @@ import { playWeatherSound, setWeatherSoundWanted, stopWeatherSound, weatherSound
 import { Volume2, VolumeX } from "lucide-preact";
 import { cx, useRoom, useRoomState } from "./common";
 
-/** The date in the top bar: a click opens the panel. */
 /** The scene on show's own weather region, if it has one (INDOORS: no weather there). */
 function useSceneRegion(): string | undefined {
   return useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId]?.region : undefined));
 }
 
-/** Whether the scene on show is indoors or underground, where no rain or snow falls (shared/calendar.ts isIndoors). */
-function useIndoors(): boolean {
-  return useRoomState((s) => {
-    const scene = s.viewSceneId ? s.scenes[s.viewSceneId] : undefined;
-    const share = scene?.mapAssetId ? s.mapOutdoor[outdoorKey(scene.mapAssetId, scene.mapData ? { assetId: scene.mapData.assetId } : undefined)] : undefined;
-    return isIndoors(scene, share);
+/** Whether rain and snow reach the scene on show, and why (shared/calendar.ts weatherHere). */
+function useWeatherHere(): ReturnType<typeof weatherHere> {
+  const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : undefined));
+  const share = useRoomState((s) => {
+    const sc = s.viewSceneId ? s.scenes[s.viewSceneId] : undefined;
+    return sc?.mapAssetId ? s.mapOutdoor[outdoorKey(sc.mapAssetId, sc.mapData ? { assetId: sc.mapData.assetId } : undefined)] : undefined;
   });
+  return weatherHere(scene, share);
 }
 
+/** Whether the scene on show is indoors or underground, where no rain or snow falls. */
+function useIndoors(): boolean {
+  return !useWeatherHere().on;
+}
+
+/**
+ * GM: whether rain and snow fall on the map on show: Automatic (with its reason), Always or
+ * Never, for when Automatic guesses wrong (a world map that reads as indoors, say).
+ */
+function WeatherHereControl() {
+  const room = useRoom();
+  const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : undefined));
+  const here = useWeatherHere();
+  if (!scene) return null;
+  const mode = scene.weather ?? (scene.region === INDOORS ? "off" : "auto");
+  const set = (to: "auto" | "on" | "off") => {
+    if (to === mode) return;
+    room.updateScene(scene.id, { weather: to === "auto" ? null : to, ...(scene.region === INDOORS ? { region: null } : {}) });
+  };
+  return (
+    <div class="cal-here">
+      <span class="small">Weather on this map</span>
+      <div class="seg" role="group" aria-label="Weather on this map">
+        {(
+          [
+            ["auto", "Automatic"],
+            ["on", "Always"],
+            ["off", "Never"],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} class={cx("seg-btn", mode === id && "active")} aria-pressed={mode === id} onClick={() => set(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <span class="small muted">
+        {here.auto ? `Automatic: ${here.on ? "rain and snow fall here" : "none here"}, as ${here.why}.` : here.on ? "Always: rain and snow fall here whatever the map." : "Never: no rain or snow on this map."}
+      </span>
+    </div>
+  );
+}
+
+/** The date in the top bar: a click opens the panel. */
 export function DateChip() {
   const room = useRoom();
   const cal = useRoomState((s) => s.calendar);
@@ -73,11 +116,11 @@ export function DateOverlay() {
   const room = useRoom();
   const cal = useRoomState((s) => s.calendar);
   const region = useSceneRegion();
-  const indoors = useIndoors();
+  const here = useWeatherHere();
   if (!cal || cal.showOnMap === false) return null;
   const d = dateOf(cal, cal.today);
   const w = weatherOf(cal, cal.today, region === INDOORS ? undefined : region);
-  const note = indoors ? "indoors" : region ? undefined : cal.weatherNotes[String(cal.today)];
+  const note = !here.on ? (here.auto ? "indoors" : "no weather on this map") : region ? undefined : cal.weatherNotes[String(cal.today)];
   const body = (
     <>
       <CalendarDays size={14} />
@@ -90,7 +133,7 @@ export function DateOverlay() {
   );
   if (room.display) return <div class="date-overlay">{body}</div>;
   return (
-    <button class="date-overlay" title="Open the calendar" onClick={() => room.setPanel("calendar")}>
+    <button class="date-overlay" title={here.on ? "Open the calendar" : `No rain or snow here: ${here.why}. Open the calendar (GM: Weather on this map).`} onClick={() => room.setPanel("calendar")}>
       {body}
     </button>
   );
@@ -368,6 +411,7 @@ export function CalendarPanel() {
             </button>
           )}
         </div>
+        {gm && <WeatherHereControl />}
         {cal.moons.length > 0 && (
           <div class="cal-moons">
             {cal.moons.map((m) => {

@@ -1035,12 +1035,28 @@ export const INDOORS = "indoors";
  * is mostly indoors (`outdoorShare`, Table's guess from a Dungeondraft map: the share of it that's
  * outside, when known).
  */
-export function isIndoors(scene: { region?: string; vision?: { on: boolean; daylight: boolean; night?: boolean } } | null | undefined, outdoorShare?: number): boolean {
-  if (!scene) return false;
-  if (scene.region === INDOORS) return true;
-  if (scene.region) return false;
-  if (scene.vision?.on && !scene.vision.daylight && !scene.vision.night) return true;
-  return outdoorShare !== undefined && outdoorShare < 0.08;
+export function isIndoors(scene: WeatherScene | null | undefined, outdoorShare?: number): boolean {
+  return !weatherHere(scene, outdoorShare).on;
+}
+
+/** What a scene says about its weather (Scene.weather): "on" always, "off" never; absent, Automatic. */
+export type SceneWeather = "on" | "off";
+
+type WeatherScene = { region?: string; weather?: SceneWeather; vision?: { on: boolean; daylight: boolean; night?: boolean } };
+
+/**
+ * Whether rain and snow reach a scene, and why: the GM's say on the map (Always, Never), else
+ * Automatic's guess, which can be wrong (a world map drawn in Dungeon reads as mostly indoors):
+ * then the GM says Always. `auto` says whether it's the guess.
+ */
+export function weatherHere(scene: WeatherScene | null | undefined, outdoorShare?: number): { on: boolean; auto: boolean; why: string } {
+  if (!scene) return { on: true, auto: true, why: "it's outdoors" };
+  if (scene.weather === "on") return { on: true, auto: false, why: "the GM keeps the weather on here" };
+  if (scene.weather === "off" || scene.region === INDOORS) return { on: false, auto: false, why: "the GM keeps the weather off here" };
+  if (scene.region) return { on: true, auto: true, why: "it has a weather region of its own" };
+  if (scene.vision?.on && !scene.vision.daylight && !scene.vision.night) return { on: false, auto: true, why: "its lighting is dark, as underground" };
+  if (outdoorShare !== undefined && outdoorShare < 0.08) return { on: false, auto: true, why: "its map looks mostly indoors" };
+  return { on: true, auto: true, why: "it's outdoors" };
 }
 
 /** The chat's line for a day the GM moved to: "A new day: Tenday 30 Vanyir, Year 2. Cold and clear, -6 to 6 °C." */

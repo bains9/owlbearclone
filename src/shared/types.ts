@@ -51,6 +51,8 @@ export interface Scene {
   mapAssetId: string | null;
   /** This scene's own weather region (a climate's name in the calendar); none: the party's. */
   region?: string;
+  /** Rain and snow on this map: "on" always, "off" never; none, Automatic (shared/calendar.ts weatherHere). */
+  weather?: "on" | "off";
   width: number;
   height: number;
   background: string;

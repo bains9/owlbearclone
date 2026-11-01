@@ -23,6 +23,7 @@ import {
   nextOccurrence,
   INDOORS,
   isIndoors,
+  weatherHere,
   isNight,
   snowDepth,
   sanitizeCalendar,
@@ -232,6 +233,13 @@ describe("the time of day, and a scene's own weather", () => {
     expect(isIndoors({}, 0.5)).toBe(false);
     expect(isIndoors({ region: "Hot desert", vision: { on: true, daylight: false } }, 0.02)).toBe(false);
     expect(isIndoors(null)).toBe(false);
+    // The GM's say beats the guess: Always on a map that reads as indoors, Never on an outdoor one.
+    expect(isIndoors({ weather: "on", vision: { on: true, daylight: false } }, 0.01)).toBe(false);
+    expect(isIndoors({ weather: "off" }, 0.9)).toBe(true);
+    expect(weatherHere({}, 0.02)).toEqual({ on: false, auto: true, why: "its map looks mostly indoors" });
+    expect(weatherHere({ vision: { on: true, daylight: false } })).toEqual({ on: false, auto: true, why: "its lighting is dark, as underground" });
+    expect(weatherHere({ weather: "on" }, 0.02)).toEqual({ on: true, auto: false, why: "the GM keeps the weather on here" });
+    expect(weatherHere({ region: INDOORS })).toMatchObject({ on: false, auto: false });
   });
 
   it("lies deeper in snow for a few days after it falls, and a thaw clears it", () => {

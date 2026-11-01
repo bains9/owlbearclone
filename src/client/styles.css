@@ -4004,3 +4004,15 @@ kbd {
   margin-top: 14px;
   color: var(--accent);
 }
+
+/* GM: whether rain and snow fall on the map on show (Automatic, Always, Never), under today's weather. */
+.cal-here {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+.cal-here > .small.muted {
+  flex-basis: 100%;
+}

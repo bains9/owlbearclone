@@ -32,19 +32,36 @@ function SceneRegion(props: { scene: Scene }) {
   const cal = useRoomState((st) => st.calendar);
   if (!cal) return null;
   const s = props.scene;
+  const region = s.region === INDOORS ? "" : (s.region ?? "");
+  const weather = s.weather ?? (s.region === INDOORS ? "off" : "");
   return (
-    <label class="field inline">
-      <span>Weather region</span>
-      <select value={s.region ?? ""} onChange={(e) => room.updateScene(s.id, { region: e.currentTarget.value || null })}>
-        <option value="">The party's ({cal.climate})</option>
-        <option value={INDOORS}>Indoors or underground: no weather</option>
-        {cal.climates.map((c) => (
-          <option key={c.name} value={c.name}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <>
+      <label class="field inline">
+        <span>Weather region</span>
+        <select value={region} onChange={(e) => room.updateScene(s.id, { region: e.currentTarget.value || null })}>
+          <option value="">The party's ({cal.climate})</option>
+          {cal.climates.map((c) => (
+            <option key={c.name} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label class="field inline">
+        <span>Weather on this map</span>
+        <select
+          value={weather}
+          onChange={(e) => {
+            const v = e.currentTarget.value;
+            room.updateScene(s.id, { weather: v === "on" || v === "off" ? v : null, ...(s.region === INDOORS ? { region: null } : {}) });
+          }}
+        >
+          <option value="">Automatic (none indoors or underground)</option>
+          <option value="on">Always: rain and snow fall here</option>
+          <option value="off">Never: no rain or snow</option>
+        </select>
+      </label>
+    </>
   );
 }
 

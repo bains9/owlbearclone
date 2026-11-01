@@ -607,6 +607,8 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const wallTexture = r.wallTexture === null ? undefined : isWallTexture(r.wallTexture) ? r.wallTexture : existing?.wallTexture;
   // The scene's own weather region: null goes back to the party's.
   const region = r.region === null ? undefined : typeof r.region === "string" && r.region.trim() ? r.region.trim().slice(0, 40) : existing?.region;
+  // The GM's say on the map's weather: null goes back to Automatic.
+  const weather = r.weather === null ? undefined : r.weather === "on" || r.weather === "off" ? r.weather : existing?.weather;
   // The scene's area: a change may set it (null: back to the picture's own). It always keeps
   // the picture inside, so a new picture of another size still fits.
   const bv = sanitizeBounds(r.bounds);
@@ -639,6 +641,7 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(mapRect ? { mapRect } : {}),
     ...(wallTexture ? { wallTexture } : {}),
     ...(region ? { region } : {}),
+    ...(weather ? { weather } : {}),
     ...(bounds ? { bounds } : {}),
     ...(dungeon ? { dungeon } : {}),
     ...(level ? { level } : {}),
