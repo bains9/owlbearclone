@@ -67,7 +67,12 @@ try {
     await start.goto(BASE);
     await start.fill('input[aria-label="GM password"]', password);
     await start.click('form:has(input[aria-label="GM password"]) button[type="submit"], form:has(input[aria-label="GM password"]) button');
-    await start.waitForFunction(() => /Signed in as the GM|Your rooms/.test(document.body.innerText), null, { timeout: 20000 });
+    try {
+      await start.waitForFunction(() => /Signed in as the GM|Your rooms/.test(document.body.innerText), null, { timeout: 60000 });
+    } catch {
+      const text = await start.evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 200));
+      throw new Error(`Signing in as the GM didn't take: "${text}"`);
+    }
     const made = await start.evaluate(async () => {
       const res = await fetch("/api/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Layout smoke (delete me)" }) });
       return res.json();
