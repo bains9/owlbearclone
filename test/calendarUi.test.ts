@@ -70,6 +70,9 @@ describe("the calendar at the Worker", () => {
     expect(read("src/client/ui/ScenesPanel.tsx")).toContain("<SceneRegion scene={s} />");
     expect(read("src/client/ui/ScenesPanel.tsx")).toContain('<option value="on">Always: rain and snow fall here</option>');
     expect(read("src/client/ui/CalendarPanel.tsx")).toContain("{gm && <WeatherHereControl />}");
+    // The weather's sound starts in the tap itself (Safari), and says why it's quiet.
+    expect(read("src/client/ui/CalendarPanel.tsx")).toContain("if (!on) unlockWeatherSound();");
+    expect(read("src/client/weatherSound.ts")).toContain("resumeOnNextGesture();");
     expect(read("src/shared/sanitize.ts")).toContain('const weather = r.weather === null ? undefined : r.weather === "on" || r.weather === "off" ? r.weather : existing?.weather;');
     expect(read("src/client/ui/CalendarPanel.tsx")).toContain("if (!cal || cal.weatherOnMap === false || indoors) return null;");
     expect(read("src/client/ui/TableDisplay.tsx")).toContain("{hasHello && <DayCard />}");

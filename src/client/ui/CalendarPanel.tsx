@@ -31,7 +31,7 @@ import {
 import { deleteCalendar, eventId, importCalendar, logLine, patchCalendar } from "../calendar";
 import { NewPartyDay } from "./PartySection";
 import { outdoorKey } from "../room/seasons";
-import { playWeatherSound, setWeatherSoundWanted, stopWeatherSound, weatherSoundWanted } from "../weatherSound";
+import { playWeatherSound, setWeatherSoundWanted, stopWeatherSound, unlockWeatherSound, weatherSoundQuiet, weatherSoundWanted } from "../weatherSound";
 import { Volume2, VolumeX } from "lucide-preact";
 import { cx, useRoom, useRoomState } from "./common";
 
@@ -195,10 +195,12 @@ export function WeatherSoundButton() {
   return (
     <button
       class={cx("icon-btn", on && "active")}
-      title={on ? "Rain and wind sound: on (this device)" : "Rain and wind sound: off (this device)"}
+      title={on ? `Rain and wind sound: on (this device)${weatherSoundQuiet(w) ? `, but quiet now: ${weatherSoundQuiet(w)}` : ""}` : "Rain and wind sound: off (this device)"}
       aria-label={on ? "Turn the weather's sound off" : "Turn the weather's sound on"}
       aria-pressed={on}
       onClick={() => {
+        // Started in the tap itself, or Safari stays silent.
+        if (!on) unlockWeatherSound();
         setWeatherSoundWanted(!on);
         setOn(!on);
       }}
