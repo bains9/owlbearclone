@@ -31,15 +31,27 @@ if (!password) {
   madeVars = true;
 }
 
+await nothingOnPort();
 const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["vite", "dev", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
 let serverOut = "";
 server.stdout.on("data", (d) => (serverOut += d));
 server.stderr.on("data", (d) => (serverOut += d));
 
 const cleanup = () => {
-  server.kill();
+  // On Windows the shell is killed but not vite under it: the whole tree, or the next run talks to this one.
+  if (process.platform === "win32" && server.pid) spawn("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
+  else server.kill();
   if (madeVars) unlinkSync(".dev.vars");
 };
+
+async function nothingOnPort() {
+  try {
+    await fetch(`${BASE}/api/build`);
+  } catch {
+    return;
+  }
+  throw new Error(`Something is already on :${PORT} (a dev server from an earlier run?): stop it first.`);
+}
 
 async function waitForServer() {
   for (let i = 0; i < 120; i++) {
@@ -57,6 +69,7 @@ async function waitForServer() {
 let failures = 0;
 try {
   await waitForServer();
+  if (serverOut.includes("already in use")) throw new Error(`Something is already on :${PORT} (a dev server from an earlier run?): stop it first.`);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   let roomId;
   let context;
