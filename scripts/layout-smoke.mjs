@@ -7,13 +7,14 @@
 // in as the GM with the password in .dev.vars (making a throwaway one if there's none), makes a
 // room, looks at it, and deletes the room again. Exits 1 with what overlapped.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { chromium } from "playwright-core";
 
 const PORT = 5299;
-const BASE = `http://localhost:${PORT}`;
+// By number, not "localhost": a stale proxy for that name can answer when nothing listens.
+const BASE = `http://127.0.0.1:${PORT}`;
 const SIZES = [
   ["phone", 375, 812],
   ["tablet", 768, 1024],
@@ -39,7 +40,7 @@ server.stderr.on("data", (d) => (serverOut += d));
 
 const cleanup = () => {
   // On Windows the shell is killed but not vite under it: the whole tree, or the next run talks to this one.
-  if (process.platform === "win32" && server.pid) spawn("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
+  if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
   else server.kill();
   if (madeVars) unlinkSync(".dev.vars");
 };
