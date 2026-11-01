@@ -33,7 +33,7 @@ if (!password) {
 }
 
 await nothingOnPort();
-const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["vite", "dev", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
+const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["vite", "dev", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
 let serverOut = "";
 server.stdout.on("data", (d) => (serverOut += d));
 server.stderr.on("data", (d) => (serverOut += d));
