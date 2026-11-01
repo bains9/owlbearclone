@@ -77,6 +77,11 @@ export interface Character {
    */
   prayed?: Record<string, number>;
   /**
+   * What the sheet itself says was prayed for today and cast (its PRAYED FOR TODAY list, the
+   * script's version 9 on). When it lists any, it's what the card counts by (prayedOnSheet).
+   */
+  prayedToday?: PrayedToday[] | null;
+  /**
    * A Samurai's ki: the pool for their level (the sheet's level table) and the ki abilities they
    * have, each with its cost (missing from scripts before version 6, and for other classes).
    */
@@ -135,7 +140,7 @@ export interface CharacterPlayer {
  * The newest version of the GM's character sheets script (scripts/character-sheets.gs, its VERSION):
  * the GM is told when theirs is older.
  */
-export const SCRIPT_VERSION = 8;
+export const SCRIPT_VERSION = 9;
 
 export interface CharactersReply {
   /** Whether the GM has set up the character sheets (Room settings › Character sheets). */
@@ -196,6 +201,19 @@ export function cleanCharacter(raw: unknown): Character | null {
     })
     .filter((a) => a.weapon);
   const ki = cleanKi(r.ki);
+  const count = (v: unknown) => {
+    const n = num(v);
+    return n === null ? 0 : Math.max(0, Math.min(99, Math.round(n)));
+  };
+  const prayedToday = Array.isArray(r.prayedToday)
+    ? r.prayedToday
+        .slice(0, 60)
+        .map((p) => {
+          const x = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
+          return { spell: text(x.spell, 60), prayed: count(x.prayed), cast: count(x.cast) };
+        })
+        .filter((p) => p.spell && p.prayed > 0)
+    : null;
   const spells = Array.isArray(r.spells)
     ? r.spells
         .slice(0, 400)
@@ -238,6 +256,7 @@ export function cleanCharacter(raw: unknown): Character | null {
     url: `https://docs.google.com/spreadsheets/d/${id}/edit`,
     ...(spells ? { spells } : {}),
     ...(ki ? { ki } : {}),
+    ...(prayedToday ? { prayedToday } : {}),
   };
 }
 
@@ -327,6 +346,28 @@ export function attackLabel(who: string, weapon: string, what: AttackRollKind): 
  * DEX bonus for a weapon the character is proficient with, and the rest the sheet works out).
  */
 export const TO_HIT_DIE = "2d10";
+
+export interface PrayedToday {
+  spell: string;
+  prayed: number;
+  cast: number;
+}
+
+/** A spell's name for matching prayers: any "(R)" or "(1)" aside, any case. */
+export function prayedKey(spell: string): string {
+  return spell.trim().replace(/\s*\((R|\d+)\)\s*$/i, "").toLowerCase();
+}
+
+/**
+ * A prayed spell's castings left today by the sheet (prayed − cast), when the sheet keeps the
+ * list and lists any (0 for a spell not on it); null when it doesn't, and Table's own count is used.
+ */
+export function prayedOnSheet(c: Pick<Character, "prayedToday">, spell: string): number | null {
+  if (!c.prayedToday?.length) return null;
+  const key = prayedKey(spell);
+  const row = c.prayedToday.find((p) => prayedKey(p.spell) === key);
+  return row ? Math.max(0, row.prayed - row.cast) : 0;
+}
 
 export interface SpellRest {
   level: number;

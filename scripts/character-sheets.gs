@@ -26,7 +26,7 @@
 // A new character: make a copy of a sheet in that folder; Tabletop finds it within a minute or two.
 
 // This script's version: Tabletop tells the GM when a newer one is out (shared/characters.ts SCRIPT_VERSION).
-const VERSION = 8;
+const VERSION = 9;
 
 function doGet() {
   const folderId = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
@@ -99,9 +99,52 @@ function card(ss) {
     strBonus: at(5, 'Melee damage'),
     attacks: attacks,
     spells: spellsOf(ss),
+    prayedToday: prayedOf(v),
     ki: kiOf(ss, [[at(0, 'Class'), at(0, 'Level · XP')], [at(0, 'Second class (optional)'), at(0, 'Second class level · XP')]]),
     rest: restOf(v, at),
   };
+}
+
+/**
+ * What the sheet says was prayed for (or memorized) today and cast (version 9 on): the rows under
+ * "Spell (prayed for or memorized)" in PRAYED FOR TODAY, to the first blank one, those with any
+ * prayed: [{ spell, prayed, cast }]. Null for a sheet without the list.
+ */
+function prayedOf(v) {
+  for (let i = 0; i < v.length; i++) {
+    if (String(v[i][0]).trim() !== 'Spell (prayed for or memorized)') continue;
+    const out = [];
+    for (let j = i + 1; j < v.length && String(v[j][0]).trim(); j++) {
+      const prayed = Number(String(v[j][1]).trim()) || 0;
+      const cast = Number(String(v[j][2]).trim()) || 0;
+      if (prayed > 0) out.push({ spell: String(v[j][0]).trim(), prayed: prayed, cast: cast });
+    }
+    return out;
+  }
+  return null;
+}
+
+/**
+ * One more cast of a prayed spell, ticked on the sheet (version 9 on): its PRAYED FOR TODAY row's
+ * Cast, matched by name (any "(R)" or "(1)" aside). Never past what was prayed, never over a formula.
+ */
+function castOn(sheet, spell) {
+  const v = sheet.getRange('A1:D160').getDisplayValues();
+  const key = function (s) { return String(s).trim().replace(/\s*\((R|\d+)\)\s*$/i, '').toLowerCase(); };
+  let head = -1;
+  for (let i = 0; i < v.length; i++) if (String(v[i][0]).trim() === 'Spell (prayed for or memorized)') { head = i; break; }
+  if (head < 0) return { error: 'Their sheet has no Prayed for today list.' };
+  for (let j = head + 1; j < v.length && String(v[j][0]).trim(); j++) {
+    if (key(v[j][0]) !== key(spell)) continue;
+    const prayed = Number(String(v[j][1]).trim()) || 0;
+    const cast = Number(String(v[j][2]).trim()) || 0;
+    if (cast >= prayed) return { error: 'None of ' + String(v[j][0]).trim() + ' left today (' + cast + ' of ' + prayed + ' cast).', prayed: prayed, cast: cast };
+    const cell = sheet.getRange(j + 1, 3);
+    if (cell.getFormula()) return { error: 'Their sheet works out Cast itself, so it isn’t changed.' };
+    cell.setValue(cast + 1);
+    return { prayed: prayed, cast: cast + 1 };
+  }
+  return { error: spell + ' isn’t prayed for on their sheet today.' };
 }
 
 /**
@@ -210,7 +253,9 @@ function doPost(e) {
   if (!key || body.key !== key) return reply({ error: 'Tabletop’s key doesn’t match the one the script keeps (TABLE_KEY in its properties).' });
   const rest = body.rest === true;
   const spend = Number(body.spend);
-  if (!rest && (!Number.isInteger(spend) || spend < 1 || spend > 100)) return reply({ error: 'That isn’t a number of spell points.' });
+  // A prayed spell cast (version 9 on): its Cast ticked on the sheet.
+  const castSpell = typeof body.cast === 'string' && body.cast.trim() && body.cast.length <= 80 ? body.cast.trim() : '';
+  if (!rest && !castSpell && (!Number.isInteger(spend) || spend < 1 || spend > 100)) return reply({ error: 'That isn’t a number of spell points.' });
   let file;
   try {
     file = DriveApp.getFileById(String(body.id));
@@ -227,6 +272,7 @@ function doPost(e) {
   try {
     const sheet = SpreadsheetApp.openById(file.getId()).getSheetByName('Character');
     if (!sheet) return reply({ error: 'That isn’t a character sheet.' });
+    if (castSpell) return reply(castOn(sheet, castSpell));
     const v = sheet.getRange('A1:B160').getDisplayValues();
     let row = 0;
     let most = NaN;

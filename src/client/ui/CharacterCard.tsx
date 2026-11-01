@@ -103,6 +103,8 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
   const locked = list.filter((s) => s.locked);
   // Prayed for by the sheet's name: Light (R) once, though it's cast as Light or its reverse.
   const prayers = castable.filter((s, i) => s.prayer && castable.findIndex((x) => x.sheet.name === s.sheet.name) === i);
+  // The sheet's own Prayed for today list counts, when it lists any: prayed for there, not here.
+  const fromSheet = !!c.prayedToday?.length;
   const pray = (spell: string, left: number) => void setPrayed(room, c, spell, left).catch((err: Error) => room.toast(err.message, "error"));
   const who = characterLabel(c);
   const casting = !praying && picked?.id === c.id ? castable.find((s) => s.name === picked.name && !s.onMap) : undefined;
@@ -117,7 +119,12 @@ function CardSpells(props: { c: Character; tokenId: string | null }) {
     <div class="character-spells">
       <div class="character-spells-head">
         <span>Spells</span>
-        {can && prayers.length > 0 && (
+        {fromSheet && (
+          <span class="small muted" title={`What ${who} has prayed for today comes from their sheet's Prayed for today list; casting one here ticks Cast there.`}>
+            prayed for on the sheet
+          </span>
+        )}
+        {can && prayers.length > 0 && !fromSheet && (
           <button class="link-btn" title={praying ? "Back to casting" : `Choose what ${who} has prayed for today, and how many times`} onClick={() => setPrayingFor(praying ? null : c.id)}>
             {praying ? "Done" : "Pray for today"}
           </button>

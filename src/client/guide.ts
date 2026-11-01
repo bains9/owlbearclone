@@ -50,6 +50,7 @@ export const GUIDE: GuideSection[] = [
           "GM: if something couldn't be shown on someone's screen (their card, a bar), an amber dot appears on **More**. Open **More** › **Problems on devices** to see who, on what device, and what went wrong, and **Clear the list** when it's dealt with."
         ],
         "notes": [
+          "Prayers come from the character sheet now: what its **Prayed for today** list says was prayed for, less what's been cast, is what the card counts. Casting a prayed spell from Table ticks **Cast** on the sheet. A sheet with nothing on that list still uses **Pray for today** on the card. (The sheets' script's version 9.)",
           "Whatever failed is left out and the rest of the page carries on; a reload often fixes it. The list helps find what keeps going wrong, on a player's tablet say.",
           "The sheets' script's version 8 reads how each caster's spell points come back (the class with spell-point dice, its level, CON and spell-stat bonuses), and says its version, so the party in **Tokens & images** tells the GM when a newer one is out."
         ]

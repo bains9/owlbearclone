@@ -63,6 +63,31 @@ export async function askScript(source: string, fetcher: typeof fetch = fetch): 
  * (version 5 on, which changes only Current spell points). With `key`, Tabletop's own: the script
  * keeps the first it's sent and takes changes with that one only. Their spell points now, or why not.
  */
+/**
+ * Ticks one more cast of a prayed spell on a character's sheet (the script's version 9 on): the
+ * castings prayed for and cast now, or why not.
+ */
+export async function castOnSheet(source: string, key: string, sheetId: string, spell: string, fetcher: typeof fetch = fetch): Promise<{ prayed: number; cast: number } | { error: string }> {
+  let res: Response;
+  try {
+    res = await fetcher(source, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, id: sheetId, cast: spell }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(SCRIPT_MS),
+    });
+  } catch {
+    return { error: "The character sheets didn't answer in time, so the cast wasn't ticked on the sheet. Tick it there." };
+  }
+  const body = (await res.json().catch(() => null)) as { prayed?: unknown; cast?: unknown; error?: unknown } | null;
+  if (!res.ok || !body || (typeof body.error === "string" && /number of spell points/.test(body.error))) {
+    return { error: "The character sheets' script can't tick casts yet: the GM needs to update it (Help › Set up the character sheets)." };
+  }
+  if (typeof body.error === "string") return { error: body.error.slice(0, 200) };
+  return typeof body.prayed === "number" && typeof body.cast === "number" ? { prayed: body.prayed, cast: body.cast } : { error: "The character sheets' script didn't say how many are cast." };
+}
+
 export async function spendOnSheet(
   source: string,
   key: string,

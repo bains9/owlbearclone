@@ -2,7 +2,7 @@
 // with their sizes from the character sheets' spell lists (metres). Shared, so the Room can
 // check an effect before passing it on. Every look in the approval doc, and its spells.
 
-import type { Character, CharacterSpell } from "./characters";
+import { prayedOnSheet, type Character, type CharacterSpell } from "./characters";
 import type { Ephemeral } from "./protocol";
 import { LIMITS } from "./sanitize";
 import type { TokenLook, ZoneLook } from "./zones";
@@ -391,7 +391,7 @@ export interface CastSpell {
  * level, then the ones the sheet says can't be cast yet. One the Spells tool can show goes by its
  * name there (and its reverse too); one it can't, by the sheet's.
  */
-export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
+export function castList(c: Pick<Character, "spells" | "prayed" | "prayedToday">): CastSpell[] {
   const out: CastSpell[] = [];
   const seen = new Set<string>();
   for (const s of c.spells ?? []) {
@@ -402,7 +402,7 @@ export function castList(c: Pick<Character, "spells" | "prayed">): CastSpell[] {
     for (const name of names) {
       if (!name || seen.has(name)) continue;
       seen.add(name);
-      out.push({ name, onMap: shown.length > 0, sheet: s, prayer, left: prayer ? (c.prayed?.[s.name] ?? 0) : 0, locked, raise: s.sp.includes("+") });
+      out.push({ name, onMap: shown.length > 0, sheet: s, prayer, left: prayer ? (prayedOnSheet(c, s.name) ?? c.prayed?.[s.name] ?? 0) : 0, locked, raise: s.sp.includes("+") });
     }
   }
   return out.sort((a, b) => Number(a.locked) - Number(b.locked) || (a.sheet.level ?? 99) - (b.sheet.level ?? 99) || a.name.localeCompare(b.name));

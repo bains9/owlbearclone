@@ -3,7 +3,7 @@
 // them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
 // them, then reused by that person (a player sees only their own uploads, so each uploads their own).
 
-import { KI_KEY, MAX_PRAYED, castCost, characterLabel, type Character, type CharacterPlayer, type KiAbility, type RestKind } from "../shared/characters";
+import { KI_KEY, MAX_PRAYED, castCost, characterLabel, prayedKey, prayedOnSheet, type Character, type CharacterPlayer, type KiAbility, type RestKind } from "../shared/characters";
 import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
@@ -454,7 +454,10 @@ export function cantCast(as: Pick<Casting, "character" | "entry" | "level">): st
   const e = as.entry;
   const c = as.character;
   const who = characterLabel(c);
-  if (e?.prayer && e.left <= 0) return `${who} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. Pray for it on their card.`;
+  if (e?.prayer && e.left <= 0) {
+    const where = prayedOnSheet(c, e.sheet.name) === null ? "Pray for it on their card." : "Their sheet's Prayed for today list says so.";
+    return `${who} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. ${where}`;
+  }
   const cost = castingCost(as);
   if (e && cost && c.sp !== null && cost > c.sp) return `${who} has ${c.sp} spell point${c.sp === 1 ? "" : "s"} left, and ${e.name} costs ${cost}.`;
   return null;
@@ -513,7 +516,44 @@ function showSpellPoints(room: RoomClient, id: string, sp: number): void {
 export function spendPrayer(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
   const e = as.entry;
   if (!e?.prayer || !mayPray(room, as.character)) return;
-  void setPrayed(room, as.character, e.sheet.name, e.left - 1).catch((err: Error) => room.toast(err.message, "error"));
+  const c = as.character;
+  // The sheet keeps the prayers: one more Cast ticked there, shown here at once.
+  if (prayedOnSheet(c, e.sheet.name) !== null) {
+    showSheetCast(room, c.id, e.sheet.name, (row) => ({ ...row, cast: Math.min(row.prayed, row.cast + 1) }));
+    void castOnSheetFor(room, c, e.sheet.name).catch((err: Error) => {
+      room.toast(err.message, "error");
+      void room.refreshParty();
+    });
+    return;
+  }
+  void setPrayed(room, c, e.sheet.name, e.left - 1).catch((err: Error) => room.toast(err.message, "error"));
+}
+
+/** A character's sheet prayers shown here at once, one row changed. */
+function showSheetCast(room: RoomClient, id: string, spell: string, change: (row: { spell: string; prayed: number; cast: number }) => { spell: string; prayed: number; cast: number }): void {
+  const party = room.state.party;
+  if (!party) return;
+  const key = prayedKey(spell);
+  room.store.set({
+    party: {
+      ...party,
+      characters: party.characters.map((x) => (x.id === id && x.prayedToday ? { ...x, prayedToday: x.prayedToday.map((p) => (prayedKey(p.spell) === key ? change(p) : p)) } : x)),
+    },
+  });
+}
+
+/** Ticks one more cast of a prayed spell on their sheet (the script's version 9 on). */
+async function castOnSheetFor(room: RoomClient, c: Character, spell: string): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/cast?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ spell }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; prayed?: number; cast?: number };
+  if (!res.ok || typeof data.cast !== "number" || typeof data.prayed !== "number") throw new Error(data.error ?? `The cast couldn't be ticked on ${characterLabel(c)}'s sheet (${res.status}).`);
+  const prayed = data.prayed, cast = data.cast;
+  showSheetCast(room, c.id, spell, (row) => ({ ...row, prayed, cast }));
 }
 
 /** GM: back to their figure. */

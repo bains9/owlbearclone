@@ -9,7 +9,7 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_SPEND, restGain } from "../shared/characters";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
@@ -288,6 +288,26 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   }
   // A spell cast from a character's card: its spell points come off their sheet (through the GM's
   // script). Their player or the GM, at one of the GM's tables, as above.
+  // A prayed spell cast (their player or the GM, at one of the GM's tables): its Cast ticked on the sheet.
+  const castMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/cast$/);
+  if (castMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const sheetId = castMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can cast their spells.");
+    const spell = cleanText((await readJson(request))?.spell, 80);
+    if (!spell) return fail(400, "Which spell?");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const done = await castOnSheet(source, await directory.charactersKey(), sheetId, spell);
+    await forgetParty({ directory }, caches.default);
+    if ("error" in done) return fail(502, done.error);
+    return json({ ok: true, prayed: done.prayed, cast: done.cast });
+  }
   const spendMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/spend$/);
   if (spendMatch) {
     if (method !== "POST") return fail(405, "Method not allowed.");
