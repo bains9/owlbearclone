@@ -20,8 +20,7 @@ import {
   Trash,
   X,
 } from "lucide-preact";
-import { initiativeRoll } from "../../shared/characters";
-import { randomId } from "../../shared/ids";
+import { initEntryFor } from "../initiative";
 import { canDelete } from "../../shared/permissions";
 import { roundsLeft } from "./spellChips";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
@@ -383,10 +382,7 @@ export function SelectionBar() {
               room.setPanel("initiative");
               return;
             }
-            room.initiativeOp({
-              op: "add",
-              entry: { id: randomId(10), name: t.label || "Token", value: initiativeRoll(character), color: t.color, tokenId: t.id },
-            });
+            room.initiativeOp({ op: "add", entry: initEntryFor(room, t) });
             room.setPanel("initiative");
           }}
         >

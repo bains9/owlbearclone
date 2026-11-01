@@ -117,7 +117,8 @@ describe("a character from their sheet", () => {
       seen.add(v);
     }
     expect(seen.size).toBeGreaterThan(5);
-    expect([initiativeRoll(null), initiativeRoll({ init: null })]).toEqual([0, 0]);
+    // Without a sheet (a creature), or a sheet without the bonus: the d10 alone.
+    for (const v of [initiativeRoll(null), initiativeRoll({ init: null })]) expect(v >= 1 && v <= 10 && Number.isInteger(v)).toBe(true);
   });
 
   it("labels each roll with who, what and which, within the chat's 60 characters", () => {
@@ -641,13 +642,14 @@ describe("in Tabletop", () => {
     expect(bar).toMatch(
       /<div class="card-dock".*\r?\n\s*<Guard name="the character card" retry=\{\(s\) => s\.party\}>\r?\n\s*<CharacterCard c=\{character\} tokenId=\{t\.id\} \/>/,
     );
-    expect(bar).toContain("value: initiativeRoll(character)");
-    expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("value: initiativeRoll(room.characterOf(t))");
+    expect(bar).toContain("entry: initEntryFor(room, t)");
+    expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("entry: initEntryFor(room, t)");
+    expect(await source("src/client/initiative.ts")).toContain("value: initiativeRoll(room.characterOf(t))");
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[18].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
-    expect(GUIDE[0].intro).toContain("The latest updates came out on 31 October 2026.");
+    expect(GUIDE[0].parts[19].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].intro).toContain("The latest updates came out on 1 November 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);
     expect(await source("src/client/ui/CharacterSheetsSettings.tsx")).toContain('href="/guide#character-sheets"');

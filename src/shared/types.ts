@@ -502,6 +502,11 @@ export interface InitEntry {
   value: number;
   color: string;
   tokenId: string | null;
+  /**
+   * Seen only by the GM: a creature's, whose roll the players don't get to know. Missing: everyone
+   * who can see its token sees it.
+   */
+  hidden?: boolean;
 }
 
 export interface Initiative {

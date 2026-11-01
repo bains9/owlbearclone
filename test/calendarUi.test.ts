@@ -85,7 +85,7 @@ describe("the calendar at the Worker", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and has its own part", () => {
-    expect(GUIDE[0].parts[0].title).toBe("The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)");
+    expect(GUIDE[0].parts[1].title).toBe("The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     for (const words of ["**Bring it in**", "**Sync**", "**The GM's eyes only**", "**New weather for the whole calendar**", "Leap days and months that come only some years"]) expect(all).toContain(words);
   });

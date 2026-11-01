@@ -666,6 +666,7 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
       value,
       color: cleanColor(x.color) ?? "#8a8f98",
       tokenId: isId(x.tokenId) ? x.tokenId : null,
+      ...(x.hidden === true ? { hidden: true } : {}),
     });
   }
   const turn = Math.round(num(r.turn, 0, Math.max(0, entries.length - 1)) ?? 0);

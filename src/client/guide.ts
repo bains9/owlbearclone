@@ -15,8 +15,23 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 31 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 1 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Initiative fills itself in: rolls from a character's card, and creatures the GM places (1 November 2026)",
+        "steps": [
+          "Click **Initiative** on a character's card: the roll (a d10 with their INT bonus from their sheet) goes in the chat as before, and now into the **Initiative** list too. Already in the list? Their number changes to the new roll.",
+          "GM: a creature you put on the scene everyone's on (from **Monsters**, **NPCs**, a picture or a plain token, or a copy of one) rolls a d10 and joins the list by itself.",
+          "Players don't see the creatures' rolls: those rows show only to the GM, with a dashed edge. GM: click the eye on a row to show it to the players, or to keep it to yourself again.",
+          "GM: untick **Creatures I place roll and join, hidden from players** at the bottom of the **Initiative** panel to add them yourself instead (each device remembers)."
+        ],
+        "notes": [
+          "Players see one another's rolls, and everyone sees whose turn it is. When it's a creature's turn they can't see, the list says so.",
+          "**Add selected token** and **Add to initiative** roll too now: a character a d10 with their INT bonus, anything else a d10 (they used to start at 0). The GM's creatures added that way are kept from the players as well.",
+          "A token taken off the map (a creature killed, say) leaves the list with it.",
+          "Creatures set out on a scene that isn't the one everyone's on don't join: they'd take turns in a fight somewhere else. Select them and click **Add selected tokens** when the fight starts."
+        ]
+      },
       {
         "title": "The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)",
         "steps": [
@@ -1046,7 +1061,7 @@ export const GUIDE: GuideSection[] = [
           "The names in brackets are the D&D sizes of creature that take up that much of the map: a Tiny creature half a square, Small and Medium ones a square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
           "A ring brightens when it's on. Pointing at the rings shows **Status rings**. The six colours are red, orange, green, blue, purple and white, and a token can wear several at once.",
           "Props, such as doors, chests or furniture, always sit underneath characters. Click the armchair again to turn a prop back into a character.",
-          "**Add to initiative** adds the token with its name and a score of 0, then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
+          "**Add to initiative** adds the token with its name and a roll (a d10, with a character's INT bonus from their sheet), then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
           "Tokens with a picture don't have colour dots.",
           "If you're a player and aren't allowed to move a token, you can still click it to select it. Its name and size are greyed out and most buttons don't appear, but you can still click **Add to initiative**, and **Duplicate (Ctrl+D)** if the GM lets players add tokens."
         ]
@@ -1219,7 +1234,7 @@ export const GUIDE: GuideSection[] = [
           "Click the arrow beside it to fold the card to their name, HP, AC, initiative and spell points, and again to open it. Each device remembers which (a phone starts folded)."
         ],
         "notes": [
-          "Click **Initiative** on the card to roll it in the chat (a d10 with their INT bonus).",
+          "Click **Initiative** on the card to roll it (a d10 with their INT bonus): in the chat, and into the **Initiative** list (their number changes if they're in it already).",
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
@@ -1237,7 +1252,7 @@ export const GUIDE: GuideSection[] = [
           "Open **Initiative** and click **Add selected token** (or **Add 2 selected tokens**, and so on)."
         ],
         "notes": [
-          "Each character is added with a d10 rolled and their initiative bonus (their INT bonus) from their sheet added, as the handbook has it. Other tokens are added at 0, as before.",
+          "Each character is added with a d10 rolled and their initiative bonus (their INT bonus) from their sheet added, as the handbook has it. Other tokens roll a d10 alone.",
           "The **Add to initiative** button on a character's bar at the bottom does the same."
         ]
       },
@@ -1989,7 +2004,7 @@ export const GUIDE: GuideSection[] = [
           "Click the crossed-swords button **Initiative** in the top bar."
         ],
         "notes": [
-          "Everyone sees the same list, except for hidden creatures (explained below). The list is still there next session.",
+          "Everyone sees the same list, except for hidden creatures (explained below) and the rows the GM keeps to themself. The list is still there next session.",
           "If two people add someone at the same moment, both entries are kept."
         ]
       },
@@ -2015,14 +2030,14 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click a token on the map to select it. To select more than one, Shift+click the others.",
           "In the **Initiative** panel, click **Add selected token**. With several tokens selected, the button says, for example, **Add 3 selected tokens**.",
-          "Click the new entry's number. It starts at 0.",
-          "Type its initiative.",
-          "Press Enter."
+          "Each is added with a roll: a character a d10 with their INT bonus from their sheet, anything else a d10. To change one, click its number, type the new one and press Enter."
         ],
         "notes": [
           "The entry uses the token's name (or \"Token\" if the token has no name) and the token's colour.",
+          "GM: a creature you add (not one of the party's characters) is kept from the players: its row has a dashed edge. Click its eye to show it to them. Creatures you place on the scene everyone's on join by themselves, unless you untick **Creatures I place roll and join, hidden from players** at the bottom of the panel.",
+          "A token taken off the map leaves the list with it.",
           "Tokens that are already in the list are skipped. The button only shows up when at least one selected token isn't in the list yet.",
-          "A quicker way for one token: click the token, then click **Add to initiative** (the crossed-swords button) on the bar that appears at the bottom of the map. The token joins the list at 0 and the **Initiative** panel opens. If the token is already in the list, the button just opens the panel. Anyone can use it."
+          "A quicker way for one token: click the token, then click **Add to initiative** (the crossed-swords button) on the bar that appears at the bottom of the map. The token joins the list with a roll and the **Initiative** panel opens. If the token is already in the list, the button just opens the panel. Anyone can use it."
         ]
       },
       {

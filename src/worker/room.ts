@@ -821,13 +821,7 @@ export class Room extends DurableObject<Env> {
           this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId, seq });
           return;
         }
-        const next = applyInitOp(this.initiative, op);
-        const passed = op.op === "clear" ? 0 : next.round - this.initiative.round;
-        this.setMeta("initiative", next);
-        this.initiative = next;
-        this.broadcastInitiative(conn.connId, seq);
-        // Spells that last so many rounds count down as rounds pass (not when the list is cleared).
-        if (passed) this.passRounds(passed);
+        this.applyInitiative(op, conn.connId, seq);
         return;
       }
 
@@ -897,6 +891,7 @@ export class Room extends DurableObject<Env> {
           roll,
           ...(msg.private ? { private: true } : {}),
         });
+        if (msg.initiative) this.rollIntoInitiative(conn, msg.initiative, roll.total);
         return;
       }
 
@@ -1261,6 +1256,13 @@ export class Room extends DurableObject<Env> {
       this.send(ws, { t: "error", message: "Some of that wasn't allowed, so it was undone." });
     }
 
+    // A token taken off the map (a creature killed, say) leaves the initiative list with it.
+    const deleted = new Set(changes.filter((ch) => !ch.after).map((ch) => ch.id));
+    const leaving = this.initiative.entries.filter((e) => e.tokenId && deleted.has(e.tokenId));
+    if (leaving.length) {
+      this.applyInitiative(leaving.map((e) => ({ op: "remove", id: e.id })));
+      return;
+    }
     // Initiative entries follow their tokens' visibility, so a token appearing or
     // vanishing for players changes the list they see.
     const tracked = new Set(this.initiative.entries.map((e) => e.tokenId).filter((id): id is string => !!id));
@@ -1361,8 +1363,9 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- initiative
 
-  /** Whether players may see an initiative entry: not if it belongs to a token they can't see. */
+  /** Whether players may see an initiative entry: not one the GM keeps to themself, nor one for a token they can't see. */
   private entryVisible(e: InitEntry): boolean {
+    if (e.hidden) return false;
     if (!e.tokenId) return true;
     const token = this.items.get(e.tokenId);
     return !!token && visibleToPlayer(token, this.activeSceneId);
@@ -1396,6 +1399,7 @@ export class Room extends DurableObject<Env> {
         if (!entry) return null;
         // A taken id (perhaps a hidden entry's) gets a fresh one rather than an error.
         if (this.initiative.entries.some((e) => e.id === entry.id)) entry.id = randomId(10);
+        if (!gm) delete entry.hidden;
         if (entry.tokenId && !gm && !this.entryVisible(entry)) entry.tokenId = null;
         return { op: "add", entry };
       }
@@ -1404,8 +1408,10 @@ export class Room extends DurableObject<Env> {
         const name = r.name === undefined ? undefined : cleanText(r.name, 40) || undefined;
         const value =
           typeof r.value === "number" && Number.isFinite(r.value) ? Math.max(-10000, Math.min(10000, r.value)) : undefined;
-        if (name === undefined && value === undefined) return null;
-        return { op: "update", id: r.id, name, value };
+        // Only the GM keeps an entry from the players, or shows it to them.
+        const hidden = gm && typeof r.hidden === "boolean" ? r.hidden : undefined;
+        if (name === undefined && value === undefined && hidden === undefined) return null;
+        return { op: "update", id: r.id, name, value, ...(hidden !== undefined ? { hidden } : {}) };
       }
       case "remove":
         return mayTouch(r.id) ? { op: "remove", id: r.id } : null;
@@ -1423,6 +1429,42 @@ export class Room extends DurableObject<Env> {
       default:
         return null;
     }
+  }
+
+  /** Initiative changes made: stored, sent to everyone (each their own view), and rounds passed counted. */
+  private applyInitiative(ops: InitOp | InitOp[], by?: string, seq?: number): void {
+    const all = Array.isArray(ops) ? ops : [ops];
+    const next = all.reduce(applyInitOp, this.initiative);
+    const passed = all.some((op) => op.op === "clear") ? 0 : next.round - this.initiative.round;
+    this.setMeta("initiative", next);
+    this.initiative = next;
+    this.broadcastInitiative(by, seq);
+    // Spells that last so many rounds count down as rounds pass (not when the list is cleared).
+    if (passed) this.passRounds(passed);
+  }
+
+  /**
+   * A token's initiative rolled in the chat (a character card's Initiative): the roll's total goes
+   * into the list, as a new entry or as the number of the token's entry already there. Only for a
+   * token the roller can see, and never into an entry the GM keeps from them.
+   */
+  private rollIntoInitiative(conn: Player, raw: unknown, total: number): void {
+    const tokenId = raw && typeof raw === "object" ? (raw as { tokenId?: unknown }).tokenId : undefined;
+    const token = isId(tokenId) ? this.items.get(tokenId) : undefined;
+    if (token?.kind !== "token" || isCompass(token)) return;
+    const gm = conn.role === "gm";
+    if (!gm && !visibleToPlayer(token, this.activeSceneId)) return;
+    const value = Math.max(-10000, Math.min(10000, total));
+    const have = this.initiative.entries.find((e) => e.tokenId === token.id);
+    if (have) {
+      if (gm || this.entryVisible(have)) this.applyInitiative({ op: "update", id: have.id, value });
+      return;
+    }
+    if (this.initiative.entries.length >= LIMITS.initiativeEntries) return;
+    this.applyInitiative({
+      op: "add",
+      entry: { id: randomId(10), name: cleanText(token.label, 40) || "Token", value, color: token.color, tokenId: token.id },
+    });
   }
 
   private broadcastInitiative(by?: string, seq?: number): void {

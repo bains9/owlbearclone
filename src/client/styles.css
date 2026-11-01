@@ -3000,6 +3000,13 @@ button:disabled {
   border-color: var(--accent);
   background: rgba(79, 209, 255, 0.1);
 }
+/* The GM's alone: the players don't get it. */
+.init-row.gm-only {
+  border-style: dashed;
+}
+.init-row.gm-only .init-name {
+  opacity: 0.75;
+}
 .init-name {
   flex: 1;
   background: transparent;

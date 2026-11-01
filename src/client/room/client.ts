@@ -6,6 +6,7 @@ import type { Character, CharactersReply } from "../../shared/characters";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
+import { creaturesJoin } from "../initiative";
 import { deviceOf, type Problem } from "../../shared/problems";
 import { INDOORS, eventsOn, isNight, seasonLookOf, snowDepth, type Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
@@ -1638,6 +1639,7 @@ export class RoomClient {
     };
     this.change({ upsert: [token] });
     this.store.set({ selection: [token.id], tool: "select" });
+    creaturesJoin(this, [token]);
     return token;
   }
 
@@ -1836,7 +1838,8 @@ export class RoomClient {
     else this.submit({ t: "chat", text: t });
   }
 
-  roll(expr: string, opts: { private?: boolean; label?: string } = {}): void {
+  /** initiative: the token whose initiative it is, so its total goes into the initiative list. */
+  roll(expr: string, opts: { private?: boolean; label?: string; initiative?: { tokenId: string } } = {}): void {
     this.submit({ t: "roll", expr, ...opts });
   }
 

@@ -321,9 +321,12 @@ export function attackModifiers(a: Pick<CharacterAttack, "toHit" | "bonus">): { 
   return { toHit: first(a.toHit), damage: dmg ? bonus(Number(dmg)) : 0 };
 }
 
-/** A token's initiative as it's added to the list: a d10 (INITIATIVE_DIE) and the sheet's bonus for a character, 0 for others. */
+/**
+ * A token's initiative as it's added to the list: a d10 (INITIATIVE_DIE), with the sheet's
+ * initiative bonus (its INT bonus) for a character; a creature without a sheet rolls the d10 alone.
+ */
 export function initiativeRoll(c: Pick<Character, "init"> | null): number {
-  return c && c.init !== null ? secureRng(10) + 1 + c.init : 0;
+  return secureRng(10) + 1 + (c?.init ?? 0);
 }
 
 /** The chat keeps a roll's label to 60 characters. */

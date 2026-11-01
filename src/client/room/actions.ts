@@ -7,6 +7,7 @@ import { canDelete } from "../../shared/permissions";
 import type { ItemPatch, TokenItem } from "../../shared/types";
 import { isCompass } from "../../shared/types";
 import type { RoomClient } from "./client";
+import { creaturesJoin } from "../initiative";
 
 function selectedItems(room: RoomClient) {
   const s = room.state;
@@ -85,6 +86,7 @@ export function duplicateSelection(room: RoomClient): void {
   });
   room.change({ upsert: copies });
   room.select(copies.map((c) => c.id));
+  creaturesJoin(room, copies);
 }
 
 export function patchSelection(room: RoomClient, set: ItemPatch["set"], only: "token" | "any" = "token"): void {

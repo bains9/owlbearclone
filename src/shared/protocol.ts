@@ -93,7 +93,8 @@ export type ClientAction =
   | { t: "room.goto"; to: string }
   | { t: "initiative.op"; op: InitOp }
   | { t: "chat"; text: string }
-  | { t: "roll"; expr: string; private?: boolean; label?: string }
+  /** initiative: the token whose initiative this is; its total goes into the initiative list (in, or its number changed). */
+  | { t: "roll"; expr: string; private?: boolean; label?: string; initiative?: { tokenId: string } }
   | { t: "profile"; name: string; color: string }
   /**
    * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
