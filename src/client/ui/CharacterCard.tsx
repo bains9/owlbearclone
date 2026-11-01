@@ -333,7 +333,7 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
         {c.init !== null && (
           <button
             class="link-btn"
-            title={`Roll initiative: a d10 with ${who}'s INT bonus, into the chat and the initiative list`}
+            title={`Roll initiative: a d10 with ${who}'s INT bonus (10 at most), into the chat and the initiative list`}
             onClick={() => {
               const initiative = props.tokenId ? { tokenId: props.tokenId } : undefined;
               room.roll(withModifier(INITIATIVE_DIE, c.init ?? 0), { label: `${who}: initiative`, initiative });

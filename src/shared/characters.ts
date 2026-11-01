@@ -323,10 +323,11 @@ export function attackModifiers(a: Pick<CharacterAttack, "toHit" | "bonus">): { 
 
 /**
  * A token's initiative as it's added to the list: a d10 (INITIATIVE_DIE), with the sheet's
- * initiative bonus (its INT bonus) for a character; a creature without a sheet rolls the d10 alone.
+ * initiative bonus (its INT bonus) for a character, and never past INITIATIVE_MAX; a creature
+ * without a sheet rolls the d10 alone.
  */
 export function initiativeRoll(c: Pick<Character, "init"> | null): number {
-  return secureRng(10) + 1 + (c?.init ?? 0);
+  return Math.min(INITIATIVE_MAX, secureRng(10) + 1 + (c?.init ?? 0));
 }
 
 /** The chat keeps a roll's label to 60 characters. */
@@ -404,6 +405,9 @@ export function restGain(c: Pick<Character, "rest">, kind: RestKind): number | n
 
 /** The die rolled for initiative, by the group's handbook: one d10, with the sheet's initiative bonus (its INT bonus) added. */
 export const INITIATIVE_DIE = "1d10";
+
+/** The most an initiative can be, by the handbook: a d10 and a bonus past 10 is 10. */
+export const INITIATIVE_MAX = 10;
 
 /** A dice expression with a modifier: "2d10+1", "1d6+2", "1d8". */
 export function withModifier(dice: string, mod: number): string {

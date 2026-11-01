@@ -144,9 +144,9 @@ export function InitiativePanel() {
         <button
           type="button"
           class="icon-btn"
-          title="Roll a d20"
-          aria-label="Roll a d20"
-          onClick={() => setValue(String(secureRng(20) + 1))}
+          title="Roll a d10"
+          aria-label="Roll a d10"
+          onClick={() => setValue(String(secureRng(10) + 1))}
         >
           <Dices size={16} />
         </button>

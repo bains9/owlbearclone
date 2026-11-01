@@ -77,7 +77,8 @@ describe("a token added from the map", () => {
     const gm = client(gmMe);
     for (let i = 0; i < 50; i++) {
       const pc = initEntryFor(gm, goblin("pc0000000001", { character: SHEET, label: "Testa" }));
-      expect(pc.value >= 3 && pc.value <= 12).toBe(true);
+      // A d10 and INT +2, 10 at most.
+      expect(pc.value >= 3 && pc.value <= 10).toBe(true);
       expect(pc).not.toHaveProperty("hidden");
       const gob = initEntryFor(gm, goblin("gob000000001"));
       expect(gob.value >= 1 && gob.value <= 10).toBe(true);
@@ -134,7 +135,7 @@ interface Conn extends Player {
 interface Sent {
   t: string;
   initiative?: Initiative;
-  message?: { roll?: { total: number } } | string;
+  message?: { text?: string; roll?: { total: number } } | string;
 }
 
 interface Sock {
@@ -213,6 +214,10 @@ const rollTotal = (s: Sock) => {
   const m = s.sent.filter((x) => x.t === "chat").at(-1)?.message;
   return typeof m === "object" ? m.roll?.total : undefined;
 };
+const rollLabel = (s: Sock) => {
+  const m = s.sent.filter((x) => x.t === "chat").at(-1)?.message;
+  return typeof m === "object" ? m.text : undefined;
+};
 
 describe("the Room", () => {
   it("keeps the GM's rows from the players; when it's one's turn, they're told it's someone they can't see", () => {
@@ -242,13 +247,18 @@ describe("the Room", () => {
     const pc = goblin("pctoken0001", { character: SHEET, label: "Testa", color: "#123456", owner: "alice" });
     const r = room([pc], [alice]);
     await r.handle(alice, alice.conn, { t: "roll", expr: "1d10+2", label: "Testa: initiative", initiative: { tokenId: pc.id } }, 1);
-    expect(r.initiative.entries).toEqual([{ id: expect.any(String), name: "Testa", value: rollTotal(alice), color: "#123456", tokenId: pc.id }]);
+    expect(r.initiative.entries).toEqual([{ id: expect.any(String), name: "Testa", value: Math.min(10, rollTotal(alice)!), color: "#123456", tokenId: pc.id }]);
+    // Past 10 it's 10, by the handbook: the chat shows the roll and says so.
     await r.handle(alice, alice.conn, { t: "roll", expr: "1d10+50", label: "Testa: initiative", initiative: { tokenId: pc.id } }, 2);
+    expect(rollTotal(alice)).toBeGreaterThan(50);
     expect(r.initiative.entries).toHaveLength(1);
-    expect(r.initiative.entries[0].value).toBe(rollTotal(alice));
-    expect(r.initiative.entries[0].value).toBeGreaterThan(50);
+    expect(r.initiative.entries[0].value).toBe(10);
+    expect(rollLabel(alice)).toBe("Testa: initiative (10 at most)");
     // Everyone gets the list: the roll's in it.
-    expect(alice.sent.filter((m) => m.t === "initiative").at(-1)?.initiative?.entries[0].value).toBe(rollTotal(alice));
+    expect(alice.sent.filter((m) => m.t === "initiative").at(-1)?.initiative?.entries[0].value).toBe(10);
+    // Any other roll past 10 is only a roll.
+    await r.handle(alice, alice.conn, { t: "roll", expr: "1d10+50", label: "Testa: damage" }, 3);
+    expect(rollLabel(alice)).toBe("Testa: damage");
   });
 
   it("never into a row the GM keeps from the roller, nor for a token they can't see", async () => {

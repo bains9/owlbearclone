@@ -112,8 +112,9 @@ describe("a character from their sheet", () => {
     expect(cleanCharacter({ ...raw, init: "" })!.init).toBeNull();
     const seen = new Set<number>();
     for (let i = 0; i < 200; i++) {
+      // A d10 and the bonus, 10 at most (the handbook's most).
       const v = initiativeRoll({ init: 3 });
-      expect(Number.isInteger(v) && v >= 4 && v <= 13, String(v)).toBe(true);
+      expect(Number.isInteger(v) && v >= 4 && v <= 10, String(v)).toBe(true);
       seen.add(v);
     }
     expect(seen.size).toBeGreaterThan(5);

@@ -17,6 +17,7 @@ import type { Problem } from "../shared/problems";
 import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
+import { INITIATIVE_MAX } from "../shared/characters";
 import { applyInitOp } from "../shared/initiative";
 import type { InitOp } from "../shared/initiative";
 import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } from "../shared/permissions";
@@ -168,6 +169,14 @@ interface KeptExplored {
   key: string;
   bits: Uint8Array;
   lit?: Uint8Array;
+}
+
+/** A roll's label in the chat; an initiative roll past the handbook's most says what it counts as. */
+function rollLabel(raw: unknown, capped: boolean): string {
+  const label = cleanText(raw, 60) ?? "";
+  if (!capped) return label;
+  const note = ` (${INITIATIVE_MAX} at most)`;
+  return `${label.slice(0, 60 - note.length)}${note}`;
 }
 
 export class Room extends DurableObject<Env> {
@@ -887,7 +896,7 @@ export class Room extends DurableObject<Env> {
           color: conn.color,
           role: conn.role,
           kind: "roll",
-          text: cleanText(msg.label, 60) ?? "",
+          text: rollLabel(msg.label, !!msg.initiative && roll.total > INITIATIVE_MAX),
           roll,
           ...(msg.private ? { private: true } : {}),
         });
@@ -1454,7 +1463,8 @@ export class Room extends DurableObject<Env> {
     if (token?.kind !== "token" || isCompass(token)) return;
     const gm = conn.role === "gm";
     if (!gm && !visibleToPlayer(token, this.activeSceneId)) return;
-    const value = Math.max(-10000, Math.min(10000, total));
+    // A d10 and a bonus past the handbook's most is the most.
+    const value = Math.max(-10000, Math.min(INITIATIVE_MAX, total));
     const have = this.initiative.entries.find((e) => e.tokenId === token.id);
     if (have) {
       if (gm || this.entryVisible(have)) this.applyInitiative({ op: "update", id: have.id, value });

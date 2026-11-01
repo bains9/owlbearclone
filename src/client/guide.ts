@@ -21,13 +21,14 @@ export const GUIDE: GuideSection[] = [
         "title": "Initiative fills itself in: rolls from a character's card, and creatures the GM places (1 November 2026)",
         "steps": [
           "Click **Initiative** on a character's card: the roll (a d10 with their INT bonus from their sheet) goes in the chat as before, and now into the **Initiative** list too. Already in the list? Their number changes to the new roll.",
+          "Initiative is 10 at most, by the handbook: a d10 and a bonus that come to more count as 10. The chat shows the roll and says \"(10 at most)\"; the list gets 10.",
           "GM: a creature you put on the scene everyone's on (from **Monsters**, **NPCs**, a picture or a plain token, or a copy of one) rolls a d10 and joins the list by itself.",
           "Players don't see the creatures' rolls: those rows show only to the GM, with a dashed edge. GM: click the eye on a row to show it to the players, or to keep it to yourself again.",
           "GM: untick **Creatures I place roll and join, hidden from players** at the bottom of the **Initiative** panel to add them yourself instead (each device remembers)."
         ],
         "notes": [
           "Players see one another's rolls, and everyone sees whose turn it is. When it's a creature's turn they can't see, the list says so.",
-          "**Add selected token** and **Add to initiative** roll too now: a character a d10 with their INT bonus, anything else a d10 (they used to start at 0). The GM's creatures added that way are kept from the players as well.",
+          "**Add selected token** and **Add to initiative** roll too now: a character a d10 with their INT bonus (10 at most), anything else a d10 (they used to start at 0). The GM's creatures added that way are kept from the players as well. The panel's dice button rolls a d10 now (it was a d20).",
           "A token taken off the map (a creature killed, say) leaves the list with it.",
           "Creatures set out on a scene that isn't the one everyone's on don't join: they'd take turns in a fight somewhere else. Select them and click **Add selected tokens** when the fight starts."
         ]
@@ -1234,7 +1235,7 @@ export const GUIDE: GuideSection[] = [
           "Click the arrow beside it to fold the card to their name, HP, AC, initiative and spell points, and again to open it. Each device remembers which (a phone starts folded)."
         ],
         "notes": [
-          "Click **Initiative** on the card to roll it (a d10 with their INT bonus): in the chat, and into the **Initiative** list (their number changes if they're in it already).",
+          "Click **Initiative** on the card to roll it (a d10 with their INT bonus, 10 at most): in the chat, and into the **Initiative** list (their number changes if they're in it already).",
           "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
           "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
           "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
@@ -2012,12 +2013,12 @@ export const GUIDE: GuideSection[] = [
         "title": "Add someone by name",
         "steps": [
           "Type the name in the **Name** box at the bottom of the panel.",
-          "Type their initiative in the **#** box, or click the dice button (**Roll a d20**) to fill in a random number from 1 to 20.",
+          "Type their initiative in the **#** box, or click the dice button (**Roll a d10**) to fill in a random number from 1 to 10.",
           "Click **Add** (the plus button) or press Enter."
         ],
         "notes": [
-          "**Roll a d20** only fills in the box. It doesn't add a bonus and doesn't post anything in the chat, so add your bonus to the number yourself before you click **Add**.",
-          "Unlike rolls in the chat, the **Roll a d20** number is picked in your own browser, not by the server.",
+          "**Roll a d10** only fills in the box. It doesn't add a bonus and doesn't post anything in the chat, so add your bonus to the number yourself (10 at most, by the handbook) before you click **Add**.",
+          "Unlike rolls in the chat, the **Roll a d10** number is picked in your own browser, not by the server.",
           "If you leave the **#** box empty, the entry gets 0.",
           "The entry takes your colour.",
           "The list sorts itself with the highest number first. Equal numbers stay in the order they were added.",
@@ -2030,7 +2031,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click a token on the map to select it. To select more than one, Shift+click the others.",
           "In the **Initiative** panel, click **Add selected token**. With several tokens selected, the button says, for example, **Add 3 selected tokens**.",
-          "Each is added with a roll: a character a d10 with their INT bonus from their sheet, anything else a d10. To change one, click its number, type the new one and press Enter."
+          "Each is added with a roll: a character a d10 with their INT bonus from their sheet (10 at most), anything else a d10. To change one, click its number, type the new one and press Enter."
         ],
         "notes": [
           "The entry uses the token's name (or \"Token\" if the token has no name) and the token's colour.",
