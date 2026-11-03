@@ -8,6 +8,9 @@
 // dice for that weapon (fewer when it's ranged or thrown, as the sheet has them), then unticks.
 // A caster's card lists their spells, with what they've prayed for today: one the map can show is
 // cast from their token with the Spells tool, any other from the card itself, as a line in the chat.
+// After a fight their player or the GM can take a Combat rest from the card: the dice their sheet
+// works out for their class (or a spellcaster's after magical damage, where their class gives the
+// choice) are rolled into the chat and added to their HP on the sheet, up to what fatigue gives back.
 
 import { useState } from "preact/hooks";
 import { BatteryFull, ChevronDown, ChevronUp, Dices, ExternalLink } from "lucide-preact";
@@ -21,14 +24,17 @@ import {
   attackLabel,
   attackWays,
   characterLabel,
+  combatRestText,
   critOf,
   damageRoll,
+  fatigueToRegain,
+  magicRestDice,
   withModifier,
   type Character,
 } from "../../shared/characters";
 import { castList, highestLevel, type CastSpell } from "../../shared/spellfx";
 import type { ChatMessage } from "../../shared/types";
-import { castAs, castFromCard, castLevel, castingCost, kiLeft, mayPray, newPrayerDay, restSpellPoints, setCharacterStrMatched, setKi, setPrayed, spendKi } from "../party";
+import { castAs, castFromCard, castLevel, castingCost, kiLeft, mayPray, newPrayerDay, restSpellPoints, setCharacterStrMatched, setKi, setPrayed, spendKi, takeCombatRest } from "../party";
 import { NARROW, cx, useRoom, useRoomState } from "./common";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -289,6 +295,16 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
       .catch((err: Error) => room.toast(err.message, "error"))
       .finally(() => setFilling(false));
   };
+  // Their player or the GM: a combat rest after a fight, while they have fatigue to get back.
+  const mayRest = mayPray(room, c) && fatigueToRegain(c);
+  const magicDice = mayRest ? magicRestDice(c, highestLevel(castList(c))) : null;
+  const [resting, setResting] = useState(false);
+  const takeRest = (magical: boolean) => {
+    setResting(true);
+    takeCombatRest(room, c, magical)
+      .catch((err: Error) => room.toast(err.message, "error"))
+      .finally(() => setResting(false));
+  };
   return (
     <div class={cx("character-card", folded && "folded")} onPointerDown={(e) => e.stopPropagation()}>
       <div class="character-head">
@@ -321,6 +337,30 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
           <span>
             HP {c.hp} / {c.maxHp}
           </span>
+        </div>
+      )}
+      {mayRest && (c.combatRest || magicDice) && (
+        <div class="character-rest">
+          {c.combatRest && (
+            <button
+              class="btn btn-sm"
+              disabled={resting}
+              title={`After a fight: roll ${combatRestText(c.combatRest)} (their class's combat rest, from their sheet) into the chat and add it to their HP on the sheet. It gives back fatigue only, never lost body points.`}
+              onClick={() => takeRest(false)}
+            >
+              Combat rest · {combatRestText(c.combatRest)}
+            </button>
+          )}
+          {magicDice && (
+            <button
+              class="btn btn-sm"
+              disabled={resting}
+              title={`After a fight where at least half the damage was magical: roll ${combatRestText(magicDice)} (d3 and their highest spell level) instead of their usual combat rest. Not both after one fight.`}
+              onClick={() => takeRest(true)}
+            >
+              Magical damage · {combatRestText(magicDice)}
+            </button>
+          )}
         </div>
       )}
       <div class="character-stats">

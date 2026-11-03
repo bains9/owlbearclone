@@ -9,9 +9,10 @@
 // tab ("Current HP", "Combat AC"...), and spells under the Spells tab's heading row, not by cell,
 // so the sheet's layout can change.
 //
-// The one thing it changes: a character's Current spell points, when they cast a spell in
-// Tabletop, or back to their Maximum for a new day (doPost). Only that cell, only on a sheet in
-// the folder, never below 0, and never when the sheet works it out with a formula. Tabletop sends a key with each change: the first time,
+// What it changes (doPost), only on a sheet in the folder and never a cell the sheet works out
+// with a formula: a character's Current spell points, when they cast a spell in Tabletop (never
+// below 0), or back up after a rest; a prayed spell's Cast; and their Current HP after a combat
+// rest taken in Tabletop (version 10 on), up only as far as fatigue goes. Tabletop sends a key with each change: the first time,
 // the script keeps it (script property TABLE_KEY), and from then on takes changes with that key
 // only. To let a different Tabletop make changes, delete TABLE_KEY.
 //
@@ -26,7 +27,7 @@
 // A new character: make a copy of a sheet in that folder; Tabletop finds it within a minute or two.
 
 // This script's version: Tabletop tells the GM when a newer one is out (shared/characters.ts SCRIPT_VERSION).
-const VERSION = 9;
+const VERSION = 10;
 
 function doGet() {
   const folderId = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
@@ -102,7 +103,31 @@ function card(ss) {
     prayedToday: prayedOf(v),
     ki: kiOf(ss, [[at(0, 'Class'), at(0, 'Level · XP')], [at(0, 'Second class (optional)'), at(0, 'Second class level · XP')]]),
     rest: restOf(v, at),
+    // Their combat rest's dice as the sheet works them out ("d3 + d2 · F-level 4"), and their body
+    // points, which a combat rest never gives back (version 10 on).
+    combatRest: at(5, 'Combat rest (after a fight)'),
+    bodyPoints: at(0, 'Body points'),
+    magicRest: magicRestOf(ss, [at(0, 'Class'), at(0, 'Second class (optional)')]),
   };
+}
+
+/**
+ * Whether one of a character's classes may rest magical damage instead (version 10 on): its
+ * Combat rest on the Ref Classes tab gives spellcasters the choice (the handbook's p90: with at
+ * least half the damage magical, d3 + d(highest spell level) instead of their usual one).
+ */
+function magicRestOf(ss, classes) {
+  const ref = ss.getSheetByName('Ref Classes');
+  if (!ref) return false;
+  const rows = ref.getRange('A1:Z40').getDisplayValues();
+  const col = rows[0].map(function (h) { return String(h).trim(); }).indexOf('Combat rest');
+  if (col < 0) return false;
+  return classes.some(function (cls) {
+    const name = String(cls || '').trim();
+    if (!name) return false;
+    for (let i = 1; i < rows.length; i++) if (String(rows[i][0]).trim() === name) return /magical/i.test(String(rows[i][col]));
+    return false;
+  });
 }
 
 /**
@@ -145,6 +170,32 @@ function castOn(sheet, spell) {
     return { prayed: prayed, cast: cast + 1 };
   }
   return { error: spell + ' isn’t prayed for on their sheet today.' };
+}
+
+/**
+ * A combat rest taken in Tabletop (version 10 on): `gain` (the roll of its dice) added to Current
+ * HP, up to what fatigue can give back: body points already lost stay lost (the handbook's
+ * "Regaining lost hit points"). Never down, never over a formula. Answers { hp, was }.
+ */
+function healOn(sheet, gain) {
+  const v = sheet.getRange('A1:B160').getDisplayValues();
+  let row = 0, most = NaN, body = NaN;
+  for (let i = 0; i < v.length; i++) {
+    const label = String(v[i][0]).trim();
+    if (label === 'Current HP' && !row) row = i + 1;
+    if (label === 'Maximum HP') most = Number(v[i][1]);
+    if (label === 'Body points') body = Number(v[i][1]);
+  }
+  if (!row) return { error: 'Their sheet has no Current HP.' };
+  if (!Number.isFinite(most) || most < 1) return { error: 'Their sheet has no Maximum HP.' };
+  const cell = sheet.getRange(row, 2);
+  if (cell.getFormula()) return { error: 'Their sheet works out Current HP itself, so it isn’t changed.' };
+  const now = Number(cell.getValue());
+  if (cell.getValue() === '' || !Number.isFinite(now)) return { error: 'Their sheet’s Current HP is empty: pick it there first.' };
+  const top = Number.isFinite(body) && body >= 0 && body <= most ? Math.min(now, body) + (most - body) : most;
+  const next = Math.max(now, Math.min(now + gain, top));
+  if (next !== now) cell.setValue(next);
+  return { hp: next, was: now };
 }
 
 /**
@@ -235,7 +286,8 @@ function spellsOf(ss) {
 /**
  * Spends a character's spell points on a spell cast in Tabletop: POST {key, id, spend}; or, for a
  * new day, puts them back to their Maximum spell points: POST {key, id, rest: true}. Answers with
- * their spell points now, or why not (and then changes nothing).
+ * their spell points now, or why not (and then changes nothing). Also ticks a prayed spell's Cast
+ * (POST {key, id, cast}) and adds a combat rest's roll to Current HP (POST {key, id, heal}).
  */
 function doPost(e) {
   let body;
@@ -255,7 +307,11 @@ function doPost(e) {
   const spend = Number(body.spend);
   // A prayed spell cast (version 9 on): its Cast ticked on the sheet.
   const castSpell = typeof body.cast === 'string' && body.cast.trim() && body.cast.length <= 80 ? body.cast.trim() : '';
-  if (!rest && !castSpell && (!Number.isInteger(spend) || spend < 1 || spend > 100)) return reply({ error: 'That isn’t a number of spell points.' });
+  // A combat rest (version 10 on): the HP its roll gives back.
+  const heal = Number(body.heal);
+  const healing = body.heal !== undefined;
+  if (healing && (!Number.isInteger(heal) || heal < 1 || heal > 100)) return reply({ error: 'That isn’t a number of hit points.' });
+  if (!rest && !castSpell && !healing && (!Number.isInteger(spend) || spend < 1 || spend > 100)) return reply({ error: 'That isn’t a number of spell points.' });
   let file;
   try {
     file = DriveApp.getFileById(String(body.id));
@@ -273,6 +329,7 @@ function doPost(e) {
     const sheet = SpreadsheetApp.openById(file.getId()).getSheetByName('Character');
     if (!sheet) return reply({ error: 'That isn’t a character sheet.' });
     if (castSpell) return reply(castOn(sheet, castSpell));
+    if (healing) return reply(healOn(sheet, heal));
     const v = sheet.getRange('A1:B160').getDisplayValues();
     let row = 0;
     let most = NaN;

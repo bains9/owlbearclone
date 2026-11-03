@@ -1008,6 +1008,12 @@ button:disabled {
 .character-hp-bar .bad {
   background: #d9534f;
 }
+.character-rest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
 .character-stats {
   display: flex;
   flex-wrap: wrap;
