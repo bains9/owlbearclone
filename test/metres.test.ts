@@ -1,6 +1,7 @@
 // Measuring in metres: distances read well in metres, rooms that measure in them give their
 // new scenes 1.5 m a square, the GM can switch a room's scenes between feet and metres (one
-// undo step), and rooms from before the setting keep exactly what they have.
+// undo step), and rooms from before the setting switch to metres once, when they next start
+// (3 November 2026: the table measures in metres).
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { importBackup, makeZip } from "../src/client/backup";
 import { GUIDE } from "../src/client/guide";
@@ -251,6 +252,7 @@ interface RoomInside {
   scenes: Map<string, Scene>;
   create(id: string, name: string): RoomInfo;
   handle(ws: Sock, conn: Conn, msg: object, seq: number | undefined): Promise<void>;
+  toMetres(): void;
 }
 
 let RoomClass: { prototype: object };
@@ -312,6 +314,54 @@ function server(info: RoomInfo | null) {
 }
 
 const oldInfo = (): RoomInfo => ({ id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...OLD_SETTINGS } });
+
+describe("a room from before the setting, when it starts (the table measures in metres, 3 November 2026)", () => {
+  /** The room's writes to storage: [key or scene id, what was kept]. */
+  function kept(r: RoomInside): [string, unknown][] {
+    const writes: [string, unknown][] = [];
+    Object.assign(r, { sql: { exec: (_q: string, k: string, v: string) => void writes.push([k, JSON.parse(v)]) } });
+    return writes;
+  }
+
+  it("switches to metres, and its scenes in feet with it, and keeps both", () => {
+    const { r } = server(oldInfo());
+    r.scenes.set("scene2", { ...r.scenes.get("scene1")!, id: "scene2", grid: { ...DEFAULT_GRID, unit: 10, unitName: "feet" } });
+    r.scenes.set("scene3", { ...r.scenes.get("scene1")!, id: "scene3", grid: { ...DEFAULT_GRID, unit: 1, unitName: "squares" } });
+    const writes = kept(r);
+    r.toMetres();
+    expect(r.info!.settings.metric).toBe(true);
+    expect(r.scenes.get("scene1")!.grid).toEqual({ ...DEFAULT_GRID, unit: 1.5, unitName: "m" });
+    expect(r.scenes.get("scene2")!.grid).toMatchObject({ unit: 3, unitName: "m" });
+    // Squares (or km) aren't feet: left as they were.
+    expect(r.scenes.get("scene3")!.grid).toMatchObject({ unit: 1, unitName: "squares" });
+    expect(writes.map(([k]) => k)).toEqual(["info", "scene1", "scene2"]);
+    expect(writes[0][1]).toMatchObject({ settings: { ...OLD_SETTINGS, metric: true } });
+    // Once only: next time it starts, it has the setting.
+    writes.length = 0;
+    r.toMetres();
+    expect(writes).toEqual([]);
+  });
+
+  it("leaves a room whose GM chose feet, or one already in metres, as it is", () => {
+    for (const metric of [false, true]) {
+      const { r } = server({ ...oldInfo(), settings: { ...OLD_SETTINGS, metric } });
+      const writes = kept(r);
+      r.toMetres();
+      expect(r.info!.settings.metric).toBe(metric);
+      expect(r.scenes.get("scene1")!.grid).toEqual(DEFAULT_GRID);
+      expect(writes).toEqual([]);
+    }
+    // And a brand-new object, with no room in it.
+    const { r } = server(null);
+    expect(() => r.toMetres()).not.toThrow();
+  });
+
+  it("happens as the room loads, before anyone joins", async () => {
+    const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+    const code = fs.readFileSync(new URL("../src/worker/room.ts", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+    expect(code).toContain("        this.load();\n        this.toMetres();\n");
+  });
+});
 
 describe("the server", () => {
   it("makes new rooms in metres, Scene 1 too", () => {
@@ -550,12 +600,23 @@ describe("the guide", () => {
 
   it("has metres undefined in What's new, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons and the NPCs, keeping the entries before it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[33]).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news[34]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news[35]).toBe("NPC tokens by race and class (4 October 2026, later)");
-    expect(news[36]).toBe("Measure in metres (4 October 2026)");
+    expect(news[34]).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news[35]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news[36]).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(news[37]).toBe("Measure in metres (4 October 2026)");
     expect(news).toContain("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("Pointing on the table display (29 September 2026, later)");
+  });
+
+  it("says first in What's new that every room measures in metres now, and how a GM gets feet back", () => {
+    const news = GUIDE.find((s) => s.id === "whats-new")!;
+    expect(news.parts[0].title).toBe("Every room measures in metres (3 November 2026)");
+    const entry = [...news.parts[0].steps, ...news.parts[0].notes].join("\n");
+    expect(entry).toContain("5 ft became 1.5 m");
+    expect(entry).toContain("**Measure in metres (1.5 m a square)**");
+    expect(entry).toContain("**Switch them too**");
+    expect(news.intro).toContain("3 November 2026");
+    expect(text("Measure in metres")).toContain("were switched to metres on 3 November 2026");
   });
 
   it("explains the setting where room settings are, with how undo works", () => {

@@ -692,6 +692,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   playersCanDraw: true,
   playersCanAddTokens: true,
   playersMoveAll: true,
-  // This table is metric. Rooms made before the setting existed have none: they stay in feet.
+  // This table is metric. A room made before the setting existed has none until it next starts,
+  // when it switches to metres (worker/room.ts toMetres).
   metric: true,
 };

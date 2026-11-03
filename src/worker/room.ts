@@ -15,7 +15,7 @@ import { randomId } from "../shared/ids";
 import { PROBLEM_LIMITS, addProblem } from "../shared/problems";
 import type { Problem } from "../shared/problems";
 import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
-import { defaultGrid } from "../shared/units";
+import { defaultGrid, switchUnits } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
 import { INITIATIVE_MAX } from "../shared/characters";
 import { applyInitOp } from "../shared/initiative";
@@ -224,6 +224,7 @@ export class Room extends DurableObject<Env> {
       if (this.hasTables()) {
         this.migrate();
         this.load();
+        this.toMetres();
       }
     });
     // Keep-alive pings are answered without waking the object from hibernation.
@@ -369,6 +370,27 @@ export class Room extends DurableObject<Env> {
       const a = JSON.parse(r.data) as Asset;
       this.assets.set(a.id, a);
     }
+  }
+
+  /**
+   * The table measures in metres (the GM's call, 3 November 2026). A room from before the setting
+   * existed (none set) switches its scenes in feet to metres once, 5 ft = 1.5 m, and measures in
+   * metres from then on. A room whose GM chose feet keeps them; scenes in squares or km stay.
+   */
+  private toMetres(): void {
+    if (!this.info || this.info.settings.metric !== undefined) return;
+    const info: RoomInfo = { ...this.info, settings: { ...this.info.settings, metric: true } };
+    const switched: Scene[] = [];
+    for (const s of this.scenes.values()) {
+      const units = switchUnits(s.grid, true);
+      if (units) switched.push({ ...s, grid: { ...s.grid, ...units } });
+    }
+    this.ctx.storage.transactionSync(() => {
+      this.setMeta("info", info);
+      for (const s of switched) this.saveScene(s);
+    });
+    this.info = info;
+    for (const s of switched) this.scenes.set(s.id, s);
   }
 
   /** Adds (or with a negative size, removes) an item's bytes to the running totals. */

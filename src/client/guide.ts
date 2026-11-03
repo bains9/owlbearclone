@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 1 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 3 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Every room measures in metres (3 November 2026)",
+        "steps": [
+          "Every room now measures in metres, the ones made before 4 October too. Their scenes in feet switched once: 5 ft became 1.5 m a square, 10 ft became 3 m.",
+          "The ruler, spell areas, and sight and light read in metres, for example \"9 m\" or \"6 m radius\". Nothing on the maps moved: each square is the same square, now 1.5 m."
+        ],
+        "notes": [
+          "GM: to measure a room in feet again, untick **Measure in metres (1.5 m a square)** in **Room settings** and click **Switch them too**: 1.5 m goes back to 5 ft.",
+          "A room whose GM had already chosen feet stays in feet. Scenes in other units, like squares or km, weren't changed.",
+          "Spell sizes on the character sheets were in metres already, so spells cover the same ground as before."
+        ]
+      },
       {
         "title": "Initiative fills itself in: rolls from a character's card, and creatures the GM places (1 November 2026)",
         "steps": [
@@ -1586,15 +1598,15 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure** (the ruler) in the toolbar, or press **M**.",
           "Choose **Ruler** in the bar that appears.",
           "Drag from the starting point to where you want to go.",
-          "Read the distance on the label at the end, for example \"30 ft\", or \"9 m\" in a room that measures in metres.",
+          "Read the distance on the label at the end, for example \"9 m\" (or \"30 ft\" in a room set to feet).",
           "Let go to clear the ruler."
         ],
         "notes": [
           "When the scene's **Snap tokens** box is ticked (in the **Scenes** panel, under **Grid**), the ruler runs from the centre of one square to the centre of another. With it unticked, the ruler measures from exactly where you press.",
-          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square. In a room that measures in metres it says One square is 1.5 m.",
+          "The bar tells you how distance is counted, for example: One square is 1.5 m; diagonals count as one square. In a room set to feet it says One square is 5 ft.",
           "Depending on how the GM has set up the scene, diagonals count as one square, alternate one and two squares, or use straight-line distance. On hex grids, distance is always counted in hexes.",
           "Distances are rounded to a tenth: \"7.5 m\", \"6 m\" (never \"6.0 m\").",
-          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with, or 1.5 in a room that measures in metres), **Unit** (ft, or m) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
+          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (1.5 to start with, or 5 in a room set to feet), **Unit** (m, or ft) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
         ]
       },
       {
@@ -1603,7 +1615,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure**, or press **M**.",
           "Pick a shape: **Circle (radius from a point)**, **Cone**, **Cube** or **Line (one square wide)**.",
           "Drag outwards from where the spell starts.",
-          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\" (in metres, \"6 m radius\" or \"4.5 m cone\").",
+          "Read the size on the label, for example \"6 m radius\" or \"4.5 m cone\" (in a room set to feet, \"20 ft radius\" or \"15 ft cone\").",
           "Let go to clear it."
         ],
         "notes": [
@@ -2977,12 +2989,12 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Units and diagonals",
         "steps": [
-          "Under **Distance**, set **One square is**, for example 5 (or 1.5 for metres).",
-          "Set **Unit**, for example ft (or m).",
+          "Under **Distance**, set **One square is**, for example 1.5 (or 5 for feet).",
+          "Set **Unit**, for example m (or ft).",
           "For square grids, choose how **Diagonals** count: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
         ],
         "notes": [
-          "New scenes start with one square being 5 ft, or 1.5 m in a room that measures in metres, and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
+          "New scenes start with one square being 1.5 m (5 ft in a room the GM has set to feet), and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
           "To change every scene in the room between feet and metres at once, use **Measure in metres** in **Room settings** rather than each scene.",
           "The ruler uses these settings."
         ]
@@ -3602,9 +3614,9 @@ export const GUIDE: GuideSection[] = [
           "If some of the room's scenes are measured in the other unit, a window asks about them. Click **Switch them too** (**Switch it too** for one scene) to change them as well, **Only new scenes** to leave them as they are, or **Cancel**."
         ],
         "notes": [
-          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft, as they always have.",
+          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft.",
           "The line under the box says what new scenes start with, for example \"New scenes start with one square being 1.5 m.\"",
-          "New rooms start with the box ticked. A room made before this setting existed starts with it unticked, and nothing about its scenes changes until you tick it.",
+          "Every room has the box ticked unless its GM unticks it. Rooms made before the setting existed were switched to metres on 3 November 2026: their scenes in feet became 1.5 m a square.",
           "Switching to metres changes each scene measured in feet (ft, ft., feet or foot): 5 ft becomes 1.5 m, 10 ft becomes 3 m, and any other number is multiplied by 0.3 and rounded to the nearest 0.1 m. Unticking offers the reverse: 1.5 m becomes 5 ft, 3 m becomes 10 ft. Scenes in other units, like squares or km, are never changed.",
           "A square that isn't a whole number of feet comes back slightly changed after a second switch, because of that rounding: 7.5 ft becomes 2.3 m, and switching back makes it 7.7 ft. **Undo** is the exact way back.",
           "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",

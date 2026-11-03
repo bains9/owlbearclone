@@ -424,7 +424,8 @@ export interface RoomSettings {
   playersMoveAll: boolean;
   /**
    * Measure in metres: new scenes start with one square being 1.5 m rather than 5 ft.
-   * Missing on rooms made before it existed, which measure in feet.
+   * Missing on rooms made before it existed, until they next start and switch to metres
+   * (worker/room.ts toMetres); false when the GM chose feet.
    */
   metric?: boolean;
   /**
