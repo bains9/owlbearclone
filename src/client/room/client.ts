@@ -2,12 +2,19 @@
 // over a WebSocket, applies the user's own changes immediately (optimistically),
 // reconciles them with what the server confirms, and keeps an undo history.
 
+import type { Character, CharactersReply } from "../../shared/characters";
+import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
+import type { Explored } from "../../shared/explore";
+import type { NewDayUndo } from "../party";
+import { creaturesJoin } from "../initiative";
+import { deviceOf, type Problem } from "../../shared/problems";
+import { INDOORS, eventsOn, isNight, seasonLookOf, snowDepth, type Calendar } from "../../shared/calendar";
 import { randomId } from "../../shared/ids";
 import { applyInitOp } from "../../shared/initiative";
 import type { InitOp } from "../../shared/initiative";
 import { applyOps, inverseOps, isEmptyOps, isPatchOnly, mergePatches } from "../../shared/ops";
 import type { ItemMap } from "../../shared/ops";
-import { canMove } from "../../shared/permissions";
+import { canDelete, canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, PROTOCOL_VERSION } from "../../shared/protocol";
 import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
@@ -27,7 +34,7 @@ import type {
   SceneMapData,
   TokenItem,
 } from "../../shared/types";
-import { compassesOn, isCompass } from "../../shared/types";
+import { compassesOn, isCompass, sceneBounds, sceneMiddle, sceneSnaps } from "../../shared/types";
 import { LIMITS } from "../../shared/sanitize";
 import { switchUnits } from "../../shared/units";
 import type { GridUnits } from "../../shared/units";
@@ -44,15 +51,17 @@ import { composeBuildUndo } from "./build";
 import { canFold, canFoldPlain, pressX } from "./buildInput";
 import { COMPASS_COLOR, COMPASS_LABEL, COMPASS_SIZE } from "./compass";
 import type { SelectReturn, WheelPref } from "./buildInput";
+import type { ScatterDensity } from "./scatter";
 import type { SceneDataState } from "./mapData";
 import { NO_MAP_LOAD } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
+import { voiceLink } from "./voiceLink";
 
-export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer";
+export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer" | "spell";
 
 /** Tools only the GM has. */
 export const GM_TOOLS: ToolId[] = ["fog", "build"];
-export type PanelId = "chat" | "scenes" | "library" | "initiative" | "settings";
+export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings";
 export type Status = "connecting" | "open" | "reconnecting" | "notfound" | "deleted";
 
 export interface DrawOptions {
@@ -72,6 +81,11 @@ export interface FogOptions {
   snap: boolean;
   /** GM only: show fog fully opaque, the way players see it. */
   preview: boolean;
+  /**
+   * GM only, looking as players on a scene with per-player sight: the character (sheet id) whose
+   * player's view to show, or null for the whole party's.
+   */
+  lookAs: string | null;
 }
 
 /** How the Building and Terrain modes paint: drag out a rectangle or an oval, or brush. */
@@ -82,6 +96,9 @@ export type BuildShape = "rect" | "circle" | "brush";
  * modes are named after Dungeondraft's tools, which the GM knows: Building, Wall,
  * Portal (doors), Terrain, Object and Select.
  */
+/** One of Dungeon's textures, by id ("t:meadow"; see dungeonTextures.ts). */
+export type TextureFloor = `t:${string}`;
+
 export interface BuildOptions {
   mode: "building" | "walls" | "doors" | "terrain" | "stamps" | "select";
   shape: { building: BuildShape; terrain: BuildShape };
@@ -89,7 +106,7 @@ export interface BuildOptions {
    * What each paints: a room's floor (stone, wood or dirt), or grass, water or lava; or
    * "erase" (which takes the walls, doors and objects on those squares too).
    */
-  floor: { building: Extract<FloorId, "s" | "w" | "d"> | "erase"; terrain: Extract<FloorId, "g" | "a" | "l"> | "erase" };
+  floor: { building: Extract<FloorId, "s" | "w" | "d"> | "erase" | TextureFloor; terrain: Extract<FloorId, "g" | "a" | "l"> | "erase" | TextureFloor };
   /** Floor brush size in squares (1-5). */
   brush: number;
   /**
@@ -107,7 +124,13 @@ export interface BuildOptions {
   stampSize: number;
   /** Objects: degrees clockwise of the next one placed, 0-355 in 5° steps. */
   stampDeg: number;
-  stampMode: "place" | "remove";
+  /** Objects: a click places one, a drag scatters them at random (Scatter), or a click or drag erases them. */
+  stampMode: "place" | "scatter" | "remove";
+  /**
+   * Objects › Scatter: the brush's size in squares across, how close together it puts them,
+   * and whether it mixes the picked object's group ("Leafy trees") or scatters just that one.
+   */
+  scatter: { brush: number; density: ScatterDensity; mix: boolean };
   /** Select: where X (or Back) goes back to. */
   selectReturn: SelectReturn | null;
 }
@@ -136,6 +159,11 @@ export interface AttachDDRequest {
   mode?: "attach" | "check";
 }
 
+/** How often the party's character sheets are read again while the room is open. */
+const PARTY_MS = 60_000;
+/** How long a table display shows the day at a glance after the day changes. */
+const DAY_CARD_MS = 60_000;
+
 export interface RoomState {
   status: Status;
   me: Player | null;
@@ -153,6 +181,18 @@ export interface RoomState {
   fogOpts: FogOptions;
   buildOpts: BuildOptions;
   measureOpts: MeasureOptions;
+  /**
+   * The Spells tool: the spell it casts (a name in SPELL_FX), and the token of the character it's
+   * cast as when it was picked from their card's Spells list (cast from there, using up a prayer).
+   */
+  spellOpts: {
+    spell: string;
+    caster?: string | null;
+    /** Casting as a character, a spell that can take more points: the level it's cast at (null: its own). */
+    level?: number | null;
+    /** How many rounds a spell left on the map lasts, as chosen for it (null: until it's ended). */
+    lasts?: { spell: string; rounds: number | null } | null;
+  };
   /**
    * Set while the GM is lining the grid up by drawing a box on the map: how many
    * squares across the box will cover.
@@ -184,6 +224,35 @@ export interface RoomState {
   buildClip: boolean;
   /** What this device's mouse wheel does over objects in the Build tool (remembered in the browser). */
   wheelTurns: WheelPref;
+  /**
+   * Build › Objects and Select: objects go on whole squares (on to begin with), or anywhere,
+   * to a sixteenth of a square, when it's off (remembered in the browser).
+   */
+  objectSnap: boolean;
+  /**
+   * Tokens this device puts down or lets go of snap to the grid, where the scene snaps (on to
+   * begin with). Off, they go exactly where they're put, as with Alt held: for touch screens,
+   * which have no Alt (remembered in the browser).
+   */
+  tokenSnap: boolean;
+  /** GM, lighting on: the light picked on the map (its marker clicked), for its colour and flicker. */
+  lightPick: { sceneId: string; index: number } | null;
+  /** GM: Add a light was clicked (Edit scene › Lighting): the next click on that scene's map places one. */
+  lightAdd: { sceneId: string } | null;
+  /**
+   * The map's area is as narrow as a phone's (a phone, or a tablet beside the side panel): its
+   * bars stack as on a phone, the character card in the selection bar's stack (useStageNarrow).
+   */
+  stageNarrow: boolean;
+  /** GM: what the last new day for the party changed, to take it back (for NEW_DAY_UNDO_MS: undoNewDay). */
+  newDayUndo: NewDayUndo | null;
+  /** GM: what failed on people's devices, newest first (shared/problems.ts). */
+  problems: Problem[];
+  /** The campaign's calendar (shared/calendar.ts), as this page may see it; null before the GM makes one. */
+  calendar: Calendar | null;
+  calendarVersion: number;
+  /** A table display: the day at a glance shows until this time (ms), after the day changes. */
+  dayCardUntil: number;
   /** Set while the note dialog is open: where a new note goes, or which note is being edited. */
   textPrompt: { x: number; y: number; fontSize: number; editId?: string; text?: string } | null;
   selection: string[];
@@ -194,6 +263,13 @@ export interface RoomState {
   zoom: number;
   toasts: Toast[];
   uploading: number;
+  /** The party from their character sheets (refreshParty), or null before the first reading. */
+  party: CharactersReply | null;
+  /**
+   * What the party, and each of its characters, has explored of each scene with lighting on, by
+   * exploreSlot (shared/explore.ts); replaced, never changed in place.
+   */
+  explored: Record<string, Explored>;
 }
 
 /** The buttons of Build › Select's bars. */
@@ -221,6 +297,8 @@ export interface BoardApi {
   clearBuildSelection(): void;
   /** Loads the scene's map picture again after it was given up on (the Try again button). */
   retryMap(): void;
+  /** How long the board's layers took to draw since this was last asked, and how many draws (for ?fps). */
+  drawStats(): { ms: number; draws: number };
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -290,7 +368,7 @@ function chunkOps(ops: ItemOps, size: number): ItemOps[] {
  * The settings that say which map a scene shows: what fog covers or uncovers. (Not the
  * grid, so undoing Cover all doesn't also undo a later grid alignment.)
  */
-const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height"];
+const MAP_FIELDS: (keyof Scene)[] = ["mapAssetId", "width", "height", "dungeon"];
 
 /** A scene with some settings changed. A scene we don't have is only added when it's new. */
 function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: boolean): Record<string, Scene> {
@@ -303,12 +381,14 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
     season?: Scene["season"] | null;
     mapData?: Scene["mapData"] | null;
     mapRect?: Scene["mapRect"] | null;
+    wallTexture?: Scene["wallTexture"] | null;
   };
   // A season of null means "turned off": the scene simply has none. The same for the
   // Dungeondraft data and the picture's rectangle: null removes them.
   if (next.season === null) delete next.season;
   if (next.mapData === null) delete next.mapData;
   if (next.mapRect === null) delete next.mapRect;
+  if (next.wallTexture === null) delete next.wallTexture;
   // As on the server: a new picture (or none) drops the old one's rectangle unless the
   // change brings its own.
   if (cur && set.mapAssetId !== undefined && set.mapAssetId !== cur.mapAssetId && set.mapRect === undefined) {
@@ -319,6 +399,8 @@ function mergeScene(scenes: Record<string, Scene>, patch: ScenePatch, create: bo
 
 const SEASONS_OFF_KEY = "tabletop-seasons-off";
 const WHEEL_TURNS_KEY = "tabletop-wheel-turns";
+const OBJECT_SNAP_KEY = "tabletop-object-snap";
+const TOKEN_SNAP_KEY = "tabletop-token-snap";
 
 /** Whether this device has seasonal looks turned off (remembered in the browser). */
 function loadSeasonsOff(): boolean {
@@ -336,6 +418,24 @@ function loadWheelTurns(): WheelPref {
     return v === "always" || v === "never" ? v : "auto";
   } catch {
     return "auto";
+  }
+}
+
+/** Whether this device puts objects on whole squares in the Build tool (remembered in the browser; on to begin with). */
+function loadObjectSnap(): boolean {
+  try {
+    return localStorage.getItem(OBJECT_SNAP_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/** Whether tokens this device puts down snap to the grid (remembered in the browser; on to begin with). */
+function loadTokenSnap(): boolean {
+  try {
+    return localStorage.getItem(TOKEN_SNAP_KEY) !== "0";
+  } catch {
+    return true;
   }
 }
 
@@ -398,6 +498,8 @@ export class RoomClient {
 
   /** A table display: shows the live scene as players see it, and never changes anything. */
   readonly display: boolean;
+  /** The GM sent everyone to another room (RoomPage goes there). */
+  onGoto: ((room: { id: string; name: string }) => void) | null = null;
 
   constructor(
     readonly roomId: string,
@@ -419,7 +521,7 @@ export class RoomClient {
       players: [],
       tool: "select",
       drawOpts: { shape: "pen", color: profile.color, width: 4, fill: false },
-      fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false },
+      fogOpts: { mode: "reveal", shape: "brush", brush: 2, snap: true, preview: false, lookAs: null },
       buildOpts: {
         mode: "building",
         shape: { building: "rect", terrain: "brush" },
@@ -432,9 +534,19 @@ export class RoomClient {
         stampSize: 1,
         stampDeg: 0,
         stampMode: "place",
+        scatter: { brush: 4, density: "medium", mix: true },
         selectReturn: null,
       },
       measureOpts: { shape: "ruler", keep: false },
+      spellOpts: { spell: "Magic Missile" },
+      lightPick: null,
+      lightAdd: null,
+      stageNarrow: false,
+      newDayUndo: null,
+      problems: [],
+      calendar: null,
+      calendarVersion: 0,
+      dayCardUntil: 0,
       textPrompt: null,
       mapImport: null,
       attachDD: null,
@@ -449,6 +561,8 @@ export class RoomClient {
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
+      objectSnap: displayKey === null ? loadObjectSnap() : true,
+      tokenSnap: displayKey === null ? loadTokenSnap() : true,
       gridAlign: null,
       selection: [],
       panel: typeof window !== "undefined" && window.innerWidth >= 900 && displayKey === null ? "chat" : null,
@@ -458,6 +572,8 @@ export class RoomClient {
       zoom: 1,
       toasts: [],
       uploading: 0,
+      party: null,
+      explored: {},
     });
   }
 
@@ -608,6 +724,7 @@ export class RoomClient {
 
   dispose(): void {
     this.disposed = true;
+    if (this.partyTimer) clearInterval(this.partyTimer);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.heartbeat) clearInterval(this.heartbeat);
     document.removeEventListener("visibilitychange", this.onVisibility);
@@ -700,6 +817,31 @@ export class RoomClient {
     return true;
   }
 
+  /** Problems this page has told of already (each once a page), by where and message. */
+  private problemsTold = new Set<string>();
+
+  /**
+   * Tells the GM that something couldn't be shown on this device (a bar or panel, the page):
+   * each problem once a page, and only while connected. A table display tells too.
+   */
+  reportProblem(where: string, err: unknown): void {
+    const message = (err instanceof Error ? err.message || err.name : String(err)).slice(0, 300) || "An error with no message";
+    const key = `${where}|${message}`;
+    if (this.problemsTold.has(key) || this.problemsTold.size >= 20) return;
+    if (!this.ready || this.ws?.readyState !== WebSocket.OPEN) return;
+    this.problemsTold.add(key);
+    const touch = typeof navigator !== "undefined" && navigator.maxTouchPoints > 1;
+    const device = deviceOf(typeof navigator !== "undefined" ? navigator.userAgent : "", touch);
+    this.ws.send(JSON.stringify({ t: "problem", where, message, device }));
+  }
+
+  /** GM: the list of problems on devices is cleared, for everyone. */
+  clearProblems(): void {
+    if (!this.isGm) return;
+    this.store.set({ problems: [] });
+    this.submit({ t: "problems.clear" });
+  }
+
   sendEph(e: Ephemeral): void {
     if (this.display) return;
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "eph", e }));
@@ -717,6 +859,7 @@ export class RoomClient {
     switch (msg.t) {
       case "hello": {
         this.attempts = 0;
+        this.startParty();
         this.helloTimeouts = 0;
         const scenes = toMap(msg.scenes);
         const items = toMap(msg.items);
@@ -744,6 +887,12 @@ export class RoomClient {
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
+          explored: Object.fromEntries(
+            Object.entries(msg.explored ?? {}).map(([slot, e]) => {
+              const total = keyCells(e.key);
+              return [slot, { key: e.key, bits: textToBits(e.bits, total), ...(e.lit !== undefined ? { lit: textToBits(e.lit, total) } : {}) }];
+            }),
+          ),
         });
         document.title = `${msg.room.name} · Tabletop`;
         this.ready = true;
@@ -806,6 +955,9 @@ export class RoomClient {
         const assets = { ...s.assets };
         delete assets[msg.id];
         this.store.set({ assets });
+        // A picture deleted (here or in another tab: Update from Dungeon, say) is never put back by undo.
+        const names = (p: ScenePatch) => p.mapAssetId === msg.id || p.mapData?.assetId === msg.id;
+        this.forgetPictureSteps((e) => !!e.scene && (names(e.scene.before) || names(e.scene.after)));
         return;
       }
 
@@ -845,12 +997,46 @@ export class RoomClient {
         this.store.set({ players: msg.players });
         return;
 
+      case "explore": {
+        const total = keyCells(msg.key);
+        if (!total) return;
+        if (msg.reset) {
+          // Every explored map of the scene: the party's and its characters'.
+          const kept = Object.fromEntries(Object.entries(s.explored).filter(([slot]) => !isSceneSlot(slot, msg.sceneId)));
+          this.store.set({ explored: { ...kept, [msg.sceneId]: { key: msg.key, bits: emptyBits(total) } } });
+          return;
+        }
+        const slot = exploreSlot(msg.sceneId, msg.who);
+        if (msg.bits !== undefined) {
+          const lit = msg.litBits !== undefined ? { lit: textToBits(msg.litBits, total) } : {};
+          this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits: textToBits(msg.bits, total), ...lit } } });
+          return;
+        }
+        const had = s.explored[slot]?.key === msg.key ? s.explored[slot] : null;
+        const next = addExplored(had, msg.cells ?? [], msg.lit, total);
+        if (had && !next.fresh.length && !next.freshLit.length) return;
+        this.store.set({ explored: { ...s.explored, [slot]: { key: msg.key, bits: next.bits, ...(next.lit ? { lit: next.lit } : {}) } } });
+        return;
+      }
+
       case "eph":
         for (const fn of this.ephListeners) fn(msg.from, msg.e);
         return;
 
+      case "goto":
+        this.onGoto?.(msg.room);
+        return;
+
       case "error":
         this.toast(msg.message, "error");
+        return;
+
+      case "problems":
+        this.store.set({ problems: msg.problems });
+        return;
+
+      case "calendar":
+        if (msg.version !== this.state.calendarVersion) void this.refreshCalendar();
         return;
 
       case "outdated":
@@ -972,6 +1158,7 @@ export class RoomClient {
    */
   change(ops: ItemOps, undoable = true, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
+    ops = this.withSpellsOn(ops);
     if (undoable) {
       const sceneId = this.sceneOf(ops);
       const now = Date.now();
@@ -1004,16 +1191,34 @@ export class RoomClient {
   }
 
   /**
+   * Deleting tokens deletes the spells on them too (those this page may delete): a spell is
+   * nothing without its token.
+   */
+  private withSpellsOn(ops: ItemOps): ItemOps {
+    const del = ops.delete;
+    const me = this.state.me;
+    if (!del?.length || !me) return ops;
+    const gone = new Set(del.filter((id) => this.state.items[id]?.kind === "token"));
+    if (!gone.size) return ops;
+    const taken = new Set(del);
+    const spells = Object.values(this.state.items)
+      .filter((i) => i.kind === "drawing" && !!i.on && gone.has(i.on) && !taken.has(i.id) && canDelete(i, me))
+      .map((i) => i.id);
+    return spells.length ? { ...ops, delete: [...del, ...spells] } : ops;
+  }
+
+  /**
    * A change whose undo and redo are worked out when they're used, from the state as it
    * is then (a build step, which must never put back more than it changed). With a
    * `coalesce` key, it folds into the step on top when that one is from the same burst
-   * (turning with the mouse wheel, say), so one undo takes back the whole burst.
+   * (turning with the mouse wheel, say), so one undo takes back the whole burst. `held`: the
+   * burst is a drag still held down (the scatter brush), one step however long it pauses.
    */
-  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>, coalesce?: string): void {
+  changeWith(ops: ItemOps, sceneId: string, steps: NonNullable<UndoEntry["steps"]>, coalesce?: string, held = false): void {
     if (isEmptyOps(ops)) return;
     const now = Date.now();
     const top = this.undoStack.at(-1);
-    if (coalesce !== undefined && top?.steps && canFold(top, coalesce, sceneId, now, !this.redoStack.length)) {
+    if (coalesce !== undefined && top?.steps && canFold(top, coalesce, sceneId, now, !this.redoStack.length, held)) {
       top.steps = composeBuildUndo(top.steps, steps);
       top.coalesce = { key: coalesce, at: now };
     } else {
@@ -1116,6 +1321,10 @@ export class RoomClient {
     if (set.mapAssetId !== undefined && set.mapAssetId !== current.mapAssetId && current.mapRect && !("mapRect" in set)) {
       set.mapRect = null;
     }
+    // And the link to Dungeon, which belongs to the picture Dungeon drew (the server drops it too).
+    if (set.mapAssetId !== undefined && set.mapAssetId !== current.mapAssetId && current.dungeon && !("dungeon" in set)) {
+      set.dungeon = null;
+    }
     // Only the settings this changes: undo puts those back and leaves the rest alone.
     // Covering or uncovering also records the map it was done on, so undoing it after
     // the map was swapped puts that map back rather than uncovering the new one.
@@ -1162,6 +1371,40 @@ export class RoomClient {
       const scene = this.state.scenes[u.id];
       if (scene) this.updateScene(u.id, { grid: { ...scene.grid, ...u[side] } });
     }
+  }
+
+  /**
+   * Cells of a scene's explore grid (`key`) the party (or with `who`, that character) has just
+   * seen, and with `lit` those of them seen in colour (the rest only by nightvision): kept here
+   * at once, so they aren't sent again, and sent to the Room, which tells everyone. A table
+   * display only looks.
+   */
+  explore(sceneId: string, key: string, cells: number[], who = "", lit?: number[]): void {
+    if (this.display || (!cells.length && !lit?.length)) return;
+    const total = keyCells(key);
+    const slot = exploreSlot(sceneId, who);
+    const had = this.state.explored[slot]?.key === key ? this.state.explored[slot] : null;
+    const next = addExplored(had, cells, lit, total);
+    if (!next.fresh.length && !next.freshLit.length) return;
+    this.store.set((s) => ({ explored: { ...s.explored, [slot]: { key, bits: next.bits, ...(next.lit ? { lit: next.lit } : {}) } } }));
+    const batches = Math.max(1, Math.ceil(Math.max(next.fresh.length, next.freshLit.length) / MAX_EXPLORE_BATCH));
+    for (let b = 0; b < batches; b++) {
+      const part = (cells: number[]) => cells.slice(b * MAX_EXPLORE_BATCH, (b + 1) * MAX_EXPLORE_BATCH);
+      this.submit({ t: "explore", sceneId, key, cells: part(next.fresh), ...(who ? { who } : {}), ...(lit ? { lit: part(next.freshLit) } : {}) });
+    }
+  }
+
+  /** The character this browser plays (its sheet id, picked in the Party list), or null. The GM plays nobody. */
+  get myCharacter(): string | null {
+    const me = this.state.me;
+    if (!me || me.role === "gm" || this.display) return null;
+    return this.state.party?.characters.find((c) => c.players?.some((p) => p.userId === me.userId))?.id ?? null;
+  }
+
+  /** GM: the party, and every character, forgets what it's explored of a scene. */
+  resetExplored(sceneId: string): void {
+    if (!this.isGm || !this.state.scenes[sceneId]) return;
+    this.submit({ t: "explore.reset", sceneId });
   }
 
   /**
@@ -1214,8 +1457,8 @@ export class RoomClient {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !this.isGm || !this.compassesFit(scene.id, 1)) return null;
-    const raw = this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
-    const pos = scene.grid.snap ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
+    const raw = this.board?.viewCenter() ?? sceneMiddle(scene);
+    const pos = this.tokenSnaps(scene) ? snapTokenCenter(raw, COMPASS_SIZE, scene.grid) : raw;
     const compass: TokenItem = {
       id: randomId(12),
       sceneId: scene.id,
@@ -1250,7 +1493,120 @@ export class RoomClient {
     return Math.min(n, free);
   }
 
-  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden">>, at?: Point): TokenItem | null {
+  /**
+   * The party from their character sheets (worker/characters.ts): read when the room opens and
+   * every minute after while the page is in view, for tokens' cards, HP bars and rolls. A reading
+   * that fails keeps the last one.
+   */
+  async refreshParty(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const res = await fetch(`/api/rooms/${this.roomId}/characters`, { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return;
+      const party = (await res.json()) as CharactersReply;
+      if (this.disposed || !Array.isArray(party?.characters)) return;
+      // The sheets couldn't be read and the Worker had no last reading to give: keep this page's.
+      const last = this.state.party;
+      if (party.error && !party.characters.length && last?.configured && last.characters.length) {
+        this.store.set({ party: { ...last, error: party.error } });
+        return;
+      }
+      this.store.set({ party });
+    } catch {
+      // Offline: the next reading tries again.
+    }
+  }
+
+  /** Reads the campaign's calendar again (on joining, when told it changed, and now and then). */
+  async refreshCalendar(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const res = await fetch(`/api/rooms/${this.roomId}/calendar`, { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return;
+      const got = (await res.json()) as { calendar: Calendar | null; version: number };
+      if (this.disposed || typeof got?.version !== "number") return;
+      this.takeCalendar(got.calendar ?? null, got.version);
+    } catch {
+      // Offline: the next reading tries again.
+    }
+  }
+
+  /** GM: the calendar as just changed here, and everyone told to read it again. */
+  calendarChanged(calendar: Calendar | null, version: number): void {
+    this.takeCalendar(calendar, version);
+    if (!this.display) this.submit({ t: "calendar.changed", version });
+  }
+
+  /**
+   * The calendar as just read or changed: kept, and acted on. A day moved to is announced with
+   * what's on it (the GM's eyes-only events only to the GM), and on the GM's page scenes with a
+   * season follow the calendar's when it's set to.
+   */
+  private takeCalendar(calendar: Calendar | null, version: number): void {
+    const was = this.state.calendar;
+    this.store.set({ calendar, calendarVersion: version });
+    if (!calendar) return;
+    if (was && was.today !== calendar.today) {
+      if (this.display) this.store.set({ dayCardUntil: Date.now() + DAY_CARD_MS });
+      else {
+        const names = eventsOn(calendar, calendar.today, this.isGm).map((e) => e.name);
+        if (names.length) this.toast(`Today: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""}.`);
+      }
+    }
+    if (this.isGm && calendar.seasonsFollow) this.followSeasons(calendar);
+    if (this.isGm) this.followDayNight(calendar);
+  }
+
+  /** GM: every scene whose lighting follows the calendar's time of day turns to day or night with it. */
+  private followDayNight(calendar: Calendar): void {
+    const night = isNight(calendar);
+    for (const scene of Object.values(this.state.scenes)) {
+      const v = scene.vision;
+      if (!v?.on || !v.followsDay) continue;
+      if (v.daylight === !night && !!v.night === night) continue;
+      this.updateScene(scene.id, { vision: { ...v, daylight: !night, ...(night ? { night: true } : { night: undefined }) } });
+    }
+  }
+
+  /** GM: every scene with a season, not pinned, takes the calendar's season for the day. */
+  private followSeasons(calendar: Calendar): void {
+    const look = seasonLookOf(calendar, calendar.today);
+    if (!look) return;
+    for (const scene of Object.values(this.state.scenes)) {
+      const season = scene.season;
+      if (!season || season.pinned) continue;
+      // In winter the snow lies as deep as it's fallen these last days, where the scene is.
+      const level = look === "winter" ? snowDepth(calendar, calendar.today, scene.region === INDOORS ? undefined : scene.region) : season.level;
+      if (season.look === look && season.level === level) continue;
+      this.changeScene(scene.id, { season: { ...season, look, level } }, {});
+    }
+  }
+
+  private partyTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startParty(): void {
+    if (this.partyTimer || typeof window === "undefined") return;
+    void this.refreshParty();
+    void this.refreshCalendar();
+    let ticks = 0;
+    this.partyTimer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void this.refreshParty();
+      if (++ticks % 5 === 0) void this.refreshCalendar();
+    }, PARTY_MS);
+  }
+
+  /** The character a token stands for, as their sheet was last read; null for any other token. */
+  characterOf(t: Pick<TokenItem, "character">): Character | null {
+    const id = t.character;
+    return id ? (this.state.party?.characters.find((c) => c.id === id) ?? null) : null;
+  }
+
+  /**
+   * A new token, centred on `at` (snapped to the grid when the scene and this device snap,
+   * unless `free`: Alt held as it's dropped) or near the middle of the view, clear of other tokens.
+   */
+  addToken(opts: Partial<Pick<TokenItem, "assetId" | "color" | "label" | "size" | "hidden" | "character">>, at?: Point, free = false): TokenItem | null {
     const s = this.state;
     const scene = this.viewScene;
     if (!scene || !s.me || !s.room) return null;
@@ -1259,8 +1615,8 @@ export class RoomClient {
       return null;
     }
     const size = opts.size ?? 1;
-    const raw = at ?? this.board?.viewCenter() ?? { x: scene.width / 2, y: scene.height / 2 };
-    let pos = scene.grid.snap ? snapTokenCenter(raw, size, scene.grid) : raw;
+    const raw = at ?? this.board?.viewCenter() ?? sceneMiddle(scene);
+    let pos = this.tokenSnaps(scene) && !(at && free) ? snapTokenCenter(raw, size, scene.grid) : raw;
     if (!at) pos = this.freeSpotNear(scene, pos, size);
     const token: TokenItem = {
       id: randomId(12),
@@ -1275,6 +1631,7 @@ export class RoomClient {
       assetId: opts.assetId ?? null,
       color: opts.color ?? s.me.color,
       label: opts.label ?? "",
+      ...(opts.character ? { character: opts.character } : {}),
       // Only the GM hides things from players.
       hidden: this.isGm && Boolean(opts.hidden),
       locked: false,
@@ -1282,6 +1639,7 @@ export class RoomClient {
     };
     this.change({ upsert: [token] });
     this.store.set({ selection: [token.id], tool: "select" });
+    creaturesJoin(this, [token]);
     return token;
   }
 
@@ -1305,6 +1663,7 @@ export class RoomClient {
           ? Math.hypot(t.x - q.x, t.y - q.y) >= apart(t)
           : Math.max(Math.abs(t.x - q.x), Math.abs(t.y - q.y)) >= apart(t),
       );
+    const area = sceneBounds(scene);
     for (let ring = 0; ring <= 8; ring++) {
       const candidates: [number, number][] = [];
       for (let dy = -ring; dy <= ring; dy++) {
@@ -1317,8 +1676,8 @@ export class RoomClient {
       candidates.sort((a, b) => Math.hypot(...a) - Math.hypot(...b) || angle(a) - angle(b));
       for (const [dx, dy] of candidates) {
         const raw = { x: p.x + dx * step.x, y: p.y + dy * step.y };
-        const q = hex ? snapTokenCenter(raw, 1, scene.grid) : raw;
-        if (q.x < 0 || q.y < 0 || q.x > scene.width || q.y > scene.height) continue;
+        const q = hex && this.tokenSnaps(scene) ? snapTokenCenter(raw, 1, scene.grid) : raw;
+        if (q.x < area.x0 || q.y < area.y0 || q.x > area.x1 || q.y > area.y1) continue;
         if (free(q)) return q;
       }
     }
@@ -1371,6 +1730,45 @@ export class RoomClient {
       // Not remembered, but still applies until the page reloads.
     }
     this.store.set({ wheelTurns: v });
+  }
+
+  /** Whether objects placed and moved in the Build tool go on whole squares. */
+  setObjectSnap(on: boolean): void {
+    if (this.display) return;
+    try {
+      if (on) localStorage.removeItem(OBJECT_SNAP_KEY);
+      else localStorage.setItem(OBJECT_SNAP_KEY, "0");
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ objectSnap: on });
+  }
+
+  /** Whether tokens this device puts down or lets go of snap to the grid, where the scene snaps. */
+  setTokenSnap(on: boolean): void {
+    if (this.display) return;
+    try {
+      if (on) localStorage.removeItem(TOKEN_SNAP_KEY);
+      else localStorage.setItem(TOKEN_SNAP_KEY, "0");
+    } catch {
+      // Not remembered, but still applies until the page reloads.
+    }
+    this.store.set({ tokenSnap: on });
+  }
+
+  /** Whether objects placed and moved in the Build tool go on whole squares: this browser's choice, unless the room never snaps. */
+  objectSnaps(): boolean {
+    return this.state.objectSnap && !this.state.room?.settings.freePlacement;
+  }
+
+  /** Whether a scene snaps tokens, rulers and spell areas to its grid: its own box, unless the room never snaps. */
+  snaps(scene: Pick<Scene, "grid">): boolean {
+    return sceneSnaps(scene, this.state.room?.settings);
+  }
+
+  /** Whether a token this device puts down or lets go of on a scene snaps to its grid (Alt aside). */
+  tokenSnaps(scene: Pick<Scene, "grid">): boolean {
+    return this.snaps(scene) && this.state.tokenSnap;
   }
 
   /**
@@ -1440,7 +1838,8 @@ export class RoomClient {
     else this.submit({ t: "chat", text: t });
   }
 
-  roll(expr: string, opts: { private?: boolean; label?: string } = {}): void {
+  /** initiative: the token whose initiative it is, so its total goes into the initiative list. */
+  roll(expr: string, opts: { private?: boolean; label?: string; initiative?: { tokenId: string } } = {}): void {
     this.submit({ t: "roll", expr, ...opts });
   }
 
@@ -1486,12 +1885,54 @@ export class RoomClient {
     this.submit({ t: "asset.delete", id });
   }
 
+  /**
+   * Undo and redo steps that set these scenes' pictures (covering a scene in fog keeps the picture it
+   * was done on, say) forget them: Update from Dungeon gave the scenes new pictures and deleted the
+   * old, which undoing must not bring back. The rest of each step (the fog) still undoes.
+   */
+  forgetPictures(sceneIds: ReadonlySet<string>): void {
+    this.forgetPictureSteps((e) => e.sceneId !== null && sceneIds.has(e.sceneId));
+  }
+
+  /** The steps `picks` chooses forget their scene's picture settings; one left with nothing to do goes. */
+  private forgetPictureSteps(picks: (e: UndoEntry) => boolean): void {
+    const PICTURE = ["mapAssetId", "width", "height", "mapData", "mapRect", "dungeon", "bounds"] as const;
+    const strip = (p: ScenePatch): ScenePatch => {
+      const out = { ...p } as Record<string, unknown>;
+      for (const k of PICTURE) delete out[k];
+      return out as ScenePatch;
+    };
+    const none = (o: ItemOps) => !o.upsert?.length && !o.patch?.length && !o.delete?.length;
+    const mend = (list: UndoEntry[]) =>
+      list.flatMap((e) => {
+        if (!e.scene || !picks(e)) return [e];
+        const scene = { before: strip(e.scene.before), after: strip(e.scene.after) };
+        const kept = Object.keys(scene.before).length > 1 || Object.keys(scene.after).length > 1;
+        const next = { ...e, scene: kept ? scene : undefined };
+        return !kept && !e.steps && !e.units && none(e.redo) && none(e.undo) ? [] : [next];
+      });
+    this.undoStack = mend(this.undoStack);
+    this.redoStack = mend(this.redoStack);
+    this.refreshUndoFlags();
+  }
+
+  /** GM: sends everyone in this room to another of the GM's rooms; voice chat carries on. */
+  sendEveryoneTo(roomId: string): void {
+    // Not kept for the next connection: moving everyone minutes later would surprise them.
+    if (!this.ready) {
+      this.toast("Tabletop isn't connected right now. Try again in a moment.", "error");
+      return;
+    }
+    this.submit({ t: "room.goto", to: roomId });
+  }
+
   setProfile(name: string, color: string): void {
     this.profile = { ...this.profile, name, color };
     saveProfile(this.profile);
     const me = this.state.me;
     if (me) this.store.set({ me: { ...me, name, color } });
     this.submit({ t: "profile", name, color });
+    voiceLink.setProfile(name, color);
   }
 
   get profileInfo(): Profile {
@@ -1529,14 +1970,17 @@ export class RoomClient {
     return out;
   }
 
-  /** Uploads token images and places them in a row starting at `at`. */
-  async uploadTokens(files: File[], at?: Point): Promise<void> {
+  /**
+   * Uploads token images and places them in a row starting at `at` (snapped as the scene and
+   * this device snap, unless `free`: Alt held as they were dropped).
+   */
+  async uploadTokens(files: File[], at?: Point, free = false): Promise<void> {
     const scene = this.viewScene;
     const assets = await this.upload(files, "token");
     let x = at?.x;
     for (const asset of assets) {
       const p = x !== undefined && at ? { x, y: at.y } : undefined;
-      this.addToken({ assetId: asset.id, label: "" }, p);
+      this.addToken({ assetId: asset.id, label: "" }, p, free);
       if (x !== undefined && scene) x += scene.grid.size;
     }
   }

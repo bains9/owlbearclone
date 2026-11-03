@@ -2,6 +2,8 @@
 
 import type { TemplateShape } from "./geometry";
 import type { InitOp } from "./initiative";
+import type { Problem } from "./problems";
+import type { FxLook } from "./spellfx";
 import type {
   Asset,
   ChatMessage,
@@ -12,6 +14,7 @@ import type {
   RoomInfo,
   RoomSettings,
   Scene,
+  SceneDungeon,
   SceneMapData,
   SceneSeason,
 } from "./types";
@@ -19,8 +22,12 @@ import type {
 /**
  * The protocol version this build's browser code speaks (sent as v=). 3: objects turned to
  * any 5 degrees and sized in quarter squares. 4: compass roses (tokens with art "compass").
+ * 5: Dungeon's objects and textures in built maps (stamps "d:<id>"; a chunk's tex and pal).
+ * 6: objects off the grid (a stamp's column and row in sixteenths of a square), and up to 256
+ * objects in a chunk. 7: spells on tokens, and conjured things (zones.ts lookVersion). 8: the
+ * rest of the spell looks (lookVersion, and spellfx.ts fxVersion for effects played once).
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 8;
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
 export type MeasureShape = "ruler" | TemplateShape;
@@ -33,6 +40,12 @@ export type Ephemeral =
   | { k: "ruler"; sceneId: string; points: number[] | null; label?: string; shape?: MeasureShape }
   /** The pointer: a point on its trail, or with ping, a click that marks a spot for a few seconds. */
   | { k: "pointer"; sceneId: string; x: number; y: number; ping?: boolean }
+  /**
+   * A spell effect played once (the Spells tool), in map pixels: from a (the caster, or a burst's
+   * middle) to b (the target, or where a cone points); r is a burst's radius or a cone's length,
+   * spread a cone's width in degrees, and seed makes everyone see the same sparks.
+   */
+  | { k: "fx"; sceneId: string; look: FxLook; a: [number, number]; b: [number, number]; r: number; spread?: number; color?: string; seed: number }
   /**
    * GM only, to table displays: the part of the live scene the GM is looking at, as
    * [x, y, width, height] in map pixels, or null to show the whole scene.
@@ -49,11 +62,20 @@ export interface ItemOps {
  * Some of a scene's settings: the ones left out stay as they are (a season of null turns it off;
  * a mapData or mapRect of null removes it).
  */
-export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect">> & {
+export type ScenePatch = Partial<Omit<Scene, "season" | "mapData" | "mapRect" | "wallTexture" | "bounds" | "dungeon" | "region" | "weather">> & {
+  /** null: Automatic again. */
+  weather?: "on" | "off" | null;
   id: string;
+  /** null: the party's region again. */
+  region?: string | null;
+  /** null: no longer linked to Dungeon. */
+  dungeon?: SceneDungeon | null;
   season?: SceneSeason | null;
   mapData?: SceneMapData | null;
   mapRect?: [number, number, number, number] | null;
+  wallTexture?: string | null;
+  /** null: back to the picture's own rectangle. */
+  bounds?: [number, number, number, number] | null;
 };
 
 /** Everything a browser can ask the server to change. */
@@ -67,10 +89,26 @@ export type ClientAction =
   | { t: "asset.rename"; id: string; name: string }
   | { t: "asset.delete"; id: string }
   | { t: "room.update"; name?: string; settings?: Partial<RoomSettings> }
+  /** GM only: sends everyone in this room to another of the GM's rooms (voice chat carries on). */
+  | { t: "room.goto"; to: string }
   | { t: "initiative.op"; op: InitOp }
   | { t: "chat"; text: string }
-  | { t: "roll"; expr: string; private?: boolean; label?: string }
-  | { t: "profile"; name: string; color: string };
+  /** initiative: the token whose initiative this is; its total goes into the initiative list (in, or its number changed). */
+  | { t: "roll"; expr: string; private?: boolean; label?: string; initiative?: { tokenId: string } }
+  | { t: "profile"; name: string; color: string }
+  /**
+   * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
+   * with `who` (a sheet id), what that character has just seen, with per-player sight. With
+   * `lit`, the cells just seen in colour (shared/explore.ts addExplored): the rest of `cells` were
+   * seen only by nightvision.
+   */
+  | { t: "explore"; sceneId: string; key: string; cells: number[]; who?: string; lit?: number[] }
+  /** GM only: the party forgets what it's explored of a scene. */
+  | { t: "explore.reset"; sceneId: string }
+  /** GM only: the list of problems on devices (shared/problems.ts) is cleared. */
+  | { t: "problems.clear" }
+  /** The campaign's calendar changed (shared/calendar.ts): everyone reads it again. */
+  | { t: "calendar.changed"; version: number };
 
 /**
  * Every change carries a seq that counts up within one browser tab (the `sid` the
@@ -78,7 +116,11 @@ export type ClientAction =
  * after a reconnect the tab resends only what the server never got, and a change
  * that arrives twice (once late on the old connection, once resent) applies once.
  */
-export type ClientMsg = (ClientAction & { seq: number }) | { t: "eph"; e: Ephemeral };
+export type ClientMsg =
+  | (ClientAction & { seq: number })
+  | { t: "eph"; e: Ephemeral }
+  /** Something this tab couldn't show, for the GM (shared/problems.ts): a table display's too. */
+  | { t: "problem"; where: string; message: string; device: string };
 
 export type ServerMsg =
   | {
@@ -96,7 +138,18 @@ export type ServerMsg =
       lastSeq: number;
       /** The build of Tabletop the server is running. */
       build?: string;
+      /**
+       * What the party and its characters have explored of the scenes sent (shared/explore.ts), by
+       * exploreSlot: the grid's key and its bits as text, and those seen in colour (`lit`) when kept.
+       */
+      explored?: Record<string, { key: string; bits: string; lit?: string }>;
     }
+  /**
+   * Cells the party (or with `who`, that character) has just explored of a scene (each sent once),
+   * and with `lit`, those just seen in colour; with bits (and litBits), all it's explored of it (to
+   * players, when it becomes the live scene); with reset, every explored map of the scene is forgotten.
+   */
+  | { t: "explore"; sceneId: string; key: string; who?: string; cells?: number[]; lit?: number[]; bits?: string; litBits?: string; reset?: boolean }
   /**
    * Item changes, and the scene change made with them, if any. `by` is the connId
    * that caused them. `seq` is present only on the copy sent back to that
@@ -116,11 +169,17 @@ export type ServerMsg =
   | { t: "chat"; message: ChatMessage }
   | { t: "players"; players: Player[] }
   | { t: "eph"; from: string; e: Ephemeral }
+  /** The GM sent everyone to another room: the tab goes there (its voice chat carries on). */
+  | { t: "goto"; room: { id: string; name: string } }
   /** The change with this seq (and every one before it) has been handled. */
   | { t: "ack"; seq: number }
   | { t: "error"; message: string }
   /** The tab is running an older build than the server: it should reload. */
   | { t: "outdated" }
+  /** To the GM: what failed on people's devices, newest first (on joining, and as it changes). */
+  | { t: "problems"; problems: Problem[] }
+  /** The campaign's calendar changed: read it again (its version, to skip one already read). */
+  | { t: "calendar"; version: number }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

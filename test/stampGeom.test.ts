@@ -297,12 +297,18 @@ describe("the clipboard", () => {
       wrap([["chair", 0, 0, 0, 3.25]]),
       wrap([["chair", 0, 0, 0, "1"]]),
       wrap([["chair", -1, 0, 0, 1]]),
-      wrap([["chair", 0, 1.5, 0, 1]]),
+      // Off the grid, to a sixteenth of a square and no finer.
+      wrap([["chair", 0, 1.03, 0, 1]]),
       wrap([["chair", 0, 0, 0]]),
       wrap(["chair"]),
       wrap({ 0: ["chair", 0, 0, 0, 1] }),
     ];
     for (const t of bad) expect(decodeObjects(t), t.slice(0, 80)).toBeNull();
     expect(decodeObjects(wrap(Array.from({ length: CLIPBOARD_MAX }, () => ["chair", 0, 0, 0, 1])))).toHaveLength(CLIPBOARD_MAX);
+    expect(decodeObjects(wrap([["chair", 0.0625, 1.5, 0, 1]]))).toEqual([{ id: "chair", col: 0, row: 0, deg: 0, size: 1 }]);
+    expect(decodeObjects(wrap([["chair", 0.5, 0, 0, 1], ["barrel", 0, 1.25, 0, 1]]))).toEqual([
+      { id: "chair", col: 0.5, row: 0, deg: 0, size: 1 },
+      { id: "barrel", col: 0, row: 1.25, deg: 0, size: 1 },
+    ]);
   });
 });

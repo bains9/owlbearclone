@@ -6,8 +6,8 @@
 //                                                   standing in for Google on port 5239)
 //
 // It signs in as the GM, creates a throwaway room, connects a GM and two players
-// over WebSockets, exercises permissions, hidden tokens, dice, uploads and scene
-// switching, then deletes the room again.
+// over WebSockets, exercises permissions, hidden tokens, dice, uploads, scene
+// switching and voice chat's signalling, then deletes the room again.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -40,7 +40,11 @@ const rid = () => Math.random().toString(36).slice(2, 12);
  */
 function connect(roomId, { cookie, uid, name, sid, display, v, b }) {
   const url = `${WS_BASE}/api/rooms/${roomId}/ws?uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde${sid ? `&sid=${sid}` : ""}${display !== undefined ? `&display=${encodeURIComponent(display)}` : ""}${v ? `&v=${v}` : ""}${b ? `&b=${b}` : ""}`;
-  const ws = new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined);
+  return wrap(new WebSocket(url, cookie ? { headers: { Cookie: cookie } } : undefined));
+}
+
+/** A pretend tab: keeps what it is sent, with helpers to send and wait. */
+function wrap(ws) {
   const c = { ws, msgs: [], closeCode: null, seq: 0 };
   ws.onmessage = (e) => {
     if (e.data === "pong") return;
@@ -64,6 +68,13 @@ function connect(roomId, { cookie, uid, name, sid, display, v, b }) {
     c.msgs.length = 0;
   };
   return c;
+}
+
+/** A pretend tab on the table's voice chat, let in with a room id. */
+function voiceConnect(roomId, { cookie, uid, name, headers }) {
+  const url = `${WS_BASE}/api/voice/ws?room=${roomId}&uid=${uid}&name=${encodeURIComponent(name)}&color=%234f9dde&sid=${rid()}0000`;
+  const all = { ...(headers ?? {}), ...(cookie ? { Cookie: cookie } : {}) };
+  return wrap(new WebSocket(url, Object.keys(all).length ? { headers: all } : undefined));
 }
 
 const TINY_PNG = Buffer.from(
@@ -199,6 +210,143 @@ async function googleChecks() {
   }
 }
 
+/**
+ * A missing built file is a 404 that isn't stored, never the page (index.html) cached for a year
+ * as immutable: a tab from before a deploy asking for one of its old chunks gets a clean failure,
+ * and a rollback that brings the file back isn't stuck behind cached HTML. Room links and the
+ * guide still get the page, and the server says which build it runs, so such a tab can tell it
+ * was updated.
+ */
+async function staticChecks() {
+  let r = await fetch(`${BASE}/assets/smoke-missing-${rid()}.js`);
+  const missingType = r.headers.get("content-type") ?? "";
+  const missingCache = r.headers.get("cache-control") ?? "";
+  await r.text();
+  check(
+    r.status === 404 && !missingType.includes("text/html") && !/immutable|max-age=[1-9]/.test(missingCache),
+    `a missing /assets/ file is a 404 that isn't cached (got ${r.status}, ${missingType}, "${missingCache}")`,
+  );
+  for (const path of [`/r/${"a".repeat(12)}`, "/guide"]) {
+    r = await fetch(`${BASE}${path}`);
+    const type = r.headers.get("content-type") ?? "";
+    const page = await r.text();
+    check(r.ok && type.includes("text/html") && page.includes('id="app"'), `${path} still gets the page`);
+  }
+  // A page whose files have gone asks which Tabletop the server runs (src/client/updated.ts).
+  r = await fetch(`${BASE}/api/build`);
+  const build = r.ok ? (await r.json()).build : null;
+  check(typeof build === "string" && build.length > 0 && r.headers.get("cache-control") === "no-store", "the server says which build it runs, uncached");
+  // The page's own bundle (built files only: the dev server serves the source instead).
+  const page = await (await fetch(`${BASE}/`)).text();
+  const bundle = /src="(\/assets\/[^"]+\.js)"/.exec(page)?.[1];
+  if (!bundle) {
+    console.log("  skip  the page's bundle: this server doesn't serve built files");
+    return;
+  }
+  r = await fetch(`${BASE}${bundle}`);
+  const type = r.headers.get("content-type") ?? "";
+  await r.text();
+  check(r.ok && type.includes("javascript") && /immutable/.test(r.headers.get("cache-control") ?? ""), "the page's bundle is served and cached as immutable");
+}
+
+/**
+ * What the party, and with per-player sight each character, has explored (shared/explore.ts), and
+ * who plays whom: in a room of its own, deleted again at the end.
+ */
+async function exploreChecks(cookie) {
+  let r = await fetch(`${BASE}/api/rooms`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ name: "Smoke explore room" }) });
+  const room = await r.json();
+  const aliceUid = "alice" + rid();
+  const gm = connect(room.id, { cookie, uid: "gmuser" + rid(), name: "The GM" });
+  const alice = connect(room.id, { uid: aliceUid, name: "Alice" });
+  const hello = await gm.waitFor((m) => m.t === "hello");
+  await alice.waitFor((m) => m.t === "hello");
+  const scene = hello.scenes[0];
+  // The scene's explore grid, as exploreGrid makes it: half squares over the scene.
+  const cell = scene.grid.size / 2;
+  const key = `${Math.ceil(scene.width / cell)}x${Math.ceil(scene.height / cell)}@0,0/${Math.round(cell * 100) / 100}`;
+  const A = "1SmokeSheetAAAAAAAAAAAAAAAAAAAAAA", B = "1SmokeSheetBBBBBBBBBBBBBBBBBBBBBB", NOBODY = "1SmokeSheetCCCCCCCCCCCCCCCCCCCCCC";
+  const vision = { on: true, daylight: true, partyLight: 4, sightRange: 12, walls: [], doors: [], lights: [] };
+  gm.send({ t: "scene.upsert", seq: ++gm.seq, scene: { id: scene.id, vision } });
+  const base = { sceneId: scene.id, kind: "token", z: 0, size: 1, rotation: 0, assetId: null, color: "#e4572e", label: "", hidden: false, locked: false, rings: [] };
+  gm.items({ upsert: [{ ...base, id: "pcA" + rid(), x: 35, y: 35, character: A }, { ...base, id: "pcB" + rid(), x: 105, y: 35, character: B }, { ...base, id: "orc" + rid(), x: 175, y: 35 }] });
+  await alice.waitFor((m) => m.t === "items" && m.upsert?.length === 3);
+
+  // The party seeing together: what it explores is the party's, and every character's on the scene.
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [1, 2, 3] });
+  await gm.waitFor((m) => m.t === "explore" && m.who === B);
+  await sleep(150);
+  const got = (who) => gm.msgs.filter((m) => m.t === "explore" && (m.who ?? "") === who).flatMap((m) => m.cells ?? []);
+  check(got("").join() === "1,2,3" && got(A).join() === "1,2,3" && got(B).join() === "1,2,3", "the party's exploring is kept for the party and every character on the scene");
+
+  // Per-player sight: a character's exploring is theirs and the party's, and no one else's.
+  gm.send({ t: "scene.upsert", seq: ++gm.seq, scene: { id: scene.id, vision: { ...vision, perPlayer: true } } });
+  await alice.waitFor((m) => m.t === "scene" && m.scene?.vision?.perPlayer === true);
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [4, 5], who: A });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [6], who: NOBODY });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [7], who: "../../x" });
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [8] });
+  await gm.waitFor((m) => m.t === "explore" && m.cells?.includes(8));
+  await sleep(150);
+  check(got(A).join() === "4,5" && got("").join() === "4,5,8" && got(B).join() === "", "with per-player sight, a character's exploring is theirs and the party's only");
+  check(!gm.msgs.some((m) => m.t === "explore" && (m.cells?.includes(6) || m.cells?.includes(7))), "a character not on the scene, or not a sheet, keeps no map");
+
+  // At night: which explored cells were seen in colour (the rest only by nightvision, shown grey).
+  gm.clear();
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [20, 21], lit: [21] });
+  const litMsg = await gm.waitFor((m) => m.t === "explore" && m.cells?.includes(20));
+  check(litMsg?.lit?.join() === "21", "what was seen in colour comes with what was explored");
+  alice.send({ t: "explore", seq: ++alice.seq, sceneId: scene.id, key, cells: [], lit: [20] });
+  const nowLit = await gm.waitFor((m) => m.t === "explore" && m.lit?.includes(20));
+  check(Boolean(nowLit) && nowLit.cells.length === 0, "a place seen only by nightvision is put in colour when a light reaches it");
+
+  // Kept: a tab joining later gets every map of the scene.
+  const late = connect(room.id, { uid: "late" + rid(), name: "Late" });
+  const lateHello = await late.waitFor((m) => m.t === "hello");
+  check(
+    Object.keys(lateHello?.explored ?? {}).sort().join() === [scene.id, `${scene.id}/${A}`, `${scene.id}/${B}`].sort().join(),
+    "hello brings the party's map and each character's",
+  );
+  check(typeof lateHello?.explored?.[scene.id]?.lit === "string" && lateHello.explored[`${scene.id}/${B}`].lit === undefined, "and which places were seen in colour, where it's kept");
+  late.ws.close();
+
+  // Only the GM forgets, and then every map of the scene goes.
+  alice.clear();
+  alice.send({ t: "explore.reset", seq: ++alice.seq, sceneId: scene.id });
+  await sleep(300);
+  check(!alice.msgs.some((m) => m.t === "explore" && m.reset), "a player can't forget what's explored");
+  gm.send({ t: "explore.reset", seq: ++gm.seq, sceneId: scene.id });
+  check(Boolean(await alice.waitFor((m) => m.t === "explore" && m.reset)), "the GM's forgetting reaches everyone");
+  const after = connect(room.id, { uid: "after" + rid(), name: "After" });
+  const afterHello = await after.waitFor((m) => m.t === "hello");
+  check(afterHello && Object.keys(afterHello.explored ?? {}).length === 0, "and every map of the scene is gone");
+  after.ws.close();
+
+  // Who plays whom: a player picks for their own browser, with the room's id as the pass.
+  const pick = (body, headers = {}, roomId = room.id) =>
+    fetch(`${BASE}/api/characters/${A}/player?room=${roomId}`, { method: "PUT", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+  r = await pick({ playing: true, name: "Alice" }, { "X-Tabletop-User": aliceUid });
+  check(r.ok, "a player says they play a character");
+  r = await pick({ playing: true, name: "Alice" }, { "X-Tabletop-User": aliceUid }, "Nope00000000");
+  check(r.status === 404, "only with the id of a room that exists");
+  r = await pick({ playing: true, name: "Alice" });
+  check(r.status === 400, "and only for a browser that says which it is");
+  r = await pick({ playing: false, userId: null }, { Cookie: cookie });
+  check(r.ok, "the GM can say nobody plays them");
+
+  r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });
+  check(r.ok, "the explore room is deleted again");
+  for (const c of [gm, alice]) {
+    try {
+      c.ws.close();
+    } catch {
+      // already closed
+    }
+  }
+}
+
 async function main() {
   console.log(`Smoke test against ${BASE}`);
   if (process.env.GOOGLE === "1") {
@@ -211,6 +359,8 @@ async function main() {
 
   r = await fetch(`${BASE}/api/rooms`);
   check(r.status === 401, "room list needs the GM");
+
+  await staticChecks();
 
   r = await fetch(`${BASE}/api/login`, { method: "POST", body: JSON.stringify({ password: "wrong" }) });
   check(r.status === 401, "wrong password is refused");
@@ -238,6 +388,16 @@ async function main() {
     if ((await r.json()).gm) anyAccepted = true;
   }
   check(!anyAccepted, "no other spelling of the signature is accepted");
+
+  // Dungeon's sign-in hop (src/worker/dungeon.ts): a code for the GM, the sign-in page for anyone else.
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2Fguide`, { redirect: "manual" });
+  check(r.status === 303 && r.headers.get("location") === "/?then=dungeon&to=%2Fguide", "Dungeon's hop sends a stranger to sign in");
+  r = await fetch(`${BASE}/api/dungeon/hop?to=%2F%2Fevil.example`, { headers: { Cookie: cookie }, redirect: "manual" });
+  const hopTo = new URL(r.headers.get("location") ?? "", "http://x.invalid");
+  check(
+    r.status === 303 && hopTo.pathname === "/auth/table" && /^h1\.\d+\.\w{16}\.p\.[\w-]+$/.test(hopTo.searchParams.get("code") ?? "") && !hopTo.searchParams.has("to"),
+    "Dungeon's hop gives the GM a code, and only goes back to a path on Dungeon",
+  );
 
   r = await fetch(`${BASE}/api/rooms`, {
     method: "POST",
@@ -399,6 +559,48 @@ async function main() {
     drag?.e.moves[0].id === visible.id && !alice.msgs.some((m) => m.t === "eph" && m.e.moves?.some((mv) => mv.id === hidden.id)),
     "live drags of hidden tokens don't reach players",
   );
+
+  // A spell effect (the Spells tool): a player's reaches everyone, tidied; one the Room doesn't know doesn't.
+  gm.clear();
+  bob.clear();
+  alice.send({ t: "eph", e: { k: "fx", sceneId, look: "nope", a: [0, 0], b: [1, 1], r: 0, seed: 1 } });
+  alice.send({ t: "eph", e: { k: "fx", sceneId, look: "orb", a: [10.123, 20], b: [300, 200], r: 0, color: "#ff5ad0", seed: 77, extra: "x" } });
+  const fx = await gm.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  const fxBob = await bob.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  check(
+    fx?.e.look === "orb" && fx.e.a[0] === 10.12 && fx.e.color === "#ff5ad0" && !("extra" in fx.e) && fxBob?.e.seed === 77 &&
+      gm.msgs.filter((m) => m.t === "eph" && m.e.k === "fx").length === 1,
+    "a spell effect reaches everyone, and one the Room doesn't know doesn't",
+  );
+  // A spell on a token (protocol 7): a tab on new code gets it; Alice, on code from before it, doesn't.
+  const gm7 = connect(room.id, { cookie, uid: "gm7" + rid(), name: "GM tab", v: 7, b: gmHello.build });
+  const vera = connect(room.id, { uid: "vera" + rid(), name: "Vera", v: 7, b: gmHello.build });
+  await gm7.waitFor((m) => m.t === "hello");
+  await vera.waitFor((m) => m.t === "hello");
+  alice.clear();
+  const onFighter = { id: "fx" + rid(), sceneId, kind: "drawing", z: 1, shape: "ellipse", points: [0, 0, 70, 70], color: "#c77dff", width: 2, fill: false, fx: "outline", spell: "Faerie Fire", on: visible.id };
+  gm7.items({ upsert: [onFighter] });
+  const spellEcho = await gm7.waitFor((m) => m.t === "items" && m.seq === gm7.seq);
+  const spellGot = await vera.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === onFighter.id));
+  await sleep(300);
+  check(
+    spellEcho && !spellEcho.refused && spellGot?.upsert.find((i) => i.id === onFighter.id)?.on === visible.id && !alice.msgs.some((m) => JSON.stringify(m).includes(onFighter.id)),
+    "a spell on a token reaches a tab on new code, and not one from before it",
+  );
+  // The last looks (protocol 8): an effect a tab's code can't play isn't sent to it.
+  const nina = connect(room.id, { uid: "nina" + rid(), name: "Nina", v: 8, b: gmHello.build });
+  const omar = connect(room.id, { uid: "omar" + rid(), name: "Omar", v: 8, b: gmHello.build });
+  await nina.waitFor((m) => m.t === "hello");
+  await omar.waitFor((m) => m.t === "hello");
+  vera.clear();
+  nina.send({ t: "eph", e: { k: "fx", sceneId, look: "fire-burst", a: [100, 100], b: [100, 100], r: 70, seed: 5 } });
+  const burst = await omar.waitFor((m) => m.t === "eph" && m.e.k === "fx");
+  await sleep(300);
+  check(
+    burst?.e.look === "fire-burst" && !vera.msgs.some((m) => m.t === "eph" && m.e.k === "fx"),
+    "a Fireball reaches a tab on new code, and not one from before its look",
+  );
+  for (const t of [gm7, vera, nina, omar]) t.ws.close();
 
   alice.clear();
   bob.clear();
@@ -722,6 +924,21 @@ async function main() {
   tab2.send({ t: "items", seq: 15, scene: { id: scene2.id, mapAssetId: picture, mapData: null, mapRect: null } });
   const detached = await alice.waitFor((m) => m.t === "items" && m.scene?.id === scene2.id);
   check(Boolean(detached) && !("mapData" in detached.scene) && !("mapRect" in detached.scene), "null removes the Dungeondraft data, for players too");
+
+  // Extending the map: the scene's area grows past its picture (left and up below 0), players
+  // see it, the picture always stays inside, the reach is capped, and null goes back.
+  const { width: sw, height: sh } = detached.scene;
+  alice.clear();
+  tab2.send({ t: "scene.upsert", seq: 16, scene: { id: scene2.id, bounds: [-200, -100, sw + 300, sh + 50] } });
+  const extended = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 16);
+  check(extended?.scene.bounds?.join() === [-200, -100, sw + 300, sh + 50].join() && extended.scene.width === sw, "the GM extends a map past its picture, and players see the bigger area");
+  tab2.send({ t: "scene.upsert", seq: 17, scene: { id: scene2.id, bounds: [-1e9, 5, 1e9, 1e9] } });
+  const cappedArea = await tab2.waitFor((m) => m.t === "scene.upsert" && m.seq === 17);
+  check(cappedArea?.scene.bounds?.join() === [-40000, 0, sw + 40000, sh + 40000].join(), "an extension keeps the picture inside and reaches no further than the limit");
+  alice.clear();
+  tab2.send({ t: "scene.upsert", seq: 18, scene: { id: scene2.id, bounds: null } });
+  const unextended = await alice.waitFor((m) => m.t === "scene.upsert" && m.scene.id === scene2.id && m.seq === 18);
+  check(Boolean(unextended) && !("bounds" in unextended.scene), "Back to the picture's size: the scene's area is the picture again, for players too");
   tab2.ws.close();
 
   // Table displays: only the GM can get the link; a display sees what players see and changes nothing.
@@ -910,6 +1127,105 @@ async function main() {
     if (!answer?.refused?.includes(chunk.id) || JSON.stringify(corrected?.stamps) !== JSON.stringify(fine)) allRefused = false;
   }
   check(allRefused, "malformed objects are refused and corrected");
+  // Dungeon's objects ("d:<id>", protocol 5), in a chunk of their own: tabs on code from
+  // before them (Carol on 3, Fran on 4) aren't sent the chunk and are asked to reload; an id
+  // Dungeon doesn't have is refused.
+  const gm5 = connect(room.id, { cookie, uid: "gm5" + rid(), name: "GM tab", v: 5 });
+  const erin = connect(room.id, { uid: "erin" + rid(), name: "Erin", v: 5 });
+  // On this build (b) but protocol 4, so nothing has made her reload yet.
+  const fran = connect(room.id, { uid: "fran" + rid(), name: "Fran", v: 4, b: gmHello.build });
+  await gm5.waitFor((m) => m.t === "hello");
+  await erin.waitFor((m) => m.t === "hello");
+  await fran.waitFor((m) => m.t === "hello");
+  carol.clear();
+  fran.clear();
+  const dungeonChunk = { ...chunk, id: tid(2, 0, scene2.id), cx: 2, cells: noCells, edges: noEdges, stamps: [["d:oak-tree", 3, 3, 0, 3], ["d:dining-table", 8, 8, 1, 2.5, 15]] };
+  gm5.items({ upsert: [dungeonChunk] });
+  const dEcho = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  const dGot = await erin.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === dungeonChunk.id));
+  check(
+    dEcho && !dEcho.refused && JSON.stringify(dGot?.upsert.find((i) => i.id === dungeonChunk.id)?.stamps) === JSON.stringify(dungeonChunk.stamps),
+    "the GM places Dungeon's objects, and a player on new code gets them as placed",
+  );
+  await sleep(300);
+  const seenOld = (t) => t.msgs.some((m) => JSON.stringify(m).includes("d:oak-tree"));
+  const toldOld = (t) => t.msgs.some((m) => m.t === "error" && /Reload/.test(m.message));
+  // Carol was told to reload when she joined (the compass was already too new for her), and
+  // a tab is told once; Fran, on 4, had nothing withheld until now.
+  check(!seenOld(carol) && !seenOld(fran) && toldOld(fran), "tabs on code from before Dungeon's objects aren't sent them, and are asked to reload");
+  gm5.items({ patch: [{ id: dungeonChunk.id, set: { stamps: [["d:no-such-thing", 0, 0, 0, 1]] } }] });
+  const unknown = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(unknown?.refused?.includes(dungeonChunk.id), "an object Dungeon doesn't have is refused");
+  // Dungeon's textures: an index a cell into the chunk's palette, gated the same way.
+  const texChunk = { ...chunk, id: tid(3, 0, scene2.id), cx: 3, cells: "gs" + noCells.slice(2), edges: noEdges, stamps: [], tex: "01" + noCells.slice(2), pal: ["meadow", "flagstone"] };
+  gm5.items({ upsert: [texChunk] });
+  const tEcho = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  const tGot = await erin.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === texChunk.id));
+  check(
+    tEcho && !tEcho.refused && tGot?.upsert.find((i) => i.id === texChunk.id)?.pal?.join() === "meadow,flagstone",
+    "the GM paints with Dungeon's textures, and a player on new code gets them",
+  );
+  await sleep(300);
+  check(!fran.msgs.some((m) => JSON.stringify(m).includes(texChunk.id)), "a tab on code from before Dungeon's textures isn't sent them");
+  gm5.items({ patch: [{ id: texChunk.id, set: { tex: "02" + noCells.slice(2), pal: ["meadow", "flagstone"] } }] });
+  const badTex = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(badTex?.refused?.includes(texChunk.id), "textures that don't match their palette are refused");
+  // Objects off the grid (a column or row in sixteenths of a square), and more than 64 in a
+  // chunk, need protocol 6: a tab on 5 (Hal) isn't sent such a chunk, can't change it, and
+  // is asked to reload; a chunk of 64 on the grid still reaches him.
+  const gm6 = connect(room.id, { cookie, uid: "gm6" + rid(), name: "GM tab", v: 6 });
+  const gina = connect(room.id, { uid: "gina" + rid(), name: "Gina", v: 6 });
+  // On this build but protocol 5, so nothing has made him reload yet.
+  const hal = connect(room.id, { uid: "hal" + rid(), name: "Hal", v: 5, b: gmHello.build });
+  await gm6.waitFor((m) => m.t === "hello");
+  await gina.waitFor((m) => m.t === "hello");
+  await hal.waitFor((m) => m.t === "hello");
+  hal.clear();
+  const freeChunk = { ...chunk, id: tid(4, 0, scene2.id), cx: 4, cells: noCells, edges: noEdges, stamps: [["chair", 2.5, 3.0625, 0, 1], ["d:dining-table", 8, 8.25, 1, 2.5, 15]] };
+  gm6.items({ upsert: [freeChunk] });
+  const fEcho = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  const fGot = await gina.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === freeChunk.id));
+  check(
+    fEcho && !fEcho.refused && JSON.stringify(fGot?.upsert.find((i) => i.id === freeChunk.id)?.stamps) === JSON.stringify(freeChunk.stamps),
+    "the GM places objects off the grid, and a player on new code gets them where they were placed",
+  );
+  const rocks = (n) => Array.from({ length: n }, (_, i) => ["rock", i % 16, Math.floor(i / 16) % 16, 0, 0.5]);
+  const gridChunk = { ...chunk, id: tid(5, 0, scene2.id), cx: 5, cells: noCells, edges: noEdges, stamps: rocks(64) };
+  const denseChunk = { ...chunk, id: tid(6, 0, scene2.id), cx: 6, cells: noCells, edges: noEdges, stamps: rocks(256) };
+  gm6.items({ upsert: [gridChunk, denseChunk] });
+  const mEcho = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  const mGot = await gina.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === denseChunk.id));
+  const halGrid = await hal.waitFor((m) => m.t === "items" && m.upsert?.some((i) => i.id === gridChunk.id));
+  check(
+    mEcho && !mEcho.refused && mGot?.upsert.find((i) => i.id === denseChunk.id)?.stamps.length === 256 && Boolean(halGrid),
+    "a chunk holds 256 objects for tabs on new code, and one of 64 on the grid still reaches a tab on 5",
+  );
+  await sleep(300);
+  const seenFree = hal.msgs.some((m) => JSON.stringify(m).includes(freeChunk.id) || JSON.stringify(m).includes(denseChunk.id));
+  const toldHal = hal.msgs.some((m) => m.t === "error" && /Reload/.test(m.message));
+  check(!seenFree && toldHal, "a tab on code from before objects off the grid isn't sent them, and is asked to reload");
+  gm5.clear();
+  gm5.items({ patch: [{ id: freeChunk.id, set: { stamps: [["chair", 2, 3, 0, 1]] } }] });
+  const old5 = await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  check(old5?.refused?.includes(freeChunk.id), "a GM tab on 5 can't change a chunk with objects off the grid");
+  gm6.items({ patch: [{ id: freeChunk.id, set: { stamps: [["chair", 1.03, 0, 0, 1]] } }] });
+  const finer = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  gm6.items({ patch: [{ id: denseChunk.id, set: { stamps: rocks(257) } }] });
+  const over = await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  check(
+    finer?.refused?.includes(freeChunk.id) && over?.refused?.includes(denseChunk.id),
+    "a position finer than a sixteenth of a square, and a 257th object in a chunk, are refused",
+  );
+  gm6.items({ delete: [freeChunk.id, gridChunk.id, denseChunk.id] });
+  await gm6.waitFor((m) => m.t === "items" && m.seq === gm6.seq);
+  gm6.ws.close();
+  gina.ws.close();
+  hal.ws.close();
+  gm5.items({ delete: [dungeonChunk.id, texChunk.id] });
+  await gm5.waitFor((m) => m.t === "items" && m.seq === gm5.seq);
+  gm5.ws.close();
+  erin.ws.close();
+  fran.ws.close();
   // Chunk ids can be worked out: a player asking about one learns nothing either way.
   carol.clear();
   const built = tid(0, 0, sceneId);
@@ -1009,6 +1325,107 @@ async function main() {
     "a late joiner sees only the live scene and public chat",
   );
   alice2.ws.close();
+
+  // The table's voice chat is shared by every room: against the live site these checks would
+  // join the real voice chat (and fill it), so they run on a local server only.
+  const local = /localhost|127.0.0.1/.test(BASE);
+  if (!local) console.log("  skip  voice chat: the live table's voice chat is shared by every room");
+  else {
+  // voice chat (the table's, shared by every room): the server says who's in it and passes calls' signals between them
+  const vGm = voiceConnect(room.id, { cookie, uid: "vgm" + rid(), name: "Voice GM" });
+  const vAl = voiceConnect(room.id, { uid: "val" + rid(), name: "Voice Al" });
+  const vOut = voiceConnect(room.id, { uid: "vout" + rid(), name: "Not in voice" });
+  const [vGmHello, vAlHello, vOutHello] = await Promise.all([vGm, vAl, vOut].map((c) => c.waitFor((m) => m.t === "voice.hello")));
+  vGm.send({ t: "voice", on: true });
+  const ice = await vGm.waitFor((m) => m.t === "ice");
+  check(Array.isArray(ice?.servers) && ice.servers.some((s) => s.urls.some((u) => u.startsWith("stun:"))), "joining voice hands out the STUN (and TURN) servers");
+  check(ice?.servers.every((s) => s.urls.every((u) => !/:53(\?|$)/.test(u))) ?? false, "no server on port 53, which browsers block");
+  const outSees = await vOut.waitFor((m) => m.t === "voice" && m.peers.length === 1);
+  check(outSees?.peers[0].connId === vGmHello.you.connId && outSees.peers[0].muted === false, "everyone hears who's in voice, muted or not");
+  vAl.send({ t: "voice", on: true, muted: true });
+  const both = await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 2);
+  check(both?.peers.some((p) => p.connId === vAlHello.you.connId && p.muted), "a second person joins, muted");
+  vGm.clear();
+  vAl.clear();
+  const offer = { type: "offer", sdp: "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n", extra: "dropped" };
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { sdp: offer } });
+  const got = await vAl.waitFor((m) => m.t === "rtc");
+  check(got?.from === vGmHello.you.connId && got.d.sdp.type === "offer" && got.d.sdp.extra === undefined, "an offer reaches the other person in voice, cleaned");
+  vGm.send({ t: "rtc", to: vOutHello.you.connId, d: { sdp: offer } });
+  vOut.send({ t: "rtc", to: vGmHello.you.connId, d: { sdp: offer } });
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { sdp: { type: "rollback", sdp: "x" } } });
+  vGm.send({ t: "rtc", to: vAlHello.you.connId, d: { ice: { candidate: "candidate:1 1 udp 1 10.0.0.1 5000 typ host", sdpMid: "0", sdpMLineIndex: 0 } } });
+  const cand = await vAl.waitFor((m) => m.t === "rtc" && m.d.ice);
+  check(Boolean(cand) && vAl.msgs.filter((m) => m.t === "rtc").length === 2, "a route arrives too; nothing malformed does");
+  check(!(await vOut.waitFor((m) => m.t === "rtc", 300)) && !vGm.msgs.some((m) => m.t === "rtc"), "signals only pass between two people in voice");
+  vAl.send({ t: "voice", on: true, muted: false });
+  const unmuted = await vGm.waitFor((m) => m.t === "voice" && m.peers.every((p) => !p.muted));
+  check(Boolean(unmuted), "unmuting tells everyone");
+  vAl.ws.close();
+  const alGone = await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 1 && m.peers[0].connId === vGmHello.you.connId);
+  check(Boolean(alGone), "closing the page leaves voice chat");
+  const vLate = voiceConnect(room.id, { uid: "vlate" + rid(), name: "Late" });
+  await vLate.waitFor((m) => m.t === "voice.hello");
+  const lateSees = await vLate.waitFor((m) => m.t === "voice");
+  check(lateSees?.peers.length === 1, "someone joining the room hears who's in voice");
+  // Eight at a time: the ninth is told it's full.
+  const crowd = Array.from({ length: 8 }, (_, i) => voiceConnect(room.id, { uid: "vc" + i + rid(), name: "Crowd " + i }));
+  await Promise.all(crowd.map((c) => c.waitFor((m) => m.t === "voice.hello")));
+  for (const c of crowd.slice(0, 7)) c.send({ t: "voice", on: true });
+  await vGm.waitFor((m) => m.t === "voice" && m.peers.length === 8);
+  crowd[7].send({ t: "voice", on: true });
+  const full = await crowd[7].waitFor((m) => m.t === "voice.refused");
+  check(Boolean(full) && !crowd[7].msgs.some((m) => m.t === "ice"), "voice chat takes eight at a time");
+  vGm.clear();
+  vGm.send({ t: "voice", on: false });
+  const gmLeft = await vOut.waitFor((m) => m.t === "voice" && m.peers.length === 7 && !m.peers.some((p) => p.connId === vGmHello.you.connId));
+  check(Boolean(gmLeft), "leaving voice tells everyone");
+  for (const c of [vGm, vOut, vLate, ...crowd]) c.ws.close();
+  }
+
+  // sending everyone to another room: every tab there is told where, the GM only
+  r = await fetch(`${BASE}/api/rooms`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ name: "Smoke test room 2" }) });
+  const room2 = await r.json();
+  const gGm = connect(room.id, { cookie, uid: "ggm" + rid(), name: "Goto GM" });
+  const gPl = connect(room.id, { uid: "gpl" + rid(), name: "Goto player" });
+  await Promise.all([gGm, gPl].map((c) => c.waitFor((m) => m.t === "hello")));
+  gPl.send({ t: "room.goto", to: room2.id, seq: 1 });
+  check(Boolean(await gPl.waitFor((m) => m.t === "error" && /Only the GM/.test(m.message))), "only the GM can send everyone to another room");
+  gGm.send({ t: "room.goto", to: room2.id, seq: 1 });
+  const told = await gPl.waitFor((m) => m.t === "goto");
+  check(told?.room.id === room2.id && told.room.name === "Smoke test room 2", "the GM sends everyone to another room, by name");
+  const strange = voiceConnect("Nope00000000", { uid: "nope" + rid(), name: "Nope" });
+  await sleep(500);
+  check(!strange.msgs.some((m) => m.t === "voice.hello"), "voice chat needs the id of a room that exists");
+  for (const c of [gGm, gPl, strange]) c.ws.close();
+  let viaRoom2 = null;
+  let watcher = null;
+  if (local) {
+    const gmVoice = voiceConnect(room2.id, { cookie, uid: "gv" + rid(), name: "GM voice" });
+    const forged = voiceConnect(room2.id, { uid: "fv" + rid(), name: "Forged", headers: { "X-Tabletop-Role": "gm" } });
+    const [gmHi, forgedHi] = await Promise.all([gmVoice, forged].map((c) => c.waitFor((m) => m.t === "voice.hello")));
+    check(gmHi?.you.role === "gm" && forgedHi?.you.role === "player", "voice chat knows the GM by the cookie, not by a header the browser sends");
+    gmVoice.ws.close();
+    forged.ws.close();
+    viaRoom2 = voiceConnect(room2.id, { uid: "v2" + rid(), name: "Via room 2" });
+    watcher = voiceConnect(room.id, { uid: "vw" + rid(), name: "Watcher" });
+    await Promise.all([viaRoom2, watcher].map((c) => c.waitFor((m) => m.t === "voice.hello")));
+    viaRoom2.send({ t: "voice", on: true });
+    await watcher.waitFor((m) => m.t === "voice" && m.peers.some((p) => p.name === "Via room 2"));
+  }
+  r = await fetch(`${BASE}/api/rooms/${room2.id}`, { method: "DELETE", headers: { Cookie: cookie } });
+  check(r.ok, "the second room is deleted again");
+  if (local) {
+    const gone = await watcher.waitFor((m) => m.t === "voice" && !m.peers.some((p) => p.name === "Via room 2"));
+    await sleep(300);
+    check(Boolean(gone) && viaRoom2.closeCode === 4410, "deleting a room takes its people off voice chat and disconnects them");
+    const late2 = voiceConnect(room2.id, { uid: "l2" + rid(), name: "Late" });
+    await sleep(500);
+    check(!late2.msgs.some((m) => m.t === "voice.hello"), "a deleted room's link no longer gets into voice chat");
+    for (const c of [watcher, late2]) c.ws.close();
+  }
+
+  await exploreChecks(cookie);
 
   // deletion
   r = await fetch(`${BASE}/api/rooms/${room.id}`, { method: "DELETE", headers: { Cookie: cookie } });

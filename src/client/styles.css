@@ -485,6 +485,59 @@ button:disabled {
 .season-wrap {
   position: relative;
 }
+/* The top bar's More: what's used now and then (RoomPage.tsx MoreMenu). */
+.more-wrap {
+  position: relative;
+}
+.more-wrap > .icon-btn {
+  position: relative;
+}
+.more-pop {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.more-item:hover,
+.more-item:focus-visible {
+  background: var(--panel-2);
+}
+.more-item .small {
+  margin-left: auto;
+}
+/* A phone: the whole width, under the top bar (its button sits too far left to hang from). */
+@media (max-width: 760px) {
+  .more-pop {
+    position: fixed;
+    top: 50px;
+    left: 8px;
+    right: 8px;
+    min-width: 0;
+  }
+}
 .season-pop {
   position: absolute;
   top: 42px;
@@ -557,6 +610,10 @@ button:disabled {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   border: 2px solid var(--panel);
   margin-left: -6px;
+}
+/* The dots overlap each other, not the button before them. */
+.player-dot:first-child {
+  margin-left: 0;
 }
 .player-dot.gm {
   box-shadow: 0 0 0 2px var(--warn);
@@ -712,6 +769,421 @@ button:disabled {
   background: var(--panel-3);
 }
 
+/* The party at the top of Tokens & images (PartySection.tsx). */
+.party {
+  margin-bottom: 12px;
+}
+.party-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.party-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.party-place {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.party-place:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.party-preview {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  object-fit: contain;
+}
+.party-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.party-name {
+  font-weight: 600;
+}
+.party-text .small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-gm {
+  display: flex;
+  flex-direction: column;
+}
+/* The figure button: the list lies over it, unseen, so a click opens the browser's own picker. */
+.party-figure {
+  position: relative;
+}
+.party-figure select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.party-figure:focus-within {
+  outline: 2px solid var(--accent);
+}
+
+/* A character token's selection bar with their card over it (CharacterCard.tsx). The stack
+   stands where the bar would and the bar inside it is in the flow, so the bar's sideways
+   scrolling on narrow screens can't clip the card away. */
+/* Each edge of the map stacks what's there (RoomPage.tsx), so nothing lands on anything else.
+   Along the bottom in the middle: a phone's preview banner, then the bars (the selection's, a
+   light's, Build › Select's), measured as --bottom-h (their height and a gap; 0 without one).
+   Bottom left: the messages, over the Build tool's hints, both above those bars. Top right: the
+   level bar over who's speaking, the pair moved below a tool's bar when they'd meet it. Bottom
+   right: the zoom buttons, and on a bigger screen a character's card above them and the bars. */
+.bottom-bars {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(760px, calc(100% - 220px));
+  pointer-events: none;
+}
+.bottom-bars > * {
+  pointer-events: auto;
+}
+.bottom-bars > .selbar,
+.bottom-bars > .selbar-stack,
+.bottom-bars > .preview-banner {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  max-width: 100%;
+}
+.corner-bl {
+  position: absolute;
+  left: 66px;
+  right: 290px;
+  bottom: calc(12px + var(--bottom-h, 0px));
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+/* Beside a character's card, the messages stop short of it (it's 340 px wide, 10 px in). */
+.stage-area:has(> .card-dock) > .corner-bl {
+  right: 360px;
+}
+.corner-tr {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 120px);
+  pointer-events: none;
+}
+.corner-tr > .level-bar {
+  pointer-events: auto;
+}
+/* The frame-rate readout (?fps): top right, amber when the board runs slow. */
+.fps-meter {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fps-meter.slow {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.selbar-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 11;
+  max-width: min(760px, calc(100% - 220px));
+}
+.selbar-stack > .selbar {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  max-width: none;
+}
+.character-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 24px));
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: rgba(26, 29, 36, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+/* On a bigger screen the card keeps to the right, above the selection bar, clear of the middle of the map. */
+.card-dock {
+  position: absolute;
+  right: 10px;
+  bottom: max(64px, calc(12px + var(--bottom-h, 0px)));
+  z-index: 11;
+  width: min(340px, calc(100% - 24px));
+}
+.card-dock > .character-card {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-height: min(50vh, calc(100vh - var(--bottom-h, 0px) - 200px));
+}
+.character-head-actions {
+  display: flex;
+  gap: 2px;
+}
+.character-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.character-name {
+  font-weight: 700;
+}
+.character-hp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.character-hp-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.character-hp-bar > div {
+  height: 100%;
+}
+.character-hp-bar .ok {
+  background: #4caf50;
+}
+.character-hp-bar .low {
+  background: #e0a030;
+}
+.character-hp-bar .bad {
+  background: #d9534f;
+}
+.character-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+}
+.character-attacks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.character-attacks li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* A caster's spells on their card: each a chip to cast it from their token. */
+.character-spells {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.character-spells-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.spell-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.spell-chip {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+  gap: 5px;
+}
+.spell-chip:hover:not(:disabled) {
+  border-color: var(--accent, #4fd1ff);
+}
+/* A spell with nothing on the map: cast from the card, into the chat. */
+.spell-chip.plain {
+  border-style: dashed;
+}
+.spell-chip.picked {
+  border-color: var(--accent, #4fd1ff);
+}
+.spell-chip.out,
+.spell-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.spell-cast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.spell-cast-name {
+  font-weight: 600;
+}
+.rounds-input {
+  width: 4.5em;
+}
+.spell-sp,
+.spell-left {
+  font-size: 0.8em;
+  opacity: 0.75;
+}
+.spell-left {
+  font-weight: 600;
+}
+.character-prayers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.character-prayers li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.character-prayers li > span:first-child {
+  flex: 1;
+}
+/* GM, under the party: a new day for everyone. */
+.party-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+/* Asking before a new day: what it will do, and the two buttons under it. */
+.party-day-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
+.party-day-buttons {
+  display: flex;
+  gap: 6px;
+}
+/* GM: a character's spell points back to full, beside them on the card. */
+.character-stats .sp-full {
+  padding: 0 2px;
+  vertical-align: -2px;
+}
+.prayed-count {
+  min-width: 1.4em;
+  text-align: center;
+  font-weight: 600;
+}
+.character-weapon {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The damage button after a critical hit to hit: the crit's damage. */
+.character-attacks .btn.crit {
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 700;
+}
+/* A rogue's Sneak attack box, and a damage button that adds the sneak attack dice. */
+.character-sneak {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.character-attacks .btn.sneak {
+  border-color: var(--accent);
+}
+/* A ranged weapon's STR tick: lit when it's matched to their strength (the GM sets it). */
+.str-match {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.str-match.on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.str-match:disabled {
+  cursor: default;
+}
+
 .selbar {
   position: absolute;
   left: 50%;
@@ -792,6 +1264,150 @@ button:disabled {
   font-size: 13px;
 }
 
+/* The GM's "Only you can see this scene" in the top bar (PreviewChip), never over the map or a
+   tool's options. It drops words as the window narrows, and makes room beside it, so the top
+   bar's own buttons still fit; a phone gets the banner near the bottom of the map instead. */
+/* A grid whose word columns can shrink to nothing: the chip never gets narrower than its eye and
+   buttons, and when the top bar is short of room (a long room name, page zoom, wide fonts) its
+   words give way with an ellipsis before the room's name does (.topbar.previewing below). */
+.preview-chip {
+  position: relative;
+  flex: 0 3 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content) auto auto;
+  align-items: center;
+  margin: 0 6px;
+  padding: 3px 4px 3px 3px;
+  background: rgba(58, 42, 8, 0.95);
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.preview-chip > * {
+  margin-right: 6px;
+}
+.preview-chip > :last-child {
+  margin-right: 0;
+}
+.preview-chip-text,
+.preview-chip-players {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-chip > .preview-chip-eye {
+  grid-column: 1;
+  /* A 27 px target round the 15 px eye, laid out as the eye alone was (the chip's padding is in it). */
+  margin: 0;
+}
+.preview-chip-text {
+  grid-column: 2;
+}
+.preview-chip-players {
+  grid-column: 3;
+}
+.preview-chip > .btn-primary {
+  grid-column: 4;
+}
+.preview-chip > .preview-chip-back {
+  grid-column: 5;
+}
+.preview-chip-eye {
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--warn);
+  cursor: pointer;
+}
+/* While the chip is there, the room's name keeps a little room of its own. */
+.topbar.previewing .topbar-title {
+  min-width: 56px;
+}
+.preview-chip-eye:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* A scene's name can be 60 characters: it gives way rather than push the top bar's buttons off. */
+.preview-chip-players {
+  max-width: 16em;
+  color: #d9c9a3;
+}
+.preview-chip-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.player-dot.more-3,
+.player-dot.more-2 {
+  display: none;
+}
+@media (max-width: 1599px) {
+  /* Out of sight, but still read out, in the chip's tooltip and in a tap on its eye. */
+  .preview-chip-players {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (max-width: 1199px) {
+  /* The arrow alone; the button keeps its name for screen readers, and its tooltip. */
+  .preview-chip-back-text {
+    display: none;
+  }
+  /* Room beside the chip, so the top bar fits with an update waiting and a full table: three
+     presence dots and the rest counted, and Reload without "Update:". */
+  .topbar.previewing .player-dot.dot-4up,
+  .topbar.previewing .player-dot.more-6,
+  .topbar.previewing .update-btn .hide-narrow {
+    display: none;
+  }
+  .topbar.previewing .player-dot.more-3 {
+    display: inline-flex;
+  }
+}
+@media (max-width: 880px) {
+  .topbar.previewing .player-dot.dot-3up,
+  .topbar.previewing .player-dot.more-3 {
+    display: none;
+  }
+  .topbar.previewing .player-dot.more-2 {
+    display: inline-flex;
+  }
+}
+@media (max-width: 999px) {
+  /* The crossed-out eye beside Show to players; the words are read out and in the tooltip. */
+  .preview-chip-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (min-width: 761px) and (max-width: 880px) {
+  /* The arrow alone, with its name in its label and tooltip. */
+  .topbar.previewing .update-btn .update-word {
+    display: none;
+  }
+}
+/* The phone's banner only where a phone's rules apply (a window 760.5 px wide, zoomed, matches
+   neither 760 nor 761: it gets the chip alone, never the banner at the top of the map). */
+.preview-banner.preview-phone {
+  display: none;
+}
+@media (max-width: 760px) {
+  .preview-chip {
+    display: none;
+  }
+  .preview-banner.preview-phone {
+    display: flex;
+  }
+}
+
 .reconnecting {
   position: absolute;
   top: 60px;
@@ -809,14 +1425,10 @@ button:disabled {
 }
 
 .toasts {
-  position: absolute;
-  left: 66px;
-  bottom: 12px;
-  z-index: 15;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: min(360px, calc(100% - 80px));
+  max-width: min(360px, 100%);
   pointer-events: none;
 }
 .toast {
@@ -927,12 +1539,10 @@ button:disabled {
 }
 /* On a phone the zoom buttons are down the right-hand side: the note goes left of them.
    While a tool's options bar is open, MapLoading puts it just below the bar instead. */
-@media (max-width: 760px) {
-  .board-season-note {
-    top: 10px;
-    bottom: auto;
-    right: 58px;
-  }
+:where(.stage-area.narrow) .board-season-note {
+  top: 10px;
+  bottom: auto;
+  right: 58px;
 }
 /* On a table display, big enough to read from across the table. */
 .display-room .map-loading-card {
@@ -993,6 +1603,38 @@ button:disabled {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
+/* The Spells bar's lasting spells, each a chip that ends it. */
+.spell-zones {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.spell-zone {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+}
+.spell-zone:hover {
+  border-color: var(--danger, #d9534f);
+}
+/* More than a few: one chip, and opened, a list across the bar that scrolls rather than covering the map. */
+.spell-zones-toggle {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+}
+.spell-zones.open {
+  flex-basis: 100%;
+}
+.spell-zones-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-height: 104px;
+  overflow-y: auto;
+}
 .chip {
   display: inline-flex;
   align-items: center;
@@ -1015,6 +1657,264 @@ button:disabled {
   color: var(--warn);
   letter-spacing: 0.04em;
 }
+/* Voice chat, at the top of the Chat & dice panel. */
+.voice {
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.voice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.voice.on .voice-head {
+  color: var(--ok);
+}
+.voice-title {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.voice-count {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.voice-controls .check {
+  margin: 0;
+  gap: 6px;
+}
+.voice-talk {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.voice-talk.talking,
+.voice-mute:not(.muted) {
+  background: rgba(91, 216, 143, 0.16);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.voice-mute.muted {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.voice-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.voice-blocked {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: rgba(243, 167, 18, 0.12);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.voice-people {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.voice-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.voice-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 2px transparent;
+  transition: box-shadow 0.12s;
+}
+.voice-person.speaking .voice-avatar {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ok);
+}
+.voice-name {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-you {
+  color: var(--muted);
+}
+.voice-muted {
+  display: inline-flex;
+  color: var(--muted);
+}
+.voice-link {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.voice-link.failed {
+  color: var(--danger);
+}
+.voice-volume {
+  flex: none;
+  width: 64px;
+  accent-color: var(--accent);
+}
+
+/* The mic in the zoom box, while in voice chat. */
+.zoom .voice-mic {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.zoom .voice-mic.talking,
+.zoom .voice-mic.live {
+  color: var(--ok);
+  background: rgba(91, 216, 143, 0.16);
+}
+.zoom .voice-mic.muted {
+  color: var(--danger);
+}
+
+/* Over the map while the browser holds back voice chat's sound. */
+.voice-held {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 140px);
+  padding: 8px 14px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  background: #3a2c0d;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+/* Over the map: who's talking (top right, under the level bar). It never takes a click; the
+   corner moves down clear of a tool's bar (useClearOfBars). */
+.speaking-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.speaking-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 10px 4px 4px;
+  background: rgba(26, 29, 36, 0.92);
+  border: 2px solid var(--ok);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+  animation: speaking-in 0.12s ease-out;
+}
+.speaking-chip .voice-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.speaking-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.speaking-bars {
+  flex: none;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.speaking-bars i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ok);
+  transform-origin: bottom;
+  animation: speaking-bar 0.7s ease-in-out infinite;
+}
+.speaking-bars i:nth-child(2) {
+  animation-delay: -0.45s;
+}
+.speaking-bars i:nth-child(3) {
+  animation-delay: -0.2s;
+}
+@keyframes speaking-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+/* A slide only, never a fade: if a browser holds animations back, the chip still shows. */
+@keyframes speaking-in {
+  from {
+    transform: translateX(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .speaking-chip,
+  .speaking-bars i {
+    animation: none;
+  }
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;
@@ -1090,6 +1990,17 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+/* A character's natural 20 to hit, or natural 2 (shared/characters.ts critOf). */
+.roll-crit {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn);
+  white-space: nowrap;
+}
+.roll-crit.fail {
+  color: var(--danger);
 }
 .roll-dice {
   display: flex;
@@ -1169,6 +2080,103 @@ button:disabled {
 }
 .die-btn.wide {
   flex: 2;
+}
+.die-btn {
+  position: relative;
+}
+.die-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.die-btn.picked {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* How many of this die are picked. */
+.die-count {
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+}
+/* As tall as a row of picked dice, so the dice below never move when the first is picked. */
+.dice-hint {
+  margin: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* The picked dice, each with fewer and more, and ×2, Roll and put back. */
+.dice-pool {
+  gap: 6px;
+}
+.pool-die {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.pool-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pool-step:hover:not(:disabled) {
+  color: var(--text);
+}
+.pool-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pool-count {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pool-bonus {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pool-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+.pool-actions .die-btn {
+  flex: none;
+  padding: 0 10px;
+}
+.pool-roll {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.pool-roll:hover {
+  background: var(--accent-strong);
 }
 .mod-input {
   width: 52px;
@@ -1253,6 +2261,63 @@ button:disabled {
 .live-tag {
   color: var(--ok);
   font-weight: 600;
+}
+/* A map's levels: one entry in Scenes, its levels inside it. */
+.scene-group {
+  display: flex;
+  flex-direction: column;
+}
+.scene-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.scene-group-head:hover {
+  border-color: var(--muted);
+}
+.scene-group-head .scene-title {
+  flex: 1;
+  min-width: 0;
+}
+.scene-levels {
+  margin: 6px 0 0 14px;
+}
+/* GM, on a map's level: which one, Up and Down, and taking the party up or down. */
+.level-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 8px;
+  max-width: 100%;
+  background: rgba(26, 29, 36, 0.96);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.level-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.level-take {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.light-bar-title {
+  padding: 0 4px;
 }
 .scene-actions {
   display: flex;
@@ -1615,9 +2680,6 @@ button:disabled {
   gap: 8px;
   margin: 12px 0 8px;
 }
-.display-btn {
-  position: relative;
-}
 .live-dot {
   position: absolute;
   top: 6px;
@@ -1626,6 +2688,36 @@ button:disabled {
   height: 7px;
   border-radius: 50%;
   background: #5bba6f;
+}
+/* GM: something failed on someone's device (More › Problems on devices). */
+.problem-dot {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a63a;
+}
+.problems-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.problems-list li {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.problem-message {
+  font-family: ui-monospace, monospace;
+  word-break: break-word;
+  margin: 4px 0;
 }
 
 .import-kinds {
@@ -1767,6 +2859,59 @@ button:disabled {
 .asset-wrap {
   position: relative;
 }
+/* Four kinds of new scene: each as wide as its words, on one line; two rows of two on a phone. */
+.seg.full.new-scene-kinds .seg-btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .seg.full.new-scene-kinds {
+    flex-wrap: wrap;
+  }
+  .seg.full.new-scene-kinds .seg-btn {
+    flex: 1 1 40%;
+  }
+}
+.from-dungeon .field {
+  margin-top: 8px;
+}
+.dungeon-maps {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dungeon-map {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.dungeon-map:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.dungeon-map:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.dungeon-map-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .asset {
   width: 100%;
   display: flex;
@@ -1854,6 +2999,13 @@ button:disabled {
 .init-row.current {
   border-color: var(--accent);
   background: rgba(79, 209, 255, 0.1);
+}
+/* The GM's alone: the players don't get it. */
+.init-row.gm-only {
+  border-style: dashed;
+}
+.init-row.gm-only .init-name {
+  opacity: 0.75;
 }
 .init-name {
   flex: 1;
@@ -1960,46 +3112,76 @@ kbd {
   .topbar-sep {
     display: none;
   }
-  .tool {
-    width: 38px;
-    height: 38px;
-  }
-  .tool-options {
-    left: 60px;
-    max-width: calc(100% - 70px);
-  }
-  .zoom {
-    flex-direction: column-reverse;
-    bottom: auto;
-    top: 10px;
-  }
-  .zoom .zoom-level {
-    display: none;
-  }
-  .tool-options ~ .zoom {
-    top: auto;
-    bottom: 12px;
-  }
-  .selbar {
-    left: 60px;
-    right: 8px;
-    transform: none;
-    max-width: none;
-    bottom: 8px;
-  }
-  .selbar-label {
-    flex: 1;
-    min-width: 100px;
-  }
-  .toasts {
-    left: 60px;
-    bottom: 70px;
-  }
-  .preview-banner {
-    top: auto;
-    bottom: 70px;
-    max-width: calc(100% - 20px);
-  }
+}
+
+/* A map as narrow as a phone's: on a phone, or on a tablet beside the side panel (the board's area
+   is marked .narrow by its width, useStageNarrow). Its bars stack along the edges as a phone's do.
+   (:where keeps each rule as strong as it was under a media query.) */
+:where(.stage-area.narrow) .tool {
+  width: 38px;
+  height: 38px;
+}
+:where(.stage-area.narrow) .tool-options {
+  left: 60px;
+  max-width: calc(100% - 70px);
+}
+:where(.stage-area.narrow) .zoom {
+  flex-direction: column-reverse;
+  bottom: auto;
+  top: 10px;
+}
+:where(.stage-area.narrow) .zoom .zoom-level {
+  display: none;
+}
+:where(.stage-area.narrow) .corner-tr {
+  right: 60px;
+}
+/* The zoom buttons go down to the bottom corner while a tool's bar is open. */
+:where(.stage-area.narrow:has(> .tool-options)) > .corner-tr {
+  right: 10px;
+}
+:where(.stage-area.narrow) .speaking-chip {
+  padding: 3px;
+}
+:where(.stage-area.narrow) .speaking-chip .speaking-name,
+:where(.stage-area.narrow) .speaking-chip .speaking-bars {
+  display: none;
+}
+/* ...above whatever is along the bottom. */
+:where(.stage-area.narrow) .tool-options ~ .zoom {
+  top: auto;
+  bottom: calc(12px + var(--bottom-h, 0px));
+}
+:where(.stage-area.narrow) .bottom-bars {
+  left: 60px;
+  right: 8px;
+  transform: none;
+  width: auto;
+  max-width: none;
+  bottom: 8px;
+  align-items: stretch;
+}
+/* The bar starts right of the toolbar, so the card is just as wide: it never covers the toolbar.
+   It's part of the stack (measured with it), so the messages sit above it too. */
+:where(.stage-area.narrow) .selbar-stack > .character-card {
+  position: static;
+  left: 0;
+  right: 0;
+  transform: none;
+  width: auto;
+  margin-bottom: 8px;
+}
+/* The name shares its row with the size. */
+:where(.stage-area.narrow) .selbar-label {
+  flex: 1 1 90px;
+  width: 0;
+  min-width: 90px;
+}
+/* Above the bars along the bottom, however many rows they take. */
+:where(.stage-area.narrow) .corner-bl {
+  left: 60px;
+  right: 8px;
+  bottom: calc(8px + var(--bottom-h, 0px));
 }
 
 /* ------------------------------------------------------------- touch screens and short screens */
@@ -2030,20 +3212,28 @@ kbd {
   }
 }
 
-/* On narrow screens the selection bar is one scrolling row, so it stays short and
-   nothing (toasts, the preview banner) ends up on top of its buttons. */
-@media (max-width: 760px) {
-  .selbar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    justify-content: flex-start;
-    scrollbar-width: none;
+/* On narrow screens the selection bar wraps onto rows, so every button shows; the messages sit
+   above it (--bottom-h). A very tall one scrolls. */
+:where(.stage-area.narrow) .selbar {
+  justify-content: flex-start;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+/* Touch screens have no tooltips: the selection bar's buttons say what they are, in a word. */
+@media (pointer: coarse) {
+  .selbar .icon-btn[data-short] {
+    flex-direction: column;
+    height: auto;
+    min-width: 40px;
+    padding: 4px 4px 2px;
+    gap: 1px;
   }
-  .selbar > * {
-    flex: none;
-  }
-  .selbar .swatches {
-    flex-wrap: nowrap;
+  .selbar .icon-btn[data-short]::after {
+    content: attr(data-short);
+    font-size: 10px;
+    line-height: 1.1;
+    opacity: 0.8;
   }
 }
 
@@ -2082,10 +3272,6 @@ kbd {
 }
 /* The Build tool's controls, along the bottom on a computer (as Dungeondraft shows them). */
 .build-hints {
-  position: absolute;
-  left: 66px;
-  bottom: 12px;
-  z-index: 9;
   display: none;
   /* One line, so the toasts above it always clear it. */
   flex-wrap: nowrap;
@@ -2093,7 +3279,7 @@ kbd {
   white-space: nowrap;
   align-items: center;
   gap: 4px 14px;
-  max-width: calc(100% - 250px);
+  max-width: 100%;
   padding: 6px 10px;
   background: rgba(26, 29, 36, 0.9);
   border: 1px solid var(--border);
@@ -2105,14 +3291,11 @@ kbd {
 .build-hints kbd {
   font-size: 11px;
 }
-@media (hover: hover) and (min-width: 761px) {
-  .build-hints {
+@media (hover: hover) {
+  :where(.stage-area:not(.narrow)) .build-hints {
     display: flex;
   }
-  .build-hints ~ .toasts {
-    bottom: 56px;
-  }
-  .build-options .build-touch-hint {
+  :where(.stage-area:not(.narrow)) .build-options .build-touch-hint {
     display: none;
   }
 }
@@ -2120,14 +3303,133 @@ kbd {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(79, 209, 255, 0.35);
 }
-.stamp-palette {
+/* The Build tool's pickers (objects, floors): the chosen one and the last few on the bar,
+   everything else in a popover under it (search, folding groups), so the bar stays short. */
+.lib-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.lib-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  max-width: 200px;
+  padding: 3px 8px 3px 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.lib-current .stamp-icon {
+  flex: none;
+  padding: 1px;
+  border-radius: 5px;
+  background: #d9d3c6;
+}
+.lib-current .floor-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+}
+.lib-current.active,
+.lib-current.open {
+  border-color: var(--accent);
+}
+.lib-current-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-recent {
   display: flex;
   gap: 3px;
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
-.stamp-btn {
+.lib-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  width: min(332px, calc(100vw - 32px));
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.lib-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-2);
+  color: var(--muted);
+}
+.lib-search input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.lib-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.lib-group-head:hover {
+  color: var(--accent);
+}
+.lib-group-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+/* A group's own folds (Dungeon's "Tables" in Furniture), set in under its heading. */
+.lib-part {
+  padding-left: 14px;
+}
+.lib-part-head {
+  padding: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 34px);
+  gap: 4px;
+  padding: 2px 2px 8px;
+}
+.lib-none {
+  margin: 8px 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.lib-btn {
   flex: none;
   width: 34px;
   height: 34px;
@@ -2138,8 +3440,17 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
-.stamp-btn.active {
+.lib-btn.floor {
+  padding: 0;
+  background: var(--bg-2);
+}
+.lib-btn.floor .floor-icon {
+  width: 32px;
+  height: 32px;
+}
+.lib-btn.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
 }
@@ -2150,33 +3461,33 @@ kbd {
 .build-live {
   color: var(--warn);
 }
-@media (max-width: 760px) {
-  .build-options .seg-label {
-    display: none;
-  }
-  /* Without their labels the modes and Back need less room, so Back still fits beside Copy
-     and Paste on most phones. */
-  .build-options .seg-btn.wide {
-    padding: 0 7px;
-  }
-  .build-options .hint:not(.build-live) {
-    display: none;
-  }
-  /* One row that scrolls sideways, so the bar never covers much of the board. */
-  .build-options {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .build-options > * {
-    flex: none;
-  }
-  .build-options .stamp-palette {
-    max-width: 180px;
-  }
-  .build-options .build-live {
-    font-size: 12px;
-  }
+:where(.stage-area.narrow) .build-options .seg-label {
+  display: none;
+}
+/* Without their labels the modes and Back need less room, so Back still fits beside Copy
+   and Paste on most phones. */
+:where(.stage-area.narrow) .build-options .seg-btn.wide {
+  padding: 0 7px;
+}
+:where(.stage-area.narrow) .build-options .hint:not(.build-live) {
+  display: none;
+}
+/* One row that scrolls sideways, so the bar never covers much of the board. */
+:where(.stage-area.narrow) .build-options {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:where(.stage-area.narrow) .build-options > * {
+  flex: none;
+}
+/* Phones: the chosen object's or floor's picture alone on the bar. */
+:where(.stage-area.narrow) .build-options .lib-current-name,
+:where(.stage-area.narrow) .build-options .lib-recent {
+  display: none;
+}
+:where(.stage-area.narrow) .build-options .build-live {
+  font-size: 12px;
 }
 
 .brush-size {
@@ -2192,6 +3503,19 @@ kbd {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+/* Fog's player view with per-player sight: whose view the GM sees. */
+.look-as {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.look-as select {
+  width: auto;
+  max-width: 180px;
+  padding: 4px 6px;
 }
 
 /* The Build tool's Objects: the next object's size and turn, a button each side of a slider. */
@@ -2236,7 +3560,7 @@ kbd {
   background: var(--accent);
   color: var(--accent-ink);
 }
-@media (hover: none), (max-width: 760px) {
+@media (hover: none) {
   .selbar.build-selbar {
     display: flex;
   }
@@ -2245,21 +3569,20 @@ kbd {
     display: none;
   }
 }
-@media (max-width: 760px) {
-  /* Sliders fight the bar's sideways scrolling: the buttons either side of them stay. */
-  .build-slider {
-    display: none;
-  }
-  /* The zoom buttons, down in the corner while a tool's bar is open, move up above the
-     floating bar while it's there, so it doesn't cover them. */
-  .build-selbar ~ .zoom {
-    bottom: 64px;
-  }
-  /* While a tool's bar is open the zoom buttons stand in the bottom corner, so toasts stop
-     short of them rather than covering Zoom in and Zoom out. */
-  .tool-options ~ .toasts {
-    max-width: min(360px, calc(100% - 124px));
-  }
+:where(.stage-area.narrow) .selbar.build-selbar {
+  display: flex;
+}
+:where(.stage-area.narrow) .build-options .build-sel-more {
+  display: none;
+}
+/* Sliders fight the bar's sideways scrolling: the buttons either side of them stay. */
+:where(.stage-area.narrow) .build-slider {
+  display: none;
+}
+/* While a tool's bar is open the zoom buttons stand in the bottom corner, so the messages
+   stop short of them rather than covering Zoom in and Zoom out. */
+:where(.stage-area.narrow:has(> .tool-options)) > .corner-bl {
+  right: 64px;
 }
 /* On the narrowest phones (320 px) the floating bar's buttons close up, so all seven fit. */
 @media (max-width: 359px) {
@@ -2272,27 +3595,25 @@ kbd {
   }
 }
 /* On a tablet (or a phone held sideways) the floating bar stays one row in the middle, even
-   beside a side panel. The zoom buttons sit above it, and toasts above those, so nothing
-   covers a button (a tap on a toast only closes the toast). */
-@media (hover: none) and (min-width: 761px) {
-  .selbar.build-selbar {
-    flex-wrap: nowrap;
-    width: max-content;
+   beside a side panel. The zoom buttons and the messages sit above it, so nothing covers a
+   button (a tap on a message only closes it). */
+@media (hover: none) {
+  :where(.stage-area:not(.narrow)) .bottom-bars:has(> .build-selbar) {
     max-width: calc(100% - 20px);
   }
-  .build-selbar ~ .zoom {
-    bottom: 64px;
+  :where(.stage-area:not(.narrow)) .bottom-bars > .selbar.build-selbar {
+    flex-wrap: nowrap;
+    width: max-content;
+    max-width: 100%;
   }
-  .build-selbar ~ .toasts {
-    bottom: 116px;
+  :where(.stage-area:not(.narrow):has(> .bottom-bars > .build-selbar)) > .zoom {
+    bottom: calc(12px + var(--bottom-h, 0px));
   }
 }
 /* The Build tool's modes wrap onto a second row rather than running under a side panel. */
-@media (min-width: 761px) {
-  .build-options .build-modes {
-    flex-wrap: wrap;
-    max-width: 100%;
-  }
+:where(.stage-area:not(.narrow)) .build-options .build-modes {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 /* On a short screen (a phone held sideways) the Build tool's bar leaves out its hints and the
    words beside its icons, as it does on a phone held upright, so beside a side panel it
@@ -2321,9 +3642,384 @@ kbd {
 .preview-banner.align-banner {
   top: 64px;
 }
-@media (max-width: 760px) {
-  .preview-banner.align-banner {
-    top: 10px;
-    bottom: auto;
+:where(.stage-area.narrow) .preview-banner.align-banner {
+  top: 10px;
+  bottom: auto;
+}
+.send-room {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------- the calendar */
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cal-today-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cal-date {
+  font-weight: 600;
+  font-size: 15px;
+}
+.cal-day-buttons,
+.cal-event-actions {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+}
+.cal-weather {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.cal-weather > span {
+  flex: 1;
+}
+.cal-moons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.cal-moon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cal-gm {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.cal-gm > summary {
+  cursor: pointer;
+}
+.cal-set-date,
+.cal-log-row,
+.cal-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cal-log-row > input {
+  flex: 1;
+  min-width: 120px;
+}
+.cal-form-row > .field {
+  flex: 1;
+  min-width: 120px;
+  margin: 4px 0;
+}
+.cal-num {
+  width: 64px;
+}
+.cal-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.cal-month-name {
+  font-weight: 600;
+}
+.cal-grid {
+  display: grid;
+  gap: 2px;
+}
+.cal-weekday {
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+  padding-bottom: 2px;
+  overflow: hidden;
+}
+.cal-day {
+  position: relative;
+  min-height: 34px;
+  padding: 3px 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.cal-day.past {
+  color: var(--muted);
+}
+.cal-day.today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cal-day.picked {
+  background: rgba(79, 209, 255, 0.12);
+}
+.cal-dots {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  gap: 2px;
+}
+.cal-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.cal-day-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cal-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cal-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.cal-event > .cal-dot {
+  margin-top: 5px;
+}
+.cal-event.gm-only {
+  border-style: dashed;
+}
+.cal-event-body {
+  flex: 1;
+  min-width: 0;
+}
+.cal-event-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.cal-event-text {
+  white-space: pre-wrap;
+  margin-top: 4px;
+}
+.cal-form {
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.cal-import {
+  margin-top: 6px;
+}
+
+/* The date on every map: top right, with today's weather; a table display's is bigger, to read across the table. */
+.date-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(60vw, 520px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(26, 29, 36, 0.9);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.date-overlay-day {
+  white-space: nowrap;
+}
+:where(.stage-area.narrow) .date-overlay-weather {
+  display: none;
+}
+.display-room .date-overlay {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  font-size: 20px;
+  padding: 8px 14px;
+  cursor: default;
+}
+.display-room .date-overlay svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Rain or snow over the map on a wet day: two drifting layers of streaks or flakes, light or heavy. */
+.weather-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  overflow: hidden;
+}
+.weather-fx::before,
+.weather-fx::after {
+  content: "";
+  position: absolute;
+  inset: -20% 0 0 0;
+  height: 140%;
+}
+.weather-fx.rain::before {
+  background: repeating-linear-gradient(100deg, transparent 0 11px, rgba(200, 220, 255, 0.28) 11px 12px, transparent 12px 40px);
+  animation: rain-fall 0.9s linear infinite;
+  opacity: 0.55;
+}
+.weather-fx.rain::after {
+  background: repeating-linear-gradient(100deg, transparent 0 23px, rgba(200, 220, 255, 0.2) 23px 24px, transparent 24px 67px);
+  animation: rain-fall 1.4s linear infinite;
+  opacity: 0.45;
+}
+.weather-fx.rain.heavy::before,
+.weather-fx.rain.heavy::after {
+  opacity: 0.9;
+  animation-duration: 0.6s, 1s;
+}
+.weather-fx.snow::before,
+.weather-fx.snow::after {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 2px, transparent 2.5px), radial-gradient(circle, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 2px);
+  background-size: 120px 120px, 80px 80px;
+  background-position: 0 0, 40px 60px;
+  animation: snow-fall 9s linear infinite;
+  opacity: 0.6;
+}
+.weather-fx.snow::after {
+  background-size: 180px 180px, 60px 60px;
+  animation-duration: 14s;
+  opacity: 0.4;
+}
+.weather-fx.snow.heavy::before,
+.weather-fx.snow.heavy::after {
+  opacity: 0.9;
+  animation-duration: 6s, 10s;
+}
+@keyframes rain-fall {
+  from {
+    transform: translateY(-60px);
   }
+  to {
+    transform: translateY(60px);
+  }
+}
+@keyframes snow-fall {
+  from {
+    transform: translate(0, -120px);
+  }
+  to {
+    transform: translate(40px, 120px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .weather-fx::before,
+  .weather-fx::after {
+    animation: none;
+  }
+}
+.cal-party-day {
+  margin-top: 8px;
+}
+.cal-soon-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+.cal-find .cal-log-row {
+  margin-top: 0;
+}
+
+.cal-times {
+  margin-top: 8px;
+}
+.cal-times .seg-btn {
+  text-transform: capitalize;
+}
+/* A table display's day at a glance: a minute after the day changes, in the middle, big. */
+.day-card {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(80vw, 900px);
+  padding: 22px 32px;
+  border-radius: 18px;
+  background: rgba(26, 29, 36, 0.94);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  font-size: 24px;
+  animation: toast-in 0.4s ease-out;
+}
+.day-card-date {
+  font-size: 40px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.day-card-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.day-card-moons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  margin-top: 14px;
+  font-size: 20px;
+}
+.day-card-events {
+  margin-top: 14px;
+  color: var(--accent);
+}
+
+/* GM: whether rain and snow fall on the map on show (Automatic, Always, Never), under today's weather. */
+.cal-here {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+.cal-here > .small.muted {
+  flex-basis: 100%;
 }

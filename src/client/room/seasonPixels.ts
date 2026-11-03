@@ -27,8 +27,9 @@
 
 import type { SeasonLook } from "../../shared/types";
 
-/** Part of the bake cache key: bump it whenever the same inputs would bake differently. */
-export const ALGO_VERSION = 4;
+// Part of the bake cache key (bump it whenever the same inputs would bake differently), and a
+// scene's seed: in seasonKeys.ts, which the page loads without the rest of this.
+export { ALGO_VERSION, seedFrom } from "./seasonKeys";
 
 type Tri = readonly [number, number, number];
 
@@ -2136,12 +2137,7 @@ export function bake(rgba: Uint8ClampedArray, width: number, rows: number, opts:
   else bakeSummer(rgba, width, rows, fr, L);
 }
 
-/** FNV-1a of a scene id, folded to 0-65535 like a stored season seed. */
-export function seedFrom(id: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
-  return ((h >>> 16) ^ h) & 0xffff;
-}
+
 
 // ---------------------------------------------------------------- winter
 

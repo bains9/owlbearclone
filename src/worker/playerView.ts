@@ -20,9 +20,16 @@ export function canSeeAsset(a: Pick<Asset, "owner">, c: Viewer): boolean {
  * When the GM puts it to use, the next scene update carries it.
  */
 export function playerScene(s: Scene): Scene {
-  const md = s.mapData;
-  if (!md || (!md.hold && md.forAssetId === s.mapAssetId)) return s;
-  const { mapData: _held, ...rest } = s;
+  // Where the GM's map came from in Dungeon is the GM's business (its levels' names say what else there is).
+  const scene = s.dungeon ? withoutDungeon(s) : s;
+  const md = scene.mapData;
+  if (!md || (!md.hold && md.forAssetId === scene.mapAssetId)) return scene;
+  const { mapData: _held, ...rest } = scene;
+  return rest;
+}
+
+function withoutDungeon(s: Scene): Scene {
+  const { dungeon: _dungeon, ...rest } = s;
   return rest;
 }
 

@@ -1,6 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
+  CalendarDays,
+  Castle,
   CircleQuestionMark,
+  Ellipsis,
+  CornerUpLeft,
+  EyeOff,
   House,
   Images,
   Layers,
@@ -10,11 +15,18 @@ import {
   RotateCw,
   Settings,
   Swords,
+  TriangleAlert,
   WifiOff,
   X,
 } from "lucide-preact";
 import { roomUrl } from "../api";
+import { layoutCheck } from "../layoutCheck";
+import { watchPageErrors } from "../pageErrors";
+import { ProblemsDialog } from "./ProblemsDialog";
+import { CalendarPanel, DateChip, DateOverlay, WeatherFx } from "./CalendarPanel";
+import { DUNGEON_URL, openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
+import type { ComponentChildren } from "preact";
 import type { Profile } from "../identity";
 import { Board } from "../room/board";
 import { RoomClient } from "../room/client";
@@ -26,13 +38,20 @@ import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
 import { MapLoading } from "./MapLoading";
+import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
+import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
+import { voiceLink } from "../room/voiceLink";
+import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
-import { SelectionBar } from "./SelectionBar";
+import { FpsMeter } from "./FpsMeter";
+import { LevelBar } from "./LevelBar";
+import { LightBar } from "./LightBar";
+import { CardDock, SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
 import { TableDisplayDialog } from "./TableDisplay";
 import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
-import { Modal, RoomContext, Swatches, copyText, cx, useRoom, useRoomState } from "./common";
+import { Guard, Modal, RoomContext, Swatches, copyText, cx, useClearOfBars, useRoom, useRoomState, useStageHeight, useStageNarrow } from "./common";
 
 export function RoomPage(props: { roomId: string }) {
   const [profile, setProfile] = useState<Profile>(() => loadProfile());
@@ -104,17 +123,104 @@ function ProfileForm(props: {
   );
 }
 
+/** How each open room is let go of again (its voice chat messages, its connection). */
+const closers = new WeakMap<RoomClient, () => void>();
+
+/** Where each room shows the table's voice chat messages (one function per room, so detaching matches it). */
+const toasters = new WeakMap<RoomClient, (text: string) => void>();
+
+/** The table's voice chat, pointed at this room: its messages show here, and it's let in with this room. */
+function attachVoice(room: RoomClient): () => void {
+  let toast = toasters.get(room);
+  if (!toast) {
+    toast = (text: string) => room.toast(text);
+    toasters.set(room, toast);
+  }
+  return voiceLink.attach(room.roomId, loadProfile(), toast);
+}
+
+/** Connects to a room, with the table's voice chat showing its messages there. */
+function openRoom(roomId: string, profile: Profile): RoomClient {
+  const room = new RoomClient(roomId, profile);
+  room.connect();
+  // The table's voice chat stays connected from room to room; its messages show here.
+  const detach = attachVoice(room);
+  // Errors on the page go to the GM, as a bar that fails does.
+  const unwatchErrors = watchPageErrors(room);
+  room.onGoto = (to) => {
+    // Already there (or on the way): nothing to do.
+    if (to.id === room.roomId || location.pathname === `/r/${to.id}`) return;
+    noteArrival(`The GM moved the game to “${to.name}”.`);
+    navigate(`/r/${to.id}`);
+  };
+  // A room that's gone takes this page off voice chat, as it takes it out of the room.
+  const unwatch = room.store.subscribe(() => {
+    const st = room.state.status;
+    if (st === "deleted" || st === "notfound") voiceLink.stop(roomId);
+  });
+  // Development builds only: lets you inspect the room from the browser console, check that the
+  // bars round the map keep clear of each other (__layoutCheck()), and test voice chat in two
+  // tabs without a microphone (?fakemic).
+  if (import.meta.env.DEV) {
+    (window as unknown as { __room: RoomClient }).__room = room;
+    (window as unknown as { __layoutCheck: typeof layoutCheck }).__layoutCheck = layoutCheck;
+    voiceLink.voice.allowFakeMic = true;
+    (window as unknown as { __voice: typeof voiceLink }).__voice = voiceLink;
+  }
+  closers.set(room, () => {
+    unwatch();
+    detach();
+    unwatchErrors();
+    room.dispose();
+  });
+  return room;
+}
+
+/** A room now on screen: the "moved the game" message, if the GM's move brought it. */
+function arrived(room: RoomClient): void {
+  const note = takeArrival();
+  if (note) room.toast(note);
+}
+
+function closeRoom(room: RoomClient): void {
+  closers.get(room)?.();
+  closers.delete(room);
+}
+
 function RoomView(props: { roomId: string; profile: Profile }) {
-  const room = useMemo(() => new RoomClient(props.roomId, props.profile), [props.roomId]);
+  // The room on screen. When the GM moves the game to another room, that one connects behind
+  // it and takes over once it's ready, so the map on screen stays until then: no loading page.
+  const [shown, setShown] = useState<RoomClient>(() => openRoom(props.roomId, props.profile));
   useEffect(() => {
-    room.connect();
-    // Development builds only: lets you inspect the room from the browser console.
-    if (import.meta.env.DEV) (window as unknown as { __room: RoomClient }).__room = room;
-    return () => room.dispose();
-  }, [room]);
+    if (shown.roomId === props.roomId) {
+      // Back to the room on screen before the next was ready: voice chat points here again.
+      attachVoice(shown);
+      return;
+    }
+    // The profile as saved now: a name changed in the last room carries over.
+    const next = openRoom(props.roomId, loadProfile());
+    let ready = false;
+    const check = () => {
+      const st = next.state.status;
+      if (ready || (st !== "open" && st !== "notfound" && st !== "deleted")) return;
+      ready = true;
+      unsubscribe();
+      setShown(next);
+      arrived(next);
+    };
+    const unsubscribe = next.store.subscribe(check);
+    check();
+    return () => {
+      unsubscribe();
+      // Moved on again before it was ready.
+      if (!ready) closeRoom(next);
+    };
+  }, [props.roomId]);
+  // The room that was on screen goes once another takes its place (or the page closes).
+  useEffect(() => () => closeRoom(shown), [shown]);
   return (
-    <RoomContext.Provider value={room}>
-      <RoomShell />
+    <RoomContext.Provider value={shown}>
+      <RoomShell key={shown.roomId} />
     </RoomContext.Provider>
   );
 }
@@ -153,29 +259,89 @@ function RoomShell() {
   }
   return (
     <div class="room">
-      <TopBar />
+      {/* Each bar and panel on its own: one that fails to draw leaves the rest (see Guard). */}
+      <Guard name="the top bar" retry={(s) => s.viewSceneId}>
+        <TopBar />
+      </Guard>
       <div class="main">
         <div class="stage-area">
           <BoardView />
-          <Toolbar />
-          <ToolOptions />
-          <BuildHints />
-          <PreviewBanner />
-          <GridAlignBanner />
-          <SelectionBar />
-          <BuildSelectionBar />
-          <ZoomControls />
-          <Toasts />
-          <NoteDialog />
-          <MapImportDialog />
-          <AttachDDDialog />
+          <Guard name="the weather" retry={(s) => s.calendarVersion}>
+            <WeatherFx />
+          </Guard>
+          <Guard name="the toolbar" retry={(s) => s.tool}>
+            <Toolbar />
+          </Guard>
+          <Guard name="the tool's bar" retry={(s) => s.tool}>
+            <ToolOptions />
+          </Guard>
+          <Guard name="the grid banner" retry={(s) => s.gridAlign}>
+            <GridAlignBanner />
+          </Guard>
+          <Guard name="the light banner" retry={(s) => s.lightAdd}>
+            <LightAddBanner />
+          </Guard>
+          {/* Each edge of the map stacks what's there, so nothing lands on anything else. */}
+          <BottomBars>
+            {/* A phone's "Only you can see this scene" (a bigger screen has it in the top bar). */}
+            <Guard name="the preview banner" retry={(s) => s.viewSceneId}>
+              <PreviewBanner />
+            </Guard>
+            <Guard name="the selection bar" retry={(s) => s.selection}>
+              <SelectionBar />
+            </Guard>
+            <Guard name="the Light bar" retry={(s) => s.lightPick}>
+              <LightBar />
+            </Guard>
+            <Guard name="the Build tool's selection bar" retry={(s) => s.buildSel}>
+              <BuildSelectionBar />
+            </Guard>
+          </BottomBars>
+          <div class="corner-bl">
+            <Guard name="the messages" retry={(s) => s.toasts}>
+              <Toasts />
+            </Guard>
+            <Guard name="the Build tool's hints" retry={(s) => s.tool}>
+              <BuildHints />
+            </Guard>
+          </div>
+          <TopRight>
+            <FpsMeter />
+            <Guard name="the date" retry={(s) => s.calendarVersion}>
+              <DateOverlay />
+            </Guard>
+            <Guard name="the level bar" retry={(s) => s.viewSceneId}>
+              <LevelBar />
+            </Guard>
+            <Guard name="who's speaking" retry={(s) => s.viewSceneId}>
+              <SpeakingOverlay />
+            </Guard>
+          </TopRight>
+          <Guard name="the character card" retry={(s) => s.selection}>
+            <CardDock />
+          </Guard>
+          <Guard name="the zoom buttons" retry={(s) => s.viewSceneId}>
+            <ZoomControls />
+          </Guard>
+          <Guard name="the voice notice" retry={(s) => s.viewSceneId}>
+            <VoiceHeldNotice />
+          </Guard>
+          <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD}`}>
+            <NoteDialog />
+            <MapImportDialog />
+            <AttachDDDialog />
+          </Guard>
           {status === "reconnecting" && (
             <div class="reconnecting">
               <WifiOff size={16} /> Connection lost. Reconnecting…
             </div>
           )}
         </div>
-        {panel && <SidePanel panel={panel} />}
+        {panel && (
+          <Guard name="the side panel" retry={(s) => s.panel}>
+            <SidePanel panel={panel} />
+          </Guard>
+        )}
       </div>
     </div>
   );
@@ -200,6 +366,7 @@ const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boo
   { id: "chat", label: "Chat & dice", icon: MessageSquare },
   { id: "library", label: "Tokens & images", icon: Images },
   { id: "initiative", label: "Initiative", icon: Swords },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "scenes", label: "Scenes", icon: Layers, gm: true },
   { id: "settings", label: "Room settings", icon: Settings, gm: true },
 ];
@@ -216,12 +383,15 @@ function TopBar() {
   const players = allPlayers.filter((p) => !p.display);
   const displays = allPlayers.length - players.length;
   const outdated = useRoomState((s) => s.outdated);
-  const [copied, setCopied] = useState(false);
   const [help, setHelp] = useState(false);
   const [display, setDisplay] = useState(false);
+  const problems = useRoomState((s) => s.problems.length);
+  const [problemsOpen, setProblemsOpen] = useState(false);
+  // Marks the top bar while "Only you can see this scene" is in it, for the room it makes (CSS).
+  const previewing = usePreview().view !== null;
 
   return (
-    <header class="topbar">
+    <header class={cx("topbar", previewing && "previewing")}>
       {gm ? (
         <a class="icon-btn" href="/" title="All rooms" aria-label="All rooms">
           <House size={18} />
@@ -235,54 +405,48 @@ function TopBar() {
         <span class="room-name">{name}</span>
         {sceneName && <span class="scene-name">{sceneName}</span>}
       </div>
+      <PreviewChip />
+      <DateChip />
       <div class="spacer" />
       {outdated && (
         <button
           class="btn btn-primary btn-sm update-btn"
           title="Tabletop has been updated. Reload this page to get the new version."
+          aria-label="Update: Reload"
           onClick={() => location.reload()}
         >
-          <RotateCw size={14} /> <span class="hide-narrow">Update:</span> Reload
+          <RotateCw size={14} aria-hidden="true" /> <span class="hide-narrow">Update:</span> <span class="update-word">Reload</span>
         </button>
       )}
       <div class="player-dots" title={players.map((p) => p.name + (p.role === "gm" ? " (GM)" : "")).join(", ")}>
-        {players.slice(0, 6).map((p) => (
-          <span key={p.connId} class={cx("player-dot", p.role === "gm" && "gm")} style={{ background: p.color }}>
+        {players.slice(0, 6).map((p, i) => (
+          <span
+            key={p.connId}
+            class={cx("player-dot", p.role === "gm" && "gm", ...dotClasses(i, players.length))}
+            style={{ background: p.color }}
+          >
             {Array.from(p.name)[0]?.toUpperCase()}
           </span>
         ))}
-        {players.length > 6 && <span class="player-dot more">+{players.length - 6}</span>}
+        {presenceCounts(players.length).map((c) => (
+          <span key={c.cls} class={`player-dot more ${c.cls}`}>
+            {c.text}
+          </span>
+        ))}
       </div>
-      <button
-        class="icon-btn"
-        title="Copy invite link"
-        aria-label="Copy invite link"
-        onClick={async () => {
-          if (await copyText(roomUrl(room.roomId))) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          } else {
-            room.toast(`Invite link: ${roomUrl(room.roomId)}`);
-          }
-        }}
-      >
-        {copied ? <span class="small">Copied</span> : <Link size={18} />}
-      </button>
       {gm && <SeasonButton />}
-      {gm && (
-        <button
-          class="icon-btn hide-narrow display-btn"
-          title={displays ? `Table display (${displays} connected)` : "Table display: show the map on a second screen"}
-          aria-label="Table display"
-          onClick={() => setDisplay(true)}
-        >
-          <Monitor size={18} />
-          {displays > 0 && <span class="live-dot" />}
-        </button>
-      )}
-      <button class="icon-btn hide-narrow" title="Help & shortcuts" aria-label="Help and shortcuts" onClick={() => setHelp(true)}>
-        <CircleQuestionMark size={18} />
-      </button>
+      <MoreMenu
+        gm={gm}
+        displays={displays}
+        problems={gm ? problems : 0}
+        onProblems={() => setProblemsOpen(true)}
+        onCopy={async () => {
+          if (await copyText(roomUrl(room.roomId))) room.toast("Invite link copied.");
+          else room.toast(`Invite link: ${roomUrl(room.roomId)}`);
+        }}
+        onDisplay={() => setDisplay(true)}
+        onHelp={() => setHelp(true)}
+      />
       <div class="topbar-sep" />
       {PANELS.filter((p) => !p.gm || gm).map((p) => (
         <button
@@ -299,7 +463,141 @@ function TopBar() {
       ))}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
       {display && <TableDisplayDialog onClose={() => setDisplay(false)} />}
+      {problemsOpen && <ProblemsDialog onClose={() => setProblemsOpen(false)} />}
     </header>
+  );
+}
+
+/**
+ * The top bar's More (the three dots): what's used now and then, kept out of the bar so it stays
+ * short. Copy invite link and Help & shortcuts for everyone; Table display and Dungeon for the GM,
+ * and Problems on devices when something has failed on someone's (an amber dot on the button).
+ * On a phone, where the bar has room for little, it's how to reach them at all.
+ */
+function MoreMenu(props: {
+  gm: boolean;
+  displays: number;
+  problems: number;
+  onCopy: () => void;
+  onDisplay: () => void;
+  onProblems: () => void;
+  onHelp: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  // As the season's pop-up does: a click elsewhere or Escape closes it, and a click on the map
+  // that only closes it does nothing else.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current || wrap.current.contains(e.target as Node)) return;
+      setOpen(false);
+      if ((e.target as Element | null)?.closest?.(".board")) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector(".modal-backdrop")) return;
+      e.stopPropagation();
+      setOpen(false);
+      btn.current?.focus();
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+  const pick = (then: () => void) => () => {
+    setOpen(false);
+    then();
+  };
+  return (
+    <div class="more-wrap" ref={wrap}>
+      <button
+        ref={btn}
+        class={cx("icon-btn", open && "active")}
+        title={props.displays ? `More (${props.displays} table display${props.displays === 1 ? "" : "s"} connected)` : "More"}
+        aria-label="More"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Ellipsis size={18} />
+        {props.displays > 0 && <span class="live-dot" />}
+        {props.problems > 0 && <span class="problem-dot" />}
+      </button>
+      {open && (
+        <div class="more-pop" role="menu" aria-label="More">
+          <button class="more-item" role="menuitem" onClick={pick(props.onCopy)}>
+            <Link size={16} /> Copy invite link
+          </button>
+          {props.gm && (
+            <button class="more-item" role="menuitem" onClick={pick(props.onDisplay)}>
+              <Monitor size={16} /> Table display
+              {props.displays > 0 && <span class="small muted">{props.displays} connected</span>}
+            </button>
+          )}
+          {props.gm && (
+            <a
+              class="more-item"
+              role="menuitem"
+              href={DUNGEON_URL}
+              target="dungeon"
+              title="Dungeon, the map maker (opens in its own tab)"
+              aria-label="Dungeon"
+              onClick={(e) => {
+                setOpen(false);
+                if (openDungeon()) e.preventDefault();
+              }}
+            >
+              <Castle size={16} /> Dungeon, the map maker
+            </a>
+          )}
+          {props.problems > 0 && (
+            <button class="more-item" role="menuitem" onClick={pick(props.onProblems)}>
+              <TriangleAlert size={16} /> Problems on devices
+              <span class="small muted">{props.problems}</span>
+            </button>
+          )}
+          <button class="more-item" role="menuitem" onClick={pick(props.onHelp)}>
+            <CircleQuestionMark size={16} /> Help & shortcuts
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The bars along the bottom in the middle (the selection's, a light's, Build › Select's), one
+ * under the other when there's more than one. Measured (--bottom-h), so the corners keep above.
+ */
+function BottomBars(props: { children: ComponentChildren }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useStageHeight(ref, "--bottom-h");
+  useStageNarrow(ref);
+  return (
+    <div class="bottom-bars" ref={ref}>
+      {props.children}
+    </div>
+  );
+}
+
+/**
+ * The top right: the level bar and who's speaking, one under the other, the pair moved down below
+ * a tool's bar (or the season note) when they'd meet it.
+ */
+function TopRight(props: { children: ComponentChildren }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useClearOfBars(ref, true, ".tool-options, .board-season-note.shown");
+  return (
+    <div class="corner-tr" ref={ref}>
+      {props.children}
+    </div>
   );
 }
 
@@ -311,6 +609,7 @@ function SidePanel(props: { panel: PanelId }) {
   if (props.panel === "chat") body = <ChatPanel />;
   else if (props.panel === "library") body = <LibraryPanel />;
   else if (props.panel === "initiative") body = <InitiativePanel />;
+  else if (props.panel === "calendar") body = <CalendarPanel />;
   else if (props.panel === "scenes" && gm) body = <ScenesPanel />;
   else if (props.panel === "settings" && gm) body = <SettingsPanel />;
   return (
@@ -323,6 +622,21 @@ function SidePanel(props: { panel: PanelId }) {
       </div>
       {body}
     </aside>
+  );
+}
+
+/** GM, after Add a light: where to click, and Cancel. */
+function LightAddBanner() {
+  const room = useRoom();
+  const adding = useRoomState((s) => !!s.lightAdd && s.lightAdd.sceneId === s.viewSceneId);
+  if (!adding) return null;
+  return (
+    <div class="preview-banner align-banner">
+      <span>Click the map where the light goes.</span>
+      <button class="btn btn-sm" onClick={() => room.store.set({ lightAdd: null })}>
+        Cancel
+      </button>
+    </div>
   );
 }
 
@@ -342,39 +656,66 @@ function GridAlignBanner() {
   );
 }
 
-function PreviewBanner() {
-  const room = useRoom();
+/** The GM's "Only you can see this scene": while the GM looks at a scene players aren't on. */
+function usePreview() {
   const gm = useRoomState((s) => s.me?.role === "gm");
   const view = useRoomState((s) => s.viewSceneId);
   const active = useRoomState((s) => s.activeSceneId);
   const activeName = useRoomState((s) => (s.activeSceneId ? (s.scenes[s.activeSceneId]?.name ?? "") : ""));
-  const tool = useRoomState((s) => s.tool);
-  const ref = useRef<HTMLDivElement>(null);
-  const shown = gm && !!view && view !== active;
-  // Below the tool's options bar, whatever its height (the Build tool's can wrap), not over it.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const bar = el.parentElement?.querySelector<HTMLElement>(".tool-options");
-    const narrow = window.matchMedia("(max-width: 760px)");
-    const place = () => {
-      el.style.top = bar?.isConnected && !narrow.matches ? `${bar.offsetTop + bar.offsetHeight + 8}px` : "";
-    };
-    place();
-    const ro = new ResizeObserver(place);
-    if (bar) ro.observe(bar);
-    window.addEventListener("resize", place);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", place);
-    };
-  }, [tool, shown]);
-  if (!shown) return null;
+  return {
+    view: gm && view && view !== active ? view : null,
+    active,
+    players: activeName ? `Players are on “${activeName}”.` : "Players have no scene.",
+  };
+}
+
+/**
+ * GM: "Only you can see this scene" in the top bar, with Show to players and Back to live scene.
+ * Up here it never covers the map or a tool's options (the Build tool's objects, say), whatever
+ * their size. On a phone the top bar has no room for it: PreviewBanner says it there instead.
+ */
+function PreviewChip() {
+  const room = useRoom();
+  const { view, active, players } = usePreview();
+  if (!view) return null;
   return (
-    <div class="preview-banner" ref={ref}>
-      <span>
-        Only you can see this scene.{activeName ? ` Players are on “${activeName}”.` : " Players have no scene."}
-      </span>
+    <div class="preview-chip" title={`Only you can see this scene. ${players}`}>
+      {/* A touch screen has no tooltip: a tap on the eye says it all. */}
+      <button
+        class="preview-chip-eye"
+        aria-label="Read the whole notice"
+        onClick={() => room.toast(`Only you can see this scene. ${players}${active ? " The arrow takes you back to them." : ""}`)}
+      >
+        <EyeOff size={15} aria-hidden="true" />
+      </button>
+      <span class="preview-chip-text">Only you can see this scene.</span>
+      <span class="preview-chip-players">{players}</span>
+      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
+        Show to players
+      </button>
+      {active && (
+        <button
+          class="btn btn-sm preview-chip-back"
+          title="Back to live scene"
+          aria-label="Back to live scene"
+          onClick={() => room.viewSceneLocally(active)}
+        >
+          <CornerUpLeft size={14} aria-hidden="true" />
+          <span class="preview-chip-back-text">Back to live scene</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** The same, on a phone: a banner near the bottom of the map, clear of the tools' bars at the top. */
+function PreviewBanner() {
+  const room = useRoom();
+  const { view, active, players } = usePreview();
+  if (!view) return null;
+  return (
+    <div class="preview-banner preview-phone">
+      <span>Only you can see this scene. {players}</span>
       <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
         Show to players
       </button>

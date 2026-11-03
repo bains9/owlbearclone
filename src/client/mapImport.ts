@@ -10,6 +10,7 @@
 // Nothing of the Dungeondraft parser is loaded here: a project file is only sniffed
 // (its first bytes) for what pairing needs, and read in full by the attach worker.
 
+import { randomId } from "../shared/ids";
 import type { GridType } from "../shared/types";
 import type { VttMeta } from "./dd/extract";
 import type { GridUnits } from "../shared/units";
@@ -18,6 +19,8 @@ import type { GridUnits } from "../shared/units";
 export interface MapFile {
   /** Scene name. */
   name: string;
+  /** One level of a file with several: the file's levels share `group`. */
+  level?: { group: string; index: number; name: string };
   /** The map image, ready to upload. */
   image: File;
   /** Grid cells across and down, when the file (or its name) says. */
@@ -33,12 +36,89 @@ export interface MapFile {
   offsetY?: number;
   /** Square unless the file says otherwise. */
   gridType?: GridType;
-  /** The Dungeondraft project file this picture was exported from, when it came in the same batch. */
+  /**
+   * The Dungeondraft project file this picture was exported from, when it came in the same batch;
+   * or, for a map from Dungeon, the map data its export carries (ddFrom "dungeon").
+   */
   dd?: File;
+  /** "dungeon": `dd` is the map data inside a Dungeon export (dungeon.parhome.ca), not a second file. */
+  ddFrom?: "dungeon";
   /** For a Universal VTT file: where its picture lies in the map and which level it shows (for `dd`). */
   vtt?: VttMeta;
   /** What one cell is, when the file says (an Owlbear Rodeo scale such as 5 ft). */
   scale?: GridUnits;
+  /** A Universal VTT file's walls, doors and lights, for lighting and line of sight. */
+  sight?: MapSight;
+}
+
+/**
+ * A Universal VTT light's colour ("ffRRGGBB", alpha first) as #rrggbb, or undefined for none, a
+ * clear one, or white (or nearly): plain light.
+ */
+export function lightColor(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !/^[0-9a-f]{8}$/i.test(raw) || parseInt(raw.slice(0, 2), 16) === 0) return undefined;
+  const rgb = raw.slice(2).toLowerCase();
+  return [0, 2, 4].every((i) => parseInt(rgb.slice(i, i + 2), 16) >= 0xf0) ? undefined : `#${rgb}`;
+}
+
+/** A map file's walls, doors and lights, in squares from its picture's top-left corner. */
+export interface MapSight {
+  /** Lines that block sight, each [x0, y0, x1, y1, ...]. */
+  walls: number[][];
+  doors: { line: [number, number, number, number]; open: boolean }[];
+  /** Where each light is, how far it reaches, and its colour (#rrggbb) when it has one. */
+  lights: { x: number; y: number; r: number; color?: string }[];
+  /** Whether the map is lit all over: its ambient light is bright (else it's dark but for the lights). */
+  daylight: boolean;
+}
+
+/** The most wall points taken from a file (VISION_LIMITS keeps a scene's to this). */
+const MAX_SIGHT_POINTS = 40_000;
+
+/**
+ * A Universal VTT file's walls (line_of_sight, and objects_line_of_sight from Dungeondraft),
+ * doors (portals: open when not "closed", as Dungeon's arches) and lights, moved to the
+ * picture's top-left corner; undefined when it has none.
+ */
+function sightOf(data: Record<string, unknown>, originX: number, originY: number): MapSight | undefined {
+  let left = MAX_SIGHT_POINTS;
+  const walls: number[][] = [];
+  for (const key of ["line_of_sight", "objects_line_of_sight"]) {
+    const lines = data[key];
+    if (!Array.isArray(lines)) continue;
+    for (const line of lines) {
+      if (!Array.isArray(line) || left <= 0) continue;
+      const pts: number[] = [];
+      for (const p of line) {
+        if (left <= 0) break;
+        if (!isPos(p)) continue;
+        pts.push(p.x - originX, p.y - originY);
+        left--;
+      }
+      if (pts.length >= 4) walls.push(pts);
+    }
+  }
+  const doors: MapSight["doors"] = [];
+  for (const d of Array.isArray(data.portals) ? data.portals.slice(0, 2000) : []) {
+    const b = (d as { bounds?: unknown } | null)?.bounds;
+    if (!Array.isArray(b) || b.length < 2 || !isPos(b[0]) || !isPos(b[1])) continue;
+    doors.push({ line: [b[0].x - originX, b[0].y - originY, b[1].x - originX, b[1].y - originY], open: (d as { closed?: unknown }).closed === false });
+  }
+  // A light's colour, unless the picture has the lighting drawn into it already (it'd be tinted twice).
+  const baked = (data.environment as { baked_lighting?: unknown } | undefined)?.baked_lighting === true;
+  const lights: MapSight["lights"] = [];
+  for (const l of Array.isArray(data.lights) ? data.lights.slice(0, 1000) : []) {
+    const p = (l as { position?: unknown } | null)?.position;
+    const range = (l as { range?: unknown } | null)?.range;
+    const color = baked ? undefined : lightColor((l as { color?: unknown } | null)?.color);
+    if (isPos(p) && finite(range) && range > 0) lights.push({ x: p.x - originX, y: p.y - originY, r: Math.min(range, 200), ...(color ? { color } : {}) });
+  }
+  if (!walls.length && !doors.length && !lights.length) return undefined;
+  // "ffRRGGBB" (alpha first): bright enough to see by, or dark.
+  const ambient = (data.environment as { ambient_light?: unknown } | undefined)?.ambient_light;
+  const rgb = typeof ambient === "string" && /^[0-9a-f]{8}$/i.test(ambient) ? [2, 4, 6].map((i) => parseInt(ambient.slice(i, i + 2), 16) / 255) : null;
+  const daylight = !rgb || 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2] >= 0.35;
+  return { walls, doors, lights, daylight };
 }
 
 /** What the file picker offers. */
@@ -51,6 +131,9 @@ export const VTT_META_POINTS = 20_000;
 const VTT_EXT = /\.(dd2vtt|df2vtt|uvtt|json)$/i;
 const DD_EXT = /\.dungeondraft_map$/i;
 const OWLBEAR_EXT = /\.(ob2|owlbear)$/i;
+
+/** The type of the File holding a Dungeon export's map data (MapFile.dd), so the attach worker knows it without sniffing. */
+export const DUNGEON_MIME = "application/x-dungeon-map+json";
 
 export function isVttFile(f: File): boolean {
   return VTT_EXT.test(f.name);
@@ -472,16 +555,65 @@ function vttMetaOf(data: Record<string, unknown>, origin: { x: number; y: number
   return { resolution: { map_origin: origin, map_size: size, pixels_per_grid: ppg }, portals, lights, line_of_sight };
 }
 
-/** Reads a Universal VTT file (.dd2vtt, .df2vtt, .uvtt). */
-export function parseUniversalVtt(text: string, fileName: string): MapFile {
-  let data: Record<string, unknown>;
+/** The most levels taken from one file: as many as Dungeon lets a map have. */
+export const MAX_FILE_LEVELS = 20;
+
+function vttJson(text: string): Record<string, unknown> {
   try {
     // Real files vary: CRLF line ends, a byte-order mark, format 0.2, 0.3 or 1.0 (or a
     // "version" string instead). None of that matters here, so none of it is checked.
-    data = JSON.parse(text.replace(/^﻿/, "")) as Record<string, unknown>;
+    return JSON.parse(text.replace(/^﻿/, "")) as Record<string, unknown>;
   } catch {
     throw new Error("isn't a map file this app can read.");
   }
+}
+
+/** Dungeondraft 1.2 names an export "waterfall.vtt.dd2vtt": the ".vtt" is part of the extension, not the name. */
+export const vttName = (fileName: string) => nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
+
+/** Reads a Universal VTT file (.dd2vtt, .df2vtt, .uvtt): its first level, for a file with several. */
+export function parseUniversalVtt(text: string, fileName: string): MapFile {
+  return vttMap(vttJson(text), fileName);
+}
+
+/**
+ * Reads a Universal VTT file into its maps: one, or for a map from Dungeon with levels, one per
+ * level in order. Dungeon puts the first level where every tabletop looks, and each further
+ * level as a file of its own in a list under "dungeon_levels"; each level's payload names it
+ * ("levelName"). Those scenes are named after the map and the level ("Old Keep: Cellar").
+ */
+export function parseUniversalVttLevels(text: string, fileName: string): MapFile[] {
+  const data = vttJson(text);
+  const more = Array.isArray(data?.dungeon_levels) ? (data.dungeon_levels as unknown[]) : [];
+  if (!more.length) return [vttMap(data, fileName)];
+  const group = randomId(12);
+  return [data, ...more].slice(0, MAX_FILE_LEVELS).map((level, i) => {
+    if (typeof level !== "object" || level === null || Array.isArray(level)) throw new Error(`has a level (${i + 1}) that isn't a map.`);
+    const named = (level as { dungeon?: { levelName?: unknown } }).dungeon?.levelName;
+    const levelName = typeof named === "string" && named.trim() ? named.trim().slice(0, 60) : `Level ${i + 1}`;
+    try {
+      return { ...vttMap(level as Record<string, unknown>, fileName, `${vttName(fileName)}: ${levelName}`), level: { group, index: i, name: levelName } };
+    } catch (err) {
+      throw new Error(`(level ${i + 1}, ${levelName}) ${(err as Error).message}`);
+    }
+  });
+}
+
+/**
+ * A Dungeon file's levels' names, in order, from its map data: "Level 2" for one without a name,
+ * and "" for a map with only one level (Dungeon names levels only when there are several).
+ */
+export function dungeonLevelNames(text: string): string[] {
+  const data = vttJson(text);
+  const more = Array.isArray(data?.dungeon_levels) ? (data.dungeon_levels as unknown[]) : [];
+  return [data, ...more].slice(0, MAX_FILE_LEVELS).map((level, i) => {
+    const named = (level as { dungeon?: { levelName?: unknown } } | null)?.dungeon?.levelName;
+    return typeof named === "string" && named.trim() ? named.trim().slice(0, 60) : more.length ? `Level ${i + 1}` : "";
+  });
+}
+
+/** One map from a Universal VTT file's data; `name` names it instead of the file. */
+function vttMap(data: Record<string, unknown>, fileName: string, name = vttName(fileName)): MapFile {
   const res = data?.resolution as { map_origin?: { x?: unknown; y?: unknown }; map_size?: { x?: unknown; y?: unknown }; pixels_per_grid?: unknown } | undefined;
   if (typeof data?.image !== "string" || !res) throw new Error("isn't a Universal VTT map (no image or grid in it).");
   let bytes: Uint8Array;
@@ -497,11 +629,18 @@ export function parseUniversalVtt(text: string, fileName: string): MapFile {
   const rows = finite(res.map_size?.y) && res.map_size.y > 0 ? res.map_size.y : undefined;
   const originX = finite(res.map_origin?.x) ? res.map_origin.x : 0;
   const originY = finite(res.map_origin?.y) ? res.map_origin.y : 0;
-  // Dungeondraft 1.2 names an export "waterfall.vtt.dd2vtt": the ".vtt" is part of the extension, not the name.
-  const name = nameFromFile(fileName.replace(/\.vtt(\.[a-z0-9]+)$/i, "$1"));
   const ext = type.split("/")[1];
   const image = new File([bytes as BlobPart], `${name}.${ext === "jpeg" ? "jpg" : ext}`, { type });
+  // A map from Dungeon carries its whole map under "dungeon": it goes on as the picture's project
+  // file, read by the attach worker (dd/fromDungeon.ts), so the scene gets exact seasons with no
+  // second file to pair. The worker checks it; here it's only recognised.
+  const dungeon = data.dungeon as { format?: unknown } | undefined;
+  const fromDungeon = typeof dungeon === "object" && dungeon !== null && !Array.isArray(dungeon) && dungeon.format === "dungeon-map";
   return {
+    ...(fromDungeon
+      ? // Named as the export, so anything said about it names the file the GM brought in.
+        { dd: new File([JSON.stringify(dungeon)], fileName, { type: DUNGEON_MIME }), ddFrom: "dungeon" as const }
+      : {}),
     name,
     image,
     cols,
@@ -514,8 +653,11 @@ export function parseUniversalVtt(text: string, fileName: string): MapFile {
     offsetY: ppg ? (((-originY % 1) + 1) % 1) * ppg : undefined,
     // The whole of the grid, and the level clues, for a Dungeondraft project file.
     ...(ppg && cols && rows ? { vtt: vttMetaOf(data, { x: originX, y: originY }, { x: cols, y: rows }, ppg) } : {}),
+    ...withSight(sightOf(data, originX, originY)),
   };
 }
+
+const withSight = (sight: MapSight | undefined) => (sight ? { sight } : {});
 
 // ---------------------------------------------------------------- everything together
 
@@ -542,9 +684,12 @@ export async function readMapFiles(files: File[]): Promise<{ maps: MapFile[]; er
       if (projectFiles.has(f)) {
         if (lone.includes(f)) errors.push(loneProjectFileNote(f.name));
       } else if (isVttFile(f)) {
-        const map = parseUniversalVtt(await readText(f, texts), f.name);
+        const levels = parseUniversalVttLevels(await readText(f, texts), f.name);
+        // A project file paired from the batch wins over data the export carries (a file with
+        // levels comes from Dungeon, which has no project file to pair).
         const dd = ddOf.get(f);
-        maps.push(dd ? { ...map, dd } : map);
+        if (dd && levels.length === 1) maps.push({ ...levels[0], dd, ddFrom: undefined });
+        else maps.push(...levels);
       } else if (/\.owlbear$/i.test(f.name)) {
         // Owlbear Rodeo 1's own format. Owlbear's converter turns it into a 2.0 backup, which comes in here.
         errors.push(

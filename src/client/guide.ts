@@ -15,10 +15,475 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest update came out on 4 October 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 3 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
-        "title": "Exact seasons from Dungeondraft files (4 October 2026, latest)",
+        "title": "Every room measures in metres (3 November 2026)",
+        "steps": [
+          "Every room now measures in metres, the ones made before 4 October too. Their scenes in feet switched once: 5 ft became 1.5 m a square, 10 ft became 3 m.",
+          "The ruler, spell areas, and sight and light read in metres, for example \"9 m\" or \"6 m radius\". Nothing on the maps moved: each square is the same square, now 1.5 m."
+        ],
+        "notes": [
+          "GM: to measure a room in feet again, untick **Measure in metres (1.5 m a square)** in **Room settings** and click **Switch them too**: 1.5 m goes back to 5 ft.",
+          "A room whose GM had already chosen feet stays in feet. Scenes in other units, like squares or km, weren't changed.",
+          "Spell sizes on the character sheets were in metres already, so spells cover the same ground as before."
+        ]
+      },
+      {
+        "title": "Initiative fills itself in: rolls from a character's card, and creatures the GM places (1 November 2026)",
+        "steps": [
+          "Click **Initiative** on a character's card: the roll (a d10 with their INT bonus from their sheet) goes in the chat as before, and now into the **Initiative** list too. Already in the list? Their number changes to the new roll.",
+          "Initiative is 10 at most, by the handbook: a d10 and a bonus that come to more count as 10. The chat shows the roll and says \"(10 at most)\"; the list gets 10.",
+          "GM: a creature you put on the scene everyone's on (from **Monsters**, **NPCs**, a picture or a plain token, or a copy of one) rolls a d10 and joins the list by itself.",
+          "Players don't see the creatures' rolls: those rows show only to the GM, with a dashed edge. GM: click the eye on a row to show it to the players, or to keep it to yourself again.",
+          "GM: untick **Creatures I place roll and join, hidden from players** at the bottom of the **Initiative** panel to add them yourself instead (each device remembers)."
+        ],
+        "notes": [
+          "Players see one another's rolls, and everyone sees whose turn it is. When it's a creature's turn they can't see, the list says so.",
+          "**Add selected token** and **Add to initiative** roll too now: a character a d10 with their INT bonus (10 at most), anything else a d10 (they used to start at 0). The GM's creatures added that way are kept from the players as well. The panel's dice button rolls a d10 now (it was a d20).",
+          "A token taken off the map (a creature killed, say) leaves the list with it.",
+          "Creatures set out on a scene that isn't the one everyone's on don't join: they'd take turns in a fight somewhere else. Select them and click **Add selected tokens** when the fight starts."
+        ]
+      },
+      {
+        "title": "The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)",
+        "steps": [
+          "Click **Calendar** in the top bar (or the date beside the room's name). The day the game is at is at the top, with its season, the weather and the moons.",
+          "Click a day in the month to see what's on it; the arrows go a month back or on, and the month's name goes back to today.",
+          "GM: the arrows beside the date move the game a day back or on. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
+          "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
+          "**Coming up** lists what starts in the next 30 days; **Find an event** jumps to the next day an event falls on. Anyone can add a line to **The party's log for today**: a player's goes in with their name.",
+          "GM: under **Set the date, region and weather**, three more ticks: rain and snow falling on the map on a wet day; the moons lighting night scenes (lighting on, set to night) as bright as they are that night; and scenes with a season following the calendar's, winter when it's winter (pin a scene's season in its **Season** pop-up to keep it). **New day for the party** sits under the date too.",
+          "GM: the **time of day** (morning, midday, evening, night) sits under the date; a new day starts in the morning. A scene whose lighting has **Day and night follow the calendar's time of day** ticked (Edit scene › Lighting) turns to day or night with it, and the moons light it at night. In **Edit scene**, **Weather region** gives a scene weather of its own place. **Weather on this map** (in Edit scene, and in the calendar under today's weather) is **Automatic**, **Always** or **Never**: Automatic leaves out a scene whose lighting is dark (not by day, not by night) or whose Dungeon map looks mostly indoors, and says why. If it guesses wrong (a world map that reads as indoors, say), choose **Always**.",
+          "GM: under **Bring in, keep a copy, or take away**, paste a public Fantasy Calendar link and click **Bring it in**: its months, weekdays, moons, seasons, regions, categories and events all come over, and its hidden events stay the GM's eyes only. **Sync** later brings its changes over again and keeps what was made here."
+        ],
+        "notes": [
+          "The moons' phases, the day of a season and the days a repeating event falls on (the last Tenday of a month, the night two moons are full) are worked out as Fantasy Calendar does, and checked against it.",
+          "The weather is rolled day by day for the region, the same every time it's looked at: a cold spell lasts a few days, rain is likelier in a wet season. A click rolls today's again; **New weather for the whole calendar** rolls every day afresh.",
+          "Leap days and months that come only some years don't come over from Fantasy Calendar: every year is the same length here.",
+          "The calendar is one for all your rooms, like the party. Everyone sees the date change the moment the GM moves it.",
+          "The date and today's weather show at the top right of every map, table displays included; a click opens the panel. GM: untick **Show the date and weather on every map** to keep them to the panel.",
+          "The speaker button beside today's weather plays a soft rain or wind on wet or windy days, on that device only (off unless turned on; browsers only play after a click). With scenes following the calendar's season, winter snow lies deeper for a few days after it falls, and a thaw clears it.",
+          "A table display shows the day at a glance for a minute when the day changes: the date, the weather, the moons and what's on. **A copy for Fantasy Calendar** (under Bring in, keep a copy, or take away) is a file in Fantasy Calendar's own shape, with the events and log made here, for importing there.",
+          "When the GM moves the day, a line in the chat says where the game is now and what the weather's like, and everyone gets a note of what's on that day (the GM's eyes-only events only to the GM).",
+          "Also new: a **Full screen** button at the end of the zoom buttons (bottom right), for everyone. Click it again, or press Escape, to leave."
+        ]
+      },
+      {
+        "title": "New day asks first and can be undone, one character's spell points, and problems on devices (31 October 2026)",
+        "steps": [
+          "GM: **New day for the party** now says what it's about to do, and to how many characters. Click **Start the new day** to go ahead, or **Cancel**. Spell points come back by the handbook's rule, not to full: a **long rest** gives 3 × caster level + CON bonus + spell-stat bonus (WIS for clerics and their kind, INT for mages); a **successive long rest** (a second day of rest) 3 × (level + CON + stat); or leave them alone.",
+          "For half an hour after, **Undo the new day** puts everyone's prayers and ki back as they were, and takes the spell points it added back off their sheets (a spell cast since still counts).",
+          "GM: when a character is short of spell points, the battery beside **SP** on their card gives that one a long rest's spell points on their sheet.",
+          "GM: if something couldn't be shown on someone's screen (their card, a bar), an amber dot appears on **More**. Open **More** › **Problems on devices** to see who, on what device, and what went wrong, and **Clear the list** when it's dealt with."
+        ],
+        "notes": [
+          "Prayers come from the character sheet now: what its **Prayed for today** list says was prayed for, less what's been cast, is what the card counts. Casting a prayed spell from Table ticks **Cast** on the sheet. A sheet with nothing on that list still uses **Pray for today** on the card. (The sheets' script's version 9.)",
+          "Whatever failed is left out and the rest of the page carries on; a reload often fixes it. The list helps find what keeps going wrong, on a player's tablet say.",
+          "The sheets' script's version 8 reads how each caster's spell points come back (the class with spell-point dice, its level, CON and spell-stat bonuses), and says its version, so the party in **Tokens & images** tells the GM when a newer one is out."
+        ]
+      },
+      {
+        "title": "A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)",
+        "steps": [
+          "GM: in **Tokens & images**, under the party, **New day for the party** clears everyone's prayers and fills their ki. Ticked, it also puts everyone's spell points back to full on their sheets.",
+          "A Samurai's card shows their **Ki**: the pool for their level, what's left today, and their ki abilities. Click one to use it: its ki comes off, and a line goes in the chat.",
+          "GM: in **Edit scene** › **Lighting and line of sight**, **Add a light**, then click the map where it goes. Drag a light's marker to move it; its **Light** bar now has **Reach** and **Remove**."
+        ],
+        "notes": [
+          "Ki left today is kept in Tabletop, like what's been prayed for; a new day fills it.",
+          "GM: spell points back to full and ki need the sheets' script's new version (6). See **Set up the character sheets (GM)**.",
+          "To see how smoothly the map runs on a device, add ?fps to the room's link: the frames a second show at the top right (?fps=0 takes it away).",
+          "On a tablet with the side panel open, the map is as narrow as a phone's, so its bars now stack as they do on a phone: the card over the selection bar, the zoom buttons at the top right, and nothing covering anything."
+        ]
+      },
+      {
+        "title": "Tidier bars: spells on the map, the character card, and phones (31 October 2026)",
+        "steps": [
+          "With more than three spells on the map, the **Spells** bar shows one **On the map** button with how many. Click it for the list, newest first, and click a spell's × to end it.",
+          "A character's card now sits on the right, above the bar at the bottom, so it doesn't cover the token you picked. Click the arrow at its top to fold it to their name, HP, AC, initiative and spell points; click again for attacks and spells. Each device remembers which.",
+          "On a phone the card starts folded, and the bar at the bottom shows every button in rows (it used to scroll some out of sight). On touch screens each button says what it is.",
+          "**Copy invite link**, **Help & shortcuts**, and for the GM **Table display** and **Dungeon**, are now under **More** (the three dots) in the top bar, so it stays short. On a phone that's also how to reach them.",
+          "Spells a character can cast now come first on their card; the greyed ones follow.",
+          "Messages, the level bar, who's speaking and the bars along the bottom each keep to their own place, so none lands on another."
+        ],
+        "notes": [
+          "Tabletop also has about a third less to download before the map shows: Dungeon's objects and the season work load only when a map needs them."
+        ]
+      },
+      {
+        "title": "A map's levels as one: up, down, and taking the party (31 October 2026)",
+        "steps": [
+          "A map with levels is now one entry in **Scenes**: click it to open its levels.",
+          "GM: on a level, the bar at the top right of the map says which one, with ▲ and ▼ to look at the level above or below. Players stay where they are.",
+          "On the level players see, **Take the party** ▲ **Up** or ▼ **Down** takes the party's tokens, and the spells on them, to the same squares on that level, and shows it to players. With tokens selected, it takes those instead."
+        ],
+        "notes": [
+          "Each level keeps its own fog, drawings and lighting.",
+          "A map's levels brought in from a file before today are still separate scenes: bring the file in again to have them as one. Maps brought in from Dungeon already are."
+        ]
+      },
+      {
+        "title": "Coloured and flickering lights, and walls that stop tokens (31 October 2026)",
+        "steps": [
+          "With lighting on, players' tokens no longer go through walls or shut doors: dragged into one, a token stops there. The GM's tokens go anywhere.",
+          "GM: each light now has a marker on the map, a dot of its colour. Click it to give the light a colour, or tick **Flickers** for a torch or a fire.",
+          "In the dark or at night, a coloured light tints what it falls on, and a flickering one wavers."
+        ],
+        "notes": [
+          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture.",
+          "To let players' tokens through walls on a scene, untick **Walls and shut doors stop players' tokens** in **Edit scene**."
+        ]
+      },
+      {
+        "title": "Every spell on a caster's card, even with nothing to show on the map (31 October 2026)",
+        "steps": [
+          "A caster's card now lists all their spells. One with nothing to show on the map (Detect Magic, Omen...) has a dashed chip.",
+          "Click it, choose its **Level** if it can take more points, and click **Cast**. It goes in the chat and uses up its prayer and spell points, as other casts do."
+        ],
+        "notes": [
+          "Only the GM and the character's player can cast these from the card."
+        ]
+      },
+      {
+        "title": "Spells that end by themselves, casts in the chat, and casting at a higher level (31 October 2026)",
+        "steps": [
+          "Leaving a spell on the map, set **Lasts** in the **Spells** bar to how many rounds it lasts. Initiative counts them down, and it ends by itself when they're up. Empty: until it's ended, as before.",
+          "Casting from a character's card puts a line in the chat: who cast what, on whom, what it cost.",
+          "A spell the sheet marks + can be cast at a higher level: choose **Level** in the bar. It costs that level's spell points, and a spell whose area grows with its level is drawn bigger."
+        ],
+        "notes": [
+          "Ending a spell by hand works as before, any time.",
+          "Spell sizes now follow the sheets' own wording: a sphere's metres are its radius (Fog Cloud: an 8 m radius a level). Fog Cloud, Fireball, Sunburst, Tiny Hut and a few others are bigger than they were. See **Spell effects**."
+        ]
+      },
+      {
+        "title": "Cast a character's spells from their card: prayers and spell points used up (31 October 2026)",
+        "steps": [
+          "Click a caster's token: their card lists their **Spells** that show on the map, from their sheet's Spells tab.",
+          "Click one. The **Spells** tool is picked with it, cast from that character: a bolt or a fan needs only a click on the target."
+        ],
+        "notes": [
+          "Casting it takes its spell points off the character's sheet (its cost at its own level; a cantrip costs none). A spell they can't afford is greyed out and isn't cast.",
+          "Spells the sheet marks Pray or Memorize can be cast as many times as they've been prayed for today. Their player or the GM chooses that on the card with **Pray for today**; each cast uses one up, and **New day** starts again. It's chosen in Tabletop, not on the sheet.",
+          "Spells the sheet says can't be cast yet are listed under the rest, not to be clicked.",
+          "GM: the sheets' script needs its new version for this. See **Set up the character sheets (GM)**."
+        ]
+      },
+      {
+        "title": "Every spell look: Fireball, Lightning Bolt, Web, Haste and more (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), the bar now has a look for every spell on the list: Fireball and the other fire bursts, Burning Hands, Snowball Storm, Hail of Stones, Stormvoice, Sunburst; Lightning Bolt, Flame Arrow, Ice Lance, Acid Arrow; Circle of Flame, Acid Rain, Web, Grease, Tiny Hut and the other force domes; and Mirror Image, Blur, Blink and Haste on a token.",
+          "Cast them as before: click for a burst, drag from the caster for a bolt, click or drag for a spell that stays, and click a token for a spell on a token."
+        ],
+        "notes": [
+          "Circle of Flame lights up the dark around it when lighting is on. Acid Arrow's splash keeps bubbling for a couple of seconds.",
+          "The looks already there got the rest of their spells too: Smoke Sphere, Dancing Lights, Lightning Ball, Healing word, Dispel Magic and more. See **Spell effects**."
+        ]
+      },
+      {
+        "title": "Spells on tokens, and conjured things (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), pick a spell under **On a token** in the bar: Faerie Fire, Invisibility, Mage Armor, Sanctuary, Barkskin, Heat Metal, Ice Blade, Hold Person, Slow, Fly, Treeform, Summon Insects, Spectral animal and more.",
+          "Click a token to put it on. It goes where the token goes until it's ended; click the token again to end it."
+        ],
+        "notes": [
+          "Invisibility and the like hide the token from everyone but the GM and its owner, who see it faint. Faerie Fire on it shows it to everyone.",
+          "Fly lifts the token's picture above its shadow, Treeform draws the token as a tree, and a spectral creature is see-through and leaves an after-image as it moves.",
+          "Under **Things that appear**: Spiritual Weapon (a glowing mace its caster drags round), Moonbridge, Shimmering Stairs and Plant Door.",
+          "A selected token lists the spells on it, each with an × that ends it. The GM can end any spell; a player, the ones they cast. See **Spell effects**."
+        ]
+      },
+      {
+        "title": "Spells that stay: fog, darkness, light and more (31 October 2026)",
+        "steps": [
+          "With **Spells** (**S**), pick a spell under **Zones that stay** in the bar: Fog Cloud, Wall of Fog, Acid Cloud, Darkness, Light, Moonbeam, Entangle, Spike Growth, Pit, Silence and more.",
+          "Click to leave it at the spell's own size, or drag to size it: a circle from its middle out, a rectangle corner to corner (for a wall)."
+        ],
+        "notes": [
+          "With lighting on, fog and clouds hide what's in and behind them from players, darkness does that and puts out the lights in it, and Light and Moonbeam light up the dark.",
+          "It stays until it's ended: the **Spells** bar lists what's **On the map**, each with an × that ends it, and a spell you select has **End spell**. The GM can end any of them; a player, the ones they cast. **Undo** brings one back.",
+          "Players can leave a spell when the GM lets them draw. See **Spell effects**."
+        ]
+      },
+      {
+        "title": "Spell effects: cast a spell everyone sees (31 October 2026)",
+        "steps": [
+          "Pick **Spells** in the toolbar (the wand), or press **S**.",
+          "Choose the spell in the bar: Magic Missile, Chromatic Orb, Frost Hands, Colour Spray, Cloudburst, Call lightning and the rest of the party's spells that go off once.",
+          "Click where it goes, or drag from the caster to the target, as the bar says. It plays on everyone's screen, the table display too."
+        ],
+        "notes": [
+          "Sizes come from the spell lists on the character sheets: Cloudburst rains on a 5 m radius, Frost Hands is a 2 m fan.",
+          "Press on a token to cast from it, and let go on a token to aim at it.",
+          "Spells that stay on the map, and spells on tokens, came the same day (above). See **Spell effects**."
+        ]
+      },
+      {
+        "title": "Scatter forests on the fly (31 October 2026)",
+        "steps": [
+          "GM: in the Build tool's **Objects**, pick **Scatter**, pick a tree (Nature › Leafy trees or Evergreens), and drag over the map. Trees appear under the brush at random, each turned its own way and a little bigger or smaller.",
+          "With **Mix leafy trees** (or whichever group the object is in) ticked, it mixes every tree in that group; untick it to scatter only the one you picked.",
+          "Pick the brush's size (2 to 12 squares across, or **[** and **]**) and how close together: **Sparse**, **Medium** or **Dense**."
+        ],
+        "notes": [
+          "Going over the same ground again fills the gaps and no more, so you can't pile trees on trees. Treetops spread over flowers and fallen leaves, and bushes fit under trees.",
+          "Each drag is one step for **Undo**. Hold **Alt** and drag to erase objects instead.",
+          "It works for any object: rocks, bushes, mushrooms, gravestones. See **Scatter a forest** under **Building a map**."
+        ]
+      },
+      {
+        "title": "Place tokens and objects anywhere (31 October 2026)",
+        "steps": [
+          "GM: in **Room settings**, under **Placing things**, tick **Never snap to the grid**. In every scene, tokens and the Build tool's objects then go exactly where they're put: a forest can be as dense as you like, and a crowd of monsters can stand shoulder to shoulder.",
+          "On a phone or tablet, which has no Alt key: select a token and tap the magnet in its bar. Tokens you let go of on that device then stay exactly where you put them. Tap it again to snap them to the grid."
+        ],
+        "notes": [
+          "The magnet works on a computer too, for instance where Alt and a drag moves windows instead. It's remembered on each device, and it only shows in a scene that snaps.",
+          "Picture files dropped on the map from your computer now go exactly where you let go with **Alt** held, like tokens dragged in from the panels.",
+          "With **Never snap to the grid** ticked, each scene's **Snap tokens** box and the Build tool's **Snap to squares** are greyed out, and rulers and spell areas aren't snapped either."
+        ]
+      },
+      {
+        "title": "Erasing what you built (31 October 2026)",
+        "steps": [
+          "GM: in the Build tool's **Objects**, pick **Erase** (it was **Remove**) and drag over objects to erase every one the drag passes over, such as a row of trees. A click still erases just the one on top. With a mouse, holding **Alt** does the same while you place objects.",
+          "The floor under them stays. To erase floors too, use **Erase** in **Building**; for grass, water and lava, **Erase** in **Terrain**."
+        ],
+        "notes": [
+          "The toolbar's **Eraser** (**E**) is for drawings, notes and tokens, and never takes what was built. If you drag it over built floors or objects, a message now says where the Build tool's eraser is.",
+          "These work on anything built, from any session. **Undo** only reaches back to when the page was opened."
+        ]
+      },
+      {
+        "title": "Lighting and line of sight (29 October 2026)",
+        "steps": [
+          "GM: open **Edit scene** and tick **On for this scene** under **Lighting and line of sight**.",
+          "Players now see only what the party can see: walls and shut doors block their sight, out to 18 m (**How far the party sees**). Choose **Dark** and they see only what the map's lights, or the party's own light, fall on. Choose **Night** and characters with nightvision see further, in black and white.",
+          "Click a door's marker on the map to open or shut it."
+        ],
+        "notes": [
+          "The walls, doors and lights come from the map: a map from Dungeon (and any Universal VTT file) has them, and walls and doors made with the Build tool count too. For a scene brought in before today, use **Update from Dungeon**, or **Load walls, doors and lights from a map file**.",
+          "The party sees from the characters' tokens and the tokens players put down.",
+          "Places the party has explored stay on the map for players, dimmed, once it moves on (without the tokens in them).",
+          "GM: tick **Each player sees only through their own character** and each player sees only what their own character sees, and keeps their character's own explored map. Players pick who they play in the **Party** list.",
+          "See **Lighting and line of sight**."
+        ]
+      },
+      {
+        "title": "Flip a token to face the other way (29 October 2026)",
+        "steps": [
+          "Click a token with a picture to select it.",
+          "Click **Flip** in the bar at the bottom, beside the rotate buttons: its picture is mirrored, so it faces the other way. Click it again to flip it back."
+        ],
+        "notes": [
+          "Only the picture flips; its name, rings and HP bar stay as they are.",
+          "Players can flip the tokens they can move."
+        ]
+      },
+      {
+        "title": "The party's own tokens, cards and rolls, from their character sheets (28 October 2026)",
+        "steps": [
+          "Open **Tokens & images**: the party is at the top, each character in their own token, a full-body figure of their class in action. Click one to place them.",
+          "Click a character's token on the map: their card shows their HP, AC, initiative and spell points as their sheet has them now, and each attack as a roll to hit and a roll for damage."
+        ],
+        "notes": [
+          "The party comes from the group's character sheets in Google Sheets, read every minute while the room is open. Change a sheet and Tabletop follows; nothing in the sheets is changed from here.",
+          "A character's token has an HP bar under it, green, then amber, then red.",
+          "**Add selected token** in the initiative list rolls a d10 with the character's initiative bonus (their INT bonus) from their sheet. Their attacks roll two d10 to hit, with the sheet's to-hit: a natural 20 is a critical hit (the chat says so, and the damage button adds the most the weapon's dice can roll), a natural 2 a critical failure.",
+          "GM: set it up once in **Room settings** › **Character sheets**. You can choose a character's figure (their class's, or another, such as a bowwoman), or give them a picture of your own, for every room (29 October).",
+          "See **Character sheets**."
+        ]
+      },
+      {
+        "title": "Maps straight from Dungeon, and updated from it (28 October 2026)",
+        "steps": [
+          "GM: open **Scenes**, click **New scene**, then **From Dungeon**.",
+          "Click one of your maps. Dungeon draws it and Tabletop brings it in: a scene for each level, named after the map and the level.",
+          "Changed the map in Dungeon since? Click **Update from Dungeon** (the circling arrows) on one of its scenes, then **Update**."
+        ],
+        "notes": [
+          "Every map you've saved in Dungeon is listed, newest first. Dungeon saves a map by itself a few seconds after each change, so you get it as you left it.",
+          "There's no file to export or upload, and nothing is saved twice: the map stays in Dungeon until you bring it in.",
+          "Dungeon draws it just as its Export does: the picture with its exact grid, and Dungeon's map data for exact seasons. **Detail** sets how many pixels each square gets (128 to begin with, remembered in this browser). A big map is drawn no more than 6144 pixels across, the most Tabletop keeps for a map, so it's never shrunk afterwards.",
+          "Tabletop has no lighting of its own: tick **Paint Dungeon's lighting into the picture** to keep the light and dark Dungeon shows.",
+          "**Update from Dungeon** gives the scenes that came in with that one their new pictures, in place: tokens, fog, drawings and the grid stay as they are, and the old pictures are deleted once no scene uses them, so updating takes no more room than before. Levels are matched by name. If the map has gained, lost or moved levels, the window shows what will happen first, and you tick which new levels to bring in.",
+          "A scene you've given a picture of your own (**Choose uploaded** or **Upload new**) isn't Dungeon's any more, and is left alone.",
+          "Dungeon signs itself in with your GM sign-in. If it says it can't, sign out of Tabletop and in again.",
+          "While Dungeon draws, this page pauses for a moment for each level; everyone else's carries on.",
+          "See **Maps from Dungeon** under **Adding maps**."
+        ]
+      },
+      {
+        "title": "Objects and tokens anywhere, not only on squares (27 October 2026)",
+        "steps": [
+          "GM: in the Build tool, untick **Snap to squares** in the bar, in **Objects** or **Select**.",
+          "Click to place objects exactly where you click, to a sixteenth of a square: chairs close round a table, bottles along a shelf, rocks in a heap.",
+          "In **Select**, drag objects to move them smoothly, or press the arrow keys to move them a quarter square (**Shift**: a square).",
+          "To put a new token between squares, hold **Alt** as you let go of it on the map, from the **Tokens**, **Monsters** or **NPCs** tab, as you already could when moving one."
+        ],
+        "notes": [
+          "Tick **Snap to squares** again for whole squares. Objects already off the grid stay where they are; moved with it ticked, they move a square at a time and keep their place within the square.",
+          "Each 16 by 16 squares of the map now holds 256 objects, up from 64.",
+          "With it unticked, **Ctrl+V** pastes copies centred on the pointer itself, and several objects turn exactly round their middle.",
+          "It's ticked to begin with, and remembered in this browser.",
+          "Everyone needs the new version to see objects off the grid: a page left open from before today is asked to reload.",
+          "See **Place objects** in **Building a map: floors, walls, doors and objects**."
+        ]
+      },
+      {
+        "title": "Over 2,200 objects from Dungeon in the Build tool (27 October 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar to choose from all 2242: Tabletop's own sixteen and 2,226 from Dungeon, the map maker.",
+          "Open a category, then a group inside it (Furniture, then Tables), or type in **Search 2242 objects**: a name, a version (\"walnut\", \"open\", \"crimson\") or a group."
+        ],
+        "notes": [
+          "Seven new categories: Washroom (toilets in porcelain, brass and more, privy seats, squat holes and latrines, clawfoot and other tubs, basins, the sauna, laundry and towels), Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour, and many more objects in the first seven. The baths and washstands that were in Furniture are in the Washroom now. Most come in several versions: woods, stones, metals, colours, open or shut.",
+          "Outdoors they change with **Seasons** as before: snow on everything in winter, and trees, bushes, flowers, grass, reeds, mushrooms and the farm's crops changing all year.",
+          "Search shows up to 120 matches; type more to narrow them."
+        ]
+      },
+      {
+        "title": "Maps with levels from Dungeon (26 October 2026)",
+        "steps": [
+          "GM: in Dungeon, export a map with levels as Universal VTT, with \"Every level in one file\" chosen.",
+          "Bring the file in with **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "You get a scene for each level, in order, named after the map and the level, such as \"Old Keep: Cellar\".",
+          "Each scene gets its grid, and exact seasons, from its own level.",
+          "Change levels the way you change scenes: **Show to players** on the next level's scene. Tokens and fog belong to each scene, so move the party's tokens across yourself."
+        ]
+      },
+      {
+        "title": "All of Dungeon's objects and textures in the Build tool (26 October 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker at dungeon.parhome.ca.",
+          "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match.",
+          "Floors work the same way: in **Building** and **Terrain**, click the floor shown in the bar to choose from Tabletop's own and Dungeon's textures: marble, mosaics, carpets and parquet for rooms; meadows, moss, heather, sand, gravel, snow, ice, caves, water and lava for the ground.",
+          "In **Walls**, the walls' look for the whole scene: plain, or one of Dungeon's 16, from brick and logs to marble and ice."
+        ],
+        "notes": [
+          "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
+          "Rugs, flowers, trapdoors and the like always lie under what stands on them, and treetops, tents and chandeliers are over everything, whatever order you put them down in.",
+          "Outdoors they change with **Seasons**: snow on everything in winter, and the trees and plants turning all year (pines stay green). See **What changes, and what doesn't** under **Seasons**.",
+          "Ground painted with one of Dungeon's textures keeps it in every season, with the season over it: frost and snow in winter, fallen leaves in autumn, dust in a drought. Water still freezes over.",
+          "The last few objects you picked stay in the bar beside it, one click away.",
+          "Everyone needs the new version to see them: a page left open from before today is asked to reload.",
+          "See **Place objects** in **Building a map: floors, walls, doors and objects**."
+        ]
+      },
+      {
+        "title": "Maps from Dungeon get exact seasons (26 October 2026)",
+        "steps": [
+          "In Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**.",
+          "GM: bring the file into Tabletop as you would any map: **New scene**, or drop it on the map."
+        ],
+        "notes": [
+          "There's nothing to pair: the map's own data comes inside the file, so the scene gets exact seasons straight away, as a Dungeondraft map does with its project file. The report says \"map data from Dungeon attached\".",
+          "As with Dungeondraft maps, exact seasons work on maps drawn in winter for now; a green map's data is kept until green maps get exact seasons.",
+          "A map exported from Dungeon before this update doesn't carry the data: export it again.",
+          "See **Exact seasons for maps from Dungeon** under **Seasons**."
+        ]
+      },
+      {
+        "title": "Dungeon signs in with Tabletop (26 October 2026)",
+        "steps": [
+          "GM: click **Dungeon** on your list of rooms, or **More** › **Dungeon, the map maker** in a room's top bar. Dungeon, the map maker, opens in its own tab.",
+          "In Dungeon, click **Table** to come back."
+        ],
+        "notes": [
+          "Dungeon is for the GM now, and uses this sign-in: signed in here, you go straight in. If you aren't, you sign in here first and carry on to Dungeon.",
+          "Once both are open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so the room, voice chat and your map stay as they were.",
+          "See **Open Dungeon, the map maker** in **Your rooms: the GM's start page**."
+        ]
+      },
+      {
+        "title": "Extend a map past its edges (26 October 2026)",
+        "steps": [
+          "GM: open **Scenes** and click the pencil on the scene (**Edit scene and grid**).",
+          "Under **Extend the map**, type how many squares to add in **Left**, **Top**, **Right** or **Bottom**, and press Enter."
+        ],
+        "notes": [
+          "The new area has the scene's **Background** colour. Build on it, put tokens there and fog it like the rest; players see the bigger map straight away.",
+          "Nothing already on the map moves, so tokens, drawings, fog and built squares stay put.",
+          "See **Extend the map past its edges** in **The scene editor: grid and map**."
+        ]
+      },
+      {
+        "title": "Voice chat follows the group to other rooms (25 October 2026)",
+        "steps": [
+          "GM: to move the game to another of your rooms, open **Room settings**, choose the room under **Move the group**, and click **Send everyone**."
+        ],
+        "notes": [
+          "Everyone's page switches to that room, and voice chat carries on without a break: it now belongs to the whole table, not a room, so whoever is in it stays in it, whichever of your rooms they're in.",
+          "Table displays stay where they are: open the new room's display link on them.",
+          "See **Move everyone to another room** in **Room settings and backups**."
+        ]
+      },
+      {
+        "title": "Roll several dice at once (25 October 2026)",
+        "steps": [
+          "In **Chat & dice**, click the dice you want: each click picks one more, so three clicks on **d6** picks 3d6. Then click **Roll**.",
+          "Change how many with **−** and **+**, or click **×2** to double every die for a critical hit."
+        ],
+        "notes": [
+          "You can mix dice, such as 1d8 and 2d6 for a smite, and your bonus from the **+0** box is added once.",
+          "A die button no longer rolls on its own: a single d20 is **d20**, then **Roll**. **Advantage** and **Disadvantage** still roll at once.",
+          "See **Roll dice from the dice tray** in **Dice and chat**."
+        ]
+      },
+      {
+        "title": "Voice chat: the microphone works now (25 October 2026)",
+        "steps": [
+          "Reload any Tabletop page that was open, then click **Join voice** again. When your browser asks to use your microphone, allow it."
+        ],
+        "notes": [
+          "On 24 October, browsers wouldn't let Tabletop use a microphone at all, whatever you allowed: the site itself was still telling them not to. That's fixed.",
+          "If your browser still won't, see **Voice chat: Tabletop can't use your microphone** in **Troubleshooting**.",
+          "Also new: if your browser holds back the others' sound (Brave can), a notice says so at the top of the map. Click it, or anywhere on the page, to hear them."
+        ]
+      },
+      {
+        "title": "Voice chat (24 October 2026)",
+        "steps": [
+          "Open **Chat & dice** and click **Join voice** at the top of the panel. When your browser asks to use your microphone, allow it.",
+          "Players use push to talk: hold **Left Shift** while you speak, or press and hold the **Hold to talk** button. The GM's microphone is open: click **Mute** to stop the others hearing you.",
+          "Whoever is talking shows at the top right of the map, with their name and moving bars."
+        ],
+        "notes": [
+          "It's all in the browser: nothing to install, and nobody needs an account. Up to 8 people can be in voice chat at once, and the GM can always join.",
+          "Wear headphones if you can, so the others don't hear themselves through your speakers.",
+          "See **Voice chat** to change the push-to-talk key, switch between push to talk and an open microphone, or turn one person up or down."
+        ]
+      },
+      {
+        "title": "\"Only you can see this scene\" moved to the top bar (22 October 2026)",
+        "steps": [
+          "GM: when you look at a scene the players aren't on, look at the top bar, beside the scene's name. It says **Only you can see this scene.** and has **Show to players**, and **Back to live scene** when the players are on a scene."
+        ],
+        "notes": [
+          "It used to be a banner across the top of the map, which could cover the Build tool's objects and couldn't be moved out of the way. In the top bar it never covers the map or a tool's options.",
+          "On a narrower window it's shorter: a crossed-out eye stands in for the words, and **Back to live scene** is the curved-arrow button beside **Show to players**. Point at it, or tap the eye, to read it all, including which scene the players are on.",
+          "To make room beside it on a narrower window, the coloured circles showing who's in the room stop at four (three, narrower still), the last one counting the rest, and **Update: Reload** says just **Reload** (just its round-arrow icon, narrower still). Point at the circles to see everyone.",
+          "On a narrow screen, such as a phone held upright, where the top bar has no room, it's still a banner near the bottom of the map.",
+          "See **GM: \"Only you can see this scene\"** in **Finding your way around a room**."
+        ]
+      },
+      {
+        "title": "Clearer messages after an update (5 October 2026)",
+        "steps": [
+          "If something says \"Tabletop has been updated. Reload this page to …\", click **Reload** (or **Update: Reload** in the top bar), or reload the page yourself (F5, or Cmd+R on a Mac)."
+        ],
+        "notes": [
+          "Some parts of Tabletop load only when they're first opened: the **Monsters** and **NPCs** tabs and reading Dungeondraft files. On a page that was already open when Tabletop was updated, they may not load any more. They used to tell you to check the connection or to use another browser; now they say Tabletop has been updated, and the tabs have a **Reload** button.",
+          "When it's the connection that failed, they say to check it (the tabs with **Try again**). Reading Dungeondraft files no longer blames the browser for a dropped connection.",
+          "If the guide itself can't load, it now says why, with a **Reload** button, instead of showing \"Loading…\" for ever.",
+          "GM: dropping a monster on the map when the monsters can't load now says so, as NPCs already did. Before, nothing happened."
+        ]
+      },
+      {
+        "title": "Exact seasons from Dungeondraft files (4 October 2026, evening)",
         "steps": [
           "GM: in Dungeondraft, save the map (the .dungeondraft_map file) and export it (**Universal VTT** or PNG).",
           "Bring both files into Tabletop together: drop them on the map, or click **Import Dungeondraft map** in the Build tool's bar and pick both. If they're in different folders, bring one and then the other: the **New scene** window waits for the second.",
@@ -144,7 +609,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Seasons in one click (28 September 2026)",
         "steps": [
-          "GM: in the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "GM: in the top bar, click the season button (a sun behind a cloud, left of **More**, the three dots).",
           "Pick **Spring**, **Summer**, **Autumn** or **Winter**, then how drastic."
         ],
         "notes": [
@@ -195,7 +660,7 @@ export const GUIDE: GuideSection[] = [
           "Drag from one corner of a room to the opposite corner. You get a stone room with walls round it.",
           "Pick **Doors**.",
           "Click one of the room's walls. It becomes a door.",
-          "When it's ready, click **Show to players** on the \"Only you can see this scene\" banner."
+          "When it's ready, click **Show to players** beside \"Only you can see this scene\" in the top bar."
         ],
         "notes": [
           "You can now build a battle map right on the grid with the Build tool: click **Build the map** (the hammer) in the toolbar, or press **B**.",
@@ -228,7 +693,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The eraser takes tokens too (earlier that evening): drag the **Eraser** over tokens as well as drawings and notes. Locked tokens are never erased, and players can only erase their own drawings, notes and tokens. See **Drawing and notes**.",
           "This guide: step-by-step help for players and the GM. Open it from **How to use Tabletop** on the start page, or from **Read the full guide** in a room's **Help & shortcuts** box. When something goes wrong, look in **Troubleshooting**.",
-          "The table display (GM): show the map on a second screen or a TV, exactly as players see it. Click the monitor button in the top bar, then **Open display window**. See **Showing the map on a second screen or a TV**.",
+          "The table display (GM): show the map on a second screen or a TV, exactly as players see it. Click **More** (the three dots) in the top bar, then **Table display** and **Open display window**. See **Showing the map on a second screen or a TV**.",
           "Google sign-in (GM): sign in with **Sign in with Google** on the start page instead of typing the GM password. See **Signing in as the GM**.",
           "Bringing in maps (GM): **New scene** takes Owlbear Rodeo backups (.ob2) with their fog and tokens, and Dungeondraft and other Universal VTT files with their exact grid. You can also drop or paste a map straight onto the board, and the grid can be read from a file name such as `Crypt 30x20.jpg`. See **Moving from Owlbear Rodeo** and **Adding maps**.",
           "Steadier connections (everyone): when a dropped connection comes back, the changes you made meanwhile now arrive exactly once. None go missing (as long as you don't reload the page), and none are applied twice.",
@@ -304,17 +769,18 @@ export const GUIDE: GuideSection[] = [
           "Look at the top left for the room's name. The name of the scene you're looking at is just underneath it, in smaller grey text.",
           "GM: click the house button (**All rooms**) at the far left to go back to your list of rooms.",
           "Hover over the coloured circles to see who's in the room.",
-          "Click the link button (**Copy invite link**) to copy the room link. It says **Copied** for a moment.",
-          "Click the question-mark button (**Help & shortcuts**) to see the keyboard shortcuts.",
+          "Click **More** (the three dots) and **Copy invite link** to copy the room link. A message says it's copied.",
+          "Click **More** and **Help & shortcuts** to see the keyboard shortcuts.",
           "Click one of the buttons at the right-hand end to open a panel."
         ],
         "notes": [
-          "Each circle shows a person's first letter in their colour. After six people, the rest are shown as \"+\" and a number.",
+          "Each circle shows a person's first letter in their colour. After six people, the rest are shown as \"+\" and a number. GM: while \"Only you can see this scene\" is in a narrower top bar, they stop at four (three, narrower still), the last one counting the rest.",
           "The GM's circle has an orange ring around it, and in the list you see when hovering, the GM is marked \"(GM)\". In **Chat & dice**, the GM has a **GM** tag.",
           "Everyone is counted once for each tab or window they have the room open in. If a name shows up twice, that person has the room open twice.",
           "Players see the Tabletop logo where the GM has the house button.",
           "If your browser won't let the page copy, a message pops up showing the invite link so you can copy it yourself.",
-          "The monitor button (GM only) opens **Table display**, for showing the map on a second screen (see \"Showing the map on a second screen or a TV\")."
+          "**More** › **Table display** (GM only) is for showing the map on a second screen (see \"Showing the map on a second screen or a TV\"). **More** shows a green dot while a display is connected.",
+          "**More** › **Dungeon, the map maker** (GM only) opens Dungeon in its own tab (see \"Open Dungeon, the map maker\")."
         ]
       },
       {
@@ -335,7 +801,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Help and keyboard shortcuts",
         "steps": [
-          "Click the question-mark button in the top bar.",
+          "Click **More** (the three dots) in the top bar, then **Help & shortcuts**.",
           "Read the list in the **Help & shortcuts** box.",
           "Press Esc, click the **X**, or click outside the box to close it."
         ],
@@ -361,6 +827,7 @@ export const GUIDE: GuideSection[] = [
           "**Build the map (B)**: GM only. Paint rooms, walls, doors, terrain and objects onto the grid, with modes named after Dungeondraft's tools.",
           "**Measure (M)**: a ruler and spell areas.",
           "**Pointer (P)**: hold and drag to point. Everyone sees the trail.",
+          "**Spells (S)**: cast a spell's effect, such as Magic Missile or Cloudburst, that everyone sees play.",
           "**Undo (Ctrl+Z)** and **Redo (Ctrl+Shift+Z)** only cover your own changes on the scene you're looking at. They're greyed out when there's nothing to undo or redo.",
           "Undo only remembers changes you've made since you opened the page. Reloading clears it."
         ]
@@ -376,6 +843,7 @@ export const GUIDE: GuideSection[] = [
           "For one token you'll find its **Name**, its size in squares (from ½×½ up to 6×6), a colour for plain coloured tokens, status rings, **Rotate left ([)** and **Rotate right (])**, a button that makes it a prop that sits under characters, **Add to initiative**, **Duplicate (Ctrl+D)**, **Bring to front**, **Send to back** and **Delete (Del)**.",
           "To rename a token, type in the **Name** box, then press Enter or click somewhere else to save it. Press Esc to cancel what you typed.",
           "Each click of **Rotate left** or **Rotate right** turns the token 45°. On the keyboard, [ and ] do the same, and Shift+[ or Shift+] turns it 15°.",
+          "**Flip** (beside the rotate buttons, for a token with a picture) mirrors its picture so it faces the other way. Click it again to flip it back. Its name and rings stay as they are.",
           "Clicking **Add to initiative** for a token that's already in the turn order just opens the **Initiative** panel.",
           "GM only: the eye button hides a token from players or shows it again (H), and the padlock button locks it so players can't move it (L).",
           "For drawings and notes: a colour, **Edit note** for text notes, and (GM only) the eye button.",
@@ -414,14 +882,14 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "GM: \"Only you can see this scene\"",
         "steps": [
-          "When you look at a scene the players aren't on, read the banner across the map. It says \"Only you can see this scene.\" and names the scene the players are on.",
+          "When you look at a scene the players aren't on, look at the top bar, beside the scene's name. It says \"Only you can see this scene.\" and, on a wide window, names the scene the players are on.",
           "Click **Show to players** to move everyone to the scene you're looking at.",
           "Or click **Back to live scene** to return to the scene the players can see."
         ],
         "notes": [
           "Players only ever get the scene you've shown them. A scene you're previewing is never sent to them.",
           "In the **Scenes** panel, the players' scene is tagged \"Players see this\" and the one you're looking at is marked \"Previewing\".",
-          "The banner sits at the top of the map (just below a tool's options bar, when one is showing), and near the bottom on a phone."
+          "It sits in the top bar, so it never covers the map or a tool's options. On a narrower window it's shorter: a crossed-out eye stands in for the words, and **Back to live scene** is the curved-arrow button beside **Show to players**. Point at it, or tap the eye, to read it all, including which scene the players are on. On a narrow screen, such as a phone held upright, where the top bar has no room, it's a banner near the bottom of the map instead."
         ]
       },
       {
@@ -461,7 +929,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "With **Draw**, the **Eraser**, **Measure**, **Pointer**, or (GM) **Fog of war** or **Build the map** picked, one finger uses the tool. Use two fingers to move around, or switch back to **Move & select**.",
           "The zoom buttons work on touch screens too.",
-          "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard."
+          "Selecting several things at once needs Shift+click or Shift+drag, so it needs a keyboard.",
+          "Tokens snap to the grid when you let go, and there's no Alt key to stop it. Select a token and tap the magnet in its bar: tokens you let go of then stay exactly where you put them, on this device, until you tap it again."
         ]
       },
       {
@@ -471,7 +940,7 @@ export const GUIDE: GuideSection[] = [
           "Tap the **X** (**Close**) at the top of the panel to see the map again."
         ],
         "notes": [
-          "On narrow screens, the coloured circles showing who's here and the **Help & shortcuts** button are hidden to save space (for the GM, so is **Table display**). You can still see who's here at the top of the **Chat & dice** panel.",
+          "On narrow screens, the coloured circles showing who's here are hidden to save space (and, for the GM, the season button). You can still see who's here at the top of the **Chat & dice** panel; **Help & shortcuts** and **Table display** are under **More**.",
           "The zoom buttons move to the top-right corner (or the bottom right while a tool's options are showing), and the percentage is hidden.",
           "The selection bar becomes a single row. Swipe it sideways to reach more buttons.",
           "With a phone held sideways, the toolbar scrolls if it doesn't fit.",
@@ -511,6 +980,7 @@ export const GUIDE: GuideSection[] = [
           "Click a picture in the list to place it in the middle of your view, or drag it onto the map and let go where you want it."
         ],
         "notes": [
+          "A token you drag in snaps into the square where you let go, when the scene's **Snap tokens** box is ticked. To put it between squares, hold **Alt** as you let go. This works for monsters and NPCs too.",
           "Uploading only adds pictures to the list. Nothing appears on the map until you click or drag one.",
           "While files are uploading, the button shows how many are still going.",
           "If you've typed something in the **Name (optional)** box, a picture you click gets that name (a picture you drag in doesn't). The name stays in the box, so every picture you click gets it until you clear the box.",
@@ -546,6 +1016,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
+          "They snap into the square where you let go, when the scene snaps. To put them exactly where you let go, hold **Alt** as you drop them (or turn snapping off with the magnet in a token's bar).",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
           "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. Pictures dropped together with a Dungeondraft project file (.dungeondraft_map) all go to the **New scene** window, whatever their size, and the project file's data is attached to the new scene for exact seasons. A project file dropped on its own onto a scene whose picture could be its export opens the **Dungeondraft data** window for that scene; otherwise it waits in the **New scene** window for its export.",
           "If a player drops a map file (a Dungeondraft or other Universal VTT file, a Dungeondraft project file, or an Owlbear Rodeo backup), they see **Only the GM can add maps.** A big picture that a player drops or pastes simply becomes a token."
@@ -560,7 +1031,8 @@ export const GUIDE: GuideSection[] = [
           "To place a token between squares, hold **Alt** as you let go."
         ],
         "notes": [
-          "Tokens only snap when the scene's **Snap tokens** box is ticked. The GM sets this in the **Scenes** panel, under **Grid**, and it's on by default.",
+          "Tokens only snap when the scene's **Snap tokens** box is ticked. The GM sets this in the **Scenes** panel, under **Grid**, and it's on by default. With **Never snap to the grid** ticked in **Room settings**, tokens never snap, in any scene.",
+          "Without Alt (on a phone or tablet, say): select the token and click or tap the magnet in its bar. Tokens you let go of on this device then stay exactly where you put them. Click it again to snap them. The magnet only shows where the scene snaps.",
           "Everyone else looking at the same scene sees the token move while you drag it.",
           "To nudge a token one square, select it and press an arrow key. On a hex grid it moves to the next hex.",
           "Dragging empty map moves your view instead of a token.",
@@ -602,7 +1074,7 @@ export const GUIDE: GuideSection[] = [
           "The names in brackets are the D&D sizes of creature that take up that much of the map: a Tiny creature half a square, Small and Medium ones a square, Large 2 by 2, Huge 3 by 3 and Gargantuan 4 by 4.",
           "A ring brightens when it's on. Pointing at the rings shows **Status rings**. The six colours are red, orange, green, blue, purple and white, and a token can wear several at once.",
           "Props, such as doors, chests or furniture, always sit underneath characters. Click the armchair again to turn a prop back into a character.",
-          "**Add to initiative** adds the token with its name and a score of 0, then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
+          "**Add to initiative** adds the token with its name and a roll (a d10, with a character's INT bonus from their sheet), then opens the **Initiative** panel. If the token is already there, it just opens the panel.",
           "Tokens with a picture don't have colour dots.",
           "If you're a player and aren't allowed to move a token, you can still click it to select it. Its name and size are greyed out and most buttons don't appear, but you can still click **Add to initiative**, and **Duplicate (Ctrl+D)** if the GM lets players add tokens."
         ]
@@ -634,6 +1106,194 @@ export const GUIDE: GuideSection[] = [
           "The two buttons are the curved arrows at the bottom of the toolbar on the left.",
           "Undo only takes back your own changes on the scene you're looking at. The buttons are greyed out when there's nothing of yours to undo or redo there.",
           "Undo remembers up to 200 of your changes, and only in the browser tab where you made them. If you reload the page or close the tab, you can't undo them any more."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "lighting",
+    "title": "Lighting and line of sight",
+    "audience": "everyone",
+    "intro": "With lighting on, players see only what the party can see. Walls and shut doors block sight, and in the dark only what a light, or the party's own light, falls on shows. The rest of the map is dark, and so is anything on it.",
+    "parts": [
+      {
+        "title": "Turn it on (GM)",
+        "steps": [
+          "Open **Edit scene** (the pencil beside the scene) and find **Lighting and line of sight**.",
+          "Tick **On for this scene**.",
+          "Choose **Daylight** (lit all over: only walls block sight), **Night: moon or starlight** or **Dark: underground** (only lights show). At night or in the dark, set how far **The party's own light** reaches (6 m, or 20 ft, to begin with).",
+          "At night, characters with nightvision see more, in black and white: the elves (Nyloran, Sylvan, Duga) to 100 m and half-elves to 50 m, as the handbook has it (and as far as **How far the party sees** at most). It comes from their sheet's race. Everyone else sees only what the lights and the party's own light show, as in the dark.",
+          "Set **How far the party sees** (18 m, or 60 ft, to begin with): their sight fades out there, light or dark. 0 lets them see as far as the walls allow."
+        ],
+        "notes": [
+          "Both are distances in the scene's own unit, metres or feet, with the squares they come to beside them. They stay the same distance on a map whose squares are bigger or smaller.",
+          "You see the players' dark dimmed, so you can still see the whole map. To see it as players do, use the fog tool's player view.",
+          "The fog of war still covers what it covers: players see only where both let them.",
+          "It's set for each scene. A map from Dungeon whose light is dark starts on **Dark**."
+        ]
+      },
+      {
+        "title": "Doors (GM)",
+        "steps": [
+          "With lighting on, each door has a marker on the map: brown when it's shut, green when it's open.",
+          "Click a marker to open or shut its door. Players' sight changes at once."
+        ],
+        "notes": [
+          "A token standing on the marker is picked instead: move it aside first.",
+          "Secret doors made with the Build tool are walls to the players' sight."
+        ]
+      },
+      {
+        "title": "Lights (GM)",
+        "steps": [
+          "With lighting on, each light from the map has a marker: a dot of its colour (pale yellow for plain light), dashed round when it flickers.",
+          "Click a marker. The **Light** bar shows: pick a colour, **Plain** for none, tick **Flickers** for a torch or a fire, set how far its light **Reach**es, or **Remove** it.",
+          "Drag a marker to move its light.",
+          "To add a light of your own, open **Edit scene** › **Lighting and line of sight**, click **Add a light**, then click the map where it goes (Esc to cancel).",
+          "Click anywhere else on the map, or the ×, when you're done."
+        ],
+        "notes": [
+          "In the dark or at night, a coloured light tints what it falls on, only as far as its light goes (never through a wall), and a flickering one wavers. By day they look the same as plain light.",
+          "A light's colour in a map from Dungeon comes with it, unless the map has its lighting drawn into the picture. Bringing a map in again from Dungeon keeps the colour and flicker you gave a light in the same spot, and the lights you added."
+        ]
+      },
+      {
+        "title": "Walls stop tokens",
+        "steps": [
+          "With lighting on, a player's token dragged into a wall or a shut door stops there. Take it round through a doorway.",
+          "The arrow keys don't step a player's token through a wall either."
+        ],
+        "notes": [
+          "The GM's tokens go anywhere. To let players' tokens through on a scene, untick **Walls and shut doors stop players' tokens** in **Edit scene** › **Lighting and line of sight**.",
+          "Fog and darkness from spells block sight, but not tokens."
+        ]
+      },
+      {
+        "title": "Who the party sees with",
+        "steps": [
+          "The party sees from every character token (placed from the **Party**) and every token a player put down, shown and not a prop.",
+          "Players share what all of them see, unless the GM gives each player their own sight (below)."
+        ],
+        "notes": [
+          "Monsters and other tokens the GM put down don't see for the party.",
+          "With no party token on the scene, players see only dark (and what the party has explored)."
+        ]
+      },
+      {
+        "title": "What the party has explored",
+        "steps": [
+          "Wherever the party has seen stays on the map for players after it moves on, dimmed: the map shows, but not the tokens on it, so a monster isn't seen until someone's looking.",
+          "Places never seen stay black. What the party sees now shows in full."
+        ],
+        "notes": [
+          "It's kept for each scene, for everyone, from one session to the next.",
+          "GM: **Edit scene** says how much of the scene has been explored. **Forget what the party has explored** makes it all dark again."
+        ]
+      },
+      {
+        "title": "Each player's own sight",
+        "steps": [
+          "GM: in **Edit scene**, under **Lighting and line of sight**, tick **Each player sees only through their own character**.",
+          "Each player says who they play: in **Tokens & images**, click the person button beside their character in the **Party** (it lights up). The GM can set it for them with the person button on the GM's side.",
+          "Each player then sees only through their character's token and the tokens they put down. Only the tokens in their own sight show, other characters' too, and each character keeps an explored map of their own."
+        ],
+        "notes": [
+          "A player with no token of their own on the scene sees with the whole party.",
+          "Who plays whom is kept for every room, for each browser: on a new browser or a phone, pick again.",
+          "GM: you see what the whole party sees, and everything any character has explored. To see one player's view, use the fog tool's **Player view** and choose them under **Look as**.",
+          "While the party sees together, what it explores is kept for every character on the scene too, so turning this on later keeps it. A character's own map grows while their player is at the table."
+        ]
+      },
+      {
+        "title": "Walls, doors and lights",
+        "steps": [
+          "A map from Dungeon brings its walls, doors and lights, and so does any Universal VTT file (.dd2vtt, .uvtt). Walls and doors made with the Build tool count too.",
+          "For a scene brought in before 29 October 2026: **Update from Dungeon** brings them, or click **Load walls, doors and lights from a map file** in **Edit scene** and choose the map's file."
+        ],
+        "notes": [
+          "Edit scene says how many walls, doors and lights the scene has from its map."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "character-sheets",
+    "title": "Character sheets",
+    "audience": "everyone",
+    "intro": "The party's characters come from the group's character sheets in Google Sheets: their tokens, their cards, the HP bars under their tokens, their attack rolls and their initiative. Tabletop reads the sheets every minute while a room is open and never changes them.",
+    "parts": [
+      {
+        "title": "Place your character",
+        "steps": [
+          "Click the **Tokens & images** button in the top bar.",
+          "The **Party** is at the top. Click your character to put them in the middle of your view."
+        ],
+        "notes": [
+          "Each character's token is a full-body figure of their class in action (an archer for a ranger, a hooded rogue for a rogue), or another the GM chose for them, in their race's colouring, with their classes' emblems at their feet. A character with a picture the GM chose shows that instead.",
+          "The token is named after them and stands for their sheet: its card, HP bar and rolls come from there.",
+          "Players can place characters when the GM lets players add tokens (**Room settings**).",
+          "Click the person button beside your character to say you play them (it lights up). With each player's own sight on (**Lighting and line of sight**), you see through their token."
+        ]
+      },
+      {
+        "title": "A character's card",
+        "steps": [
+          "Click a character's token on the map.",
+          "Their card shows on the right, above the bar at the bottom (on a phone, over the bar): HP, AC (in brackets, with a shield on the attack's side), initiative and spell points.",
+          "Click an attack's first button to roll to hit (two d10 with the sheet's to-hit, its DEX bonus and the rest), and its second to roll damage (the weapon's dice with the sheet's damage bonus). The rolls go in the chat for everyone.",
+          "A natural 20 to hit (both d10 show 10) is a critical hit: the chat says **Critical hit!**, and that attack's damage button turns into **Crit**, which adds the most the weapon's dice can roll, without the bonuses (a 1d8 weapon adds 8, a 2d6 weapon 12). A natural 2 (both show 1) is a critical failure: the chat says **Critical failure!**.",
+          "A rogue: for a hit that's a sneak attack, tick **Sneak attack** on the card before you roll damage. The damage adds a d6 for each rank of their Sneak Attack skill (one fewer with a bow, crossbow or thrown weapon), and the box unticks itself after the roll.",
+          "Click the arrow at the top right to open the character's sheet.",
+          "Click the arrow beside it to fold the card to their name, HP, AC, initiative and spell points, and again to open it. Each device remembers which (a phone starts folded)."
+        ],
+        "notes": [
+          "Click **Initiative** on the card to roll it (a d10 with their INT bonus, 10 at most): in the chat, and into the **Initiative** list (their number changes if they're in it already).",
+          "The **Crit** button is on the card of whoever rolled the critical hit, until they roll its damage.",
+          "A weapon the sheet gives a thrown to-hit, like a dagger, has a second line for throwing it, with that to-hit.",
+          "The sneak attack dice follow their Sneak Attack rank on the sheet, so they go up when it does.",
+          "A caster's card lists their **Spells**: click one to cast it from them, and its spell points come off their sheet. See **Spell effects**.",
+          "A bow or crossbow matched to the character's strength adds their STR bonus to its damage, as a melee weapon does. GM: click **STR** beside it on their card to mark it (every room); it lights up, and everyone's card adds the bonus.",
+          "What the card shows is the sheet as last read, a minute or so ago at most (if the sheets can't be read for a while, the card keeps their last reading). To change HP or spell points, change them in the sheet.",
+          "**Ki:** a Samurai's card shows the ki pool for their level (from their sheet), what's left today, and the ki abilities they have, each with its cost. Their player or the GM clicks one to use it (its ki comes off, and a line goes in the chat), or sets what's left with − and +. **New day** on the card, or the GM's **New day for the party**, fills it.",
+          "**New day for the party** (GM, in **Tokens & images** under the party): every character's prayers cleared and ki filled, and, ticked, their spell points back to full on their sheets."
+        ]
+      },
+      {
+        "title": "Initiative from the sheet",
+        "steps": [
+          "Select the characters' tokens.",
+          "Open **Initiative** and click **Add selected token** (or **Add 2 selected tokens**, and so on)."
+        ],
+        "notes": [
+          "Each character is added with a d10 rolled and their initiative bonus (their INT bonus) from their sheet added, as the handbook has it. Other tokens roll a d10 alone.",
+          "The **Add to initiative** button on a character's bar at the bottom does the same."
+        ]
+      },
+      {
+        "title": "Set up the character sheets (GM)",
+        "steps": [
+          "In Google Drive, put the party's character sheets in one folder. Moving a sheet keeps its links working.",
+          "At script.google.com, make a new project and paste in the script from Tabletop's code (scripts/character-sheets.gs). In **Project Settings**, add a script property called FOLDER_ID with the folder's id (the last part of the folder's address).",
+          "Deploy it as a web app that runs as you and that anyone can use, and allow it when Google asks (it calls it unverified because it's your own).",
+          "In Tabletop, open **Room settings**, paste the web app's address under **Character sheets**, and click **Save**. Tabletop reads the sheets at once and says who it found."
+        ],
+        "notes": [
+          "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
+          "The one thing it changes: a character's **Current spell points**, when they cast a spell from their card. Only that cell, never below 0, and never if the sheet works it out with a formula. Tabletop sends a key with each change, which the script keeps the first time (TABLE_KEY in its properties); after that it takes changes from that Tabletop only.",
+          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**, and version 7 says which it is, so the party in **Tokens & images** tells you when a newer one is out. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
+          "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
+          "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
+        ]
+      },
+      {
+        "title": "A character's figure, or a picture of your own (GM)",
+        "steps": [
+          "Open **Tokens & images**.",
+          "Beside a character in the **Party**, click the figure button (a standing person) and choose their figure: their class's, or any other (a bowwoman, a swordwoman, a fencer...).",
+          "Or click the picture button and choose an image of your own (a full-body picture with a see-through background looks best). To go back to their figure, click the arrow below it."
+        ],
+        "notes": [
+          "A figure or picture is used in every room, for tokens placed from then on. A token already on the map keeps its picture: delete it and place them again."
         ]
       }
     ]
@@ -692,7 +1352,8 @@ export const GUIDE: GuideSection[] = [
           "A monster you click lands on the nearest free square to the middle of your view; one you drag lands where you let go. It's selected, with **Move & select** switched on, so you can drag it at once (on a phone the panel closes to show it). Adding it is one step for **Undo** (Ctrl+Z).",
           "Each monster is a light picture on a dark disc, with a coloured ring for its kind: gold for humanoids, teal for undead, green for beasts, orange for monstrosities, brown for giants, red for dragons, pink for fiends, blue for elementals, grey for constructs, yellow-green for plants and purple for fey.",
           "The first time you use a monster in a room it takes a moment: its picture is made and uploaded, and a monster you clicked is dimmed in the list until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"Monster: \" and the creature's name. If you rename or delete it, the next one you place makes a new picture.",
-          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+          "Once it's on the map, a monster is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden.",
+          "The list loads the first time you open the tab. If it can't, it says \"Couldn't load the monsters. Check the connection, then try again.\": check the connection and click **Try again**. If it says \"Tabletop has been updated. Reload this page to use the monsters.\", the page is from before an update: click **Reload**."
         ]
       },
       {
@@ -711,7 +1372,8 @@ export const GUIDE: GuideSection[] = [
           "Each comes in at the race's D&D size: Gnome, Goblin and Kobold are Small, every other race Medium, and both are one square. Pointing at the picture or **Place** says so, for example \"Octran Crusader: Medium, 1×1 squares\". To change it, select the token and pick another size from the **Size in squares** list in the bar.",
           "**Add hidden** is the same setting as on the **Monsters** tab, remembered on this device: tick it on either tab and both add hidden, until you untick it. Hidden NPCs work like hidden monsters: see **Add hidden, for ambushes**.",
           "The first time you use a race and class together in a room it takes a moment: its picture is made and uploaded, and the picture is dimmed and **Place** waits until it's on the map. After that it's instant. The picture then also sits in your **Tokens** tab, named \"NPC: \" and the pair's name. If you rename or delete it, the next one you place makes a new picture.",
-          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden."
+          "Once it's on the map, an NPC is an ordinary picture token: rename it, give it status rings, add it to initiative, turn it, duplicate it or delete it as usual. Players and the table display see it like any token, as long as it isn't hidden.",
+          "The tab loads its pictures the first time you open it. If it can't, it says \"Couldn't load the NPCs. Check the connection, then try again.\": check the connection and click **Try again**. If it says \"Tabletop has been updated. Reload this page to use the NPCs.\", the page is from before an update: click **Reload**."
         ]
       },
       {
@@ -872,7 +1534,8 @@ export const GUIDE: GuideSection[] = [
           "Locked tokens aren't erased; you'll see a message saying so. Unlock one first (select it, then the lock button or **L**) if you really want it gone.",
           "Players can only erase their own drawings and their own unlocked tokens.",
           "Each drag is one step for **Undo**, which brings everything back.",
-          "You can also select something and press **Delete**."
+          "You can also select something and press **Delete**.",
+          "GM: it leaves alone what was built with the **Build** tool: floors, walls, doors and objects such as trees. Erase those with **Erase** in the Build tool (**B**), in **Building**, **Terrain** or **Objects**."
         ]
       },
       {
@@ -935,15 +1598,15 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure** (the ruler) in the toolbar, or press **M**.",
           "Choose **Ruler** in the bar that appears.",
           "Drag from the starting point to where you want to go.",
-          "Read the distance on the label at the end, for example \"30 ft\", or \"9 m\" in a room that measures in metres.",
+          "Read the distance on the label at the end, for example \"9 m\" (or \"30 ft\" in a room set to feet).",
           "Let go to clear the ruler."
         ],
         "notes": [
           "When the scene's **Snap tokens** box is ticked (in the **Scenes** panel, under **Grid**), the ruler runs from the centre of one square to the centre of another. With it unticked, the ruler measures from exactly where you press.",
-          "The bar tells you how distance is counted, for example: One square is 5 ft; diagonals count as one square. In a room that measures in metres it says One square is 1.5 m.",
+          "The bar tells you how distance is counted, for example: One square is 1.5 m; diagonals count as one square. In a room set to feet it says One square is 5 ft.",
           "Depending on how the GM has set up the scene, diagonals count as one square, alternate one and two squares, or use straight-line distance. On hex grids, distance is always counted in hexes.",
           "Distances are rounded to a tenth: \"7.5 m\", \"6 m\" (never \"6.0 m\").",
-          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (5 to start with, or 1.5 in a room that measures in metres), **Unit** (ft, or m) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
+          "GM: you set this in the **Scenes** panel, under **Distance**. Set **One square is** (1.5 to start with, or 5 in a room set to feet), **Unit** (m, or ft) and **Diagonals**: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**. Whether new scenes start in feet or metres is set for the whole room: see **Measure in metres** in **Room settings and backups**."
         ]
       },
       {
@@ -952,7 +1615,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Measure**, or press **M**.",
           "Pick a shape: **Circle (radius from a point)**, **Cone**, **Cube** or **Line (one square wide)**.",
           "Drag outwards from where the spell starts.",
-          "Read the size on the label, for example \"20 ft radius\" or \"15 ft cone\" (in metres, \"6 m radius\" or \"4.5 m cone\").",
+          "Read the size on the label, for example \"6 m radius\" or \"4.5 m cone\" (in a room set to feet, \"20 ft radius\" or \"15 ft cone\").",
           "Let go to clear it."
         ],
         "notes": [
@@ -982,6 +1645,116 @@ export const GUIDE: GuideSection[] = [
           "It disappears for everyone when you let go, unless you pinned it.",
           "If you hold a ruler or spell area still for more than about 8 seconds, it disappears for everyone else until you move it again.",
           "GM: if you're looking at a scene the players aren't on, they don't see your ruler, spell areas, pointer or token drags."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "spells",
+    "title": "Spell effects",
+    "audience": "everyone",
+    "intro": "The **Spells** tool shows a spell on the map for everyone in the room. Most go off once: a fan of frost, darts of force, rain, lightning from the sky. Some stay until they're ended: fog, darkness, light, plants, a pit, a bridge; others go on a token: a glowing outline, a shell, flames along a blade, wings. Nothing is rolled: the dice and the GM decide what a spell does.",
+    "parts": [
+      {
+        "title": "Cast a spell",
+        "steps": [
+          "Pick **Spells** in the toolbar (the wand), or press **S**.",
+          "Choose the spell from **Spell** in the bar.",
+          "Do what the bar says: click where it goes for an area, drag from the caster the way it goes for a fan, or drag from the caster to the target for a bolt or a ray.",
+          "Let go. It plays for everyone, the table display too."
+        ],
+        "notes": [
+          "Press on a token to cast from its middle, and let go on a token to aim at its middle.",
+          "Before you click, a dashed outline shows where an area spell will land and how big it is. While you drag, it shows the fan or the line.",
+          "Sizes come from the spell lists on the character sheets, in metres, and fit any scene: Cloudburst rains on a 5 m radius, Earthmaw opens 5 m across, Call lightning strikes 3 m round, Frost Hands is a 2 m fan of 120°, Colour Spray a 7 m fan.",
+          "Players can cast too. Effects play over everything, fog and darkness included, so a player sees a spell go off even where they can't see the map."
+        ]
+      },
+      {
+        "title": "The spells so far",
+        "steps": [],
+        "notes": [
+          "**Bursts:** fire: Fireball, Elemental Burst, Fire burst, Fiery Cube, Fire Rain; freezing mist: Frost bolt, Snowball Storm; falling stones: Hail of Stones, Scatterspray; a thunderclap: Stormvoice, Breath of Bewilderment, Battering Ram; a holy flash: Sunburst, Return to earth; rain: Cloudburst; the ground biting: Earthmaw; flying needles or splinters: Needlestorm, Splinter Wood; a sparkle: Bless, Cure wounds, Healing word; from the sky: Call lightning.",
+          "**Fans from the caster:** Burning Hands (fire), Frost Hands (frost), Colour Spray.",
+          "**Bolts and rays:** darts: Magic Missile, Magic Fist, Bladeleap; an orb: Chromatic Orb, Ball Lightning, Lightning Ball, Fog bolt; lightning: Lightning Bolt, Lightning Strike, Lightning Lance, Static Shock; fire: Flame Arrow, Fire Arrows, Fire Lance, Minute Meteors, Scorcher; a shard of ice: Ice bolt, Ice Lance, Ice knife; acid: Acid Arrow (its splash bubbles on the target for a couple of seconds); holy: Divine bolt, Retribution, Fist of retribution; rays: Paralysis Bolt, Ray of Fatigue, Ray of clumsiness, Ray of weakness.",
+          "**Comings and goings:** Portal I, Misty Step, Teleport Object and Dispel Magic: a puff of mist where it starts and another where it ends. Move the token yourself.",
+          "**Zones that stay:** fog and smoke: Fog Cloud, Wall of Fog, Magic Mist, Smoke Sphere, Create Smoke, Inkwater, Pyrotechnics; poison cloud: Stinking Cloud, Acid Cloud; darkness: Darkness, Blackness, Chilling Darkness, Light (reversed), Lasting Light (reversed); light: Light, Light (cantrip), Lasting flame, Lasting Light, Continual Light, Daylight, Dancing Lights, Glowing Globe, Enchanted Torch, Forge fire, Flare, Banner; moonlight: Moonbeam, Wall of Moonlight, Beam of Light; a ring of fire, which lights the dark too: Circle of Flame, Affect Fires; plants: Entangle, Plant Growth, Briartangle, Hold Plant, Earthen Grasp; spikes: Spike Growth, Foothold; a pit: Pit, Entomb, Soften earth and stone; acid: Acid Rain, Corrosive Solvent; a web over whoever's in it: Web, Mystic Rope; slippery ground: Grease, Lubricity; water: Wall of Water, Create Spring, Spring, Lower Water, Still Water; a force dome or wall: Force Umbrella, Tiny Hut, Minor Ward, Magic Circle, Protection from Spirits, Ward against Undead, Spell Vortex, Forceward, Line of defence; swirling colours: Hypnotic Pattern, Minor Illusion; a dashed outline with the spell's name: Silence, Battle Song, Zone of Truth, Prayer, Hallucinatory Forest, Sound Bubble.",
+          "**On a token:** Faerie Fire, Aura fire and Brightmantle (a glowing outline); Invisibility, Chameleon, Camouflage, Meld into Stone and Fireform (unseen); Mage Armor, Shield, Improved Shield, Sanctuary, Shield of Faith, Divine Armour, Barkskin, Shellskin and Plant Armour (a shell: blue for force, gold for holy, brown for bark, green for leaves); Flame Blade, Bladefire, Blazing Sword, Ice Blade and Ice Claws (a burning or icy blade); Heat Metal (red-hot); Hold Person, Hold animal, Hold Undead and Slow (bound); Fly, Levitate and Feather Fall (flying); Treeform (a tree); Summon Insects (a swarm); Spectral animal, Fire Phantom, Raging Griffon, Guardian and Phantom Steed (spectral); Mirror Image (copies round it); Blur, Displace Self and Duplicate self (a blurred copy); Blink and Shadow Blink (it flickers out and back); Haste (after-images and speed lines as it moves).",
+          "**Things that appear:** Spiritual Weapon, Moonbridge, Shimmering Stairs and Plant Door."
+        ]
+      },
+      {
+        "title": "Put a spell on a token",
+        "steps": [
+          "Pick **Spells** in the toolbar, or press **S**.",
+          "Under **On a token** in **Spell**, choose the spell. A dashed ring shows which token it would go on.",
+          "Click the token. The spell's look goes with it wherever it's moved, until the spell is ended."
+        ],
+        "notes": [
+          "**Unseen** (Invisibility and the like): the GM and the token's owner see it faint; nobody else sees it or can pick it. Faerie Fire on it too shows it, faint, to everyone.",
+          "**Flying:** the token's picture floats and bobs above its shadow; its rings and name stay on the ground.",
+          "**Treeform:** the token is drawn as a tree. **Spectral:** see-through, glowing, with an after-image as it moves.",
+          "**Mirror Image** and **Blur:** faint copies of the token round it. **Blink:** the token flickers out and back. **Haste:** golden arcs round it, and after-images and speed lines as it moves.",
+          "For a spectral creature, put a creature's token on the map first, then the spell on it.",
+          "Players can put spells on any token they can see, when the GM lets them draw."
+        ]
+      },
+      {
+        "title": "Conjure a weapon, a bridge or a path",
+        "steps": [
+          "Under **Things that appear** in **Spell**, choose the spell.",
+          "**Spiritual Weapon:** click where it appears. Drag it round by its middle with **Move & select**, like a token.",
+          "**Moonbridge**, **Shimmering Stairs** or **Plant Door:** click to lay one across the map at the spell's size, or drag corner to corner to set its length and which way it goes."
+        ],
+        "notes": [
+          "A bridge and a path are drawn under tokens, so tokens stand on them; the weapon floats over them.",
+          "They're ended like any spell that stays (below)."
+        ]
+      },
+      {
+        "title": "Leave a spell on the map",
+        "steps": [
+          "Pick **Spells** in the toolbar, or press **S**.",
+          "Under **Zones that stay** in **Spell**, choose the spell.",
+          "Click to leave it at the spell's own size (the bar says how big), or drag to size it: a circle from its middle out, a rectangle corner to corner. A long thin rectangle makes a wall."
+        ],
+        "notes": [
+          "Fog, clouds, darkness and the swirling pattern are drawn over tokens; light, plants, spikes, a pit and water under them.",
+          "With lighting on: players can't see into or through fog, clouds or darkness; darkness also puts out any light inside it; Light and Moonbeam light the dark around them, and Daylight a 20 m circle.",
+          "It's a drawing underneath: drag its dashed outline to move it, and hide it from players (**H**) like any drawing. Players can leave spells when the GM lets them draw.",
+          "**Lasts:** before you place it, set how many rounds it lasts in the bar (the sheets' rounds are filled in where they give them, like Wall of Fog's 9). As initiative goes round, its rounds count down (the bar's list shows how many are left), and it ends by itself when none are left. Leave it empty for a spell that lasts until it's ended. Going back a turn past the top of a round gives it its round back; clearing initiative doesn't end it."
+        ]
+      },
+      {
+        "title": "Cast from a character's card",
+        "steps": [
+          "Click the character's token. Their card lists their **Spells** (spell points beside each).",
+          "Click a spell. The **Spells** tool is picked with it, and the bar says **As** and their name: it's cast from their token, which has a dashed ring.",
+          "Cast it as usual, but a bolt, a fan or a jump needs only a click: on the target, the way it goes, or where they arrive.",
+          "To cast as nobody, click the × beside their name in the bar."
+        ],
+        "notes": [
+          "Their spells come first in the bar's **Spell** list while you cast as them.",
+          "**Prayed for:** a spell the sheet marks Pray or Memorize can be cast as many times as it's been prayed for today (×1, ×2 on the card; – for none). Their player or the GM clicks **Pray for today** on the card and sets each with − and +, then **Done**. Each cast uses one up; with none left it isn't cast. **New day** clears them all.",
+          "What's been prayed for is kept in Tabletop, for every room, not read from the sheet.",
+          "**Spell points:** each cast takes the spell's cost off the character's sheet (the card's SP number at its own level; a cantrip costs none), and the card shows what's left. A spell that costs more than they have left is greyed out and isn't cast.",
+          "**A higher level:** a spell the sheet marks with + (it can take more points) can be cast at a higher level, up to the highest they cast at: choose it under **Level** in the bar, which says what each costs (the sheets' 1, 2, 3, 5, 8...). Spells whose area grows with the level (Fog Cloud 8 m a level, Fireball, Hail of Stones, Entangle, Wall of Fog...) are drawn that much bigger, and Wall of Fog lasts longer.",
+          "**In the chat:** each cast says who cast what, at what level, on whom, what it cost and how many prayers are left (\"Testa casts Fog Cloud at level 2 (2 SP).\"), so the table sees it and a slip can be put right on the sheet.",
+          "Spells the sheet says can't be cast yet (\"not castable yet\") are listed under the rest, greyed. Ask DM ones say so when you point at them.",
+          "**Nothing on the map:** a spell with nothing to show (Detect Magic, Omen...) has a dashed chip. Click it, choose its **Level** if it can take more points, and click **Cast**: it goes in the chat and uses up its prayer and spell points, with nothing drawn. Only the GM and the character's player can cast these."
+        ]
+      },
+      {
+        "title": "End a spell",
+        "steps": [
+          "With **Spells** picked, click the × beside a spell under **On the map** in the bar. With more than three, click **On the map** first for the list of them all, newest first.",
+          "Or select the spell (click its dashed outline with **Move & select**) and click **End spell**.",
+          "A spell on a token: select the token and click the × on the spell in its bar, or click the token again with the same spell picked."
+        ],
+        "notes": [
+          "A spell placed with rounds to last ends by itself when initiative has counted them down; ending it by hand still works any time.",
+          "The GM can end any spell; a player, only the ones they cast.",
+          "**Undo** (Ctrl+Z) brings an ended spell back. The **Eraser** ends one that stays on the map. Deleting a token ends the spells on it."
         ]
       }
     ]
@@ -1032,6 +1805,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "The row at the top of the panel shows who is in the room. The GM is marked **GM**.",
           "If the GM has a table display connected, it also shows up in that row as **Table display**.",
+          "Under that row is **Voice chat**: see **Voice chat** to talk to each other.",
           "While the panel is closed, a number on the **Chat & dice** button counts new messages. Past 99 it shows 99+. Opening the panel clears the count."
         ]
       },
@@ -1049,17 +1823,20 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
-        "title": "Quick rolls from the dice tray",
+        "title": "Roll dice from the dice tray",
         "steps": [
           "If you have a bonus, type it in the small box that shows **+0**, for example `5` or `-1`.",
-          "Click a die button: **d4**, **d6**, **d8**, **d10**, **d12**, **d20** or **d100**.",
-          "Read the result in the chat."
+          "Click the dice you want to roll: **d4**, **d6**, **d8**, **d10**, **d12**, **d20** or **d100**. Each click picks one more, so three clicks on **d6** picks 3d6, and a number on the button shows how many.",
+          "To change how many, click **−** or **+** beside a picked die, or click **×2** to double every die (for a critical hit).",
+          "Click **Roll**. The dice and your bonus roll together, and the result shows in the chat."
         ],
         "notes": [
-          "The bonus is added only to the quick rolls: the die buttons, **Advantage** and **Disadvantage**. It isn't added to rolls you type.",
-          "Hover over a die button to see exactly what it will roll, for example \"Roll 1d20+5\".",
+          "You can mix dice, such as 1d8 and 2d6 for a smite: up to 100 of one die, and 200 in all.",
+          "To put the picked dice back without rolling, click the X beside **Roll** (**Put the picked dice back**).",
+          "The bonus is added once to the whole roll, and to **Advantage** and **Disadvantage**, which roll at once. It isn't added to rolls you type.",
+          "Hover over **Roll** to see exactly what it will roll, for example \"Roll 2d6+1d8+5\".",
           "The box takes a whole number of up to four digits, with or without a + or - in front. If you type anything else, the app ignores it and rolls with no bonus.",
-          "The bonus stays in the box while the **Chat & dice** panel is open. If you close the panel or open a different panel, the box empties, so type your bonus again next time."
+          "The bonus stays in the box while the **Chat & dice** panel is open. If you close the panel or open a different panel, the box empties, so type your bonus again next time. Any dice you've picked are put back too."
         ]
       },
       {
@@ -1076,7 +1853,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Private rolls",
         "steps": [
           "Tick **To GM** in the dice tray. If you're the GM, this box is called **Hidden** instead.",
-          "Make your roll as usual: a die button, **Advantage**, **Disadvantage**, or a roll you type.",
+          "Make your roll as usual: **Roll**, **Advantage**, **Disadvantage**, or a roll you type.",
           "When you want everyone to see your rolls again, untick the box."
         ],
         "notes": [
@@ -1158,6 +1935,77 @@ export const GUIDE: GuideSection[] = [
     ]
   },
   {
+    "id": "voice",
+    "title": "Voice chat",
+    "audience": "everyone",
+    "intro": "Talk to each other while you play, right in Tabletop: no other app, and nobody needs an account. Voice chat is near the top of the **Chat & dice** panel. It's one voice chat for the whole table, not each room, so it carries on when the GM moves the game to another room. Up to 8 people can be in it at once (each browser tab in it counts), and the GM can always join.",
+    "parts": [
+      {
+        "title": "Join and leave voice chat",
+        "steps": [
+          "Click **Chat & dice** in the top bar.",
+          "Under the row of names at the top of the panel, beside **Voice chat**, click **Join voice**.",
+          "If your browser asks to use your microphone, allow it.",
+          "To leave, click **Leave**. Closing the page leaves too."
+        ],
+        "notes": [
+          "The list under **Voice chat** shows who's in it, even before you join. A crossed-out microphone means that person's microphone is off right now, and a green ring means they're talking.",
+          "When you arrive while people are in voice chat, or someone starts it while you're not in it, a message says so.",
+          "Wear headphones if you can. Your browser cancels echo, but headphones stop the others hearing themselves through your speakers.",
+          "If a message says Tabletop isn't allowed to use your microphone, allow it for this site: click the icon at the left of the address bar, turn on the microphone, then click **Join voice** again.",
+          "If you lose your connection for a moment, Tabletop puts you back in voice chat when it comes back.",
+          "A table display doesn't join voice chat.",
+          "It's one voice chat for all the GM's rooms: anyone with a link to any of them can see who's in it and join. When the GM deletes a room, the people who came in through it are taken off voice chat too."
+        ]
+      },
+      {
+        "title": "Push to talk (players)",
+        "steps": [
+          "Hold **Left Shift** while you talk, and let go when you're done.",
+          "Or press and hold the **Hold to talk** button in the panel (it names your key, such as **Hold to talk (Left Shift)**), or the microphone button beside the zoom buttons. That's the way on a phone or tablet."
+        ],
+        "notes": [
+          "Players start with push to talk, so nobody hears everything going on in everyone's room. Your microphone is on only while you hold the key or the button, and the others see a crossed-out microphone beside your name the rest of the time.",
+          "Typing in a box, such as the chat, never talks, so **Shift** still types capital letters there.",
+          "To use another key: while you're in voice chat, click **Change** beside **Key:**, then press the key you want (**Esc** keeps the old one). It's remembered in this browser. A letter or another ordinary key then only talks, even if the map uses it as a shortcut; Shift, Ctrl, Alt and Cmd keep their usual jobs too.",
+          "While you hold **Left Shift** to talk, the map takes your clicks and drags as plain ones, so you can move tokens and the map as you talk. To select several things with Shift+click, untick **Push to talk** or choose another key."
+        ]
+      },
+      {
+        "title": "An open microphone (the GM)",
+        "steps": [
+          "The GM starts with an open microphone: the others hear you whenever you talk.",
+          "Click **Mute** to turn your microphone off, and **Unmute** to turn it back on. The microphone button beside the zoom buttons does the same."
+        ],
+        "notes": [
+          "Anyone can switch: while you're in voice chat, untick **Push to talk** for an open microphone, or tick it for push to talk. The choice is remembered in this browser."
+        ]
+      },
+      {
+        "title": "See who's talking",
+        "steps": [
+          "While you're in voice chat, look at the top right of the map: whoever is talking shows there, with their name and moving bars."
+        ],
+        "notes": [
+          "You show there too, as **You**, so you can tell your microphone is picking you up.",
+          "It never gets in the way of a click on the map, and it moves down out of the way of a tool's options.",
+          "On a narrow screen, such as a phone held upright, it's just their coloured circles, at the top right of the map.",
+          "In the list under **Voice chat**, whoever is talking has a green ring."
+        ]
+      },
+      {
+        "title": "Turn one person up or down",
+        "steps": [
+          "While you're in voice chat, drag the slider beside their name in the list under **Voice chat**."
+        ],
+        "notes": [
+          "It changes how loud they are for you only, and it's remembered in this browser.",
+          "An iPhone or iPad has no sliders, because those devices set the volume themselves: use the device's volume buttons."
+        ]
+      }
+    ]
+  },
+  {
     "id": "initiative",
     "title": "Initiative",
     "audience": "everyone",
@@ -1169,7 +2017,7 @@ export const GUIDE: GuideSection[] = [
           "Click the crossed-swords button **Initiative** in the top bar."
         ],
         "notes": [
-          "Everyone sees the same list, except for hidden creatures (explained below). The list is still there next session.",
+          "Everyone sees the same list, except for hidden creatures (explained below) and the rows the GM keeps to themself. The list is still there next session.",
           "If two people add someone at the same moment, both entries are kept."
         ]
       },
@@ -1177,12 +2025,12 @@ export const GUIDE: GuideSection[] = [
         "title": "Add someone by name",
         "steps": [
           "Type the name in the **Name** box at the bottom of the panel.",
-          "Type their initiative in the **#** box, or click the dice button (**Roll a d20**) to fill in a random number from 1 to 20.",
+          "Type their initiative in the **#** box, or click the dice button (**Roll a d10**) to fill in a random number from 1 to 10.",
           "Click **Add** (the plus button) or press Enter."
         ],
         "notes": [
-          "**Roll a d20** only fills in the box. It doesn't add a bonus and doesn't post anything in the chat, so add your bonus to the number yourself before you click **Add**.",
-          "Unlike rolls in the chat, the **Roll a d20** number is picked in your own browser, not by the server.",
+          "**Roll a d10** only fills in the box. It doesn't add a bonus and doesn't post anything in the chat, so add your bonus to the number yourself (10 at most, by the handbook) before you click **Add**.",
+          "Unlike rolls in the chat, the **Roll a d10** number is picked in your own browser, not by the server.",
           "If you leave the **#** box empty, the entry gets 0.",
           "The entry takes your colour.",
           "The list sorts itself with the highest number first. Equal numbers stay in the order they were added.",
@@ -1195,14 +2043,14 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click a token on the map to select it. To select more than one, Shift+click the others.",
           "In the **Initiative** panel, click **Add selected token**. With several tokens selected, the button says, for example, **Add 3 selected tokens**.",
-          "Click the new entry's number. It starts at 0.",
-          "Type its initiative.",
-          "Press Enter."
+          "Each is added with a roll: a character a d10 with their INT bonus from their sheet (10 at most), anything else a d10. To change one, click its number, type the new one and press Enter."
         ],
         "notes": [
           "The entry uses the token's name (or \"Token\" if the token has no name) and the token's colour.",
+          "GM: a creature you add (not one of the party's characters) is kept from the players: its row has a dashed edge. Click its eye to show it to them. Creatures you place on the scene everyone's on join by themselves, unless you untick **Creatures I place roll and join, hidden from players** at the bottom of the panel.",
+          "A token taken off the map leaves the list with it.",
           "Tokens that are already in the list are skipped. The button only shows up when at least one selected token isn't in the list yet.",
-          "A quicker way for one token: click the token, then click **Add to initiative** (the crossed-swords button) on the bar that appears at the bottom of the map. The token joins the list at 0 and the **Initiative** panel opens. If the token is already in the list, the button just opens the panel. Anyone can use it."
+          "A quicker way for one token: click the token, then click **Add to initiative** (the crossed-swords button) on the bar that appears at the bottom of the map. The token joins the list with a roll and the **Initiative** panel opens. If the token is already in the list, the button just opens the panel. Anyone can use it."
         ]
       },
       {
@@ -1360,6 +2208,21 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Dungeon uses this sign-in",
+        "steps": [
+          "Go to dungeon.parhome.ca, or click **Dungeon** on your list of rooms.",
+          "If you're signed in here, Dungeon opens. If you aren't, you come to the start page: sign in as the GM, and Dungeon opens once you have."
+        ],
+        "notes": [
+          "While Dungeon is waiting for you, the **GM sign in** box says \"Sign in as the GM to open Dungeon, the map maker.\"",
+          "Google sign-in works too: after Google, you carry on to Dungeon. Sign in within 10 minutes, or you stay on your list of rooms instead (click **Dungeon** there).",
+          "Dungeon checks your sign-in with Tabletop again after 12 hours. While you're still signed in here, you won't notice.",
+          "Changing the GM password, or taking a Google account off the GM list, signs Dungeon out too.",
+          "Signing out here doesn't close a Dungeon tab that's already open.",
+          "Anyone who isn't the GM can't open Dungeon: they're asked to sign in as the GM."
+        ]
+      },
+      {
         "title": "What the sign-in messages mean",
         "steps": [
           "Read the message that appears under the sign-in buttons.",
@@ -1401,6 +2264,20 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Open Dungeon, the map maker",
+        "steps": [
+          "Click **Dungeon** next to **Sign out**. In a room, click **More** (the three dots) in the top bar, then **Dungeon, the map maker**.",
+          "Dungeon opens in a tab of its own. Draw your map there; Dungeon saves it in this browser as you go.",
+          "To come back, click **Table** in Dungeon's top bar."
+        ],
+        "notes": [
+          "You don't sign in to Dungeon separately: it uses this sign-in (see \"Dungeon uses this sign-in\").",
+          "With both open, **Dungeon** and **Table** bring the other tab forward instead of opening another, so you keep your place in the room and stay in voice chat.",
+          "If your browser won't switch tabs for a page, the other one loads again in its tab instead. Dungeon opens your map where it was saved.",
+          "To use a Dungeon map in a room, export it from Dungeon as Universal VTT (a .dd2vtt file) and bring it in as you would a Dungeondraft one: **Import Dungeondraft map**, **New scene**, or drop it on the map. A map with levels makes a scene for each level, in order."
+        ]
+      },
+      {
         "title": "Open a room",
         "steps": [
           "Click the room's name in the list."
@@ -1423,7 +2300,7 @@ export const GUIDE: GuideSection[] = [
           "Anyone with the link can join as a player, so keep it within your group.",
           "A room link is the site's address, then /r/, then a 12-character code of letters and numbers.",
           "If **Copied** doesn't appear on the start page, your browser didn't allow the copy, and no message appears. Open the room, open **Room settings**, click in the **Invite link** box (it selects the whole link) and copy it yourself.",
-          "You can also copy the link from inside the room: use the link button in the top bar, or **Invite link** and **Copy** in **Room settings**."
+          "You can also copy the link from inside the room: use **More** › **Copy invite link** in the top bar, or **Invite link** and **Copy** in **Room settings**."
         ]
       },
       {
@@ -1602,6 +2479,21 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Maps from Dungeon",
+        "steps": [
+          "Click the **Scenes** button in the top bar.",
+          "Click **New scene**, then **From Dungeon**. Your maps in Dungeon are listed, newest first.",
+          "Choose the **Detail**, and tick **Paint Dungeon's lighting into the picture** if you want Dungeon's light and dark kept.",
+          "Click a map. Dungeon draws it, and Tabletop makes a scene for each level."
+        ],
+        "notes": [
+          "A map is listed once Dungeon has saved it online, which it does by itself a few seconds after each change. There's no file to export, and nothing is saved twice.",
+          "To bring a map in again after changing it in Dungeon, click **Update from Dungeon** (the circling arrows) on one of its scenes in **Scenes**, then **Update**. The scenes that came in with it get their new pictures: tokens, fog, drawings and the grid stay put, and the old pictures are deleted once no scene uses them. Levels are matched by name; if they've changed, you see what will happen before anything does. Clicking the map in **From Dungeon** again makes new scenes instead, updated on their own.",
+          "Tabletop has no lighting or line of sight, so the walls, doors and lights Dungeon draws are only in the picture. Dungeon's map data does come with it, for exact seasons.",
+          "Your other maker's files still come in with **Upload a map**."
+        ]
+      },
+      {
         "title": "Put the grid size in the file name",
         "steps": [
           "Before you upload, rename the image so its name includes the number of squares across and down, like `Crypt 30x20.jpg` or `Crypt [22x30].png`, or the pixels per square, like `Cave 140ppi.png` or `Cave 70px.png`.",
@@ -1626,9 +2518,11 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "You get the map picture and its exact grid, and the message says \"Grid set from the file\".",
-          "Only the picture and the grid are used. Anything else saved in the file, such as walls, doors or lights, is not (with a Dungeondraft project file, they only help tell which level the picture shows).",
+          "The picture and the grid are used, and its walls, doors and lights for **Lighting and line of sight** (with a Dungeondraft project file, they also help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
-          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**."
+          "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**.",
+          "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**.",
+          "A map from Dungeon with levels, exported with every level in one file, makes a scene for each level, in order, named after the map and the level (\"Old Keep: Cellar\"), and listed as one map in **Scenes**. See **A map with levels** under **Scenes**."
         ]
       },
       {
@@ -1716,7 +2610,7 @@ export const GUIDE: GuideSection[] = [
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",
           "The same as in Dungeondraft: Space and drag, or drag with the middle mouse button, moves the map; Ctrl and the mouse wheel zoom; Ctrl+Z undoes and Ctrl+Y redoes; **[** and **]** change the brush size; holding Alt takes away instead of adding. In **Objects**, the wheel turns the next object 15° (**Z**+wheel 5°), **Alt**+wheel sizes it and a right-click turns it 90°. In **Select**, click or drag a box, **Shift** adds, **Delete** deletes, and **Ctrl+C** and **Ctrl+V** copy and paste, even between rooms.",
-          "Different: everything sits on the grid: walls follow grid lines, and objects stand on whole squares, turn in 5° steps and size from ½ to 3 squares. In **Select** the wheel turns 15° a notch (Dungeondraft: 30°) and **Z**+wheel 5° (Dungeondraft: 10°). Walls and floors can't be selected (floors can't in Dungeondraft either); doors can be selected only to delete them, and openings not at all. There's no mirror, layers, locking, lighting or levels (a scene is a level).",
+          "Different: walls follow grid lines, and objects stand on whole squares unless you untick **Snap to squares** (then anywhere, to a sixteenth of a square), turn in 5° steps and size from ½ to 3 squares. In **Select** the wheel turns 15° a notch (Dungeondraft: 30°) and **Z**+wheel 5° (Dungeondraft: 10°). Walls and floors can't be selected (floors can't in Dungeondraft either); doors can be selected only to delete them, and openings not at all. There's no mirror, layers, locking, lighting or levels (a scene is a level).",
           "A **Blank grid**'s **Columns** and **Rows** are Dungeondraft's new map size in squares."
         ]
       },
@@ -1750,7 +2644,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Building: rooms",
         "steps": [
           "Pick **Building**.",
-          "Pick a floor: stone, wood or dirt (the textured squares).",
+          "Pick a floor: click the one shown in the bar to choose Tabletop's stone, wood or dirt, or one of Dungeon's textures (marble, tiles, cobbles, carpets, planks, cave floors and more), in groups or by typing its name. The last few you picked stay beside it.",
           "Pick a shape: **Rectangle** (the square) or **Oval** (the circle), then drag from one corner of the room to the opposite corner.",
           "Or pick **Brush** (the paintbrush), pick its size (1 to 5 squares, or press **[** and **]**), and drag to paint square by square."
         ],
@@ -1758,7 +2652,9 @@ export const GUIDE: GuideSection[] = [
           "Rooms get walls automatically wherever they meet empty space, grass, water or lava. Rooms painted next to each other join up with no wall between them.",
           "Pick **No wall** (the X) to paint rooms without walls from then on, for example to patch an uploaded map; **Wall** (the bricks) turns walls on again for rooms you paint after that. (Rooms already painted keep what they had: paint them again to change it.) On a scene with an uploaded map it starts on **No wall**. Your choice is kept for each scene until you reload the page.",
           "Dirt with the brush makes caves, like Dungeondraft's Cave brush.",
-          "Paint one floor over another to change it."
+          "Paint one floor over another to change it.",
+          "Each of Dungeon's textures is a stone, wooden or earth floor underneath, which decides how its room behaves, as Tabletop's own do: carpets and planks are wooden floors, marble and cobbles stone, cave floors and sand earth.",
+          "A texture shows its colour for a moment the first time anyone uses it on a map, while Tabletop makes it."
         ]
       },
       {
@@ -1770,6 +2666,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "In **Building**, erasing takes rooms: their floor, and the walls, doors and objects on it. Terrain stays where it was. In **Terrain**, it takes only the grass, water and lava: walls, doors and objects stay.",
           "Unlike Dungeondraft, cutting out part of a room also takes the objects on those squares.",
+          "To erase only objects (trees on an uploaded map, say) and leave the floor, use **Erase** in **Objects**: see **Place objects**.",
+          "The **Eraser** in the toolbar (**E**) doesn't take anything built here: it's for drawings, notes and tokens.",
           "**Clear build** removes everything built on the scene, after asking you. Undo brings it back."
         ]
       },
@@ -1777,13 +2675,14 @@ export const GUIDE: GuideSection[] = [
         "title": "Terrain: grass, water and lava",
         "steps": [
           "Pick **Terrain**.",
-          "Pick grass, water or lava, and a shape (it starts on **Brush**).",
+          "Pick grass, water or lava, or one of Dungeon's ground textures (click the floor shown in the bar), and a shape (it starts on **Brush**).",
           "Drag to paint."
         ],
         "notes": [
           "Terrain goes under buildings, as in Dungeondraft: painting it never covers a room's floor, so you can paint the outdoors right up to your rooms. Each square holds one floor, though: painting a room over terrain replaces the terrain there, and cutting the room out later leaves empty squares, which you can paint with terrain again.",
           "Terrain never gets walls of its own, but rooms get walls where they meet it.",
-          "Hold **Alt** while you drag to take terrain away."
+          "Hold **Alt** while you drag to take terrain away.",
+          "Dungeon's ground textures are terrain like grass (water and lava are water and lava): they go under buildings, are outdoors for **Seasons**, and the eraser takes them."
         ]
       },
       {
@@ -1798,7 +2697,8 @@ export const GUIDE: GuideSection[] = [
           "While you're placing corners, **Backspace** takes the last one back and **Escape** cancels.",
           "Hold **Alt** to remove walls instead of adding them.",
           "**Remove** also opens up a wall that was drawn automatically: an archway, or an opening into a cave.",
-          "On a touch screen, drag along the lines, or tap a single grid line."
+          "On a touch screen, drag along the lines, or tap a single grid line.",
+          "The walls' look: click **Plain walls** in the bar to give every wall in the scene one of Dungeon's 16 wall textures (brick, stone, logs, plaster, marble, iron, ice and more), or plain again. It's for the whole scene, everyone sees it at once, and **Undo** puts it back."
         ]
       },
       {
@@ -1819,17 +2719,41 @@ export const GUIDE: GuideSection[] = [
         "title": "Place objects",
         "steps": [
           "Pick **Objects**.",
-          "Pick an object from the row of pictures: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire or rubble.",
+          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 2242. Type in **Search 2242 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's fourteen categories (Furniture, Containers, Kitchen & tavern, Washroom, Nature, Camp & outdoors, Dungeon, Light, Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour), each folding into its groups. **Enter** picks the first match; **Esc** or a click outside closes it.",
           "Set its **Size** (½ to 3 squares) and **Turn** in the bar. With a mouse you can instead scroll the wheel to turn it 15° a notch (hold **Z** for 5°), hold **Alt** and scroll to change its size, or right-click to turn it 90°, as in Dungeondraft.",
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],
         "notes": [
+          "To place objects closer together than squares allow, untick **Snap to squares** in the bar (in a room with **Never snap to the grid** ticked in **Room settings**, it's already off and greyed out). Each then goes exactly where you click, to a sixteenth of a square. Tick it again for whole squares. It's remembered in this browser.",
           "A click always places a new object, even on top of another (a chair at a table), but never an exact copy on top of the same object. To move, turn or delete objects already placed, use **Select**. With a mouse you can also drag one to move it without switching.",
           "While you place objects, the mouse wheel turns them: zoom with **Ctrl** and the wheel, or pinch on a trackpad. Two fingers on a trackpad still move the map.",
           "If your mouse wheel moves the map instead of turning (smooth-scrolling mice, and most mice on a Mac), or you use a trackpad, hold **Z** while you scroll to turn the object 5° at a time, or press **[** and **]** to turn it 15° (**Shift**: 5°). To make the wheel, and two fingers up and down a trackpad, turn objects 15° at a time, pick **Always turns them (smooth-scrolling mice, Mac mice)** for **Mouse wheel over objects (Build tool)**, under **Change your name or colour** in **Chat & dice**. Holding **Alt** while you scroll changes an object's size, not its turn. All of this works the same for the selected objects in **Select**.",
-          "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them.",
-          "Hold **Alt** and click an object to remove it, or pick **Remove** and click it.",
+          "An object stands on whole squares: one bigger than 1¼ squares stands on 2×2, one bigger than 2¼ on 3×3. Turned or sized, it's drawn centred on them. Placed with **Snap to squares** unticked, it stands on every square it overlaps: erasing any of them takes it away, and a tree there makes them all outdoors.",
+          "Each 16 by 16 squares of the map holds up to 256 objects.",
+          "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
+          "Objects are drawn in three layers, as in Dungeon: what lies on the floor (rugs, flowers, a trapdoor, a magic circle) is always under what stands on it, and treetops, tents, market stalls and chandeliers are over both. Within a layer, the one put down last is on top; clicking where they overlap picks the top one first. Tabletop's own sixteen all stand on the floor, so maps built before stay as they were.",
+          "To take objects away, pick **Erase** in the bar (or hold **Alt**): click an object to erase the one on top there, or drag over several to erase every object the drag passes over. The floor under them stays. Each click or drag is one step for **Undo**.",
           "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
+        ]
+      },
+      {
+        "title": "Scatter a forest",
+        "steps": [
+          "Pick **Objects**, then **Scatter** (the spray can).",
+          "Pick an object, for example a tree from **Nature** › **Leafy trees** or **Evergreens**.",
+          "Leave **Mix** ticked to mix every object in its group (it names the group: **Mix leafy trees**), or untick it to scatter only the one you picked.",
+          "Pick the brush's size in squares across (**2** to **12**, or press **[** and **]**) and how close together: **Sparse**, **Medium** or **Dense**.",
+          "Drag over the map. A dashed circle shows the brush."
+        ],
+        "notes": [
+          "Each object goes anywhere, not on whole squares, turned at random and up to a fifth bigger or smaller than its own size. To change one afterwards, use **Select**.",
+          "Going over the same ground again only fills the gaps: **Sparse** leaves space between them, **Medium** lets them touch, and **Dense** lets treetops crowd over each other.",
+          "Only objects of the same layer keep apart: treetops spread over flowers and fallen leaves, and bushes fit under trees. So scatter the trees first, then bushes or flowers under them.",
+          "Each drag is one step for **Undo**. Hold **Alt** and drag to erase objects instead, or pick **Erase**.",
+          "On a phone or tablet, drag with one finger to scatter; two fingers move the map. A single tap scatters once, where you tap.",
+          "A part of the map 16 by 16 squares holds up to 256 objects. When the brush reaches that, a message says so and it scatters only where there's room.",
+          "Only Dungeon's objects come in groups. With one of Tabletop's own sixteen picked, **Mix** is greyed out and the brush scatters just that one.",
+          "Dungeon has the same brush (its **Objects** tool, **Mode** › **Scatter**), so a forest made in Dungeon and brought in looks like one scattered here."
         ]
       },
       {
@@ -1844,7 +2768,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Selected objects have a blue outline, and the one under the pointer a yellow one, as in Dungeondraft. The bar has the same actions as buttons.",
-          "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, they keep to the grid, so they can shift a little; turn on and they fall back into place. Sizing sizes each object where it stands.",
+          "With **Snap to squares** unticked, dragging moves them smoothly, the arrow keys move them a quarter square (**Shift**: a square), and **Ctrl+V** pastes centred on the pointer itself. Objects off the grid keep their place within the square when moved with it ticked.",
+          "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, objects on the grid keep to it, so they can shift a little; turn on and they fall back into place. With **Snap to squares** unticked, or any of them off the grid, they turn exactly round their middle. Sizing sizes each object where it stands.",
           "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected.",
           "Each move, delete, duplicate or paste is one step for **Undo**, and so is each burst of turning, sizing or nudging. Undo also clears the selection.",
           "With nothing selected, the mouse wheel zooms as usual. With objects selected it turns them; **Ctrl** and the wheel always zoom. If your wheel or trackpad moves the map instead, hold **Z** while you scroll, or see **Place objects**.",
@@ -1862,7 +2787,7 @@ export const GUIDE: GuideSection[] = [
           "Undo only takes back what that step changed. If you build in two tabs at once (a laptop and a tablet, say), undoing in one never wipes what you built in the other.",
           "What you build is saved with the scene straight away, and it's included in the room's backups.",
           "Changing the grid's size or offset in **Edit scene** moves the build along with it.",
-          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
+          "On a phone or tablet, one finger paints floors and draws walls. In **Doors** and **Objects**, tap; dragging moves the map instead, except with **Scatter** or **Erase** picked in **Objects**, when a drag scatters or erases. In **Select**, a drag selects with a box or moves what's selected, and two fingers move the map. Alt, right-clicks and the mouse wheel need a mouse; the bars have buttons for turning and sizing."
         ]
       }
     ]
@@ -1878,8 +2803,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click the **Scenes** button in the top bar.",
           "Click a scene in the list. It opens for you only, and its row says **Previewing**.",
-          "Read the banner on the map. It says **Only you can see this scene.** and names the scene players are on.",
-          "When you're done, click **Back to live scene** in that bar to return to the scene players see."
+          "Look at the top bar: beside the scene's name it says **Only you can see this scene.** (just a crossed-out eye, on a narrower window; on a phone, a banner near the bottom of the map says it).",
+          "When you're done, click **Back to live scene** there (the curved-arrow button beside **Show to players**, on a narrower window) to return to the scene players see."
         ],
         "notes": [
           "The **Scenes** button is an icon, a stack of layers. Hover over it to see the name **Scenes**. Only the GM has it, and the **Room settings** button.",
@@ -1895,7 +2820,7 @@ export const GUIDE: GuideSection[] = [
           "On the scene's row, click the play button (**Show to players**)."
         ],
         "notes": [
-          "While you're previewing a scene you can also click **Show to players** in that banner.",
+          "While you're previewing a scene you can also click **Show to players** in the top bar (in the banner near the bottom of the map, on a phone).",
           "Everyone moves to that scene at once, and its row now says **Players see this**.",
           "The scene players are already on has no play button."
         ]
@@ -1912,6 +2837,19 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Press Escape instead of Enter to cancel.",
           "An empty name isn't saved. Names can be up to 60 characters."
+        ]
+      },
+      {
+        "title": "A map with levels",
+        "steps": [
+          "A map brought in with several levels (from Dungeon, or a file with every level in it) is one entry in **Scenes**, with its number of levels. Click it to open or close its levels; each level is a scene of its own.",
+          "On a level, the bar at the top right of the map says which one it is (\"Cellar, 2 of 3\"). Click ▲ or ▼ to look at the level above or below: players stay where they are.",
+          "When the party goes up or down the stairs, go to the level players see and click **Take the party** ▲ **Up** or ▼ **Down**. Their tokens go to the same squares on that level, with the spells on them, and players see that level."
+        ],
+        "notes": [
+          "The party is the characters' tokens and the tokens players put down (not hidden ones or props). Select tokens first to take just those, monsters too.",
+          "Each level keeps its own fog, drawings and lighting. Initiative carries on as it was.",
+          "Show any level to players with **Show to players** on its row, as with any scene."
         ]
       },
       {
@@ -1966,6 +2904,20 @@ export const GUIDE: GuideSection[] = [
           "The editor also opens by itself after you make a new scene with **New scene** in the **Scenes** panel. When you drop or paste a map onto the map, the **Scenes** list opens instead.",
           "Changes in the number boxes take effect when you press Enter or click somewhere else.",
           "Undo doesn't cover the grid settings, the **Name** or the map's **Remove** button. Only a map change (**Choose uploaded** or **Upload new**), attaching or removing **Dungeondraft data**, and **Cover all** / **Clear all** can be undone. If you change a grid setting by mistake, set it back by hand."
+        ]
+      },
+      {
+        "title": "Extend the map past its edges",
+        "steps": [
+          "Under **Extend the map**, type how many squares (or hexes) to add on each side in **Left**, **Top**, **Right** and **Bottom**, and press Enter.",
+          "To go back to the map's own size, click **Back to the picture's size** (**Back to the map's size** on a scene without a picture)."
+        ],
+        "notes": [
+          "The extra room has the scene's **Background** colour. Build on it with **Build**, put tokens there, and fog it like the rest of the map; **Cover all** covers it too.",
+          "Nothing already on the map moves when you extend it, so tokens, drawings, fog and built squares stay where they are.",
+          "Up to 200 squares on each side.",
+          "Going back hides anything out there, but doesn't delete it: extend again to see it.",
+          "Undo doesn't cover these boxes: type the old numbers back, or click **Back to the picture's size**."
         ]
       },
       {
@@ -2030,18 +2982,19 @@ export const GUIDE: GuideSection[] = [
           "Drag **Line opacity** to make the lines fainter or stronger."
         ],
         "notes": [
-          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel still snap."
+          "When snapping is on, you can hold Alt as you let go of a token you're moving on the map, to place it anywhere. New tokens dragged in from the **Tokens & images** panel snap too, unless you hold Alt as you let go of them.",
+          "With **Never snap to the grid** ticked in **Room settings**, **Snap tokens** is greyed out and unticked: no scene snaps."
         ]
       },
       {
         "title": "Units and diagonals",
         "steps": [
-          "Under **Distance**, set **One square is**, for example 5 (or 1.5 for metres).",
-          "Set **Unit**, for example ft (or m).",
+          "Under **Distance**, set **One square is**, for example 1.5 (or 5 for feet).",
+          "Set **Unit**, for example m (or ft).",
           "For square grids, choose how **Diagonals** count: **Count as one square (D&D 5e)**, **Alternate 1, 2, 1 (Pathfinder)** or **Straight-line distance**."
         ],
         "notes": [
-          "New scenes start with one square being 5 ft, or 1.5 m in a room that measures in metres, and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
+          "New scenes start with one square being 1.5 m (5 ft in a room the GM has set to feet), and diagonals counted the D&D 5e way. Which one is a room setting: see **Measure in metres** in **Room settings and backups**. When the room measures in metres, the editor says so under **Distance**.",
           "To change every scene in the room between feet and metres at once, use **Measure in metres** in **Room settings** rather than each scene.",
           "The ruler uses these settings."
         ]
@@ -2085,7 +3038,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Put a scene in season",
         "steps": [
           "Go to the scene: the live one, or one you're previewing.",
-          "In the top bar, click the season button (a sun behind a cloud, left of the monitor button).",
+          "In the top bar, click the season button (a sun behind a cloud, left of **More**, the three dots).",
           "Pick **Spring**, **Summer**, **Autumn** or **Winter**.",
           "Pick how drastic, gentlest first: **Frost**, **Snow** or **Deep snow** for Winter; **Turning**, **Autumn** or **Late autumn**; **Budding**, **Blossom** or **Full bloom**; **Lush**, **Dry** or **Drought**.",
           "To go back to the map as it was drawn, pick **As drawn**."
@@ -2119,6 +3072,7 @@ export const GUIDE: GuideSection[] = [
           "Ink lines, walls, lava, fires, red roofs, rugs and labels never change. Small roofs and props on grass get snow on top; wide roofs, streets and paved squares keep their colour.",
           "Snow drifts and leaves are sized by the grid, so line the grid up with the map first (see **The scene editor: grid and map**). With Dungeondraft data, sizes come from the map itself.",
           "On a map you built: grass, trees, bushes, and ponds, lakes and rivers that touch grass change, and paths near grass get snow or leaves. In winter, rocks, rubble and wells near grass get frost or snow on top (a well freezes over in **Deep snow**), and the snow melts round a campfire. Rooms with walls stay as they are inside, and walls, doors and lava never change.",
+          "Dungeon's objects on a built map change too, outdoors only. In winter every one of them gets frost or snow on top, kept to its own shape, never over its outlines or a flame. Its trees, bushes, flowers, grass, reeds and crops change all year, as Tabletop's own tree does: fresher in spring, with blossom on some trees and bushes (a few cherry pink); dry in a **Drought**; red, orange and yellow in autumn, with some leaves gone by **Late autumn**, while pines and firs stay green; and in **Deep snow** most broadleaf trees are bare. Like Tabletop's tree, a Dungeon plant makes the squares it stands on outdoors.",
           "The table display always shows the season, like any player's screen, even when it's opened on a computer where seasons are turned off."
         ]
       },
@@ -2138,6 +3092,21 @@ export const GUIDE: GuideSection[] = [
           "The project file itself is never uploaded, only what seasons need from the one level: players can't see other levels, secret doors, notes or the file's name.",
           "Changing the scene's picture keeps the data but pauses it, since it was lined up with the old picture: the season box offers **Use it with this picture** (for a day and night version of the same map, say) or **Remove**. **Remove** (there, or under **Map** in the scene editor) takes the data off and seasons go back to guessing; Undo puts it back.",
           "A project file brought in on its own, with no picture, can't make a scene: Tabletop says so, and tells you to bring the export in with it, or to attach it to a scene."
+        ]
+      },
+      {
+        "title": "Exact seasons for maps from Dungeon",
+        "steps": [
+          "In Tabletop, open **Scenes**, click **New scene**, then **From Dungeon**, and click the map.",
+          "Or, in Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**, and bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
+        ],
+        "notes": [
+          "That's all. The map's data is inside the file, lined up with the picture by Dungeon itself, so there's no project file to add, no level to pick and nothing to check. The **Maps brought in** report says \"map data from Dungeon attached\".",
+          "Seasons then know exactly where Dungeon put the ground, water, rooms, caves, paths and trees: snow melts on the open ground, never on a room's floor, and pines stay green in autumn.",
+          "Man-made things (furniture, wells, statues and the like) stay as drawn in every season, as they do on Dungeondraft maps. So do pictures you imported into Dungeon, since Tabletop can't tell what they are.",
+          "Exact seasons work on maps drawn in winter now; green maps follow in a later update. A green map's data is kept, and its seasons are guessed from the picture until then.",
+          "If you change the map in Dungeon, click **Update from Dungeon** on its scenes: they get the new pictures and data in place (see **Maps from Dungeon** under **Adding maps**). A file exported again comes in as a new scene, since there's no project file to attach to a scene you already have. **Remove** in the season box, or under **Map** in the scene editor, takes the data off.",
+          "Only what seasons need from the map is uploaded, never the file's own data."
         ]
       },
       {
@@ -2230,7 +3199,7 @@ export const GUIDE: GuideSection[] = [
           "Fog always goes on the scene you're looking at, even if players are on a different scene.",
           "The fog tool keeps your choices (**Reveal** or **Hide**, the shape, the brush size and **Snap**) while the room is open, even when you switch to another tool and back. Reloading the page resets them to **Reveal**, **Brush**, 2 squares and **Snap** ticked.",
           "Fog keys don't work while you're typing in a box, while a dialog is open, or while a slider or tick box still has the keyboard.",
-          "The main fog keys (**F**, **[** and **]**, the polygon keys, Undo and Redo) are also listed under **Help & shortcuts**, the question-mark button in the top bar. **Esc** isn't on that list. On a narrow screen, such as a phone, the question-mark button is hidden."
+          "The main fog keys (**F**, **[** and **]**, the polygon keys, Undo and Redo) are also listed under **Help & shortcuts**, under **More** (the three dots) in the top bar. **Esc** isn't on that list."
         ]
       },
       {
@@ -2411,7 +3380,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Don't click on the map to test this. The fog tool is still on, so a click draws fog. With the Brush on Reveal, one click uncovers a spot for your players.",
-          "If a banner says **Only you can see this scene.**, your players are on a different scene. Click **Show to players** when you're ready for them to see this one."
+          "If the top bar says **Only you can see this scene.** (or shows a crossed-out eye beside **Show to players**, on a narrower window; a banner near the bottom of the map, on a phone), your players are on a different scene. Click **Show to players** when you're ready for them to see this one."
         ]
       },
       {
@@ -2452,9 +3421,9 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Open **Scenes** in the top bar.",
           "Click **New scene**.",
-          "Choose **Upload a map** or **Uploaded maps**.",
+          "Choose **Upload a map**, **Uploaded maps** or **From Dungeon**.",
           "Leave **Start with the map covered in fog** ticked so players see nothing until you reveal it, or untick it to show the whole map.",
-          "Add the map. In **Upload a map**, click the box that says **Choose or drop maps** and pick your map file, or drop the file onto that box. In **Uploaded maps**, click the map."
+          "Add the map. In **Upload a map**, click the box that says **Choose or drop maps** and pick your map file, or drop the file onto that box. In **Uploaded maps** or **From Dungeon**, click the map."
         ],
         "notes": [
           "The scene is made as soon as you add the map, so set the tick box first. It starts ticked.",
@@ -2501,7 +3470,7 @@ export const GUIDE: GuideSection[] = [
           "Click **Show to players** when you're ready."
         ],
         "notes": [
-          "While you're looking at a scene your players aren't on, a banner says **Only you can see this scene.** and names the scene players are on (or says **Players have no scene.**). It has a **Show to players** button. When players are on a scene, it also has **Back to live scene** to take you back to it.",
+          "While you're looking at a scene your players aren't on, the top bar says **Only you can see this scene.** (just a crossed-out eye, on a narrower window) and has a **Show to players** button. When players are on a scene, it also has **Back to live scene** (the curved-arrow button beside **Show to players**, on a narrower window) to take you back to it. On a wide window it names the scene players are on, or says **Players have no scene.**; on a narrower one, point at it or tap its crossed-out eye to read that. On a phone the same notice is a banner near the bottom of the map.",
           "You can also click the play button (**Show to players**) next to a scene in the list."
         ]
       }
@@ -2557,7 +3526,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Open the display",
         "steps": [
-          "In your room, click the **monitor** button in the top bar (next to the **?** button). The **Table display** box opens.",
+          "In your room, click **More** (the three dots) in the top bar, then **Table display**. The **Table display** box opens.",
           "Click **Open display window**. A new window opens with just the map.",
           "Drag that window onto your second monitor.",
           "Double-click the map for full screen. Double-click again to leave full screen."
@@ -2565,13 +3534,13 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "For a TV, click **Copy display link** and open the link in the TV's browser, or cast the display window from Chrome (the **⋮** menu, then **Cast**).",
           "Keep the display link to yourself. Anyone with it sees the map as players do, and where you're looking.",
-          "The monitor button shows a green dot while a display is connected."
+          "**More** (the three dots) in the top bar shows a green dot while a display is connected."
         ]
       },
       {
         "title": "Choose what the display shows",
         "steps": [
-          "Open **Table display** again from the monitor button.",
+          "Open **Table display** again from **More** in the top bar.",
           "Under **The display shows**, pick **The whole live scene** to fit the whole map to the screen.",
           "Or pick **What I'm looking at, while I'm on the live scene**: the display then zooms and pans along with you."
         ],
@@ -2590,7 +3559,7 @@ export const GUIDE: GuideSection[] = [
     "id": "room-settings",
     "title": "Room settings and backups",
     "audience": "gm",
-    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, backups, and the option to delete the room.",
+    "intro": "Only the GM has the **Room settings** panel. It holds the room's name, the invite link, what players are allowed to do, whether the room measures in metres, whether anything snaps to the grid, backups, and the option to delete the room.",
     "parts": [
       {
         "title": "Open Room settings",
@@ -2621,8 +3590,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Anyone with this link can join as a player, so only share it with your group.",
-          "The **Copy invite link** button in the top bar copies the same link. Players have that button too.",
-          "If your browser won't copy, the **Copy invite link** button in the top bar shows the link in a pop-up instead, so you can copy it yourself."
+          "**Copy invite link**, under **More** in the top bar, copies the same link. Players have it too.",
+          "If your browser won't copy, **Copy invite link** shows the link in a message instead, so you can copy it yourself."
         ]
       },
       {
@@ -2645,14 +3614,41 @@ export const GUIDE: GuideSection[] = [
           "If some of the room's scenes are measured in the other unit, a window asks about them. Click **Switch them too** (**Switch it too** for one scene) to change them as well, **Only new scenes** to leave them as they are, or **Cancel**."
         ],
         "notes": [
-          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft, as they always have.",
+          "Ticked, every new scene starts with one square being 1.5 m: uploaded maps, maps from the library, blank grids, Universal VTT (Dungeondraft) maps, Owlbear Rodeo scenes, and scenes restored from a backup that were in feet. Unticked, new scenes start at 5 ft.",
           "The line under the box says what new scenes start with, for example \"New scenes start with one square being 1.5 m.\"",
-          "New rooms start with the box ticked. A room made before this setting existed starts with it unticked, and nothing about its scenes changes until you tick it.",
+          "Every room has the box ticked unless its GM unticks it. Rooms made before the setting existed were switched to metres on 3 November 2026: their scenes in feet became 1.5 m a square.",
           "Switching to metres changes each scene measured in feet (ft, ft., feet or foot): 5 ft becomes 1.5 m, 10 ft becomes 3 m, and any other number is multiplied by 0.3 and rounded to the nearest 0.1 m. Unticking offers the reverse: 1.5 m becomes 5 ft, 3 m becomes 10 ft. Scenes in other units, like squares or km, are never changed.",
           "A square that isn't a whole number of feet comes back slightly changed after a second switch, because of that rounding: 7.5 ft becomes 2.3 m, and switching back makes it 7.7 ft. **Undo** is the exact way back.",
           "Switching the scenes is one step for **Undo** (Ctrl+Z), from whichever scene you're looking at. It puts back each scene's distance unit only: a grid you lined up since stays lined up. The box stays as you set it; untick it yourself if you meant to.",
           "A message says how many scenes were switched, for example \"Switched 3 scenes to metres. Undo (Ctrl+Z) switches them back.\" If no scene needs switching, the box just changes, with no window.",
           "Everyone's rulers and spell areas follow straight away. Each scene can still have its own distance under **Distance** in **Edit scene**."
+        ]
+      },
+      {
+        "title": "Never snap to the grid",
+        "steps": [
+          "Under **Placing things**, tick **Never snap to the grid**."
+        ],
+        "notes": [
+          "In every scene of this room, for everyone, tokens go exactly where they're put or let go of, and so do the Build tool's objects: dense forests, or a crowd of monsters bunched up.",
+          "Each scene's **Snap tokens** box and the Build tool's **Snap to squares** are greyed out while it's ticked, and rulers and spell areas aren't snapped either.",
+          "Untick it and each scene's **Snap tokens** box decides again, as before. Tokens and objects already placed stay where they are.",
+          "Walls, doors and floors still follow the grid lines: only tokens and objects go anywhere.",
+          "A part of the map 16 by 16 squares holds up to 256 objects, however close together they are."
+        ]
+      },
+      {
+        "title": "Move everyone to another room",
+        "steps": [
+          "Open **Room settings**.",
+          "Under **Move the group**, choose the room in the list.",
+          "Click **Send everyone**, then **Send everyone** again to confirm."
+        ],
+        "notes": [
+          "Everyone in this room, you too, goes there. Their pages switch to it without reloading, so voice chat carries on.",
+          "Each person sees \"The GM moved the game to\" and the room's name.",
+          "Table displays stay where they are: open the new room's display link on them.",
+          "The list shows your other rooms. If there aren't any, make one on the start page first."
         ]
       },
       {
@@ -2713,7 +3709,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "See the list in the app",
         "steps": [
-          "Click the **Help & shortcuts** button (the question mark) in the top bar."
+          "Click **More** (the three dots) in the top bar, then **Help & shortcuts**."
         ],
         "notes": [
           "On narrow screens such as phones, this button is hidden."
@@ -2728,6 +3724,7 @@ export const GUIDE: GuideSection[] = [
           "**E**: Eraser (drawings, notes and tokens)",
           "**M**: Measure",
           "**P**: Pointer",
+          "**S**: Spells",
           "**F**: Fog of war (GM)",
           "**B**: Build the map (GM)",
           "**X**: **Select** in Build the map, and back again (GM)"
@@ -2763,7 +3760,7 @@ export const GUIDE: GuideSection[] = [
           "**Arrow keys**: move the selected tokens one square (or one hex)",
           "**[** and **]**: rotate the selected tokens 45 degrees (hold **Shift** for 15 degrees)",
           "**Mouse wheel** over a selected compass: turn it 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller; **Ctrl**+wheel still zooms (GM)",
-          "**Alt** while letting go of a token you're dragging: don't snap to the grid",
+          "**Alt** while letting go of a token you're dragging, or a new one you're dragging onto the map: don't snap to the grid",
           "**H**: hide or show the selected tokens, drawings and notes (GM)",
           "**L**: lock or unlock the selected tokens (GM)",
           "**Delete** or **Backspace**: delete the selection",
@@ -2799,7 +3796,7 @@ export const GUIDE: GuideSection[] = [
           "**Mouse wheel** with **Objects**: turn the next object 15°; **Z**+wheel 5°; **Alt**+wheel: bigger or smaller. In **Select**, the same for the selected objects (GM)",
           "**Right-click** with **Objects**: turn the next object 90°; in **Select**, the selected objects (or the one under the pointer); with **Walls**, finish the walls you're placing corner by corner (GM)",
           "**X**: **Select**, and back (GM)",
-          "In **Select**: **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste, the arrow keys move (**Shift**: five squares), **Escape** deselects (GM)",
+          "In **Select**: **Delete** removes, **Ctrl+D** duplicates, **Ctrl+C** and **Ctrl+V** copy and paste, the arrow keys move (**Shift**: five squares; with **Snap to squares** unticked, a quarter square, **Shift**: a square), **Escape** deselects (GM)",
           "**Alt** while you drag or click: take away instead of adding (cut out a room, erase terrain, remove walls, doors or objects) (GM)",
           "**Enter** or a double-click: finish walls placed corner by corner; **Backspace** takes the last corner back (GM)",
           "**Escape** while dragging or placing corners: stop without changing anything (GM)",
@@ -2825,6 +3822,32 @@ export const GUIDE: GuideSection[] = [
     "audience": "everyone",
     "intro": "Quick fixes for the problems people run into most often.",
     "parts": [
+      {
+        "title": "Voice chat: Tabletop can't use your microphone",
+        "steps": [
+          "Reload the page, click **Join voice**, and allow the microphone when your browser asks.",
+          "If it doesn't ask, click the icon at the left of the address bar, set the microphone to allow for this site, reload, and click **Join voice** again.",
+          "Check your computer lets the browser use the microphone: on Windows, Settings › Privacy & security › Microphone; on a Mac, System Settings › Privacy & Security › Microphone; on Ubuntu, Settings › Privacy › Microphone."
+        ],
+        "notes": [
+          "On Ubuntu, Firefox and Chromium usually come from the Snap Store, and a snap needs permission to record sound. In a terminal, run `sudo snap connect firefox:audio-record` (or `chromium:audio-record`), then close the browser completely and open it again. It does no harm if it's already allowed.",
+          "To check the microphone itself works, speak and watch its level move in your computer's sound settings (on Ubuntu, Settings › Sound › Input)."
+        ]
+      },
+      {
+        "title": "Voice chat: you can't hear someone, or they can't hear you",
+        "steps": [
+          "Check you're both in voice chat: both names are in the list under **Voice chat**.",
+          "If their name has a crossed-out microphone, they're muted, or not holding their push-to-talk key.",
+          "If it says **can't connect** beside their name, both of you click **Leave**, then **Join voice** again.",
+          "If a message says your browser is holding back voice chat's sound, click it, or anywhere on the page."
+        ],
+        "notes": [
+          "Check the slider beside their name, and your device's volume.",
+          "In Brave, if you still hear nobody: click the icon at the left of the address bar, open **Site settings**, and allow **Sound** and **Autoplay** for this site, then reload.",
+          "Calls go straight from browser to browser. Some networks (some workplaces, some mobile data) block that, and voice chat then can't connect: try another network, such as home Wi-Fi."
+        ]
+      },
       {
         "title": "The GM can't sign in",
         "steps": [
@@ -2907,7 +3930,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "GM: select the token, drawing or note and look at the eye button in the selection bar.",
           "If it says **Hidden from players (H)**, click it (or press H) so it says **Visible to players (H)**.",
-          "Look for the \"Only you can see this scene.\" banner. If it's there, you're previewing a scene the players can't see.",
+          "Look for \"Only you can see this scene.\" in the top bar (just a crossed-out eye beside **Show to players**, on a narrower window; a banner near the bottom of the map, on a phone). If it's there, you're previewing a scene the players can't see.",
           "Click **Show to players** to bring everyone to this scene, or **Back to live scene** to see theirs.",
           "For fog, pick **Fog of war** and click **Player view** to see the fog exactly as players do."
         ],
@@ -2924,10 +3947,11 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "\"Tabletop has been updated. Reload this page to get the new version.\"",
         "steps": [
-          "Click **Update: Reload** in the top bar, or reload the page yourself (F5, or Cmd+R on a Mac)."
+          "Click **Update: Reload** in the top bar (just **Reload**, or its round-arrow icon, on a narrower window), or reload the page yourself (F5, or Cmd+R on a Mac)."
         ],
         "notes": [
           "It shows on a page that was already open when Tabletop was updated. That page is still running the old version: it doesn't have the new tools, and it can't show everything on a newer map (a built map, say) until it's reloaded.",
+          "On such a page, the parts that load only when first opened may not load any more: the **Monsters** and **NPCs** tabs and reading Dungeondraft files. They say \"Tabletop has been updated. Reload this page to …\" instead (to use the monsters, to read Dungeondraft files, and so on). Reload the page, as above.",
           "A table display reloads itself when Tabletop is updated. A display opened before this reload notice existed can't, and can't show messages either, so the GM is told instead: \"A table display is running an older version of Tabletop. Reload the display's page.\" Reload the page on the display's screen.",
           "If a GM tool you've read about isn't in your toolbar (the hammer for **Build the map**, say), reload first. If it's still missing, check you're signed in as the GM: see \"I'm the GM, but the room treats me as a player\"."
         ]

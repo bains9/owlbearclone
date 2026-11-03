@@ -1,4 +1,6 @@
 import { isRoomId } from "../../shared/ids";
+import { loadFailure, updatedText } from "../updated";
+import type { LoadFailure } from "../updated";
 import { Home } from "./Home";
 import { RoomPage } from "./RoomPage";
 import { DisplayPage } from "./TableDisplay";
@@ -6,7 +8,13 @@ import { useEffect, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 
 export function App() {
-  const path = location.pathname;
+  // The page can switch rooms in place (nav.ts), so the voice chat connection carries on.
+  const [path, setPath] = useState(location.pathname);
+  useEffect(() => {
+    const onPop = () => setPath(location.pathname);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const m = path.match(/^\/r\/([^/]*)\/?$/);
   if (m && isRoomId(m[1])) {
     const displayKey = new URLSearchParams(location.search).get("display");
@@ -34,8 +42,24 @@ export function App() {
 /** The guide is big, so it loads only when someone opens it. */
 function GuideRoute() {
   const [Page, setPage] = useState<ComponentType | null>(null);
+  const [failed, setFailed] = useState<LoadFailure | null>(null);
   useEffect(() => {
-    void import("./GuidePage").then((m) => setPage(() => m.GuidePage));
+    void import("./GuidePage").then(
+      (m) => setPage(() => m.GuidePage),
+      async () => setFailed(await loadFailure()),
+    );
   }, []);
-  return Page ? <Page /> : <div class="center-page muted">Loading…</div>;
+  if (Page) return <Page />;
+  if (!failed) return <div class="center-page muted">Loading…</div>;
+  return (
+    <div class="center-page">
+      <div class="card">
+        <h1>Couldn't load the guide</h1>
+        <p class="muted">{failed === "updated" ? updatedText("see the guide") : "Check the connection, then reload the page."}</p>
+        <button class="btn btn-primary" onClick={() => location.reload()}>
+          Reload
+        </button>
+      </div>
+    </div>
+  );
 }

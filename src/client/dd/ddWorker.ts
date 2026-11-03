@@ -18,6 +18,9 @@ import {
 import { sidecarFit } from "./fit";
 import { SidecarError, decodeSidecar, encodeSidecar, type SeasonSidecar } from "./sidecar";
 import { SPRITE_SIZES } from "./spriteSizes";
+import type { SpriteSizes } from "./measure";
+import { DungeonVersionError, looksLikeDungeon, parseDungeonPayload } from "./fromDungeon";
+import { DUNGEON_MIME } from "../mapImport";
 import type { DdWorkerIn, DdWorkerOut } from "./messages";
 import { analyse, bake, type SeasonAnalysis } from "../room/seasonPixels";
 import { analyseExact } from "../room/seasonExact";
@@ -48,6 +51,10 @@ export const DD_TEXT = {
     `This picture is ${w}×${h}, which isn't the shape of the map this data was made for (${sw}×${sh} squares), so it can't be used with it.`,
   failed: "Something went wrong reading the map. Try again, or attach it from a desktop browser.",
   noExact: "Exact seasons couldn't be worked out for this map, so they'll be guessed from the picture.",
+  dungeonDamaged: (name: string) => `${name} has map data from Dungeon in it, but it's damaged.`,
+  dungeonOld: (name: string) =>
+    `${name} was exported by an older version of Dungeon. Export it again from dungeon.parhome.ca for exact seasons.`,
+  dungeonNew: (name: string) => `${name} was exported by a newer version of Dungeon than this copy of Tabletop knows: reload Tabletop and try again.`,
 } as const;
 
 type Post = (m: DdWorkerOut, transfer?: Transferable[]) => void;
@@ -130,14 +137,33 @@ async function prepare(m: Extract<DdWorkerIn, { t: "prepare" }>, post: Post): Pr
 async function prepareAnew(m: Extract<DdWorkerIn, { t: "prepare" }>, key: string, progress: (text: string) => void): Promise<Prepared> {
   progress("Reading the project file…");
   let map: DDMap;
+  let sizes: SpriteSizes = SPRITE_SIZES;
+  // A map from Dungeon comes with its picture in one file, so where it lies is known exactly.
+  let placed = false;
   {
     const text = await m.file.text();
     progress("Reading the map…");
-    try {
-      map = parseDungeondraftMap(text);
-    } catch (e) {
-      if (e instanceof DDParseError) throw new PlainError(DD_TEXT.damaged(m.file.name || "That file"));
-      throw e;
+    const name = m.file.name || "That file";
+    // mapImport.ts marks the File it makes from a Dungeon export; sniffing the start covers a
+    // Dungeon payload or .dmap saved on its own.
+    if (m.file.type === DUNGEON_MIME || looksLikeDungeon(text.slice(0, 256))) {
+      try {
+        const d = parseDungeonPayload(text);
+        map = d.map;
+        sizes = { ...SPRITE_SIZES, ...d.sizes };
+        placed = true;
+      } catch (e) {
+        if (e instanceof DungeonVersionError) throw new PlainError(e.version > 2 ? DD_TEXT.dungeonNew(name) : DD_TEXT.dungeonOld(name));
+        if (e instanceof DDParseError) throw new PlainError(DD_TEXT.dungeonDamaged(name));
+        throw e;
+      }
+    } else {
+      try {
+        map = parseDungeondraftMap(text);
+      } catch (e) {
+        if (e instanceof DDParseError) throw new PlainError(DD_TEXT.damaged(name));
+        throw e;
+      }
     }
   }
   if (map.world.levels.length === 0) throw new PlainError(DD_TEXT.noLevels);
@@ -151,10 +177,11 @@ async function prepareAnew(m: Extract<DdWorkerIn, { t: "prepare" }>, key: string
   const levels = rankLevels(map, pic, r, m.vtt);
   const picked = m.levelKey !== undefined ? { key: m.levelKey, clear: true } : chooseLevel(levels);
   if (!picked) throw new PlainError(DD_TEXT.noLevels);
-  const { sidecar: sc, report } = extractSidecar(map, picked.key, r, pic, SPRITE_SIZES, {
+  const { sidecar: sc, report } = extractSidecar(map, picked.key, r, pic, sizes, {
     levels,
     holdLevel: !picked.clear,
-    shift: m.shift,
+    shift: m.shift ?? (placed ? [0, 0] : undefined),
+    placed,
     picSize: [m.picW, m.picH],
     onProgress: progress,
   });

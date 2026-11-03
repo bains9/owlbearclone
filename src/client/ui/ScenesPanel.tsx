@@ -1,8 +1,10 @@
 import { useRef, useState } from "preact/hooks";
-import { Check, ImagePlus, Play, Plus, SquarePen, Trash } from "lucide-preact";
+import { Check, ChevronDown, ChevronRight, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
+import { INDOORS } from "../../shared/calendar";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import type { Asset, DiagonalRule, GridSettings, GridType, Scene } from "../../shared/types";
+import { sceneBounds } from "../../shared/types";
 import { defaultGrid, isMetric, newSceneUnits } from "../../shared/units";
 
 const GRID_TYPES: { id: GridType; label: string }[] = [
@@ -11,14 +13,57 @@ const GRID_TYPES: { id: GridType; label: string }[] = [
   { id: "hex-flat", label: "Hex (columns)" },
 ];
 import { fileUrl } from "../api";
-import { importFiles, sceneFromMap, touchedSidecars } from "../importScenes";
+import { importFiles, isDungeonScene, sceneFromMap, touchedSidecars } from "../importScenes";
 import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
+import { FromDungeon } from "./FromDungeon";
+import { levelOf, sceneEntries } from "../levels";
+import { UpdateFromDungeonDialog } from "./UpdateFromDungeon";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
 import type { Pending } from "./ddText";
 import { SeasonPicker } from "./SeasonPicker";
+import { LightingSettings } from "./LightingSettings";
+
+/** The scene's own weather region, when it's somewhere else than the party: the calendar's regions to choose from. */
+function SceneRegion(props: { scene: Scene }) {
+  const room = useRoom();
+  const cal = useRoomState((st) => st.calendar);
+  if (!cal) return null;
+  const s = props.scene;
+  const region = s.region === INDOORS ? "" : (s.region ?? "");
+  const weather = s.weather ?? (s.region === INDOORS ? "off" : "");
+  return (
+    <>
+      <label class="field inline">
+        <span>Weather region</span>
+        <select value={region} onChange={(e) => room.updateScene(s.id, { region: e.currentTarget.value || null })}>
+          <option value="">The party's ({cal.climate})</option>
+          {cal.climates.map((c) => (
+            <option key={c.name} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label class="field inline">
+        <span>Weather on this map</span>
+        <select
+          value={weather}
+          onChange={(e) => {
+            const v = e.currentTarget.value;
+            room.updateScene(s.id, { weather: v === "on" || v === "off" ? v : null, ...(s.region === INDOORS ? { region: null } : {}) });
+          }}
+        >
+          <option value="">Automatic (none indoors or underground)</option>
+          <option value="on">Always: rain and snow fall here</option>
+          <option value="off">Never: no rain or snow</option>
+        </select>
+      </label>
+    </>
+  );
+}
 
 export function ScenesPanel() {
   const room = useRoom();
@@ -28,8 +73,67 @@ export function ScenesPanel() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Scene | null>(null);
+  // The bring-in from Dungeon whose scenes are being updated (Update from Dungeon).
+  const [updating, setUpdating] = useState<string | null>(null);
   const list = Object.values(scenes).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt);
   const editScene = editing ? scenes[editing] : null;
+  // A map's levels, folded or open (open to begin with where you are, or players are).
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+
+  // A scene's row (a level's, under its map, by the level's name).
+  const row = (s: Scene, label?: string) => (
+    <li
+      key={s.id}
+      class={cx("scene-row", view === s.id && "viewing")}
+      onClick={() => room.viewSceneLocally(s.id)}
+      title="View this scene (players don't see it until you show it)"
+    >
+      <div
+        class="scene-thumb"
+        style={{
+          background: s.background,
+          backgroundImage: s.mapAssetId ? `url(${fileUrl(room.roomId, s.mapAssetId)})` : undefined,
+        }}
+      />
+      <div class="scene-info">
+        <span class="scene-title">{label ?? s.name}</span>
+        <span class="small muted">
+          {active === s.id ? <span class="live-tag">Players see this</span> : view === s.id ? "Previewing" : ""}
+        </span>
+      </div>
+      <div class="scene-actions" onClick={(e) => e.stopPropagation()}>
+        {active !== s.id && (
+          <button class="icon-btn" title="Show to players" aria-label="Show to players" onClick={() => room.activateScene(s.id)}>
+            <Play size={16} />
+          </button>
+        )}
+        {isDungeonScene(s) && (
+          <button
+            class="icon-btn"
+            title="Update from Dungeon: the map as it is in Dungeon now, tokens and fog kept"
+            aria-label="Update from Dungeon"
+            onClick={() => setUpdating(s.dungeon.batch)}
+          >
+            <RefreshCw size={16} />
+          </button>
+        )}
+        <button
+          class="icon-btn"
+          title="Edit scene and grid"
+          aria-label="Edit scene"
+          onClick={() => {
+            room.viewSceneLocally(s.id);
+            setEditing(s.id);
+          }}
+        >
+          <SquarePen size={16} />
+        </button>
+        <button class="icon-btn danger" title="Delete scene" aria-label="Delete scene" onClick={() => setDeleting(s)}>
+          <Trash size={16} />
+        </button>
+      </div>
+    </li>
+  );
 
   if (editScene) {
     return <SceneEditor scene={editScene} onDone={() => setEditing(null)} />;
@@ -41,49 +145,23 @@ export function ScenesPanel() {
         <Plus size={16} /> New scene
       </button>
       <ul class="scene-list">
-        {list.map((s) => (
-          <li
-            key={s.id}
-            class={cx("scene-row", view === s.id && "viewing")}
-            onClick={() => room.viewSceneLocally(s.id)}
-            title="View this scene (players don't see it until you show it)"
-          >
-            <div
-              class="scene-thumb"
-              style={{
-                background: s.background,
-                backgroundImage: s.mapAssetId ? `url(${fileUrl(room.roomId, s.mapAssetId)})` : undefined,
-              }}
-            />
-            <div class="scene-info">
-              <span class="scene-title">{s.name}</span>
-              <span class="small muted">
-                {active === s.id ? <span class="live-tag">Players see this</span> : view === s.id ? "Previewing" : ""}
-              </span>
-            </div>
-            <div class="scene-actions" onClick={(e) => e.stopPropagation()}>
-              {active !== s.id && (
-                <button class="icon-btn" title="Show to players" aria-label="Show to players" onClick={() => room.activateScene(s.id)}>
-                  <Play size={16} />
-                </button>
-              )}
-              <button
-                class="icon-btn"
-                title="Edit scene and grid"
-                aria-label="Edit scene"
-                onClick={() => {
-                  room.viewSceneLocally(s.id);
-                  setEditing(s.id);
-                }}
-              >
-                <SquarePen size={16} />
+        {sceneEntries(list).map((e) => {
+          if (e.kind === "scene") return row(e.scene);
+          const here = e.levels.some((s) => s.id === view || s.id === active);
+          const shut = folded[e.group] ?? !here;
+          return (
+            <li key={e.group} class="scene-group">
+              <button class="scene-group-head" aria-expanded={!shut} onClick={() => setFolded({ ...folded, [e.group]: !shut })}>
+                {shut ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                <span class="scene-title">{e.name}</span>
+                <span class="small muted">
+                  {e.levels.length} levels{e.levels.some((s) => s.id === active) ? " · players are on one" : ""}
+                </span>
               </button>
-              <button class="icon-btn danger" title="Delete scene" aria-label="Delete scene" onClick={() => setDeleting(s)}>
-                <Trash size={16} />
-              </button>
-            </div>
-          </li>
-        ))}
+              {!shut && <ul class="scene-list scene-levels">{e.levels.map((s) => row(s, levelOf(s)?.name))}</ul>}
+            </li>
+          );
+        })}
       </ul>
       {creating && (
         <NewSceneDialog
@@ -103,6 +181,7 @@ export function ScenesPanel() {
           }}
         />
       )}
+      {updating && <UpdateFromDungeonDialog batch={updating} onClose={() => setUpdating(null)} />}
       {deleting && (
         <ConfirmDialog
           title="Delete scene?"
@@ -147,7 +226,7 @@ export function NewSceneDialog(props: {
   const settings = useRoomState((s) => s.room?.settings);
   const [name, setName] = useState("");
   const fallbackName = `Scene ${Object.keys(scenes).length + 1}`;
-  const [mode, setMode] = useState<"upload" | "library" | "blank">("upload");
+  const [mode, setMode] = useState<"upload" | "library" | "dungeon" | "blank">("upload");
   const [cols, setCols] = useState(30);
   const [covered, setCovered] = useState(true);
   // A blank grid is usually built before the session, in plain view; a map usually starts hidden.
@@ -177,8 +256,11 @@ export function NewSceneDialog(props: {
   // Files dropped or pasted elsewhere open this dialog with them.
   const started = useRef(false);
 
-  /** Brings files in. skip: a pending picture brought in as it is, past its project file. */
-  const onFiles = async (files: File[], opts: { skip?: boolean } = {}) => {
+  /**
+   * Brings files in. skip: a pending picture brought in as it is, past its project file. dungeon:
+   * the file is a map from Dungeon (From Dungeon), its scenes to remember which.
+   */
+  const onFiles = async (files: File[], opts: { skip?: boolean; dungeon?: { map: string; lighting: boolean } } = {}) => {
     if (!files.length || busy.current) return;
     busy.current = true;
     setWorking("Reading…");
@@ -192,7 +274,7 @@ export function NewSceneDialog(props: {
       const waiting = hasPending(plan.pending);
       // Everything waits for its other half: the window stays open with it.
       if (!now.length) return;
-      const r = await importFiles(room, now, { name: name.trim(), order, covered, onProgress: setWorking });
+      const r = await importFiles(room, now, { name: name.trim(), order, covered, onProgress: setWorking, ...(opts.dungeon ? { dungeon: opts.dungeon } : {}) });
       if (!r.scenes.length) {
         for (const n of r.notes) room.toast(n, "error");
         // Opened by a drop that brought nothing in: don't leave an empty window behind.
@@ -309,7 +391,7 @@ export function NewSceneDialog(props: {
 
 
   return (
-    <Modal title="New scene" onClose={props.onClose} width={480}>
+    <Modal title="New scene" onClose={props.onClose} width={520}>
       <label class="field">
         <span>Name</span>
         <input
@@ -319,14 +401,18 @@ export function NewSceneDialog(props: {
           onInput={(e) => setName(e.currentTarget.value)}
         />
       </label>
-      <div class="seg full">
-        <button class={cx("seg-btn wide", mode === "upload" && "active")} onClick={() => setMode("upload")}>
+      {/* Not while something's coming in: leaving From Dungeon mid-draw would drop the map. */}
+      <div class="seg full new-scene-kinds">
+        <button class={cx("seg-btn wide", mode === "upload" && "active")} disabled={!!working} onClick={() => setMode("upload")}>
           Upload a map
         </button>
-        <button class={cx("seg-btn wide", mode === "library" && "active")} onClick={() => setMode("library")}>
+        <button class={cx("seg-btn wide", mode === "library" && "active")} disabled={!!working} onClick={() => setMode("library")}>
           Uploaded maps
         </button>
-        <button class={cx("seg-btn wide", mode === "blank" && "active")} onClick={() => setMode("blank")}>
+        <button class={cx("seg-btn wide", mode === "dungeon" && "active")} disabled={!!working} onClick={() => setMode("dungeon")} title="Your maps in Dungeon, the map maker">
+          From Dungeon
+        </button>
+        <button class={cx("seg-btn wide", mode === "blank" && "active")} disabled={!!working} onClick={() => setMode("blank")}>
           Blank grid
         </button>
       </div>
@@ -446,6 +532,15 @@ export function NewSceneDialog(props: {
         ) : (
           <p class="muted small">No maps uploaded yet.</p>
         ))}
+      {mode === "dungeon" && (
+        <FromDungeon
+          busy={Boolean(working)}
+          working={working}
+          setWorking={setWorking}
+          inRoom={new Set(Object.values(scenes).flatMap((s) => (isDungeonScene(s) ? [s.dungeon.map] : [])))}
+          onFile={(f, link) => void onFiles([f], { skip: true, dungeon: link })}
+        />
+      )}
       {mode === "blank" && (
         <form
           onSubmit={(e) => {
@@ -506,17 +601,23 @@ function DungeondraftRow(props: { scene: Scene }) {
     if (!md) return;
     touchedSidecars.add(md.assetId);
     room.setMapData(s.id, null);
-    room.toast(DD_UI.removed);
+    room.toast(md.from === "dungeon" ? DD_UI.removedDungeon : DD_UI.removed);
   };
+  // Data from a Dungeon export came inside the picture's file: there's no project file to change it for.
+  const fromDungeon = md?.from === "dungeon";
   return (
     <p class="small dd-row">
-      <span class="muted">Dungeondraft data:</span>{" "}
+      <span class="muted">{fromDungeon ? "Map data from Dungeon:" : "Dungeondraft data:"}</span>{" "}
       {md ? (
         <>
           {dataRow(asset?.name, sidecar?.objects.n, state)}{" "}
-          <button class="link-btn" onClick={open}>
-            Change…
-          </button>{" "}
+          {!fromDungeon && (
+            <>
+              <button class="link-btn" onClick={open}>
+                Change…
+              </button>{" "}
+            </>
+          )}
           <button class="link-btn" onClick={remove}>
             Remove
           </button>
@@ -533,12 +634,71 @@ function DungeondraftRow(props: { scene: Scene }) {
   );
 }
 
+/** The most squares (or hexes) a scene can be extended by on one side, in this box. */
+const EXTEND_MAX = 200;
+const SIDES = [
+  ["left", "Left"],
+  ["top", "Top"],
+  ["right", "Right"],
+  ["bottom", "Bottom"],
+] as const;
+
+/**
+ * Room past the map's edges: how many squares the scene reaches beyond its picture on each
+ * side. Only the scene's area grows (Scene.bounds); nothing on it moves.
+ */
+function ExtendRow(props: { scene: Scene }) {
+  const room = useRoom();
+  const s = props.scene;
+  const g = s.grid;
+  const unit = cellSpacing({ ...g, size: 1 });
+  const stepX = g.size * unit.x;
+  const stepY = g.size * unit.y;
+  const area = sceneBounds(s);
+  const now = {
+    left: Math.round(-area.x0 / stepX),
+    top: Math.round(-area.y0 / stepY),
+    right: Math.round((area.x1 - s.width) / stepX),
+    bottom: Math.round((area.y1 - s.height) / stepY),
+  };
+  const set = (side: (typeof SIDES)[number][0], n: number) => {
+    const v = { ...now, [side]: Math.max(0, Math.min(EXTEND_MAX, Math.round(n))) };
+    room.updateScene(s.id, { bounds: [-v.left * stepX, -v.top * stepY, s.width + v.right * stepX, s.height + v.bottom * stepY] });
+  };
+  const cells = isHex(g) ? "hexes" : "squares";
+  return (
+    <>
+      <p class="small muted">
+        Add room past the {s.mapAssetId ? "picture's" : "map's"} edges, in {cells}, to build on or explore. Nothing already on the map moves.
+      </p>
+      <div class="row extend-row">
+        {SIDES.map(([side, label]) => (
+          <label class="field" key={side}>
+            <span>{label}</span>
+            <CommitInput type="number" value={String(now[side])} onCommit={(v) => set(side, num(v, now[side]))} />
+          </label>
+        ))}
+      </div>
+      {s.bounds && (
+        <>
+          <button class="btn btn-sm" onClick={() => room.updateScene(s.id, { bounds: null })}>
+            {s.mapAssetId ? "Back to the picture's size" : "Back to the map's size"}
+          </button>
+          <p class="small muted">Anything built or placed out there stays, but can't be seen until you extend the map again.</p>
+        </>
+      )}
+    </>
+  );
+}
+
 function SceneEditor(props: { scene: Scene; onDone: () => void }) {
   const room = useRoom();
   const s = props.scene;
   const g = s.grid;
   const assets = useRoomState((st) => st.assets);
   const metric = useRoomState((st) => isMetric(st.room?.settings));
+  // Room settings › Never snap to the grid: no scene snaps, whatever its own box says.
+  const never = useRoomState((st) => !!st.room?.settings.freePlacement);
   const [pickMap, setPickMap] = useState(false);
   const [alignCells, setAlignCells] = useState(3);
   const [fogReset, setFogReset] = useState<null | "cover" | "clear">(null);
@@ -627,6 +787,10 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <span>Background</span>
         <input type="color" value={s.background} onChange={(e) => update({ background: e.currentTarget.value })} />
       </label>
+      <SceneRegion scene={s} />
+
+      <h3>Extend the map</h3>
+      <ExtendRow scene={s} />
 
       <h3>Season</h3>
       <SeasonPicker scene={s} />
@@ -721,8 +885,9 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
         <label class="check">
           <input type="checkbox" checked={g.show} onChange={(e) => grid({ show: e.currentTarget.checked })} /> Show grid
         </label>
-        <label class="check">
-          <input type="checkbox" checked={g.snap} onChange={(e) => grid({ snap: e.currentTarget.checked })} /> Snap tokens
+        <label class="check" title={never ? "Off in every scene: Room settings › Never snap to the grid" : undefined}>
+          <input type="checkbox" checked={g.snap && !never} disabled={never} onChange={(e) => grid({ snap: e.currentTarget.checked })} /> Snap
+          tokens
         </label>
         <label class="field inline">
           <span>Colour</span>
@@ -792,6 +957,8 @@ function SceneEditor(props: { scene: Scene; onDone: () => void }) {
           onClose={() => setFogReset(null)}
         />
       )}
+
+      <LightingSettings scene={s} />
 
       <button class="btn btn-primary full" onClick={props.onDone}>
         <Check size={16} /> Done

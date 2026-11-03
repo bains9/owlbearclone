@@ -13,14 +13,23 @@ import type {
   MutableFields,
   RoomSettings,
   Scene,
+  SceneDungeon,
+  SceneLevel,
+  SceneVision,
   SceneMapData,
   SceneSeason,
+  VisionDistance,
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
-import { cleanCells, cleanEdges, cleanStamps, sanitizeTerrain, terrainFieldsOk } from "./terrain";
+import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
+import { isTokenLook, isZoneLook, type SpellLook } from "./zones";
 
 export const LIMITS = {
   coord: 1_000_000,
+  /** A spell effect's spell name (DrawingItem.spell). */
+  spellName: 40,
+  /** Rounds a spell can last (DrawingItem.rounds). */
+  spellRounds: 999,
   pointNumbers: 10_000,
   label: 60,
   name: 60,
@@ -142,7 +151,14 @@ const TOKEN_FIELDS: Record<string, Validator> = {
   locked: bool,
   rings,
   layer: (v) => (v === "prop" || v === "character" ? v : undefined),
+  character: (v) => (v === null ? null : isSheetId(v) ? v : undefined),
+  flipped: bool,
 };
+
+/** A character sheet's id, as a token keeps it (shared/characters.ts). */
+export function isSheetId(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{20,80}$/.test(v);
+}
 
 const DRAWING_FIELDS: Record<string, Validator> = {
   z: (v) => num(v, -1e9, 1e9),
@@ -165,6 +181,8 @@ const TERRAIN_FIELDS: Record<string, Validator> = {
   cells: cleanCells,
   edges: cleanEdges,
   stamps: cleanStamps,
+  tex: cleanTex,
+  pal: cleanPal,
 };
 
 const FIELDS_BY_KIND = { token: TOKEN_FIELDS, drawing: DRAWING_FIELDS, fog: FOG_FIELDS, terrain: TERRAIN_FIELDS } as const;
@@ -237,6 +255,8 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       locked: bool(r.locked) ?? false,
       rings: rings(r.rings) ?? [],
       ...(r.layer === "prop" ? { layer: "prop" as const } : {}),
+      ...(isSheetId(r.character) ? { character: r.character } : {}),
+      ...(r.flipped === true ? { flipped: true } : {}),
     };
   }
   if (r.kind === "drawing") {
@@ -262,6 +282,18 @@ export function sanitizeItem(raw: unknown, owner: string): Item | null {
       item.text = text;
     }
     if (r.hidden === true) item.hidden = true;
+    // A spell effect that stays: a zone only on a circle or a rectangle, a token's look only on
+    // a circle naming its token.
+    const zone = isZoneLook(r.fx) && (shape === "ellipse" || shape === "rect");
+    const onToken = isTokenLook(r.fx) && shape === "ellipse" && isId(r.on);
+    if (zone || onToken) {
+      item.fx = r.fx as SpellLook;
+      if (onToken) item.on = r.on as string;
+      const rounds = r.rounds;
+      if (typeof rounds === "number" && Number.isInteger(rounds) && rounds >= 1 && rounds <= LIMITS.spellRounds) item.rounds = rounds;
+      const spell = cleanText(r.spell, LIMITS.spellName);
+      if (spell) item.spell = spell;
+    }
     return item;
   }
   if (r.kind === "fog") {
@@ -306,8 +338,8 @@ export function sanitizeSet(item: Item, raw: unknown): Partial<MutableFields> | 
     if (!shapePointsOk(item.kind, item.shape, out.points as number[])) return null;
   }
   if (item.kind === "terrain" && !terrainFieldsOk(!!item.hidden, out as Partial<MutableFields>)) return null;
-  // A compass stays a compass: a prop, drawn without an image.
-  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null))) {
+  // A compass stays a compass: a prop, drawn without an image, never mirrored.
+  if (isCompass(item) && ((out.layer !== undefined && out.layer !== "prop") || (out.assetId !== undefined && out.assetId !== null) || out.flipped === true)) {
     return null;
   }
   if ("text" in out && !(item.kind === "drawing" && item.shape === "text")) return null;
@@ -361,7 +393,7 @@ export function sanitizeSeason(v: unknown): SceneSeason | null | undefined {
   const level = r.level === 1 || r.level === 2 || r.level === 3 ? r.level : undefined;
   if (!look || !level) return undefined;
   const seed = typeof r.seed === "number" && Number.isInteger(r.seed) && r.seed >= 0 && r.seed <= 65535 ? r.seed : undefined;
-  return { look, level, ...(seed !== undefined ? { seed } : {}) };
+  return { look, level, ...(seed !== undefined ? { seed } : {}), ...(r.pinned === true ? { pinned: true } : {}) };
 }
 
 /**
@@ -376,8 +408,10 @@ export function sanitizeMapData(v: unknown): SceneMapData | null | undefined {
   const bare = r.bare === "leaf" || r.bare === "dead" ? r.bare : undefined;
   const drawn = r.drawn === "winter" || r.drawn === "green" ? r.drawn : undefined;
   const packs = r.packs === "guess" ? r.packs : undefined;
+  const from = r.from === "dungeon" ? r.from : undefined;
   if ((r.bare !== undefined && !bare) || (r.drawn !== undefined && !drawn)) return undefined;
   if ((r.hold !== undefined && r.hold !== true) || (r.packs !== undefined && !packs)) return undefined;
+  if (r.from !== undefined && !from) return undefined;
   return {
     assetId: r.assetId,
     forAssetId: r.forAssetId,
@@ -385,6 +419,7 @@ export function sanitizeMapData(v: unknown): SceneMapData | null | undefined {
     ...(drawn ? { drawn } : {}),
     ...(r.hold === true ? { hold: true as const } : {}),
     ...(packs ? { packs } : {}),
+    ...(from ? { from } : {}),
   };
 }
 
@@ -399,6 +434,148 @@ export function sanitizeMapRect(v: unknown): [number, number, number, number] | 
   if (!v.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.mapRectMax)) return undefined;
   const [x, y, w, h] = v as number[];
   return w > 0 && h > 0 ? [x, y, w, h] : undefined;
+}
+
+/** Where a scene came from in Dungeon, as sent: null to unlink it; undefined when unusable (the scene keeps what it had). */
+export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const levelName = (x: unknown) => (typeof x === "string" && x.length <= 60 ? x : null);
+  if (typeof r.map !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.map)) return undefined;
+  if (typeof r.batch !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.batch)) return undefined;
+  if (levelName(r.level) === null || !isId(r.asset)) return undefined;
+  if (typeof r.index !== "number" || !Number.isInteger(r.index) || r.index < 0 || r.index > 99) return undefined;
+  if (!Array.isArray(r.levels) || r.levels.length > 99 || !r.levels.every((n) => levelName(n) !== null)) return undefined;
+  return {
+    map: r.map,
+    batch: r.batch,
+    level: r.level as string,
+    index: r.index,
+    levels: r.levels as string[],
+    asset: r.asset,
+    ...(r.lighting === true ? { lighting: true } : {}),
+  };
+}
+
+/** A scene's level in a map with several (null: none any more; undefined: not one, or not a good one). */
+export function sanitizeSceneLevel(v: unknown): SceneLevel | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  if (typeof r.group !== "string" || !/^[A-Za-z0-9]{12}$/.test(r.group)) return undefined;
+  if (typeof r.index !== "number" || !Number.isInteger(r.index) || r.index < 0 || r.index > 99) return undefined;
+  const name = typeof r.name === "string" ? cleanText(r.name, 60) : "";
+  if (!name) return undefined;
+  return { group: r.group, index: r.index, name };
+}
+
+/** How much of a scene's lighting and line of sight is kept: plenty for a big map from Dungeon. */
+export const VISION_LIMITS = { wallLines: 6000, wallNumbers: 80_000, doors: 2000, lights: 1000, openEdges: 4000, partyLight: 60, sightRange: 200 };
+/** How far the party sees to begin with, in squares: so sight doesn't run ahead of the fog of war down a long hall. */
+export const SIGHT_RANGE = 12;
+/** How far the party's own light reaches in the dark, to begin with (squares). */
+export const PARTY_LIGHT = 4;
+/** The longest distance a scene's sight or light may be given as, in its unit. */
+const VISION_DISTANCE_MAX = 1_000_000;
+
+/** A distance for sight or light as sent: a number and a unit's name; undefined when it isn't one. */
+function sanitizeDistance(v: unknown): VisionDistance | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const unit = cleanText(r.unit, 12);
+  if (typeof r.d !== "number" || !Number.isFinite(r.d) || r.d < 0 || r.d > VISION_DISTANCE_MAX || !unit) return undefined;
+  return { d: Math.round(r.d * 100) / 100, unit };
+}
+
+/**
+ * A scene's lighting and line of sight as sent (SceneVision): null to take it away; undefined when
+ * unusable (the scene keeps what it had). Points are kept to a tenth of a unit, inside the
+ * biggest scene there can be.
+ */
+export function sanitizeVision(v: unknown): SceneVision | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return undefined;
+  const r = v as Record<string, unknown>;
+  const far = LIMITS.sceneSizeMax * 3;
+  const coord = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= far ? Math.round(n * 10) / 10 : undefined);
+  if (!Array.isArray(r.walls) || r.walls.length > VISION_LIMITS.wallLines) return undefined;
+  const walls: number[][] = [];
+  let numbers = 0;
+  for (const line of r.walls) {
+    if (!Array.isArray(line) || line.length < 4 || line.length % 2 !== 0) return undefined;
+    numbers += line.length;
+    if (numbers > VISION_LIMITS.wallNumbers) return undefined;
+    const pts = line.map(coord);
+    if (pts.some((n) => n === undefined)) return undefined;
+    walls.push(pts as number[]);
+  }
+  if (!Array.isArray(r.doors) || r.doors.length > VISION_LIMITS.doors) return undefined;
+  const doors: SceneVision["doors"] = [];
+  for (const d of r.doors) {
+    const x = (d && typeof d === "object" ? d : {}) as Record<string, unknown>;
+    if (!Array.isArray(x.line) || x.line.length !== 4) return undefined;
+    const line = x.line.map(coord);
+    if (line.some((n) => n === undefined)) return undefined;
+    doors.push({ line: line as [number, number, number, number], open: x.open === true });
+  }
+  if (!Array.isArray(r.lights) || r.lights.length > VISION_LIMITS.lights) return undefined;
+  const lights: SceneVision["lights"] = [];
+  for (const l of r.lights) {
+    const x = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
+    const px = coord(x.x), py = coord(x.y), pr = coord(x.r);
+    if (px === undefined || py === undefined || pr === undefined || pr <= 0) return undefined;
+    lights.push({
+      x: px,
+      y: py,
+      r: pr,
+      ...(typeof x.color === "string" && /^#[0-9a-f]{6}$/i.test(x.color) ? { color: x.color.toLowerCase() } : {}),
+      ...(x.flicker === true ? { flicker: true } : {}),
+      ...(x.own === true ? { own: true } : {}),
+    });
+  }
+  const light = sanitizeDistance(r.light), sight = sanitizeDistance(r.sight);
+  const openEdges = Array.isArray(r.openEdges)
+    ? [...new Set(r.openEdges.filter((k): k is number => typeof k === "number" && Number.isInteger(k) && k >= 0 && k < 2 ** 40))].slice(0, VISION_LIMITS.openEdges)
+    : [];
+  return {
+    on: r.on === true,
+    daylight: r.daylight !== false,
+    partyLight: num(r.partyLight, 0, VISION_LIMITS.partyLight) ?? 0,
+    sightRange: num(r.sightRange, 0, VISION_LIMITS.sightRange) ?? SIGHT_RANGE,
+    walls,
+    doors,
+    lights,
+    ...(openEdges.length ? { openEdges } : {}),
+    ...(r.perPlayer === true ? { perPlayer: true } : {}),
+    ...(r.passWalls === true ? { passWalls: true } : {}),
+    ...(r.night === true ? { night: true } : {}),
+    ...(r.followsDay === true ? { followsDay: true } : {}),
+    ...(light ? { light } : {}),
+    ...(sight ? { sight } : {}),
+  };
+}
+
+/** A scene's bounds as sent: null to go back to the picture's rectangle; undefined when unusable. */
+export function sanitizeBounds(v: unknown): [number, number, number, number] | null | undefined {
+  if (v === null) return null;
+  if (!Array.isArray(v) || v.length !== 4) return undefined;
+  if (!v.every((n) => typeof n === "number" && Number.isFinite(n))) return undefined;
+  const [l, t, r, b] = v as number[];
+  return r > l && b > t ? [l, t, r, b] : undefined;
+}
+
+/**
+ * Bounds made to hold the picture ([0, 0, width, height]) and to reach at most
+ * LIMITS.sceneSizeMax past it on each side; undefined when that leaves just the picture.
+ */
+export function fitBounds(b: readonly number[], width: number, height: number): [number, number, number, number] | undefined {
+  const m = LIMITS.sceneSizeMax;
+  const l = Math.max(-m, Math.min(0, b[0]));
+  const t = Math.max(-m, Math.min(0, b[1]));
+  const r = Math.min(width + m, Math.max(width, b[2]));
+  const btm = Math.min(height + m, Math.max(height, b[3]));
+  return l === 0 && t === 0 && r === width && btm === height ? undefined : [l, t, r, btm];
 }
 
 /**
@@ -426,6 +603,28 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
   const rv = sanitizeMapRect(r.mapRect);
   const newPicture = !!existing && mapAssetId !== existing.mapAssetId;
   const mapRect = rv === null ? undefined : (rv ?? (newPicture ? undefined : existing?.mapRect));
+  // The walls' texture: null goes back to plain walls, one Dungeon doesn't have keeps the scene's.
+  const wallTexture = r.wallTexture === null ? undefined : isWallTexture(r.wallTexture) ? r.wallTexture : existing?.wallTexture;
+  // The scene's own weather region: null goes back to the party's.
+  const region = r.region === null ? undefined : typeof r.region === "string" && r.region.trim() ? r.region.trim().slice(0, 40) : existing?.region;
+  // The GM's say on the map's weather: null goes back to Automatic.
+  const weather = r.weather === null ? undefined : r.weather === "on" || r.weather === "off" ? r.weather : existing?.weather;
+  // The scene's area: a change may set it (null: back to the picture's own). It always keeps
+  // the picture inside, so a new picture of another size still fits.
+  const bv = sanitizeBounds(r.bounds);
+  const asked = bv === null ? undefined : (bv ?? existing?.bounds);
+  const bounds = asked && fitBounds(asked, width, height);
+  // The link to Dungeon belongs to the picture Dungeon drew: a new picture ends it unless the change
+  // brings its own (Update from Dungeon), and it never names a picture the scene isn't showing.
+  const lv = sanitizeDungeonLink(r.dungeon);
+  const linked = lv === null ? undefined : (lv ?? (newPicture ? undefined : existing?.dungeon));
+  const dungeon = linked && linked.asset === mapAssetId ? linked : undefined;
+  // Its level in a map with several: null takes it away, a change without it keeps the scene's.
+  const lev = sanitizeSceneLevel(r.level);
+  const level = lev === null ? undefined : (lev ?? existing?.level);
+  // Lighting and line of sight: null takes it away, a change without it keeps the scene's.
+  const vv = sanitizeVision(r.vision);
+  const vision = vv === null ? undefined : (vv ?? existing?.vision);
   return {
     id: r.id,
     name: cleanText(r.name, LIMITS.name) || existing?.name || "Scene",
@@ -440,6 +639,13 @@ export function sanitizeScene(raw: unknown, existing?: Scene, grid: GridSettings
     ...(season ? { season } : {}),
     ...(mapData ? { mapData } : {}),
     ...(mapRect ? { mapRect } : {}),
+    ...(wallTexture ? { wallTexture } : {}),
+    ...(region ? { region } : {}),
+    ...(weather ? { weather } : {}),
+    ...(bounds ? { bounds } : {}),
+    ...(dungeon ? { dungeon } : {}),
+    ...(level ? { level } : {}),
+    ...(vision ? { vision } : {}),
   };
 }
 
@@ -460,6 +666,7 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
       value,
       color: cleanColor(x.color) ?? "#8a8f98",
       tokenId: isId(x.tokenId) ? x.tokenId : null,
+      ...(x.hidden === true ? { hidden: true } : {}),
     });
   }
   const turn = Math.round(num(r.turn, 0, Math.max(0, entries.length - 1)) ?? 0);
@@ -470,12 +677,14 @@ export function sanitizeInitiative(raw: unknown): Initiative | null {
 export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSettings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const metric = bool(r.metric) ?? current.metric;
+  const freePlacement = bool(r.freePlacement) ?? current.freePlacement;
   return {
     playersCanDraw: bool(r.playersCanDraw) ?? current.playersCanDraw,
     playersCanAddTokens: bool(r.playersCanAddTokens) ?? current.playersCanAddTokens,
     playersMoveAll: bool(r.playersMoveAll) ?? current.playersMoveAll,
     // Left out (a page from before metres, say) keeps what the room has; a room that never had it stays without.
     ...(metric !== undefined ? { metric } : {}),
+    ...(freePlacement !== undefined ? { freePlacement } : {}),
   };
 }
 
@@ -483,6 +692,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   playersCanDraw: true,
   playersCanAddTokens: true,
   playersMoveAll: true,
-  // This table is metric. Rooms made before the setting existed have none: they stay in feet.
+  // This table is metric. A room made before the setting existed has none until it next starts,
+  // when it switches to metres (worker/room.ts toMetres).
   metric: true,
 };

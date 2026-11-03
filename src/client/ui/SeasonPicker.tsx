@@ -85,7 +85,7 @@ export function SeasonPicker(props: { scene: Scene }) {
   });
 
   const set = (next: SceneSeason | null) => {
-    const same = next && season && next.look === season.look && next.level === season.level && next.seed === season.seed;
+    const same = next && season && next.look === season.look && next.level === season.level && next.seed === season.seed && !!next.pinned === !!season.pinned;
     if (same || (!next && !season)) return;
     if (next) rememberLevel(next.look, next.level);
     room.changeScene(s.id, { season: next }, {});
@@ -149,6 +149,12 @@ export function SeasonPicker(props: { scene: Scene }) {
           </button>
         </div>
       )}
+      {season && (
+        <label class="check small" title="With the calendar set to put scenes in its season, this one keeps the season chosen here">
+          <input type="checkbox" checked={!!season.pinned} onChange={(e) => set({ ...season, ...(e.currentTarget.checked ? { pinned: true } : { pinned: undefined }) })} />
+          <span>Keep this season when the calendar's changes</span>
+        </label>
+      )}
       <p class="small muted season-note">
         {!season
           ? "One click puts the map in season: snow, autumn leaves, blossom or drought. Tokens and drawings stay as they are."
@@ -191,7 +197,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
   const md = s.mapData;
   const sidecar = useSidecar(room.roomId, md?.assetId);
   const meta = sidecar?.meta;
-  const note = dataNote(props.state, { hasMap: !!s.mapAssetId, olderExtractor: meta ? olderExtractor(meta) : false });
+  const note = dataNote(props.state, { hasMap: !!s.mapAssetId, olderExtractor: meta ? olderExtractor(meta) : false, fromDungeon: md?.from === "dungeon" });
   const open = (mode: "attach" | "check") => room.store.set({ attachDD: { sceneId: s.id, mode } });
   const act = (a: NoteAction) => {
     switch (a) {
@@ -205,7 +211,7 @@ function DataNotes(props: { scene: Scene; state: SceneDataState }) {
         if (!md) return;
         touchedSidecars.add(md.assetId);
         room.setMapData(s.id, null);
-        room.toast(DD_UI.removed);
+        room.toast(md.from === "dungeon" ? DD_UI.removedDungeon : DD_UI.removed);
     }
   };
   const setData = (next: SceneMapData) => room.setMapData(s.id, next);

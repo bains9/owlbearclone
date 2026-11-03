@@ -28,7 +28,7 @@ function round(r: number): Size {
  * An elongated sprite: an ellipse with half-axes a (along the direction `deg` degrees from the
  * sprite's +x, clockwise with y down) and b across it.
  */
-function ellipse(a: number, b: number, deg = 0): Size {
+export function ellipse(a: number, b: number, deg = 0): Size {
   const t = (deg * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
   const reach: number[] = [];
   for (let k = 0; k < 16; k++) {

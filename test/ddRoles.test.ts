@@ -227,7 +227,8 @@ describe("roles: terrain, paths, patterns, materials and roofs", () => {
       ["terrain_cracked_earth", TR.EARTH], ["terrain_forest_floor", TR.GRASS], ["terrain_leaves", TR.GRASS], ["terrain_meadow", TR.GRASS],
       ["terrain_beach", TR.SAND], ["terrain_desert", TR.SAND], ["terrain_cobblestone", TR.PAVED], ["terrain_bricks", TR.PAVED],
       ["terrain_tiles", TR.PAVED], ["terrain_slate", TR.ROCK], ["terrain_pebbles", TR.ROCK], ["terrain_mystery", TR.KEEP],
-      ["Terrain_Snow", TR.SNOW],
+      ["Terrain_Snow", TR.SNOW], ["terrain_heather", TR.GRASS], ["terrain_moorland", TR.GRASS], ["terrain_moor_02", TR.GRASS],
+      ["terrain_ash", TR.EARTH], ["terrain_volcanic_ashes", TR.EARTH], ["terrain_cinders", TR.EARTH], ["terrain_washed", TR.KEEP],
     ];
     for (const [n, r] of cases) expect(terrainRole(n), n).toBe(r);
   });

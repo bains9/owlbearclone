@@ -19,20 +19,29 @@ import {
   CHUNK_CELLS,
   EMPTY,
   MAX_STAMPS_PER_CHUNK,
+  MAX_TEXTURES_PER_CHUNK,
   chunkOf,
+  decodeTextures,
   emptyCells,
   emptyEdges,
+  encodeTextures,
   inChunk,
   isBuildingFloor,
+  isDungeonStamp,
   isWalledFloor,
-  sceneCells,
+  sceneAreaCells,
   stampBlock,
+  stampLayer,
   terrainId,
 } from "../../shared/terrain";
-import type { FloorId, Stamp, StampId } from "../../shared/terrain";
+import type { CellBounds, FloorId, Stamp, StampId } from "../../shared/terrain";
 import type { GridSettings, Item, ItemPatch, Scene, SceneSeason, SeasonLook, TerrainItem } from "../../shared/types";
+import { sceneBounds } from "../../shared/types";
 import { drawStamp, floorPattern, floorVariant, hasSeasonalArt, overlayPattern, stampHash } from "./buildArt";
 import type { FloorVariant, OverlayId, SeasonLevel, StampLook } from "./buildArt";
+import { changesWithoutSnow, makesOutdoors } from "./dungeonSeasons";
+import { dungeonObjects, whenDungeonObjects } from "./dungeonStamps";
+import { overlayRuleFor, textureMade, texturePattern, textureSwatch, whenTextureMade } from "./dungeonTextures";
 import { STAMP_DRAW_AFTER, STAMP_DRAW_BEFORE, centreOf, drawnBounds, hitsPoint, placedOf, stampFor } from "./stampGeom";
 import type { Placed } from "./stampGeom";
 
@@ -80,6 +89,35 @@ function across(col: number, row: number, side: Side): [number, number] {
 
 const EMPTY_CELLS = emptyCells();
 const EMPTY_EDGES = emptyEdges();
+/** A chunk with no textures: "" for every cell. */
+const NO_TEXTURES: readonly string[] = Array<string>(CHUNK_CELLS).fill("");
+
+const decoded = new WeakMap<TerrainItem, readonly string[]>();
+
+/** A chunk's texture for each cell ("" none), worked out once per item. */
+function texturesOf(t: TerrainItem | undefined): readonly string[] {
+  if (!t?.tex) return NO_TEXTURES;
+  let out = decoded.get(t);
+  if (!out) decoded.set(t, (out = decodeTextures(t) ?? NO_TEXTURES));
+  return out;
+}
+
+/** The same textures? (Missing and empty are the same: none.) */
+function sameTextures(a: TerrainItem | undefined, b: TerrainItem | undefined): boolean {
+  return (a?.tex ?? "") === (b?.tex ?? "") && (a?.pal ?? []).join() === (b?.pal ?? []).join();
+}
+
+/**
+ * A chunk's textures as its tex and pal fields. One that would need more textures than a
+ * chunk can hold keeps the first ones it has and leaves the rest of its cells plain.
+ */
+function encodeFitting(cells: readonly string[]): { tex: string; pal: string[] } {
+  const enc = encodeTextures(cells);
+  if (enc) return enc;
+  const kept: string[] = [];
+  for (const id of cells) if (id && !kept.includes(id) && kept.length < MAX_TEXTURES_PER_CHUNK) kept.push(id);
+  return encodeTextures(cells.map((id) => (kept.includes(id) ? id : "")))!;
+}
 
 // ---------------------------------------------------------------- the index
 
@@ -198,7 +236,10 @@ export function resolveRefs(
 
 /** What the Build tool is painting before it's committed: shown at once, sent when you let go. */
 export interface BuildDraft {
-  /** Cell -> the floor being painted, or "." to erase. */
+  /**
+   * Cell -> the floor being painted, or "." to erase. One of Dungeon's textures comes after
+   * the floor's character: "g:meadow" (see paintCode).
+   */
   cells: Map<number, string>;
   /** Edge -> a wall being drawn, or one being taken away. */
   walls: Map<number, "add" | "remove">;
@@ -228,7 +269,18 @@ export class BuildModel {
   }
 
   cell(col: number, row: number): string {
-    return this.draft?.cells.get(cellKey(col, row)) ?? this.storedCell(col, row);
+    const v = this.draft?.cells.get(cellKey(col, row));
+    return v === undefined ? this.storedCell(col, row) : v[0];
+  }
+
+  storedTexture(col: number, row: number): string {
+    return texturesOf(this.index.chunks.get(ckey(chunkOf(col), chunkOf(row))))[idx(col, row)];
+  }
+
+  /** The cell's texture ("" for Tabletop's own floor), with the draft on top. */
+  texture(col: number, row: number): string {
+    const v = this.draft?.cells.get(cellKey(col, row));
+    return v === undefined ? this.storedTexture(col, row) : v.slice(2);
   }
 
   edge(col: number, row: number, side: Side): string {
@@ -297,12 +349,30 @@ export class BuildModel {
         });
       }
     }
-    return out.reverse();
+    return inDrawingOrder(out).reverse();
   }
 
   /** The object drawn on top under a point (see stampsAtPoint), if any. */
   stampAtPoint(u: number, v: number, pad: number): StampHit | null {
     return this.stampsAtPoint(u, v, pad)[0] ?? null;
+  }
+
+  /** Objects whose middle is within r cells of (u, v): what the scatter brush keeps its distance from. */
+  placedNear(u: number, v: number, r: number): Placed[] {
+    const out: Placed[] = [];
+    // An object's middle is at most 1½ squares from its block's top-left cell.
+    for (let cy = chunkOf(Math.floor(v - r - 2)); cy <= chunkOf(Math.floor(v + r)); cy++) {
+      for (let cx = chunkOf(Math.floor(u - r - 2)); cx <= chunkOf(Math.floor(u + r)); cx++) {
+        const ch = this.index.chunks.get(ckey(cx, cy));
+        if (!ch) continue;
+        for (const s of ch.stamps) {
+          const p = placedOf(cx, cy, s);
+          const m = centreOf(p);
+          if (Math.hypot(m.x - u, m.y - v) <= r) out.push(p);
+        }
+      }
+    }
+    return out;
   }
 
   /** Objects whose middle is in a box (in cells, edges included, corners either way round), in drawing order. */
@@ -323,13 +393,50 @@ export class BuildModel {
         });
       }
     }
-    return out;
+    return inDrawingOrder(out);
   }
 
   /** Objects picked out earlier, as they are now (see resolveRefs). */
   resolve(refs: StampRef[]): { refs: StampRef[]; hits: StampHit[] } {
     const r = resolveRefs((cx, cy) => this.index.chunks.get(ckey(cx, cy)), refs);
     return { refs: r.refs, hits: r.hits };
+  }
+
+  /**
+   * The built walls and doors, for line of sight (vision.ts), as lines in cells [col0, row0, col1,
+   * row1]: every edge of every chunk's cells, and the edges along their right and bottom too. As
+   * stored (no draft). A secret door is a wall here, for players and the GM alike.
+   */
+  sightLines(): { walls: [number, number, number, number][]; doors: { key: number; line: [number, number, number, number] }[] } {
+    const walls: [number, number, number, number][] = [];
+    const doors: { key: number; line: [number, number, number, number] }[] = [];
+    const draft = this.draft;
+    this.draft = null;
+    const seen = new Set<number>();
+    try {
+      for (const ch of this.index.chunks.values()) {
+        const c0 = ch.cx * CHUNK, r0 = ch.cy * CHUNK;
+        for (let row = r0; row <= r0 + CHUNK; row++) {
+          for (let col = c0; col <= c0 + CHUNK; col++) {
+            for (const side of ["t", "l"] as const) {
+              // The extra row and column only for their edges facing into the chunk.
+              if ((row === r0 + CHUNK && side === "l") || (col === c0 + CHUNK && side === "t")) continue;
+              const key = edgeKey(col, row, side);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const s = this.state(col, row, side);
+              if (s === NONE) continue;
+              const line: [number, number, number, number] = side === "t" ? [col, row, col + 1, row] : [col, row, col, row + 1];
+              if (s === DOOR) doors.push({ key, line });
+              else walls.push(line);
+            }
+          }
+        }
+      }
+    } finally {
+      this.draft = draft;
+    }
+    return { walls, doors };
   }
 
   /** What an edge is now: a door, a secret door, or neither. */
@@ -360,22 +467,35 @@ export class BuildModel {
   }
 }
 
-/** Objects whose block covers a cell, in drawing order (the last is on top). */
+/** The squares a block of n at (col, row) stands on: n by n on the grid, every one it overlaps off it. */
+function blockSquares(col: number, row: number, n: number): CellBounds {
+  return { c0: Math.floor(col), r0: Math.floor(row), c1: Math.ceil(col + n) - 1, r1: Math.ceil(row + n) - 1 };
+}
+
+/**
+ * Objects whose block covers a cell (overlaps it, for one off the grid), in drawing order
+ * (the last is on top). A block of 3 off the grid can start nearly 3 cells before it.
+ */
 function stampsCovering(chunks: Map<number, { cx: number; cy: number; stamps: Stamp[] }>, col: number, row: number): StampHit[] {
   const out: StampHit[] = [];
-  for (let cy = chunkOf(row - 2); cy <= chunkOf(row); cy++) {
-    for (let cx = chunkOf(col - 2); cx <= chunkOf(col); cx++) {
+  for (let cy = chunkOf(row - 3); cy <= chunkOf(row); cy++) {
+    for (let cx = chunkOf(col - 3); cx <= chunkOf(col); cx++) {
       const ch = chunks.get(ckey(cx, cy));
       if (!ch) continue;
       ch.stamps.forEach((stamp, i) => {
         const ax = cx * CHUNK + stamp[1];
         const ay = cy * CHUNK + stamp[2];
         const n = stampBlock(stamp[4]);
-        if (col >= ax && col < ax + n && row >= ay && row < ay + n) out.push({ cx, cy, i, stamp });
+        if (col + 1 > ax && col < ax + n && row + 1 > ay && row < ay + n) out.push({ cx, cy, i, stamp });
       });
     }
   }
-  return out;
+  return inDrawingOrder(out);
+}
+
+/** Objects found in chunk order, put in the order they're drawn: by layer (see stampLayer), then as found. */
+function inDrawingOrder(hits: StampHit[]): StampHit[] {
+  return hits.sort((a, b) => stampLayer(a.stamp[0]) - stampLayer(b.stamp[0]));
 }
 
 // ---------------------------------------------------------------- edits
@@ -384,6 +504,8 @@ interface WorkChunk {
   cx: number;
   cy: number;
   cells: string[];
+  /** Each cell's texture, "" for none. */
+  tex: string[];
   edges: string[];
   stamps: Stamp[];
   stampsChanged: boolean;
@@ -426,6 +548,7 @@ export class BuildEdit {
         cx,
         cy,
         cells: [...(orig?.cells ?? EMPTY_CELLS)],
+        tex: [...texturesOf(orig)],
         edges: [...(orig?.edges ?? EMPTY_EDGES)],
         stamps: orig ? orig.stamps.slice() : [],
         stampsChanged: false,
@@ -456,9 +579,20 @@ export class BuildEdit {
     return this.peek(col, row)?.cells[idx(col, row)] ?? EMPTY;
   }
 
-  setCell(col: number, row: number, ch: string): void {
-    if (this.cell(col, row) === ch) return;
-    this.chunk(col, row).cells[idx(col, row)] = ch;
+  /** The cell's texture so far ("" for none). */
+  texture(col: number, row: number): string {
+    const k = ckey(chunkOf(col), chunkOf(row));
+    const w = this.work.get(k);
+    return w ? w.tex[idx(col, row)] : texturesOf(this.index.chunks.get(k))[idx(col, row)];
+  }
+
+  /** Paints a cell: its floor's character, and one of Dungeon's textures on it or "" for Tabletop's own. */
+  setCell(col: number, row: number, ch: string, texture = ""): void {
+    const tex = ch === EMPTY ? "" : texture;
+    if (this.cell(col, row) === ch && this.texture(col, row) === tex) return;
+    const w = this.chunk(col, row);
+    w.cells[idx(col, row)] = ch;
+    w.tex[idx(col, row)] = tex;
   }
 
   edge(col: number, row: number, side: Side): string {
@@ -559,8 +693,12 @@ export class BuildEdit {
    */
   mergeChunk(cx: number, cy: number, from: ChunkData, to: ChunkData): void {
     const w = this.chunk(cx * CHUNK, cy * CHUNK);
+    // A cell's floor and its texture go together: one painted since in either way is left alone.
     for (let i = 0; i < CHUNK_CELLS; i++) {
-      if (from.cells[i] !== to.cells[i] && w.cells[i] === from.cells[i]) w.cells[i] = to.cells[i];
+      if ((from.cells[i] !== to.cells[i] || from.tex[i] !== to.tex[i]) && w.cells[i] === from.cells[i] && w.tex[i] === from.tex[i]) {
+        w.cells[i] = to.cells[i];
+        w.tex[i] = to.tex[i];
+      }
     }
     for (let i = 0; i < CHUNK_CELLS * 2; i++) {
       if (from.edges[i] !== to.edges[i] && w.edges[i] === from.edges[i]) w.edges[i] = to.edges[i];
@@ -905,6 +1043,7 @@ export class BuildEdit {
     for (const w of this.work.values()) {
       const cells = w.cells.join("");
       const edges = w.edges.join("");
+      const textures = encodeFitting(w.tex);
       const empty = cells === EMPTY_CELLS && edges === EMPTY_EDGES && !w.stamps.length;
       if (w.orig) {
         // An empty chunk is deleted, so it doesn't take up room in the scene forever.
@@ -916,6 +1055,11 @@ export class BuildEdit {
         if (cells !== w.orig.cells) set.cells = cells;
         if (edges !== w.orig.edges) set.edges = edges;
         if (w.stampsChanged && !sameStamps(w.stamps, w.orig.stamps)) set.stamps = w.stamps;
+        // Always the pair, as the server wants them.
+        if (textures.tex !== (w.orig.tex ?? "") || textures.pal.join() !== (w.orig.pal ?? []).join()) {
+          set.tex = textures.tex;
+          set.pal = textures.pal;
+        }
         if (Object.keys(set).length) patch.push({ id: w.orig.id, set });
       } else if (!empty) {
         upsert.push({
@@ -929,6 +1073,7 @@ export class BuildEdit {
           cells,
           edges,
           stamps: w.stamps,
+          ...(textures.tex ? textures : {}),
         });
       }
     }
@@ -995,9 +1140,11 @@ export interface ChunkData {
   cells: string;
   edges: string;
   stamps: Stamp[];
+  /** Each cell's texture, "" for none. */
+  tex: readonly string[];
 }
 
-const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [] };
+const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [], tex: NO_TEXTURES };
 
 /** A scene's secret doors in one chunk, from all the hidden chunks there. */
 function secretsIn(items: ItemMap, sceneId: string, cx: number, cy: number): string {
@@ -1031,7 +1178,7 @@ export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps, pairs: 
   const secrets = new Map<number, { cx: number; cy: number; before: string; after: string }>();
   const data = (map: ItemMap, id: string): ChunkData => {
     const t = map[id];
-    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps } : EMPTY_CHUNK;
+    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps, tex: texturesOf(t) } : EMPTY_CHUNK;
   };
   for (const id of ids) {
     const t = items[id] ?? after[id];
@@ -1126,6 +1273,10 @@ export function opsBetween(now: ItemMap, final: ItemMap, ids: Iterable<string>):
       if (a.cells !== b.cells) set.cells = b.cells;
       if (a.edges !== b.edges) set.edges = b.edges;
       if (!sameStamps(a.stamps, b.stamps)) set.stamps = b.stamps;
+      if (!sameTextures(a, b)) {
+        set.tex = b.tex ?? "";
+        set.pal = b.pal ?? [];
+      }
       if (Object.keys(set).length) patch.push({ id, set });
     }
   }
@@ -1199,6 +1350,11 @@ export function floorChar(floor: FloorId, walls: boolean): string {
   return isWalledFloor(floor) && !walls ? floor.toUpperCase() : floor;
 }
 
+/** What a stroke paints a cell with (BuildDraft.cells): a floor's character, and after it any texture of Dungeon's, "g:meadow". */
+export function paintCode(ch: string, texture: string): string {
+  return texture && ch !== EMPTY ? `${ch}:${texture}` : ch;
+}
+
 // ---------------------------------------------------------------- seasons
 
 /** How far (in squares) outdoor ground reaches from grass, trees and bushes. */
@@ -1265,7 +1421,7 @@ export class Exposure {
 
 /**
  * Works out which cells are outdoors: a search out from every grass cell and every cell
- * under a tree or bush, up to EXPOSURE_REACH squares, crossing only open edges (walls,
+ * under a tree, bush or other plant (makesOutdoors), up to EXPOSURE_REACH squares, crossing only open edges (walls,
  * doors and secret doors stop it; secret doors are walls to everyone, so the GM and the
  * players get the same answer) into cells with a floor that isn't lava. Walled room floors
  * (s, w, d) are always indoors, whatever is next to them. Water is outdoors only when
@@ -1290,23 +1446,24 @@ export function computeExposure(m: BuildModel): Exposure {
         if (ch.cells[i] === "g") grass.push(cellKey(ch.cx * CHUNK + (i % CHUNK), ch.cy * CHUNK + Math.floor(i / CHUNK)));
       }
       for (const [id, sc, sr, , size] of ch.stamps) {
-        if (id !== "tree" && id !== "bush") continue;
+        if (!makesOutdoors(id)) continue;
         const ax = ch.cx * CHUNK + sc;
         const ay = ch.cy * CHUNK + sr;
-        // The squares it stands on, however big it's drawn.
-        const n = stampBlock(size);
+        // The squares it stands on, however big it's drawn (every one its block overlaps, off the grid).
+        const sq = blockSquares(ax, ay, stampBlock(size));
         let outdoors = false;
-        for (let dy = 0; dy < n; dy++) {
-          for (let dx = 0; dx < n; dx++) {
+        for (let y = sq.r0; y <= sq.r1; y++) {
+          for (let x = sq.c0; x <= sq.c1; x++) {
             // Empty cells count: a tree on an uploaded map, with no floor under it, is outdoors.
             // Water doesn't: only grass makes water outdoors.
-            const cell = m.cell(ax + dx, ay + dy);
+            const cell = m.cell(x, y);
             if (isWalledFloor(cell) || cell === "l" || cell === "a") continue;
-            trees.push(cellKey(ax + dx, ay + dy));
+            trees.push(cellKey(x, y));
             outdoors = true;
           }
         }
-        if (outdoors) near.push(ax - 1, ay - 1, n + 2);
+        // The squares round it too (a square box: off the grid, the larger side).
+        if (outdoors) near.push(sq.c0 - 1, sq.r0 - 1, Math.max(sq.c1 - sq.c0, sq.r1 - sq.r0) + 3);
       }
     }
     const spread = (seeds: number[], water: boolean) => {
@@ -1498,8 +1655,20 @@ export class BuildRenderer {
   private cache: HTMLCanvasElement | null = null;
   private cacheKey = "";
   private cacheK = 1;
+  /** The scene point the cache's top-left pixel shows: (0, 0), or below it for an extended scene. */
+  private cacheOX = 0;
+  private cacheOY = 0;
   private paintDirty = new Set<number>();
   private paintAll = true;
+  /** Waiting for Dungeon's objects to load, to paint them in. */
+  private awaitingObjects = false;
+  /**
+   * Called when something drawn as a stand-in is ready to be drawn properly (one of Dungeon's
+   * textures, made after it was first needed): the board draws again.
+   */
+  onReady: (() => void) | null = null;
+  /** Dungeon's textures being made for this map. */
+  private awaited = new Set<string>();
   /** Chunks the current draft has touched, to redraw when it goes. */
   private draftChunks = new Set<number>();
   /** The scene's season, if any, and its part of the cached image's key ("" with none). */
@@ -1556,20 +1725,21 @@ export class BuildRenderer {
     const s = this.season;
     const e = this.exposure;
     if (!s || !hasSeasonalArt(id, s.look)) return null;
-    const plant = id === "tree" || id === "bush";
+    const plant = makesOutdoors(id);
     let dist = SHELTERED;
-    for (let dy = 0; dy < n; dy++) {
-      for (let dx = 0; dx < n; dx++) {
-        // A tree or bush makes its own squares outdoors, as computeExposure has it: so the
+    const sq = blockSquares(col, row, n);
+    for (let y = sq.r0; y <= sq.r1; y++) {
+      for (let x = sq.c0; x <= sq.c1; x++) {
+        // A plant makes its own squares outdoors, as computeExposure has it: so the
         // preview of one not placed yet (or being moved) looks as it will once it's there.
-        const cell = plant ? this.model.storedCell(col + dx, row + dy) : "";
+        const cell = plant ? this.model.storedCell(x, y) : "";
         if (plant && !isWalledFloor(cell) && cell !== "l" && cell !== "a") dist = 0;
-        else if (e) dist = Math.min(dist, e.dist(col + dx, row + dy));
+        else if (e) dist = Math.min(dist, e.dist(x, y));
       }
     }
     if (dist > EXPOSURE_REACH) return null;
     const cover = s.look === "winter" ? winterCover(dist, s.level) : 0;
-    if (!cover && id !== "tree" && id !== "bush") return null;
+    if (!cover && !changesWithoutSnow(id)) return null;
     return { look: s.look, level: s.level, hash: stampHash(col, row, this.seasonSeed), cover };
   }
 
@@ -1617,7 +1787,7 @@ export class BuildRenderer {
         this.cellsChanged(k);
       }
       if ((a?.edges ?? EMPTY_EDGES) !== (b?.edges ?? EMPTY_EDGES)) this.geomDirty.add(k);
-      if (!sameStamps(a?.stamps ?? [], b?.stamps ?? [])) this.paintDirty.add(k);
+      if (!sameStamps(a?.stamps ?? [], b?.stamps ?? []) || !sameTextures(a, b)) this.paintDirty.add(k);
     }
     const skeys = new Set([...prev.secrets.keys(), ...next.secrets.keys()]);
     for (const k of skeys) {
@@ -1651,7 +1821,7 @@ export class BuildRenderer {
     this.model.draft = { cells: new Map(), walls: new Map() };
   }
 
-  /** Paints (or with ".", erases) a cell in the draft. */
+  /** Paints (or with ".", erases) a cell in the draft: a floor's character, with a texture after it (see paintCode). */
   draftCell(col: number, row: number, ch: string): void {
     const d = this.model.draft;
     if (!d || d.cells.get(cellKey(col, row)) === ch) return;
@@ -1803,7 +1973,8 @@ export class BuildRenderer {
     if (this.empty && !this.geoms.size) return;
     const g = scene.grid;
     const size = g.size;
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
+    const area = sceneBounds(scene);
     const c0 = Math.max(all.c0, Math.floor((view.x0 - g.offsetX) / size) - 1);
     const r0 = Math.max(all.r0, Math.floor((view.y0 - g.offsetY) / size) - 1);
     const c1 = Math.min(all.c1 + 1, Math.floor((view.x1 - g.offsetX) / size) + 1);
@@ -1813,14 +1984,15 @@ export class BuildRenderer {
     if (this.season) this.updateExposure();
     c.save();
     c.beginPath();
-    c.rect(0, 0, scene.width, scene.height);
+    c.rect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.clip();
 
-    const k = Math.min(1, CACHE_MAX / Math.max(scene.width, scene.height), CACHE_CELL_PX / size);
+    const k = Math.min(1, CACHE_MAX / Math.max(area.x1 - area.x0, area.y1 - area.y0), CACHE_CELL_PX / size);
     if (px <= k * 1.25 || (c1 - c0 + 1) * (r1 - r0 + 1) > DIRECT_MAX_CELLS) {
       this.updateCache(scene, k);
       c.imageSmoothingEnabled = true;
-      c.drawImage(this.cache!, 0, 0, this.cache!.width / k, this.cache!.height / k);
+      // The cache starts at the scene's top-left corner, which is below 0 when it's been extended.
+      c.drawImage(this.cache!, this.cacheOX, this.cacheOY, this.cache!.width / k, this.cache!.height / k);
     } else {
       this.drawFloors(c, scene, c0, r0, c1, r1);
       this.drawStamps(c, scene, c0, r0, c1, r1);
@@ -1830,7 +2002,7 @@ export class BuildRenderer {
     const m = Math.max(size * 0.13, 1.5 / scale) * 1.2;
     c.save();
     c.beginPath();
-    c.rect(-m, -m, scene.width + 2 * m, scene.height + 2 * m);
+    c.rect(area.x0 - m, area.y0 - m, area.x1 - area.x0 + 2 * m, area.y1 - area.y0 + 2 * m);
     c.clip();
     this.drawWalls(c, scene, c0, r0, c1, r1, scale, gmView);
     c.restore();
@@ -1838,16 +2010,21 @@ export class BuildRenderer {
 
   private updateCache(scene: Scene, k: number): void {
     const g = scene.grid;
-    const key = `${scene.id}|${scene.width}|${scene.height}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
+    const area = sceneBounds(scene);
+    // The same key as ever for a scene that starts at (0, 0); an extended one adds its origin.
+    const origin = area.x0 || area.y0 ? `|@${area.x0},${area.y0}` : "";
+    const key = `${scene.id}|${area.x1 - area.x0}|${area.y1 - area.y0}|${g.size}|${g.offsetX}|${g.offsetY}|${k}${origin}${this.seasonKey ? `|${this.seasonKey}` : ""}`;
     const canvas = (this.cache ??= document.createElement("canvas"));
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.cacheK = k;
-      canvas.width = Math.max(1, Math.ceil(scene.width * k));
-      canvas.height = Math.max(1, Math.ceil(scene.height * k));
+      this.cacheOX = area.x0;
+      this.cacheOY = area.y0;
+      canvas.width = Math.max(1, Math.ceil((area.x1 - area.x0) * k));
+      canvas.height = Math.max(1, Math.ceil((area.y1 - area.y0) * k));
       this.paintAll = true;
     }
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
     if (this.paintAll || this.paintDirty.size > 24) {
       this.paintRegion(scene, all.c0, all.r0, all.c1, all.r1);
     } else {
@@ -1872,11 +2049,14 @@ export class BuildRenderer {
     const ctx = canvas.getContext("2d")!;
     const g = scene.grid;
     const k = this.cacheK;
+    // The cache's pixel (0, 0) is the scene's top-left corner (ox, oy), below 0 when extended.
+    const ox = this.cacheOX;
+    const oy = this.cacheOY;
     // Whole pixels, so repainting never blends into what's already there.
-    const px0 = Math.max(0, Math.floor((g.offsetX + c0 * g.size) * k));
-    const py0 = Math.max(0, Math.floor((g.offsetY + r0 * g.size) * k));
-    const px1 = Math.min(canvas.width, Math.ceil((g.offsetX + (c1 + 1) * g.size) * k));
-    const py1 = Math.min(canvas.height, Math.ceil((g.offsetY + (r1 + 1) * g.size) * k));
+    const px0 = Math.max(0, Math.floor((g.offsetX + c0 * g.size - ox) * k));
+    const py0 = Math.max(0, Math.floor((g.offsetY + r0 * g.size - oy) * k));
+    const px1 = Math.min(canvas.width, Math.ceil((g.offsetX + (c1 + 1) * g.size - ox) * k));
+    const py1 = Math.min(canvas.height, Math.ceil((g.offsetY + (r1 + 1) * g.size - oy) * k));
     if (px1 <= px0 || py1 <= py0) return;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1884,12 +2064,13 @@ export class BuildRenderer {
     ctx.rect(px0, py0, px1 - px0, py1 - py0);
     ctx.clip();
     ctx.clearRect(px0, py0, px1 - px0, py1 - py0);
-    ctx.setTransform(k, 0, 0, k, 0, 0);
+    // (No -0 when the scene starts at 0: drawing must stay exactly as before.)
+    ctx.setTransform(k, 0, 0, k, ox ? -ox * k : 0, oy ? -oy * k : 0);
     // The cells those pixels cover, which can be a little more than asked for.
-    const cc0 = Math.floor((px0 / k - g.offsetX) / g.size);
-    const cr0 = Math.floor((py0 / k - g.offsetY) / g.size);
-    const cc1 = Math.floor((px1 / k - g.offsetX) / g.size);
-    const cr1 = Math.floor((py1 / k - g.offsetY) / g.size);
+    const cc0 = Math.floor((px0 / k + ox - g.offsetX) / g.size);
+    const cr0 = Math.floor((py0 / k + oy - g.offsetY) / g.size);
+    const cc1 = Math.floor((px1 / k + ox - g.offsetX) / g.size);
+    const cr1 = Math.floor((py1 / k + oy - g.offsetY) / g.size);
     this.drawFloors(ctx, scene, cc0, cr0, cc1, cr1);
     // Objects are drawn from a cell before too: a tree's shadow falls a little past the
     // square it's drawn on, so one just above or left of these cells can reach into them
@@ -1920,7 +2101,9 @@ export class BuildRenderer {
       let over: OverlayId | "" = "";
       for (let col = c0; col <= c1 + 1; col++) {
         const ch = col <= c1 ? m.cell(col, row) : EMPTY;
-        let floor = ch === EMPTY ? "" : ch.toLowerCase();
+        // One of Dungeon's textures is "t:<id>" (see dungeonTextures.ts).
+        const tex = ch === EMPTY ? "" : m.texture(col, row);
+        let floor = ch === EMPTY ? "" : tex ? `t:${tex}` : ch.toLowerCase();
         if (s && e) {
           let o: OverlayId | "" = "";
           if (floor) {
@@ -1928,8 +2111,11 @@ export class BuildRenderer {
             // Grass is always outdoors (new grass too, before it's committed); water and bare earth when found so.
             const hash = ch === "a" || ch === "D" ? stampHash(col, row, this.seasonSeed) : 0;
             const v = groundVariant(ch, dist, e.openWater(col, row), s.look, s.level, hash);
-            if (v) floor = `${floor}:${v}`;
-            o = overlayFor(ch, dist, e.nearTree(col, row), s.look, s.level);
+            // A texture stays in every season, with the season's overlay on it; only water
+            // freezes over just as Tabletop's own does.
+            if (v && (!tex || ch === "a")) floor = `${ch.toLowerCase()}:${v}`;
+            const rule = tex ? overlayRuleFor(ch, tex, s.look) : ch;
+            o = rule ? overlayFor(rule, dist, e.nearTree(col, row), s.look, s.level) : "";
           }
           if (o !== over) {
             if (over) add(overlays, over, overStart, col, row);
@@ -1944,8 +2130,11 @@ export class BuildRenderer {
       }
     }
     for (const [key, p] of paths) {
-      // "g" or "g:winter2".
-      c.fillStyle = floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
+      // "g", "g:winter2", or one of Dungeon's textures, "t:meadow".
+      c.fillStyle =
+        key[0] === "t" && key[1] === ":"
+          ? this.texture(c, key.slice(2), size, g.offsetX, g.offsetY)
+          : floorPattern(c, key[0] as FloorId, size, g.offsetX, g.offsetY, key.slice(2) as FloorVariant);
       c.fill(p);
     }
     for (const [id, p] of overlays) {
@@ -1956,16 +2145,36 @@ export class BuildRenderer {
     }
   }
 
+  /**
+   * One of Dungeon's textures as drawFloors and drawWalls fill with it: its swatch until it's
+   * made, which happens between frames, after which the whole cached image is painted again.
+   */
+  private texture(c: CanvasRenderingContext2D, id: string, size: number, offX: number, offY: number): CanvasPattern | string {
+    if (textureMade(id)) return texturePattern(c, id, size, offX, offY);
+    if (!this.awaited.has(id)) {
+      this.awaited.add(id);
+      whenTextureMade(id, () => {
+        this.awaited.delete(id);
+        this.paintAll = true;
+        this.onReady?.();
+      });
+    }
+    return textureSwatch(id);
+  }
+
   private drawStamps(c: CanvasRenderingContext2D, scene: Scene, c0: number, r0: number, c1: number, r1: number): void {
     const g = scene.grid;
     const chunks = this.model.index.chunks;
     const draft = this.model.draft?.groundOnly ? undefined : this.model.draft?.cells;
     // An object over any square of a room being erased goes with it, so it isn't shown.
     const erased = (ax: number, ay: number, n: number) => {
-      for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) if (draft!.get(cellKey(ax + dx, ay + dy)) === EMPTY) return true;
+      const sq = blockSquares(ax, ay, n);
+      for (let y = sq.r0; y <= sq.r1; y++) for (let x = sq.c0; x <= sq.c1; x++) if (draft!.get(cellKey(x, y)) === EMPTY) return true;
       return false;
     };
     const hidden = this.model.hiddenSlots;
+    // Floor objects first, then those standing on it, then treetops (see stampLayer).
+    const layers: Array<Array<[StampId, number, number, number, number, number, number]>> = [[], [], []];
     // Objects standing up to STAMP_DRAW_AFTER cells before the area, or STAMP_DRAW_BEFORE
     // after it, can reach into it (3 squares, turned 45 degrees).
     for (let cy = chunkOf(r0 - STAMP_DRAW_AFTER); cy <= chunkOf(r1 + STAMP_DRAW_BEFORE); cy++) {
@@ -1990,8 +2199,22 @@ export class BuildRenderer {
             if (Math.floor(x - h) > c1 || Math.floor(y - h) > r1 || Math.ceil(x + h) - 1 < c0 || Math.ceil(y + h) - 1 < r0) continue;
           }
           if (draft?.size && erased(ax, ay, n)) continue;
-          paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
+          layers[stampLayer(id)].push([id, ax, ay, turns, size, fine, n]);
         }
+      }
+    }
+    for (const layer of layers) {
+      for (const [id, ax, ay, turns, size, fine, n] of layer) {
+        // One of Dungeon's objects before they're loaded draws as nothing: all is painted again once they are.
+        if (!this.awaitingObjects && isDungeonStamp(id) && !dungeonObjects()) {
+          this.awaitingObjects = true;
+          whenDungeonObjects(() => {
+            this.awaitingObjects = false;
+            this.paintAll = true;
+            this.onReady?.();
+          });
+        }
+        paintStamp(c, g, id, ax, ay, turns, size, fine, this.season ? this.stampLook(id, ax, ay, n) : null);
       }
     }
   }
@@ -2041,13 +2264,29 @@ export class BuildRenderer {
     const lw = Math.max(size * 0.13, 1.5 / scale);
     c.lineCap = "square";
     c.lineJoin = "miter";
-    // A soft shadow along the walls, then the walls.
-    c.strokeStyle = "rgba(0, 0, 0, 0.2)";
-    c.lineWidth = lw * 2.4;
-    c.stroke(walls);
-    c.strokeStyle = WALL_COLOR;
-    c.lineWidth = lw;
-    c.stroke(walls);
+    if (scene.wallTexture) {
+      // One of Dungeon's wall textures: a wider band of it, edged in the walls' own dark, over
+      // the same soft shadow.
+      const band = Math.max(size * 0.22, 3 / scale);
+      const edge = Math.max(size * 0.02, 1 / scale);
+      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      c.lineWidth = band * 1.8;
+      c.stroke(walls);
+      c.strokeStyle = WALL_COLOR;
+      c.lineWidth = band + edge * 2;
+      c.stroke(walls);
+      c.strokeStyle = this.texture(c, scene.wallTexture, size, g.offsetX, g.offsetY);
+      c.lineWidth = band;
+      c.stroke(walls);
+    } else {
+      // A soft shadow along the walls, then the walls.
+      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      c.lineWidth = lw * 2.4;
+      c.stroke(walls);
+      c.strokeStyle = WALL_COLOR;
+      c.lineWidth = lw;
+      c.stroke(walls);
+    }
 
     const t = size * 0.09;
     for (let i = 0; i < doors.length; i += 3) {

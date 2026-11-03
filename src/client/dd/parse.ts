@@ -82,7 +82,7 @@ function mergeLimits(inp: Partial<ParseLimits>): ParseLimits {
  * Refuses text that nests deeper than maxJsonDepth or holds more containers or values than the
  * limits, before JSON.parse builds it. Linear: string bodies are skipped with indexOf.
  */
-function checkJsonShape(text: string, limits: ParseLimits): void {
+export function checkJsonShape(text: string, limits: ParseLimits): void {
   let depth = 0, containers = 0, values = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);

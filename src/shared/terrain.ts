@@ -2,7 +2,8 @@
 // grid with the Build tool. They're stored as "terrain" items, one per 16 x 16 block
 // of grid cells (a chunk), so an edit only rewrites the chunks it touches.
 
-import type { GridSettings, TerrainItem } from "./types";
+import { sceneBounds, type GridSettings, type Scene, type SceneArea, type TerrainItem } from "./types";
+import { DUNGEON_MATERIALS, DUNGEON_PROPS, type DungeonPropInfo } from "./dungeonCatalog";
 
 /** Cells along each side of a chunk. */
 export const CHUNK = 16;
@@ -10,7 +11,14 @@ export const CHUNK_CELLS = CHUNK * CHUNK;
 /** Chunk coordinates stay within this range (far beyond the biggest scene at the smallest grid). */
 export const CHUNK_RANGE = 1000;
 /** Objects one chunk can hold. */
-export const MAX_STAMPS_PER_CHUNK = 64;
+export const MAX_STAMPS_PER_CHUNK = 256;
+/**
+ * The most objects code from before 27 October 2026 (protocol 5) takes in one chunk: a chunk
+ * with more needs protocol 6, as one with an object off the grid does (see stampsOnGrid).
+ */
+export const GRID_STAMPS_PER_CHUNK = 64;
+/** Objects placed off the grid stand anywhere, to a sixteenth of a square. */
+export const STAMP_POS_STEP = 1 / 16;
 
 /**
  * One character per cell, row by row. "." is empty. A lowercase room floor (stone, wood,
@@ -66,8 +74,53 @@ export const STAMP_IDS = [
   "campfire",
   "rubble",
 ] as const;
-export type StampId = (typeof STAMP_IDS)[number];
-export const STAMP_NAMES: Record<StampId, string> = {
+/** The first sixteen objects, drawn by Tabletop itself (with seasonal drawings for some). */
+export type BaseStampId = (typeof STAMP_IDS)[number];
+/** One of Dungeon's built-in objects (dungeon.parhome.ca), by its Dungeon id: "d:oak-tree". */
+export type DungeonStampId = `d:${string}`;
+export type StampId = BaseStampId | DungeonStampId;
+
+const DUNGEON_STAMP = new Map(DUNGEON_PROPS.map((p) => [`d:${p.id}` as DungeonStampId, p]));
+
+export function isDungeonStamp(id: string): id is DungeonStampId {
+  return DUNGEON_STAMP.has(id as DungeonStampId);
+}
+
+/** An object id Tabletop can draw: one of the sixteen, or one of Dungeon's. */
+export function isStampId(id: unknown): id is StampId {
+  return typeof id === "string" && ((STAMP_IDS as readonly string[]).includes(id) || isDungeonStamp(id));
+}
+
+/** What Dungeon says about one of its objects: name, group, natural size, layer. */
+export function dungeonStampInfo(id: DungeonStampId): DungeonPropInfo | undefined {
+  return DUNGEON_STAMP.get(id);
+}
+
+export function stampName(id: StampId): string {
+  return isDungeonStamp(id) ? (DUNGEON_STAMP.get(id)?.name ?? id) : STAMP_NAMES[id as BaseStampId];
+}
+
+/**
+ * The size an object is first placed at: a Dungeon object's natural size (its longer side,
+ * a 2-square table at 2), within half a square and 3 squares; one of the sixteen at 1.
+ */
+export function naturalStampSize(id: StampId): number {
+  const info = isDungeonStamp(id) ? DUNGEON_STAMP.get(id) : undefined;
+  return info ? snapSize(Math.max(info.w, info.h)) : 1;
+}
+
+/**
+ * Which of Dungeon's three layers an object is drawn in: 0 on the floor (rugs, flowers, a
+ * trapdoor), 1 standing on it, 2 over everything (treetops, a chandelier). Within a layer the
+ * one placed last is on top. Tabletop's sixteen are all 1, so maps built before Dungeon's
+ * objects draw just as they did.
+ */
+export function stampLayer(id: StampId): 0 | 1 | 2 {
+  const layer = isDungeonStamp(id) ? DUNGEON_STAMP.get(id)?.layer : undefined;
+  return layer === "floor" ? 0 : layer === "canopy" ? 2 : 1;
+}
+
+export const STAMP_NAMES: Record<BaseStampId, string> = {
   table: "Table",
   chair: "Chair",
   bed: "Bed",
@@ -94,7 +147,8 @@ export const STAMP_DEG_STEP = 5;
 
 /**
  * An object: what it is, the column and row (within the chunk) of the top-left cell of the
- * block of squares it stands on, whole quarter turns clockwise (0-3), its size in squares
+ * block of squares it stands on (or, placed off the grid, of where that block's top-left
+ * corner is, in sixteenths of a square), whole quarter turns clockwise (0-3), its size in squares
  * (0.5-3 in quarter squares; the block is 1, 2 or 3 squares, see stampBlock), and, when it
  * isn't turned by whole quarter turns, the degrees clockwise on top of them (5-85, a
  * multiple of 5; never stored as 0).
@@ -119,6 +173,19 @@ export function snapDeg(deg: number): number {
   return (((Math.round(deg / STAMP_DEG_STEP) * STAMP_DEG_STEP) % 360) + 360) % 360;
 }
 
+/** A position rounded to a sixteenth of a square (exact in floating point, so it compares exactly). */
+export function snapPos(n: number): number {
+  return Math.round(n / STAMP_POS_STEP) * STAMP_POS_STEP || 0;
+}
+
+/**
+ * Whether a chunk's objects are all on the grid and few enough for code from before
+ * 27 October 2026 (protocol 5), which took a column or row only as a whole cell.
+ */
+export function stampsOnGrid(stamps: readonly Stamp[]): boolean {
+  return stamps.length <= GRID_STAMPS_PER_CHUNK && stamps.every((s) => Number.isInteger(s[1]) && Number.isInteger(s[2]));
+}
+
 /** Rounded to a quarter square, between half a square and 3 squares. */
 export function snapSize(size: number): number {
   return Math.min(STAMP_SIZE_MAX, Math.max(STAMP_SIZE_MIN, Math.round(size / STAMP_SIZE_STEP) * STAMP_SIZE_STEP));
@@ -126,15 +193,17 @@ export function snapSize(size: number): number {
 
 /**
  * An object as it's stored, with its angle and size snapped (col and row within the chunk,
- * 0-15). There's one way to write each, so two the same always join() the same: the fine
- * degrees only when there are some.
+ * 0-15, or below 16 in sixteenths off the grid). There's one way to write each, so two the
+ * same always join() the same: the fine degrees only when there are some.
  */
 export function makeStamp(id: StampId, col: number, row: number, deg: number, size: number): Stamp {
   const d = snapDeg(deg);
   const turns = Math.floor(d / 90);
   const fine = d % 90;
   const sz = snapSize(size);
-  return fine ? [id, col, row, turns, sz, fine] : [id, col, row, turns, sz];
+  const c = snapPos(col);
+  const r = snapPos(row);
+  return fine ? [id, c, r, turns, sz, fine] : [id, c, r, turns, sz];
 }
 
 export function emptyCells(): string {
@@ -197,13 +266,23 @@ export function cellAt(x: number, y: number, grid: GridSettings): { col: number;
 
 /** The range of cells that overlap a scene of this size: [c0, c1] x [r0, r1], inclusive. */
 export function sceneCells(width: number, height: number, grid: GridSettings): CellBounds {
+  return areaCells({ x0: 0, y0: 0, x1: width, y1: height }, grid);
+}
+
+/** The range of cells that overlap an area (an extended scene's reaches below 0). */
+export function areaCells(a: SceneArea, grid: GridSettings): CellBounds {
   return {
     // (|| 0: no -0.)
-    c0: Math.floor(-grid.offsetX / grid.size) || 0,
-    r0: Math.floor(-grid.offsetY / grid.size) || 0,
-    c1: Math.ceil((width - grid.offsetX) / grid.size) - 1,
-    r1: Math.ceil((height - grid.offsetY) / grid.size) - 1,
+    c0: Math.floor((a.x0 - grid.offsetX) / grid.size) || 0,
+    r0: Math.floor((a.y0 - grid.offsetY) / grid.size) || 0,
+    c1: Math.ceil((a.x1 - grid.offsetX) / grid.size) - 1,
+    r1: Math.ceil((a.y1 - grid.offsetY) / grid.size) - 1,
   };
+}
+
+/** The cells a scene covers: its whole area, extended or not. */
+export function sceneAreaCells(scene: Pick<Scene, "width" | "height" | "bounds">, grid: GridSettings): CellBounds {
+  return areaCells(sceneBounds(scene), grid);
 }
 
 // ---------------------------------------------------------------- validation
@@ -231,8 +310,9 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
   for (const s of v) {
     if (!Array.isArray(s) || (s.length !== 5 && s.length !== 6)) return undefined;
     const [id, col, row, turns, size, fine] = s as unknown[];
-    const kind = STAMP_IDS.find((k) => k === id);
-    const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n < CHUNK;
+    const kind = isStampId(id) ? id : undefined;
+    // A whole cell, or off the grid a sixteenth of a square (exact: sixteenths are exact in floating point).
+    const cell = (n: unknown) => typeof n === "number" && Number.isInteger(n / STAMP_POS_STEP) && n >= 0 && n < CHUNK;
     if (!kind || !cell(col) || !cell(row)) return undefined;
     if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 0 || turns > 3) return undefined;
     // Quarter squares are exact in floating point, so this is exact too.
@@ -249,14 +329,104 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
 }
 
 /** Whether a set of terrain fields is right for a public chunk, or for a hidden (secret door) one. */
-export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: string; stamps?: Stamp[] }): boolean {
+export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: string; stamps?: Stamp[]; tex?: string; pal?: string[] }): boolean {
+  // Textures come as a pair, always: an index means nothing without its palette.
+  if ((f.tex === undefined) !== (f.pal === undefined)) return false;
+  if (f.tex !== undefined && !texturesOk(f.tex, f.pal!)) return false;
   if (hidden) {
     if (f.cells !== undefined && f.cells !== EMPTY_CELLS) return false;
     if (f.edges !== undefined && !SECRET_EDGES_RE.test(f.edges)) return false;
     if (f.stamps !== undefined && f.stamps.length) return false;
+    if (f.tex) return false;
     return true;
   }
   return f.edges === undefined || EDGES_RE.test(f.edges);
+}
+
+// ---------------------------------------------------------------- textures
+
+/**
+ * Dungeon's floor and ground textures (dungeon.parhome.ca), by id: what a cell can be painted
+ * with besides Tabletop's own floors. The cell's character still says what it is (a room's
+ * floor, grass, water), so walls, doors, outdoors and Seasons work as they always have; the
+ * texture only changes how it looks. Wall textures aren't floors.
+ */
+const TEXTURE_IDS = new Set(DUNGEON_MATERIALS.filter((m) => m.group !== "wall").map((m) => m.id));
+
+export function isTextureId(id: unknown): id is string {
+  return typeof id === "string" && TEXTURE_IDS.has(id);
+}
+
+const WALL_TEXTURE_IDS = new Set(DUNGEON_MATERIALS.filter((m) => m.group === "wall").map((m) => m.id));
+
+/** One of Dungeon's wall textures, for a scene's built walls (Scene.wallTexture). */
+export function isWallTexture(id: unknown): id is string {
+  return typeof id === "string" && WALL_TEXTURE_IDS.has(id);
+}
+
+/** A chunk's textures: tex one character a cell ("." none, else an index into pal), pal the textures it uses. */
+const TEX_DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+/** Textures one chunk can use. */
+export const MAX_TEXTURES_PER_CHUNK = TEX_DIGITS.length;
+const TEX_RE = /^[.0-9A-Za-z]{256}$/;
+
+/** A chunk's texture for each cell ("" for none), or null when it has none at all. */
+export function decodeTextures(t: { tex?: string; pal?: string[] }): string[] | null {
+  if (!t.tex || !t.pal?.length) return null;
+  const out = Array<string>(CHUNK_CELLS);
+  for (let i = 0; i < CHUNK_CELLS; i++) {
+    const ch = t.tex[i];
+    out[i] = ch === EMPTY ? "" : (t.pal[TEX_DIGITS.indexOf(ch)] ?? "");
+  }
+  return out;
+}
+
+/**
+ * The tex and pal fields for a texture per cell ("" none): the palette in the order each
+ * texture first comes, so the same textures always encode the same way. Empty strings and
+ * an empty palette when there are none (how a patch takes them away); null if a chunk would
+ * need more textures than it can hold.
+ */
+export function encodeTextures(cells: readonly string[]): { tex: string; pal: string[] } | null {
+  const pal: string[] = [];
+  let tex = "";
+  for (let i = 0; i < CHUNK_CELLS; i++) {
+    const id = cells[i] ?? "";
+    if (!id) {
+      tex += EMPTY;
+      continue;
+    }
+    let n = pal.indexOf(id);
+    if (n < 0) {
+      if (pal.length === MAX_TEXTURES_PER_CHUNK) return null;
+      n = pal.push(id) - 1;
+    }
+    tex += TEX_DIGITS[n];
+  }
+  return pal.length ? { tex, pal } : { tex: "", pal: [] };
+}
+
+export function cleanTex(v: unknown): string | undefined {
+  return typeof v === "string" && (v === "" || TEX_RE.test(v)) ? v : undefined;
+}
+
+export function cleanPal(v: unknown): string[] | undefined {
+  if (!Array.isArray(v) || v.length > MAX_TEXTURES_PER_CHUNK || !v.every(isTextureId) || new Set(v).size !== v.length) return undefined;
+  return v.slice();
+}
+
+/**
+ * Whether tex and pal belong together: both empty, or every cell's index in the palette and
+ * the palette exactly what encodeTextures makes of it (each texture used, in order of first
+ * use), so every screen holds the chunk the same way.
+ */
+export function texturesOk(tex: string, pal: readonly string[]): boolean {
+  if (!tex || !pal.length) return !tex && !pal.length;
+  const cells = decodeTextures({ tex, pal: [...pal] });
+  if (!cells) return false;
+  for (let i = 0; i < CHUNK_CELLS; i++) if (tex[i] !== EMPTY && !cells[i]) return false;
+  const again = encodeTextures(cells);
+  return !!again && again.tex === tex && again.pal.join() === pal.join();
 }
 
 /** Validates a terrain item. The owner is always the GM: only the GM builds. */
@@ -271,7 +441,12 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
   const edges = cleanEdges(r.edges);
   const stamps = cleanStamps(r.stamps ?? []);
   if (cells === undefined || edges === undefined || stamps === undefined) return null;
-  if (!terrainFieldsOk(hidden, { cells, edges, stamps })) return null;
+  // Textures are optional: a chunk without any is stored without the fields, as it always was.
+  const textured = r.tex !== undefined || r.pal !== undefined;
+  const tex = textured ? cleanTex(r.tex) : undefined;
+  const pal = textured ? cleanPal(r.pal) : undefined;
+  if (textured && (tex === undefined || pal === undefined)) return null;
+  if (!terrainFieldsOk(hidden, { cells, edges, stamps, tex, pal })) return null;
   return {
     id,
     sceneId,
@@ -283,6 +458,7 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
     cells,
     edges,
     stamps,
+    ...(tex ? { tex, pal } : {}),
     ...(hidden ? { hidden: true } : {}),
   };
 }

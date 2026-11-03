@@ -31,6 +31,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   build: "Build the map",
   measure: "Measure",
   pointer: "Pointer",
+  spell: "Spells",
 };
 
 export const HEX_TOAST = "Building works on a square grid. Switch this scene to squares in Edit scene.";
@@ -189,6 +190,8 @@ export const BURST_MS = 700;
 /**
  * Whether a new build step may fold into the undo entry on top: the same burst, the same
  * scene, a build step, the last one folded in at most BURST_MS ago, and nothing to redo.
+ * `held`: the burst is a drag still held down (the scatter brush), which is one step however
+ * long it pauses; its key is new for each drag.
  */
 export function canFold(
   top: { sceneId: string | null; steps?: unknown; coalesce?: { key: string; at: number } } | undefined,
@@ -196,9 +199,10 @@ export function canFold(
   sceneId: string,
   now: number,
   redoEmpty: boolean,
+  held = false,
 ): boolean {
   if (!top || !top.steps || !top.coalesce || !redoEmpty) return false;
-  return top.coalesce.key === key && top.sceneId === sceneId && now - top.coalesce.at <= BURST_MS;
+  return top.coalesce.key === key && top.sceneId === sceneId && (held || now - top.coalesce.at <= BURST_MS);
 }
 
 /**
@@ -291,7 +295,8 @@ export function buildHints(
         select,
       ];
     case "stamps":
-      if (o.stampMode === "remove") return [["Click an object", "remove"], pan, zoom, select];
+      if (o.stampMode === "remove") return [["Click an object", "erase"], ["Drag", "erase all it passes"], pan, zoom, select];
+      if (o.stampMode === "scatter") return [["Drag", "scatter"], ["[ ]", "brush size"], ["Alt+drag", "erase"], zoom, pan, select];
       return turns
         ? [
             ["Click", "place"],
@@ -300,7 +305,7 @@ export function buildHints(
             zoom,
             ["Right-click", "turn 90°"],
             ["Z+wheel", "turn 5°"],
-            ["Alt+click", "remove"],
+            ["Alt+click, Alt+drag", "erase"],
             select,
           ]
         : [
@@ -310,7 +315,7 @@ export function buildHints(
             ["Wheel", "zoom"],
             ["Right-click", "turn 90°"],
             ["[ ]", "turn 15°"],
-            ["Alt+click", "remove"],
+            ["Alt+click, Alt+drag", "erase"],
             select,
           ];
     case "select": {
@@ -349,7 +354,7 @@ export const TOUCH_HINTS: Record<BuildMode, string> = {
   terrain: "Drag to paint.",
   walls: "Drag along grid lines, or tap one.",
   doors: "Tap a wall.",
-  stamps: "Tap to place. To move, turn or delete objects, use Select.",
+  stamps: "Tap to place. To erase objects, pick Erase; to move or turn them, use Select.",
   select: "Tap an object or door to select it. Drag a selected object to move it; drag elsewhere to select with a box.",
 };
 
@@ -363,7 +368,7 @@ export function selectionStatus(sel: { objects: number; doors: number }): string
 
 /** What the Build tool says when something can't be done. */
 export const BUILD_TOASTS = {
-  full: "That part of the map has as many objects as it can hold (64 in each 16 by 16 squares).",
+  full: "That part of the map has as many objects as it can hold (256 in each 16 by 16 squares).",
   samePlace: "There's already one exactly like it there.",
   samePaste: "Pasting there would put copies exactly on top of the same objects. Point somewhere else and paste again.",
   samePasteMiddle:
@@ -373,6 +378,8 @@ export const BUILD_TOASTS = {
   nothingToPaste: "Nothing to paste: select objects and press Ctrl+C first.",
   pasteMode: "To paste objects, press X for Select first.",
   doorDrag: "Doors can't be moved: delete this one and place a new one with Doors.",
+  eraserBuilt:
+    "This eraser takes drawings, notes and tokens. To erase floors, walls or objects you built, use Erase in the Build tool (B): in Building, Terrain or Objects.",
   tooMany: "That's too many to copy at once: 256 objects at most.",
   copied: (n: number) => `Copied ${n} object${n === 1 ? "" : "s"}.`,
 };

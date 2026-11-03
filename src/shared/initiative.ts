@@ -6,7 +6,7 @@ import type { InitEntry, Initiative } from "./types";
  */
 export type InitOp =
   | { op: "add"; entry: InitEntry }
-  | { op: "update"; id: string; name?: string; value?: number }
+  | { op: "update"; id: string; name?: string; value?: number; hidden?: boolean }
   | { op: "remove"; id: string }
   /**
    * from: the entry whose turn is ending, as the sender saw it (null: someone they
@@ -44,9 +44,13 @@ export function applyInitOp(init: Initiative, op: InitOp): Initiative {
       return withEntries(init, [...init.entries, op.entry]);
     case "update": {
       if (!init.entries.some((e) => e.id === op.id)) return init;
-      const entries = init.entries.map((e) =>
-        e.id === op.id ? { ...e, ...(op.name !== undefined ? { name: op.name } : {}), ...(op.value !== undefined ? { value: op.value } : {}) } : e,
-      );
+      const entries = init.entries.map((e) => {
+        if (e.id !== op.id) return e;
+        const next = { ...e, ...(op.name !== undefined ? { name: op.name } : {}), ...(op.value !== undefined ? { value: op.value } : {}) };
+        if (op.hidden === true) next.hidden = true;
+        else if (op.hidden === false) delete next.hidden;
+        return next;
+      });
       return withEntries(init, entries);
     }
     case "remove": {

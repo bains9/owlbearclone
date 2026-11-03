@@ -3,6 +3,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
+import { MAX_PRAYED_SPELLS } from "../shared/characters";
 
 const FAILURE_WINDOW_MS = 15 * 60_000;
 /** Wrong passwords allowed per address (an IPv6 /64 counts as one address) per window. */
@@ -16,6 +17,8 @@ const MAX_GLOBAL_FAILURES = 60;
 const GLOBAL_KEY = "*";
 /** An address that signed in successfully this recently isn't held to the global cap. */
 const TRUSTED_MS = 90 * 86400_000;
+/** Who plays whom is kept for this many browsers, the latest to pick (anyone with a room link can pick). */
+const MAX_CHARACTER_PLAYERS = 60;
 
 function b64url(bytes: Uint8Array): string {
   let s = "";
@@ -43,6 +46,14 @@ export class Directory extends DurableObject<Env> {
       )`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value TEXT NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS trusted_logins (ip TEXT PRIMARY KEY, last_ok INTEGER NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS spent_hops (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_figures (sheet_id TEXT PRIMARY KEY, figure TEXT NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_str_matched (sheet_id TEXT NOT NULL, weapon TEXT NOT NULL, PRIMARY KEY (sheet_id, weapon))`);
+      // Who plays whom: a browser (its player id) and the character it plays, with the name it joined under.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_players (user_id TEXT PRIMARY KEY, sheet_id TEXT NOT NULL, name TEXT NOT NULL, at INTEGER NOT NULL)`);
+      // The spells a character has prayed for (or memorised) today, and how many casts each has left.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_prayed (sheet_id TEXT NOT NULL, spell TEXT NOT NULL, left INTEGER NOT NULL, PRIMARY KEY (sheet_id, spell))`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS blobs (name TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL)`);
     });
   }
 
@@ -52,6 +63,133 @@ export class Directory extends DurableObject<Env> {
     const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
     this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('session', ?)`, value);
     return value;
+  }
+
+  /**
+   * The key Tabletop sends with a change to a character sheet (spell points spent): the GM's
+   * script keeps the first it's sent and takes changes with that key only. Made once.
+   */
+  charactersKey(): string {
+    const row = this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'characters_key'`).toArray()[0];
+    if (row) return row.value;
+    const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('characters_key', ?)`, value);
+    return value;
+  }
+
+  /**
+   * Spends one of Dungeon's one-time sign-in codes (dungeon.ts): false if it was spent
+   * already. A code lasts a minute, so its row only has to outlive that.
+   */
+  spendHop(nonce: string, exp: number): boolean {
+    this.sql.exec(`DELETE FROM spent_hops WHERE exp < ?`, Date.now());
+    if (this.sql.exec(`SELECT 1 FROM spent_hops WHERE nonce = ?`, nonce).toArray().length) return false;
+    this.sql.exec(`INSERT INTO spent_hops (nonce, exp) VALUES (?, ?)`, nonce, exp);
+    return true;
+  }
+
+  /** Where the party's character sheets are read from: the GM's Apps Script web app (worker/characters.ts), or null. */
+  charactersSource(): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'characters_source'`).toArray()[0]?.value ?? null;
+  }
+
+  setCharactersSource(source: string | null): void {
+    this.sql.exec(`DELETE FROM secrets WHERE name = 'characters_source'`);
+    if (source) this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('characters_source', ?)`, source);
+  }
+
+  /** The figures the GM chose for characters instead of their class's, by sheet id (worker/characters.ts). */
+  characterFigures(): Record<string, string> {
+    const rows = this.sql.exec<{ sheet_id: string; figure: string }>(`SELECT sheet_id, figure FROM character_figures`).toArray();
+    return Object.fromEntries(rows.map((r) => [r.sheet_id, r.figure]));
+  }
+
+  /** The ranged weapons the GM marked as matched to a character's strength, by sheet id (worker/characters.ts). */
+  characterStrMatched(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const r of this.sql.exec<{ sheet_id: string; weapon: string }>(`SELECT sheet_id, weapon FROM character_str_matched ORDER BY weapon`)) {
+      (out[r.sheet_id] ??= []).push(r.weapon);
+    }
+    return out;
+  }
+
+  /** Marks one of a character's ranged weapons as matched to their strength, or not, for every room (up to 12 a character). */
+  setCharacterStrMatched(sheetId: string, weapon: string, matched: boolean): void {
+    this.sql.exec(`DELETE FROM character_str_matched WHERE sheet_id = ? AND weapon = ?`, sheetId, weapon);
+    if (!matched) return;
+    const n = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM character_str_matched WHERE sheet_id = ?`, sheetId).one().n;
+    if (n < 12) this.sql.exec(`INSERT INTO character_str_matched (sheet_id, weapon) VALUES (?, ?)`, sheetId, weapon);
+  }
+
+  /** A character's figure for every room; null goes back to their class's. */
+  setCharacterFigure(sheetId: string, figure: string | null): void {
+    this.sql.exec(`DELETE FROM character_figures WHERE sheet_id = ?`, sheetId);
+    if (figure) this.sql.exec(`INSERT INTO character_figures (sheet_id, figure) VALUES (?, ?)`, sheetId, figure);
+  }
+
+  /** The browsers playing each character, by sheet id, longest-standing first (worker/characters.ts). */
+  characterPlayers(): Record<string, { userId: string; name: string }[]> {
+    const out: Record<string, { userId: string; name: string }[]> = {};
+    const rows = this.sql.exec<{ user_id: string; sheet_id: string; name: string }>(`SELECT user_id, sheet_id, name FROM character_players ORDER BY at`);
+    for (const r of rows) (out[r.sheet_id] ??= []).push({ userId: r.user_id, name: r.name });
+    return out;
+  }
+
+  /**
+   * A browser plays a character (one at a time), for every room; null: it plays nobody. Kept for
+   * the latest MAX_CHARACTER_PLAYERS browsers.
+   */
+  setCharacterPlayer(userId: string, sheetId: string | null, name: string): void {
+    this.sql.exec(`DELETE FROM character_players WHERE user_id = ?`, userId);
+    if (!sheetId) return;
+    this.sql.exec(`INSERT INTO character_players (user_id, sheet_id, name, at) VALUES (?, ?, ?, ?)`, userId, sheetId, name, Date.now());
+    this.sql.exec(
+      `DELETE FROM character_players WHERE user_id NOT IN (SELECT user_id FROM character_players ORDER BY at DESC LIMIT ?)`,
+      MAX_CHARACTER_PLAYERS,
+    );
+  }
+
+  /** The spells each character has prayed for today, by sheet id: casts left, by the sheet's name for the spell. */
+  characterPrayed(): Record<string, Record<string, number>> {
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of this.sql.exec<{ sheet_id: string; spell: string; left: number }>(`SELECT sheet_id, spell, left FROM character_prayed`)) {
+      (out[r.sheet_id] ??= {})[r.spell] = r.left;
+    }
+    return out;
+  }
+
+  /**
+   * How many casts of a spell a character has left today, for every room: none takes it off the
+   * list. At most MAX_PRAYED_SPELLS spells a character.
+   */
+  setCharacterPrayed(sheetId: string, spell: string, left: number): void {
+    this.sql.exec(`DELETE FROM character_prayed WHERE sheet_id = ? AND spell = ?`, sheetId, spell);
+    if (left <= 0) return;
+    const n = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM character_prayed WHERE sheet_id = ?`, sheetId).one().n;
+    if (n < MAX_PRAYED_SPELLS) this.sql.exec(`INSERT INTO character_prayed (sheet_id, spell, left) VALUES (?, ?, ?)`, sheetId, spell, left);
+  }
+
+  /** A new day: nothing prayed for. */
+  clearCharacterPrayed(sheetId: string): void {
+    this.sql.exec(`DELETE FROM character_prayed WHERE sheet_id = ?`, sheetId);
+  }
+
+  /** The campaign's calendar (shared/calendar.ts) as JSON, with how many times it's been changed; null before one is made. */
+  calendar(): { json: string; version: number } | null {
+    const row = this.sql.exec<{ value: string; version: number }>(`SELECT value, version FROM blobs WHERE name = 'calendar'`).toArray()[0];
+    return row ? { json: row.value, version: row.version } : null;
+  }
+
+  /** Keeps the calendar: its new version number. */
+  setCalendar(json: string): number {
+    const version = (this.calendar()?.version ?? 0) + 1;
+    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('calendar', ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = excluded.version`, json, version);
+    return version;
+  }
+
+  /** Nobody plays a character any more. */
+  clearCharacterPlayers(sheetId: string): void {
+    this.sql.exec(`DELETE FROM character_players WHERE sheet_id = ?`, sheetId);
   }
 
   listRooms(): RoomSummary[] {

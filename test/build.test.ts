@@ -3,7 +3,7 @@ import { applyOps, inverseOps } from "../src/shared/ops";
 import type { ItemMap } from "../src/shared/ops";
 import { canCreate, canDelete, canPatch, visibleToPlayer } from "../src/shared/permissions";
 import { DEFAULT_SETTINGS, sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
-import { chunkOf, cleanStamps, inChunk, looksLikeTerrainId, makeStamp, sceneCells, snapDeg, snapSize, stampBlock, stampDeg, terrainId } from "../src/shared/terrain";
+import { MAX_STAMPS_PER_CHUNK, chunkOf, cleanStamps, inChunk, looksLikeTerrainId, makeStamp, sceneCells, snapDeg, snapSize, stampBlock, stampDeg, terrainId } from "../src/shared/terrain";
 import type { Stamp } from "../src/shared/terrain";
 import type { TerrainItem } from "../src/shared/types";
 import {
@@ -112,7 +112,7 @@ describe("terrain validation", () => {
     expect(sanitizeItem({ ...chunk(0, 0), stamps: [["table", 16, 0, 0, 1]] }, "@gm")).toBeNull();
     expect(sanitizeItem({ ...chunk(0, 0), stamps: [["table", 0, 0, 4, 1]] }, "@gm")).toBeNull();
     expect(sanitizeItem({ ...chunk(0, 0), stamps: [["table", 0, 0, 0, 4]] }, "@gm")).toBeNull();
-    const many: Stamp[] = Array.from({ length: 65 }, () => ["rock", 0, 0, 0, 1]);
+    const many: Stamp[] = Array.from({ length: MAX_STAMPS_PER_CHUNK + 1 }, () => ["rock", 0, 0, 0, 1]);
     expect(sanitizeItem({ ...chunk(0, 0), stamps: many }, "@gm")).toBeNull();
     expect(sanitizeItem({ ...chunk(1001, 0), id: terrainId(SCENE, 1001, 0) }, "@gm")).toBeNull();
     expect(sanitizeItem({ ...chunk(0, 0), cx: 0.5 }, "@gm")).toBeNull();
@@ -369,9 +369,9 @@ describe("build edits", () => {
     expect(m.stampAt(9, 9)).toBeNull();
   });
 
-  it("a chunk holds at most 64 objects", () => {
+  it("a chunk holds at most MAX_STAMPS_PER_CHUNK (256) objects", () => {
     const e = new BuildEdit({}, SCENE);
-    for (let i = 0; i < 64; i++) expect(e.addStamp("rock", i % 16, Math.floor(i / 16), 0, 1)).toBe(true);
+    for (let i = 0; i < MAX_STAMPS_PER_CHUNK; i++) expect(e.addStamp("rock", i % 16, Math.floor(i / 16), 0, 1)).toBe(true);
     expect(e.addStamp("rock", 5, 5, 0, 1)).toBe(false);
   });
 
@@ -760,7 +760,7 @@ describe("moving, turning and sizing objects", () => {
   });
 
   it("changes nothing if a chunk would hold too many, however the objects come and go", () => {
-    const full: Stamp[] = Array.from({ length: 64 }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
+    const full: Stamp[] = Array.from({ length: MAX_STAMPS_PER_CHUNK }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
     const items = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] }), chunk(1, 0, { stamps: full })]);
     const into = new BuildEdit(items, SCENE);
     expect(into.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 1, 0, scene))).toEqual({ ok: false, reason: "full" });
@@ -772,7 +772,7 @@ describe("moving, turning and sizing objects", () => {
       e.place([...refsTo(items, 0, 0, 0), ...refsTo(items, 1, 0, 0)], [{ ...placed(items, 0, 0, 0), col: 20 }, { ...placed(items, 1, 0, 0), col: 3 }]),
     );
     expect(swap.result.ok).toBe(true);
-    expect(stampsIn(swap.after, 1, 0)).toHaveLength(64);
+    expect(stampsIn(swap.after, 1, 0)).toHaveLength(MAX_STAMPS_PER_CHUNK);
   });
 
   it("skips objects that have gone, does nothing if they all have, and nothing for no change", () => {
@@ -860,7 +860,7 @@ describe("placing and deleting objects", () => {
     expect(stampsIn(t.after, 1, 0)).toEqual([["chair", 0, 2, 1, 1]]);
     expect(refsOf(t.result).map((r) => [r.cx, r.i])).toEqual([[0, 0], [1, 0], [0, 1]]);
     expect(new BuildEdit(t.after, SCENE).addGroup([P(1, 1), P(16, 2, 90)])).toEqual({ ok: false, reason: "same" });
-    const nearlyFull = toMap([chunk(1, 0, { stamps: Array.from({ length: 63 }, (_, i): Stamp => ["rock", i % 16, Math.floor(i / 16), 0, 1]) })]);
+    const nearlyFull = toMap([chunk(1, 0, { stamps: Array.from({ length: MAX_STAMPS_PER_CHUNK - 1 }, (_, i): Stamp => ["rock", i % 16, Math.floor(i / 16), 0, 1]) })]);
     const e = new BuildEdit(nearlyFull, SCENE);
     expect(e.addGroup([P(1, 1), P(17, 5), P(18, 5)])).toEqual({ ok: false, reason: "full" });
     expect(e.ops()).toEqual({});
@@ -1092,13 +1092,13 @@ describe("undoing moves, turns and size changes while another tab builds too", (
   it("leaves an object where it is if its old chunk has been filled since, and still undoes a swap in a full one", () => {
     const items = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] })]);
     const t = edit(items, (e) => e.place(refsTo(items, 0, 0, 0), shiftGroup([placed(items, 0, 0, 0)], 1, 0, scene)));
-    const rocks = Array.from({ length: 64 }, (_, i) => ({ id: "rock" as const, col: i % 16, row: Math.floor(i / 16), deg: 0, size: 1 }));
+    const rocks = Array.from({ length: MAX_STAMPS_PER_CHUNK }, (_, i) => ({ id: "rock" as const, col: i % 16, row: Math.floor(i / 16), deg: 0, size: 1 }));
     const filled = edit(t.after, (e) => e.addGroup(rocks)).after;
     const back = applyOps(filled, t.undo.undo(filled));
-    expect(stampsIn(back)).toHaveLength(64);
+    expect(stampsIn(back)).toHaveLength(MAX_STAMPS_PER_CHUNK);
     expect(stampsIn(back, 1, 0)).toEqual([["chair", 0, 0, 0, 1]]);
     // A chair into a full chunk as a rock comes out of it: undone, each goes back.
-    const full: Stamp[] = Array.from({ length: 64 }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
+    const full: Stamp[] = Array.from({ length: MAX_STAMPS_PER_CHUNK }, (_, i) => ["rock", i % 16, Math.floor(i / 16), 0, 1]);
     const two = toMap([chunk(0, 0, { stamps: [["chair", 15, 0, 0, 1]] }), chunk(1, 0, { stamps: full })]);
     const swap = edit(two, (e) =>
       e.place([...refsTo(two, 0, 0, 0), ...refsTo(two, 1, 0, 0)], [{ ...placed(two, 0, 0, 0), col: 20 }, { ...placed(two, 1, 0, 0), col: 3 }]),

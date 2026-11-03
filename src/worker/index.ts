@@ -1,18 +1,27 @@
 // The Worker: every request comes here first. It sends plain-HTTP visitors to
 // HTTPS, serves the JSON API under /api/ (GM sign-in, rooms, the WebSocket entry
 // point, image upload and download backed by R2), and hands everything else to the
-// static client.
+// static client (staticFiles.ts). Dungeon's Worker signs the GM in through it too
+// (dungeon.ts).
 
+import { BUILD_ID } from "../shared/build";
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
+import { MAX_SPEND, restGain } from "../shared/characters";
+import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
+import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
+import { staticFile } from "./staticFiles";
 import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { Directory } from "./directory";
+export { DungeonGate } from "./dungeonGate";
 export { Room } from "./room";
+export { VoiceHub } from "./voiceHub";
 
 const MAX_JSON_BYTES = 16 * 1024;
 /** Room ids are always 12 random characters (see POST /api/rooms). */
@@ -100,7 +109,7 @@ export default {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 308);
     }
-    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    if (!url.pathname.startsWith("/api/")) return staticFile(request, env.ASSETS);
     try {
       return await route(request, env, url);
     } catch (err) {
@@ -125,6 +134,11 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
 
   if (pathname === "/api/me" && method === "GET") {
     return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD), google: googleConfigured(env) });
+  }
+
+  // Which Tabletop this is, for a page whose files have gone (src/client/updated.ts).
+  if (pathname === "/api/build" && method === "GET") {
+    return json({ build: BUILD_ID });
   }
 
   if (pathname === "/api/auth/google" && method === "GET") {
@@ -152,6 +166,11 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     return json({ gm: true }, 200, { "Set-Cookie": await sessionCookie(env, secure) });
   }
 
+  // Dungeon's sign-in passes through here, and comes back with a one-time code (dungeon.ts).
+  if (pathname === "/api/dungeon/hop" && method === "GET") {
+    return dungeonHop(request, env, url);
+  }
+
   if (pathname === "/api/logout" && method === "POST") {
     return json({ gm: false }, 200, { "Set-Cookie": clearCookie(secure) });
   }
@@ -171,6 +190,209 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     return fail(405, "Method not allowed.");
   }
 
+  // The table's voice chat, for any tab with the id of a room that exists (voiceHub.ts).
+  if (pathname === "/api/voice/ws" && method === "GET") {
+    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return fail(426, "Expected a WebSocket upgrade.");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await env.DIRECTORY.getByName("main").listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Room not found.");
+    const headers = new Headers(request.headers);
+    // Always overwritten here, so a browser can't claim to be the GM by sending it.
+    headers.set("X-Tabletop-Role", (await isGm(request, env)) ? "gm" : "player");
+    return env.VOICE.getByName("table").fetch(new Request(request, { headers }));
+  }
+
+  // The party's character sheets (characters.ts): where the GM's script is, and characters' own pictures.
+  // The campaign's calendar (calendarRoutes.ts): the GM changes it, brings it in from Fantasy Calendar, or takes it away.
+  const calendar = await calendarRoute(request, env, pathname, method);
+  if (calendar) return calendar;
+
+  if (pathname === "/api/characters/source") {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") return json({ source: await directory.charactersSource() });
+    if (method === "PUT") {
+      const body = await readJson(request);
+      const source = typeof body?.source === "string" ? body.source.trim() : "";
+      if (source && !SCRIPT_URL.test(source)) return fail(400, "That isn't an Apps Script web app's address: it starts https://script.google.com/macros/s/ and ends /exec.");
+      await forgetParty({ directory }, caches.default);
+      await directory.setCharactersSource(source || null);
+      // Read at once, so the GM sees whether it works.
+      return json({ source: source || null, party: await readParty({ directory, files: env.FILES }, caches.default) });
+    }
+    return fail(405, "Method not allowed.");
+  }
+  const figureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/figure$/);
+  if (figureMatch) {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const body = await readJson(request);
+    const figure = body?.figure ?? null;
+    if (figure !== null && (typeof figure !== "string" || !FIGURE_ICON.test(figure))) return fail(400, "That isn't one of the figures.");
+    await env.DIRECTORY.getByName("main").setCharacterFigure(figureMatch[1], figure);
+    return json({ ok: true });
+  }
+  const strMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/str-matched$/);
+  if (strMatch) {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const body = await readJson(request);
+    if (!isWeaponName(body?.weapon) || typeof body?.matched !== "boolean") return fail(400, "That isn't one of their weapons.");
+    await env.DIRECTORY.getByName("main").setCharacterStrMatched(strMatch[1], body.weapon, body.matched);
+    return json({ ok: true });
+  }
+  // Who plays whom (per-player sight sees through it): a player picks for their own browser, the
+  // GM for anyone's, or for nobody. For anyone at one of the GM's tables: the room's id is the pass.
+  const playerMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/player$/);
+  if (playerMatch) {
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const sheetId = playerMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const body = await readJson(request);
+    if (typeof body?.playing !== "boolean") return fail(400, "Say whether they play this character.");
+    const gm = await isGm(request, env);
+    const userId = gm ? body.userId : request.headers.get("X-Tabletop-User");
+    if (gm && userId === null && !body.playing) {
+      await directory.clearCharacterPlayers(sheetId);
+    } else {
+      if (!isId(userId)) return fail(400, "That isn't one of the players.");
+      if (body.playing) {
+        await directory.setCharacterPlayer(userId, sheetId, cleanText(body.name, LIMITS.playerName) || "Player");
+      } else if ((await directory.characterPlayers())[sheetId]?.some((p) => p.userId === userId)) {
+        await directory.setCharacterPlayer(userId, null, "");
+      }
+    }
+    // Who plays whom now, so the page shows it at once (reading the sheets again can take seconds).
+    return json({ ok: true, players: await directory.characterPlayers() });
+  }
+  // What a character has prayed for today, and how many casts each has left: their player or the
+  // GM chooses, and casting one uses one up. For anyone at one of the GM's tables, as above.
+  const prayedMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/prayed$/);
+  if (prayedMatch) {
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const sheetId = prayedMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can choose what they've prayed for.");
+    const change = prayedChange(await readJson(request));
+    if (!change) return fail(400, "That isn't one of their spells.");
+    if ("newDay" in change) await directory.clearCharacterPrayed(sheetId);
+    else await directory.setCharacterPrayed(sheetId, change.spell, change.left);
+    return json({ ok: true, prayed: (await directory.characterPrayed())[sheetId] ?? {} });
+  }
+  // A spell cast from a character's card: its spell points come off their sheet (through the GM's
+  // script). Their player or the GM, at one of the GM's tables, as above.
+  // A prayed spell cast (their player or the GM, at one of the GM's tables): its Cast ticked on the sheet.
+  const castMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/cast$/);
+  if (castMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const sheetId = castMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can cast their spells.");
+    const spell = cleanText((await readJson(request))?.spell, 80);
+    if (!spell) return fail(400, "Which spell?");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const done = await castOnSheet(source, await directory.charactersKey(), sheetId, spell);
+    await forgetParty({ directory }, caches.default);
+    if ("error" in done) return fail(502, done.error);
+    return json({ ok: true, prayed: done.prayed, cast: done.cast });
+  }
+  const spendMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/spend$/);
+  if (spendMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const sheetId = spendMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const theirs = await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User"));
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can spend their spell points.");
+    const spend = (await readJson(request))?.spend;
+    if (typeof spend !== "number" || !Number.isInteger(spend) || spend < 1 || spend > MAX_SPEND) return fail(400, "That isn't a number of spell points.");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const done = await spendOnSheet(source, await directory.charactersKey(), sheetId, spend);
+    if ("error" in done) return fail(502, done.error);
+    // Every page's next reading reads the sheets again, so the new spell points show.
+    await forgetParty({ directory }, caches.default);
+    return json({ ok: true, sp: done.sp });
+  }
+  // A new day's rest (GM only, at one of the GM's tables): a character's spell points back to full
+  // on their sheet, through the GM's script.
+  const restMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/rest$/);
+  if (restMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    if (!(await isGm(request, env))) return fail(403, "Only the GM can give spell points back.");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    // How many come back: by the handbook's rule, from what the sheet says (the script's version 8 on).
+    const kind = (await readJson(request))?.kind === "successive" ? "successive" : "long";
+    const who = (await readParty({ directory, files: env.FILES }, caches.default)).characters.find((c) => c.id === restMatch[1]);
+    const gain = who ? restGain(who, kind) : null;
+    if (gain === null) return fail(409, "Their sheet doesn't say how spell points come back: the GM needs to update the sheets' script (Help › Set up the character sheets).");
+    const done = await restOnSheet(source, await directory.charactersKey(), restMatch[1], fetch, gain);
+    if ("error" in done) return fail(502, done.error);
+    await forgetParty({ directory }, caches.default);
+    return json({ ok: true, sp: done.sp });
+  }
+  const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
+  if (pictureMatch) {
+    const key = pictureKey(pictureMatch[1]);
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") {
+      // For anyone at one of the GM's tables: the room's id is the pass, as for voice chat.
+      const roomId = url.searchParams.get("room") ?? "";
+      const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+      if (!known) return fail(404, "Not found.");
+      const obj = await env.FILES.get(key);
+      if (!obj) return fail(404, "No picture.");
+      return new Response(obj.body, {
+        headers: {
+          "Content-Type": obj.httpMetadata?.contentType ?? "application/octet-stream",
+          "Cache-Control": "private, max-age=60",
+          ETag: obj.httpEtag,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+          "Strict-Transport-Security": HSTS,
+        },
+      });
+    }
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    if (method === "PUT") {
+      const declared = Number(request.headers.get("Content-Length") ?? "0");
+      if (declared > MAX_PICTURE_BYTES) return fail(413, `Pictures must be under ${MAX_PICTURE_BYTES / 1024 / 1024} MB.`);
+      const body = await request.arrayBuffer();
+      if (body.byteLength === 0) return fail(400, "The picture was empty.");
+      if (body.byteLength > MAX_PICTURE_BYTES) return fail(413, `Pictures must be under ${MAX_PICTURE_BYTES / 1024 / 1024} MB.`);
+      const type = uploadType("token", new Uint8Array(body, 0, Math.min(64, body.byteLength)));
+      if ("refusal" in type) return fail(415, type.refusal);
+      await env.FILES.put(key, body, { httpMetadata: { contentType: type.mime } });
+      await forgetParty({ directory }, caches.default);
+      return json({ ok: true });
+    }
+    if (method === "DELETE") {
+      await env.FILES.delete(key);
+      await forgetParty({ directory }, caches.default);
+      return json({ ok: true });
+    }
+    return fail(405, "Method not allowed.");
+  }
+
   // Anything that isn't shaped like one of our room ids is turned away here,
   // before a Durable Object is ever involved.
   const roomMatch = pathname.match(new RegExp(`^/api/rooms/(${ROOM_ID})(/[a-z]+)?$`));
@@ -184,6 +406,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
       await stub.destroy(roomId);
       await env.DIRECTORY.getByName("main").removeRoom(roomId);
+      // Its people are taken off the table's voice chat too.
+      await env.VOICE.getByName("table").roomDeleted(roomId);
       return json({ deleted: roomId });
     }
 
@@ -204,6 +428,17 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       headers.delete("X-Tabletop-Display");
       if (key !== null) headers.set("X-Tabletop-Display", "1");
       return stub.fetch(new Request(request, { headers }));
+    }
+
+    // The party, read from their character sheets, for anyone at this table (characters.ts).
+    // The campaign's calendar, for anyone at this table (calendarRoutes.ts).
+    if (sub === "/calendar" && method === "GET") return roomCalendar(request, env, roomId);
+    if (sub === "/log" && method === "POST") return roomCalendarLog(request, env, roomId);
+
+    if (sub === "/characters" && method === "GET") {
+      const directory = env.DIRECTORY.getByName("main");
+      if (!(await directory.listRooms()).some((r) => r.id === roomId)) return fail(404, "Room not found.");
+      return json(await readParty({ directory, files: env.FILES }, caches.default), 200, { "Cache-Control": "no-store" });
     }
 
     if (sub === "/display" && method === "GET") {

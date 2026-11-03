@@ -85,7 +85,7 @@ describe("which scenes a connection is sent", () => {
     const room = await source("../src/worker/room.ts");
     expect(room).toContain('from "./playerView"');
     expect(room).not.toMatch(/private canSeeAsset/);
-    expect(room).toContain("scenes: helloScenes(this.scenes.values(), conn, this.activeSceneId)");
+    expect(room).toContain("const scenes = helloScenes(this.scenes.values(), conn, this.activeSceneId)");
     expect(room).toContain("assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn))");
     expect(room).toContain("sceneFor(scene, c, this.activeSceneId)");
     expect(room).toContain("const scene = live ? playerScene(live) : null;");

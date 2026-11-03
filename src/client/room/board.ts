@@ -31,14 +31,15 @@ import {
   cellAt,
   isBuildingFloor,
   isTerrainFloor,
-  sceneCells,
+  sceneAreaCells,
   snapDeg,
+  snapPos,
   snapSize,
   stampBlock,
 } from "../../shared/terrain";
-import type { CellBounds } from "../../shared/terrain";
-import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, TerrainItem, TokenItem } from "../../shared/types";
-import { isCompass } from "../../shared/types";
+import type { CellBounds, StampId } from "../../shared/terrain";
+import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneLight, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
+import { isCompass, sceneBounds } from "../../shared/types";
 import { fileUrl } from "../api";
 import {
   deleteSelection,
@@ -51,6 +52,13 @@ import {
 import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
+import { voiceLink } from "./voiceLink";
+import { distanceSquares } from "../../shared/units";
+import { nightvisionOf } from "../../shared/characters";
+import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, toggledDoor } from "./vision";
+import { BoardSight, FOG_CACHE_MAX, drawGlows, type SceneArea, type SightGeometry } from "./boardSight";
+import { moonlightOf } from "../../shared/calendar";
+import type { Calendar } from "../../shared/calendar";
 import {
   BuildEdit,
   BuildRenderer,
@@ -59,6 +67,7 @@ import {
   drawStampAt,
   edgeOf,
   floorChar,
+  paintCode,
   keyCol,
   keyRow,
   refOf,
@@ -69,6 +78,14 @@ import {
 } from "./build";
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
+import { SCATTER_BRUSHES, scatterDab } from "./scatter";
+import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
+import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
+import { drawZone, rgba, seedOf, zoneOf, type Zone } from "./zonefx";
+import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
+import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
+import { drawFx, fxDuration, type FxPlay } from "./spellfx";
+import { foldOf } from "../ui/objectGroups";
 import {
   CLIPBOARD_MAX,
   canResize,
@@ -77,6 +94,7 @@ import {
   decodeObjects,
   encodeObjects,
   groupFits,
+  onGrid,
   placeGroupAt,
   placedOf,
   samePlaced,
@@ -85,14 +103,17 @@ import {
   turnGroup,
 } from "./stampGeom";
 import type { Placed } from "./stampGeom";
+import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
+import { dungeonObjects, whenDungeonObjects } from "./dungeonStamps";
+import { textureChoice, textureFloor } from "./dungeonTextures";
 import type { SeasonJob, SeasonJobData } from "./seasons";
 import { SeasonPlanner, SidecarCache } from "./mapData";
 import type { SceneDataState } from "./mapData";
-import { seedFrom } from "./seasonPixels";
+import { seedFrom } from "./seasonKeys";
 import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
 import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
@@ -118,8 +139,15 @@ const TRAIL_MS = 900;
 const POINTER_HOLD_MS = 200;
 /** How long a ping (a click with the pointer) pulses. */
 const PING_MS = 3500;
-/** The fog is drawn once into an image at most this many pixels on its long side. */
-const FOG_CACHE_MAX = 2560;
+/**
+ * Spells that move (drifting fog, a flyer's bob) are drawn again at most this often: about 30 times
+ * a second, half a screen's rate, and half the work for a tablet.
+ */
+const ZONE_FRAME_MS = 30;
+/** How far short of a wall a player's token stops, in squares. */
+const WALL_GAP = 0.05;
+/** How far a light the GM adds reaches to begin with, in squares. */
+const OWN_LIGHT_SQUARES = 6;
 /** A brush stroke is stored in pieces of at most this many points. */
 const STROKE_PIECE_POINTS = 1500;
 
@@ -139,6 +167,18 @@ interface TokenNode {
   selected: boolean;
   cell: number;
   dirty: boolean;
+  /** The HP its character sheet gave when it was drawn ("34/49"), so a new reading redraws it. */
+  hp?: string;
+  /** The looks of the spells on it when it was drawn, so a spell put on or ended redraws it. */
+  looks?: string;
+  /** Unseen, and not to be shown on this page (the sight never shows it either). */
+  gone?: boolean;
+  /** Flying: its picture, lifted above its place and bobbing (with the spell's seed). */
+  lifted?: { body: Konva.Group; seed: number };
+  /** Blink: its picture, flickering out and back (with the spell's seed, and its own opacity). */
+  blink?: { body: Konva.Group; seed: number; base: number };
+  /** Its picture as drawn, for a spectral token's after-image. */
+  picture?: OnToken["picture"];
 }
 
 interface DrawingNode {
@@ -178,8 +218,12 @@ type Gesture =
       startWorld: Point;
       moved: boolean;
       lastEph: number;
+      /** Where each token has got to, when walls stop them (a player's, lighting on). */
+      at: Map<string, Point>;
     }
   | { kind: "marquee"; pointerId: number; start: Point; node: Konva.Rect; additive: boolean }
+  /** GM, lighting on: a light's marker pressed (it's picked); dragged, the light moves. */
+  | { kind: "light-drag"; pointerId: number; index: number; start: Point; moved: boolean }
   | {
       kind: "draw";
       pointerId: number;
@@ -191,7 +235,10 @@ type Gesture =
       points: number[];
       node: Konva.Shape;
     }
-  | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean }
+  /** The Spells tool: aimed from start (the caster, snapped to a token pressed on) to end. */
+  | { kind: "spell"; pointerId: number; start: Point; end: Point }
+  /** Built: (GM) it passed over floor or objects built with the Build tool, which it doesn't take. */
+  | { kind: "erase"; pointerId: number; ids: Set<string>; warned: boolean; built: boolean }
   | { kind: "fog-rect"; pointerId: number; start: Point; end: Point; node: Konva.Rect }
   | { kind: "fog-lasso"; pointerId: number; points: number[]; node: Konva.Line }
   | { kind: "fog-paint"; pointerId: number; points: number[]; pieces: number[][]; width: number; node: Konva.Line }
@@ -209,9 +256,21 @@ type Gesture =
       alt?: boolean;
       /** Build tool, with a mouse: the object under the pointer, which a drag moves. */
       grab?: StampHit;
-      /** Build tool: a finger or a pen (which reaches a little further round an object). */
-      touch?: boolean;
     }
+  /**
+   * Build › Objects › Erase (or Alt with a mouse): the objects a drag passes over, from the
+   * last point, hidden until it's let go and then taken away as one undo step. Pad: how far
+   * round an object a finger reaches. Until it's moved, it's a click, which takes only the
+   * object on top.
+   */
+  | { kind: "build-erase-objects"; pointerId: number; refs: StampRef[]; start: Point; moved: boolean; last: Point; pad: number }
+  /**
+   * Build › Objects › Scatter: dabs of the brush along a drag, from the last dab. Each dab is
+   * applied at once and folds into one undo step (key). Touch waits for the finger to move
+   * (start: where it went down), so a pinch doesn't leave trees behind. Full: a part of the
+   * map had no room for more.
+   */
+  | { kind: "build-scatter"; pointerId: number; last: Point | null; start: Point; key: string; applied: boolean; full: boolean }
   /** Build tool: painting floor with the brush (from the last point), or dragging out a rectangle or oval of it. */
   | { kind: "build-paint"; pointerId: number; last: Point; erase: boolean }
   | { kind: "build-rect"; pointerId: number; start: Cell; end: Cell; erase: boolean; circle: boolean }
@@ -249,13 +308,16 @@ type Gesture =
   /** Build › Select: dragging a box to select the objects whose middles are in it. */
   | { kind: "build-box"; pointerId: number; start: Point; end: Point; additive: boolean; node: Konva.Rect }
   /**
-   * Build tool: dragging objects somewhere else, a square at a time: the selection in
-   * Select, or the one under the pointer in Objects (select: false, which leaves them unselected).
+   * Build tool: dragging objects somewhere else, a square at a time (or, with Snap to squares
+   * off, free: to a sixteenth of a square): the selection in Select, or the one under the
+   * pointer in Objects (select: false, which leaves them unselected).
    */
   | {
       kind: "build-move-sel";
       pointerId: number;
-      grab: Cell;
+      /** Where it was grabbed, in cells (fractional). */
+      grab: { u: number; v: number };
+      free: boolean;
       refs: StampRef[];
       orig: Placed[];
       shift: { dCol: number; dRow: number };
@@ -343,14 +405,55 @@ export class Board implements BoardApi {
   private stage: Konva.Stage;
   private bgLayer = new Konva.Layer({ listening: false });
   private drawLayer = new Konva.Layer();
+  /**
+   * The tokens, with the spell effects that stay on the map (drawings with fx) under them (ground)
+   * and over them (air): one canvas for the three, as the fewer a page has, the lighter it runs.
+   */
   private tokenLayer = new Konva.Layer();
+  private tokenGroup = new Konva.Group();
+  private groundFx = new Konva.Shape({
+    listening: false,
+    sceneFunc: (ctx) => {
+      this.drawLightGlows(native(ctx));
+      this.drawZones(native(ctx), "ground");
+    },
+  });
+  private airFx = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawZones(native(ctx), "air") });
+  /** Keeps the token layer drawing while a moving spell (fog, vines, water, a flyer...) is on the map. */
+  private zoneAnim: Konva.Animation;
+  /** When the moving spells were last drawn. */
+  private zoneFrameAt = 0;
+  /** A spell that moves is on the map (one of the drawings last rendered). */
+  private zonesMove = false;
+  /** The spell zones that change the lighting, as last given to the dark: when they change, it's made again. */
+  private zoneSightKey = "";
+  /** The spells on each token of the scene drawn (drawings with `on`), by the token's id. */
+  private spellsOn = new Map<string, DrawingItem[]>();
+  /** Where each spectral token was lately, oldest first: its after-image. */
+  private ghostTrails = new Map<string, { x: number; y: number; t: number }[]>();
+  /**
+   * The night's black and white (Night lighting): where only nightvision sees, the map and tokens
+   * under it lose their colour (its canvas blends as "saturation"). Players' views only.
+   */
+  private monoLayer = new Konva.Layer({ listening: false });
+  /** Lighting and line of sight's darkness (vision.ts): over the tokens, under the GM's fog. */
+  private sightLayer = new Konva.Layer({ listening: false });
   private fogLayer = new Konva.Layer({ listening: false });
   private uiLayer = new Konva.Layer({ listening: false });
+  private sightNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawSight(native(ctx)) });
+  private monoNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawMono(native(ctx)) });
+  /** The doors' markers, for the GM to open and shut them with a click (with lighting on). */
+  private doorNode = new Konva.Shape({ listening: false, sceneFunc: (ctx) => this.drawDoors(native(ctx)) });
   private bgRect = new Konva.Rect({ x: 0, y: 0, width: 1, height: 1, fill: "#2b2f36" });
   private mapNode = new Konva.Image({ x: 0, y: 0, image: undefined, visible: false });
   private gridNode: Konva.Shape;
   private fogNode: Konva.Shape;
   private trailNode: Konva.Shape;
+  /** Spell effects playing (the Spells tool's, and others'), and the aim of the next one. */
+  private fxNode: Konva.Shape;
+  private fxPlays: FxPlay[] = [];
+  /** Where the mouse is, for the Spells tool's preview before a press. */
+  private spellHover: Point | null = null;
   /** Compass roses again, over the fog where it covers them: a compass is never hidden by fog. */
   private compassFogNode: Konva.Shape;
   /**
@@ -416,6 +519,8 @@ export class Board implements BoardApi {
   private zDown = false;
   /** Alt+wheel has sized the next object while Alt is held: Alt+click then places it rather than removing one. */
   private altScaled = false;
+  /** The GM has been told once that the eraser leaves built floors and objects to the Build tool. */
+  private builtEraseHinted = false;
   private wheelSteps = new WheelSteps(isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? ""));
   /** Objects copied in Build › Select, where they stood, in the order they're drawn. */
   private clip: Placed[] | null = null;
@@ -440,6 +545,8 @@ export class Board implements BoardApi {
    */
   private fogCanvas: HTMLCanvasElement | null = null;
   private fogDirty = true;
+  /** Lighting and line of sight: the walls' index, the lights, and the dark (boardSight.ts). */
+  private sight: BoardSight;
 
   private renderedSceneId: string | null = null;
   private renderedScene: Scene | null = null;
@@ -447,6 +554,11 @@ export class Board implements BoardApi {
   private renderedSelection: string[] | null = null;
   private renderedGm = false;
   private renderedPreview = false;
+  private renderedExplored: RoomState["explored"] | null = null;
+  private renderedParty: RoomState["party"] = null;
+  private renderedLookAs: string | null = null;
+  /** The calendar the dark was last made with (the moons light a night). */
+  private renderedCalendar: Calendar | null = null;
   private itemsDirty = false;
   private needsFit = true;
   private cameras = new Map<string, Camera>();
@@ -478,7 +590,10 @@ export class Board implements BoardApi {
     private el: HTMLDivElement,
     private room: RoomClient,
   ) {
+    this.sight = new BoardSight(room);
     this.stage = new Konva.Stage({ container: el, width: el.clientWidth || 1, height: el.clientHeight || 1 });
+    // One of Dungeon's textures made after it was first needed: draw it properly now.
+    this.build.onReady = () => this.bgLayer.batchDraw();
 
     this.gridNode = new Konva.Shape({
       listening: false,
@@ -491,6 +606,10 @@ export class Board implements BoardApi {
     this.trailNode = new Konva.Shape({
       listening: false,
       sceneFunc: (ctx) => this.drawTrails(native(ctx)),
+    });
+    this.fxNode = new Konva.Shape({
+      listening: false,
+      sceneFunc: (ctx) => this.drawSpells(native(ctx)),
     });
     this.compassFogNode = new Konva.Shape({
       listening: false,
@@ -532,8 +651,27 @@ export class Board implements BoardApi {
 
     this.bgLayer.add(this.bgRect, this.mapNode, this.buildNode, this.gridNode);
     this.fogLayer.add(this.fogNode, this.compassFogNode);
-    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.trailNode, this.brushCursor, this.buildHover);
-    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.fogLayer, this.uiLayer);
+    this.sightLayer.add(this.sightNode);
+    this.monoLayer.add(this.monoNode);
+    this.uiLayer.add(this.previewGroup, this.rulerGroup, this.fxNode, this.trailNode, this.brushCursor, this.buildHover, this.doorNode);
+    this.tokenLayer.add(this.groundFx, this.tokenGroup, this.airFx);
+    // Konva warns of more than five layers on every page. These seven are on purpose: the night's
+    // black and white needs a canvas of its own to blend, and the dark, the fog and what's drawn
+    // over them each cut holes in their own (see each). Only that one warning is left out.
+    const warn = Konva.showWarnings;
+    Konva.showWarnings = false;
+    this.stage.add(this.bgLayer, this.drawLayer, this.tokenLayer, this.monoLayer, this.sightLayer, this.fogLayer, this.uiLayer);
+    Konva.showWarnings = warn;
+    // A zone follows its drawing: whenever the drawings are drawn (moved, dragged, changed), so are the zones.
+    // (A spell on a token follows the token: they're drawn together.)
+    this.drawLayer.on("draw", () => this.tokenLayer.batchDraw());
+    this.zoneAnim = new Konva.Animation((frame) => {
+      if (frame && frame.time - this.zoneFrameAt < ZONE_FRAME_MS) return false;
+      this.zoneFrameAt = frame?.time ?? 0;
+      this.animateTokens();
+    }, this.tokenLayer);
+    // Grey drawn as "saturation" keeps what's under it (its light and dark) and takes away its colour.
+    this.monoLayer.getNativeCanvasElement().style.mixBlendMode = "saturation";
 
     this.anim = new Konva.Animation(() => this.tick(), this.uiLayer);
 
@@ -552,6 +690,10 @@ export class Board implements BoardApi {
     on(el, "pointercancel", this.onPointerUp);
     on(el, "pointerleave", () => {
       this.pointerPos = null;
+      if (this.spellHover) {
+        this.spellHover = null;
+        this.uiLayer.batchDraw();
+      }
       this.updateBrushCursor(null);
       this.setHover(null);
     });
@@ -598,8 +740,30 @@ export class Board implements BoardApi {
     );
     this.cleanup.push(room.onEph(this.onEph));
 
+    // Each layer's drawing timed, for the frame-rate readout (?fps, FpsMeter).
+    for (const layer of this.stage.getLayers()) {
+      let from = 0;
+      layer.on("beforeDraw", () => {
+        from = performance.now();
+      });
+      layer.on("draw", () => {
+        this.drawMs += performance.now() - from;
+        this.draws++;
+      });
+    }
+
     room.board = this;
     this.sync();
+  }
+
+  private drawMs = 0;
+  private draws = 0;
+
+  drawStats(): { ms: number; draws: number } {
+    const out = { ms: this.drawMs, draws: this.draws };
+    this.drawMs = 0;
+    this.draws = 0;
+    return out;
   }
 
   destroy(): void {
@@ -662,8 +826,12 @@ export class Board implements BoardApi {
     const left = this.room.display ? 0 : 64;
     const availW = Math.max(40, w - left - pad);
     const availH = Math.max(40, h - pad * 2);
-    const scale = clampScale(Math.min(availW / scene.width, availH / scene.height));
-    this.setCam(left + (availW - scene.width * scale) / 2, (h - scene.height * scale) / 2, scale);
+    // The scene's whole area, which reaches past the picture when the GM has extended it.
+    const area = sceneBounds(scene);
+    const sw = area.x1 - area.x0;
+    const sh = area.y1 - area.y0;
+    const scale = clampScale(Math.min(availW / sw, availH / sh));
+    this.setCam(left + (availW - sw * scale) / 2 - area.x0 * scale, (h - sh * scale) / 2 - area.y0 * scale, scale);
     this.needsFit = false;
   }
 
@@ -795,7 +963,9 @@ export class Board implements BoardApi {
       this.renderedScene = scene;
       this.renderedSeasonsOff = s.seasonsOff;
       if (scene) {
-        this.bgRect.size({ width: scene.width, height: scene.height });
+        const area = sceneBounds(scene);
+        this.bgRect.position({ x: area.x0, y: area.y0 });
+        this.bgRect.size({ width: area.x1 - area.x0, height: area.y1 - area.y0 });
         this.bgRect.fill(scene.background);
         this.updateMap(scene);
         if (!prev || prev.grid.size !== scene.grid.size) force = true;
@@ -808,6 +978,11 @@ export class Board implements BoardApi {
       this.bgLayer.batchDraw();
       this.fogDirty = true;
       this.fogLayer.batchDraw();
+      // The lighting may have changed (a door, day or dark, turned on or off), and the lights' colours.
+      this.redrawSight();
+      this.uiLayer.batchDraw();
+      this.tokenLayer.batchDraw();
+      this.syncZoneAnim();
     }
 
     if (this.needsFit && scene) {
@@ -828,9 +1003,26 @@ export class Board implements BoardApi {
       // reveal only half-remove the fog under it.
       this.fogLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
       this.fogLayer.batchDraw();
+      // The players' darkness too: the GM sees it dimmed, and whole when looking as players.
+      this.sightLayer.getNativeCanvasElement().style.opacity = gm && !preview ? "0.5" : "1";
+      // The night's black and white is the players' alone: the GM sees the map in colour.
+      this.monoLayer.visible(!gm || preview);
+      this.redrawSight();
+      // The doors' markers are the GM's alone: gone while looking as players.
+      this.uiLayer.batchDraw();
       this.renderedGm = gm;
       this.renderedPreview = preview;
       force = true;
+    }
+
+    if (s.explored !== this.renderedExplored || s.party !== this.renderedParty || s.fogOpts.lookAs !== this.renderedLookAs || s.calendar !== this.renderedCalendar) {
+      this.renderedCalendar = s.calendar;
+      // What the party has explored changed (others' exploring, all of a scene's coming in, or the GM
+      // forgetting it), or with per-player sight, whose eyes this page sees with may have.
+      this.renderedExplored = s.explored;
+      this.renderedParty = s.party;
+      this.renderedLookAs = s.fogOpts.lookAs;
+      if (scene?.vision?.on) this.redrawSight();
     }
 
     if (force || this.itemsDirty || s.items !== this.renderedItems || s.selection !== this.renderedSelection) {
@@ -1000,6 +1192,18 @@ export class Board implements BoardApi {
     if (built || force) this.bgLayer.batchDraw();
     const byZ = (a: Item, b: Item) => a.z - b.z || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+    // The spells on tokens: drawn on their token, which a spell put on or ended redraws.
+    this.spellsOn = new Map();
+    for (const d of drawings) {
+      if (!d.on || !d.fx || (d.hidden && !gmView)) continue;
+      const list = this.spellsOn.get(d.on);
+      if (list) list.push(d);
+      else this.spellsOn.set(d.on, [d]);
+    }
+    for (const id of this.ghostTrails.keys()) {
+      if (!this.spellsOn.get(id)?.some((d) => d.fx === "spectral" || d.fx === "haste")) this.ghostTrails.delete(id);
+    }
+
     const seenTokens = new Set<string>();
     for (const t of tokens) {
       seenTokens.add(t.id);
@@ -1007,12 +1211,12 @@ export class Board implements BoardApi {
       if (!n) {
         n = { group: new Konva.Group(), item: null, selected: false, cell: 0, dirty: true };
         n.group.setAttr("itemId", t.id);
-        this.tokenLayer.add(n.group);
+        this.tokenGroup.add(n.group);
         this.tokens.set(t.id, n);
       }
       if (this.dragging.has(t.id)) continue;
       const selected = sel.has(t.id);
-      if (force || n.dirty || n.item !== t || n.selected !== selected || n.cell !== cell) {
+      if (force || n.dirty || n.item !== t || n.selected !== selected || n.cell !== cell || (n.hp ?? "") !== this.hpOf(t) || (n.looks ?? "") !== this.looksOn(t.id)) {
         this.buildToken(n, t, selected, cell, gmView);
         this.remoteDrags.delete(t.id);
       }
@@ -1045,6 +1249,11 @@ export class Board implements BoardApi {
           shape.opacity(0.5);
           shape.visible(gmView);
         }
+        if (d.on) {
+          // A spell on a token is drawn on the token: its own shape is neither seen nor picked.
+          shape.visible(false);
+          shape.listening(false);
+        }
         this.drawLayer.add(shape);
         this.drawings.set(d.id, { shape, item: d, selected, base: shape.position() });
         this.remoteDrags.delete(d.id);
@@ -1061,6 +1270,15 @@ export class Board implements BoardApi {
       const shape = this.drawings.get(d.id)?.shape;
       if (shape && shape.zIndex() !== i) shape.zIndex(i);
     });
+    // Moving spells, flying tokens' bob and blinking ones' flicker: the token layer is drawn again and again then.
+    this.zonesMove = drawings.some((d) => d.fx && spellLookMoves(d.fx));
+    this.syncZoneAnim();
+    this.tokenLayer.batchDraw();
+    const sightKey = this.zoneSightKeyOf(drawings);
+    if (sightKey !== this.zoneSightKey) {
+      this.zoneSightKey = sightKey;
+      this.redrawSight();
+    }
 
     fogs.sort(byZ);
     const fogChanged = fogs.length !== this.fogItems.length || fogs.some((f, i) => f !== this.fogItems[i]);
@@ -1073,13 +1291,28 @@ export class Board implements BoardApi {
     }
   }
 
+  /** A token's HP as its character sheet last gave it ("34/49"), or "" (no sheet, no HP read, or a compass). */
+  private hpOf(t: TokenItem): string {
+    const c = t.character && !isCompass(t) ? this.room.characterOf(t) : null;
+    return c && c.hp !== null && c.maxHp ? `${c.hp}/${c.maxHp}` : "";
+  }
+
   private buildToken(n: TokenNode, t: TokenItem, selected: boolean, cell: number, gmView: boolean): void {
     const g = n.group;
     g.destroyChildren();
     g.position({ x: t.x, y: t.y });
-    g.opacity(t.hidden ? 0.5 : 1);
+    const spells = this.spellsOn.get(t.id) ?? [];
+    const looks = new Set(spells.map((d) => d.fx as TokenLook));
+    // Unseen (Invisibility and the like): faint where it's seen, not there at all elsewhere.
+    const unseen = looks.has("unseen") ? this.unseenLook(t, gmView, looks.has("outline")) : null;
+    n.gone = unseen === "gone";
+    n.looks = this.looksOn(t.id);
+    n.lifted = undefined;
+    n.blink = undefined;
+    n.picture = null;
+    g.opacity((t.hidden ? 0.5 : 1) * (unseen === "faint" ? 0.4 : 1));
     // In "Player view" the GM sees what players do: hidden tokens aren't there.
-    g.visible(!t.hidden || gmView);
+    g.visible((!t.hidden || gmView) && !n.gone);
     const compass = isCompass(t);
     // A compass is part of the map for players: they can't pick it, and clicks reach what's under it.
     g.listening(!compass || this.room.isGm);
@@ -1090,6 +1323,29 @@ export class Board implements BoardApi {
       body.add(
         new Konva.Shape({
           sceneFunc: (ctx) => drawCompass(native(ctx), r, t.rotation, t.color, FONT),
+          hitFunc: (ctx, shape) => {
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.95, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fillShape(shape);
+          },
+        }),
+      );
+      drawn = true;
+    } else if (looks.has("treeform")) {
+      // Treeform: drawn as one of the map's own trees until the spell ends (once Dungeon's objects are in).
+      body.add(
+        new Konva.Shape({
+          sceneFunc: (ctx) => {
+            const objects = dungeonObjects();
+            const tree = objects?.prop("oak-tree-small-rounded");
+            if (!objects || !tree) {
+              if (!objects) whenDungeonObjects(() => this.tokenLayer.batchDraw());
+              return;
+            }
+            const s = objects.propSprite(tree);
+            native(ctx).drawImage(s.img, s.sx, s.sy, s.sw, s.sh, -r * 1.25, -r * 1.25, r * 2.5, r * 2.5);
+          },
           hitFunc: (ctx, shape) => {
             ctx.beginPath();
             ctx.arc(0, 0, r * 0.95, 0, Math.PI * 2);
@@ -1110,7 +1366,10 @@ export class Board implements BoardApi {
         const k = Math.min((2 * r) / img.naturalWidth, (2 * r) / img.naturalHeight);
         const w = img.naturalWidth * k;
         const h = img.naturalHeight * k;
-        body.add(new Konva.Image({ image: img, x: -w / 2, y: -h / 2, width: w, height: h }));
+        // Flipped: the picture mirrored left to right (before it's turned), so it faces the other way.
+        const flip = t.flipped ? -1 : 1;
+        body.add(new Konva.Image({ image: img, x: (-w / 2) * flip, y: -h / 2, width: w, height: h, scaleX: flip }));
+        n.picture = { img, w, h, flip: flip < 0 };
         drawn = true;
       } else if (!imageFailed(url)) {
         body.add(new Konva.Circle({ radius: r * 0.92, fill: t.color, opacity: 0.35 }));
@@ -1149,6 +1408,15 @@ export class Board implements BoardApi {
       }
     }
     g.add(body);
+    // Spectral: see-through. Flying: the picture floats above its place (its shadow stays below).
+    if (looks.has("spectral")) body.opacity(0.55);
+    const flyer = spells.find((d) => d.fx === "flying");
+    if (flyer) {
+      n.lifted = { body, seed: seedOf(flyer.id) };
+      body.y(-flyLift(r, performance.now(), n.lifted.seed));
+    }
+    const blinker = spells.find((d) => d.fx === "blink");
+    if (blinker) n.blink = { body, seed: seedOf(blinker.id), base: body.opacity() };
 
     const gap = Math.max(2, cell * 0.05);
     const ringWidth = Math.max(2, cell * 0.04);
@@ -1172,9 +1440,23 @@ export class Board implements BoardApi {
         }),
       );
     }
+    // A character's HP, from their sheet: a bar under the token, green, then amber, then red.
+    let below = r + gap * t.rings.length;
+    const hp = this.hpOf(t);
+    if (hp) {
+      const [now, max] = hp.split("/").map(Number);
+      const share = Math.max(0, Math.min(1, now / max));
+      const w = Math.max(18, 2 * r * 0.9);
+      const h = Math.max(4, cell * 0.08);
+      const y = below + gap;
+      g.add(new Konva.Rect({ x: -w / 2, y, width: w, height: h, fill: "rgba(15,17,21,0.85)", cornerRadius: h / 2 }));
+      if (share > 0) g.add(new Konva.Rect({ x: -w / 2, y, width: w * share, height: h, fill: share > 0.5 ? "#4caf50" : share > 0.25 ? "#e0a030" : "#d9534f", cornerRadius: h / 2 }));
+      below = y + h;
+    }
+    n.hp = hp;
     if (t.label && !compass) {
       const fontSize = Math.max(10, Math.min(cell * 0.22, 32));
-      const label = new Konva.Label({ y: r + gap * t.rings.length + fontSize * 0.3 });
+      const label = new Konva.Label({ y: below + fontSize * 0.3 });
       label.add(new Konva.Tag({ fill: "rgba(15,17,21,0.8)", cornerRadius: fontSize * 0.35 }));
       label.add(new Konva.Text({ text: t.label, fontSize, fontFamily: FONT, fill: "#fff", padding: fontSize * 0.28 }));
       label.x(-label.width() / 2);
@@ -1212,7 +1494,11 @@ export class Board implements BoardApi {
       hitStrokeWidth: Math.max(d.width, 14),
       ...(selected ? { shadowColor: SELECT_COLOR, shadowBlur: 14, shadowOpacity: 1, shadowForStrokeEnabled: true } : {}),
     };
-    const fill = d.fill ? hexToRgba(d.color, 0.35) : undefined;
+    if (d.fx) {
+      // A spell zone: its look is drawn in its own layer; this is the outline to grab it by.
+      Object.assign(base, { strokeWidth: 2, strokeScaleEnabled: false, dash: [8, 6], opacity: d.fx === "marked" ? 0 : d.fx === "spirit-weapon" ? 0.25 : 0.45, hitStrokeWidth: 16 });
+    }
+    const fill = d.fill ? hexToRgba(d.color, 0.35) : d.fx === "spirit-weapon" ? "transparent" : undefined;
     const [x0, y0, x1, y1] = d.points;
     let shape: Konva.Shape;
     switch (d.shape) {
@@ -1265,13 +1551,15 @@ export class Board implements BoardApi {
   private fogged(pos: Point): boolean {
     const s = this.room.state;
     if (s.me?.role === "gm" && !s.fogOpts.preview) return false;
-    const canvas = this.fogLayer.getCanvas();
-    const pr = canvas.getPixelRatio();
-    const x = Math.floor(pos.x * pr);
-    const y = Math.floor(pos.y * pr);
-    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return false;
-    const ctx = native(canvas.getContext());
-    return ctx.getImageData(x, y, 1, 1).data[3] > 128;
+    // Fog, or the dark where the party can't see (lighting and line of sight).
+    return [this.fogLayer, this.sightLayer].some((layer) => {
+      const canvas = layer.getCanvas();
+      const pr = canvas.getPixelRatio();
+      const x = Math.floor(pos.x * pr);
+      const y = Math.floor(pos.y * pr);
+      if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return false;
+      return native(canvas.getContext()).getImageData(x, y, 1, 1).data[3] > 128;
+    });
   }
 
   private toScreen(p: Point): Point {
@@ -1289,10 +1577,11 @@ export class Board implements BoardApi {
     // Only the part of the grid that's on screen.
     const tl = this.toWorld({ x: 0, y: 0 });
     const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
-    const minX = Math.max(0, tl.x);
-    const maxX = Math.min(scene.width, br.x);
-    const minY = Math.max(0, tl.y);
-    const maxY = Math.min(scene.height, br.y);
+    const area = sceneBounds(scene);
+    const minX = Math.max(area.x0, tl.x);
+    const maxX = Math.min(area.x1, br.x);
+    const minY = Math.max(area.y0, tl.y);
+    const maxY = Math.min(area.y1, br.y);
     if (minX >= maxX || minY >= maxY) return;
     if (isHex(g)) {
       if (size * scale < 10) return;
@@ -1388,7 +1677,8 @@ export class Board implements BoardApi {
     // Nothing is built off the scene, so nothing is outlined there either.
     const m = Math.max(size * 0.12, 5 / scale);
     c.beginPath();
-    c.rect(-m, -m, scene.width + 2 * m, scene.height + 2 * m);
+    const area = sceneBounds(scene);
+    c.rect(area.x0 - m, area.y0 - m, area.x1 - area.x0 + 2 * m, area.y1 - area.y0 + 2 * m);
     c.clip();
     c.strokeStyle = SELECT_COLOR;
     c.lineWidth = 2 / scale;
@@ -1418,6 +1708,18 @@ export class Board implements BoardApi {
         }
       }
     }
+    const scattering = o.mode === "stamps" && o.stampMode === "scatter" && !alt;
+    if (scattering && p && (gesture.kind === "none" || gesture.kind === "build-scatter")) {
+      // The brush's circle.
+      c.save();
+      dashed();
+      c.strokeStyle = SELECT_COLOR;
+      c.lineWidth = 2 / scale;
+      c.beginPath();
+      c.arc(p.x, p.y, (o.scatter.brush / 2) * size, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
     if (moving) {
       // Too many to draw the objects themselves every frame: just their outlines.
       const art = moving.orig.length <= GHOST_ART_MAX;
@@ -1431,12 +1733,12 @@ export class Board implements BoardApi {
           box(at);
         }
       }
-    } else if (!p || gesture.kind !== "none" || o.mode === "select") {
-      // Nothing under the mouse to show.
+    } else if (!p || gesture.kind !== "none" || o.mode === "select" || scattering) {
+      // Nothing under the mouse to show (or only the scatter brush, drawn above).
     } else if (o.mode === "building" || o.mode === "terrain") {
       const n = o.shape[o.mode] === "brush" ? this.brushCells() : 1;
       const at = this.brushAt(p, n);
-      const all = sceneCells(scene.width, scene.height, g);
+      const all = sceneAreaCells(scene, g);
       if (at.col <= all.c1 && at.row <= all.r1 && at.col + n - 1 >= all.c0 && at.row + n - 1 >= all.r0) {
         dashed();
         c.strokeStyle = alt || o.floor[o.mode] === "erase" ? REMOVE_COLOR : SELECT_COLOR;
@@ -1467,7 +1769,7 @@ export class Board implements BoardApi {
       } else {
         // The corner a click (or a drag) starts from.
         const v = this.nearestVertex(p);
-        const all = sceneCells(scene.width, scene.height, g);
+        const all = sceneAreaCells(scene, g);
         if (v.c >= all.c0 && v.c <= all.c1 + 1 && v.r >= all.r0 && v.r <= all.r1 + 1) {
           c.fillStyle = alt || o.wallMode === "remove" ? REMOVE_COLOR : SELECT_COLOR;
           c.beginPath();
@@ -1561,7 +1863,8 @@ export class Board implements BoardApi {
   private selectHit(world: Point, mouse: boolean): { obj: StampHit | null; door: DoorHit | null; under: StampHit[] } {
     const scene = this.renderedScene!;
     const none = { obj: null, door: null, under: [] };
-    if (world.x < 0 || world.y < 0 || world.x > scene.width || world.y > scene.height) return none;
+    const area = sceneBounds(scene);
+    if (world.x < area.x0 || world.y < area.y0 || world.x > area.x1 || world.y > area.y1) return none;
     const { u, v } = this.cellsAt(world);
     // Screen pixels to a square.
     const px = this.cam.scale * scene.grid.size;
@@ -1650,7 +1953,8 @@ export class Board implements BoardApi {
     const reach = g.size;
     c.save();
     c.beginPath();
-    c.rect(0, 0, scene.width, scene.height);
+    const area = sceneBounds(scene);
+    c.rect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.clip();
     c.beginPath();
     for (let r = rMin; r <= rMax; r++) {
@@ -1670,6 +1974,279 @@ export class Board implements BoardApi {
     c.restore();
   }
 
+  /** The scene's walls and doors as an index for sight, and where its lights reach (made again only when they change). */
+  private sightGeometry(scene: Scene, v: SceneVision): SightGeometry {
+    return this.sight.geometry(
+      scene,
+      v,
+      this.build.model.index,
+      this.zoneSightKey,
+      () => this.build.model.sightLines(),
+      () => this.sightZones(scene),
+    );
+  }
+
+  /** In the dark or at night, the lights' own colour (and a flickering one's waver), under the tokens. */
+  private drawLightGlows(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || v.daylight || !v.lights.some((l) => l.color || l.flicker)) return;
+    drawGlows(c, this.sightGeometry(scene, v), performance.now());
+  }
+
+  /** Moving spells on the map, or a flickering light in the dark: the token layer is drawn again and again then. */
+  private syncZoneAnim(): void {
+    const v = this.renderedScene?.vision;
+    const flicker = !!v?.on && !v.daylight && v.lights.some((l) => l.flicker);
+    const run = this.zonesMove || flicker;
+    if (run && !this.zoneAnim.isRunning()) this.zoneAnim.start();
+    else if (!run && this.zoneAnim.isRunning()) this.zoneAnim.stop();
+  }
+
+  /**
+   * What stops this page's tokens: with lighting on, a player's are stopped by walls and shut doors
+   * (unless the GM lets them through). Null when nothing does (the GM's never are).
+   */
+  private wallsFor(scene: Scene): WallIndex | null {
+    const v = scene.vision;
+    if (this.isGm || !v?.on || v.passWalls) return null;
+    return this.sightGeometry(scene, v).moveIndex;
+  }
+
+  /**
+   * Where a token let go of at `to` ends up, when walls stop it: there, if nothing's in the way from
+   * where it got to (`at`); else on its own square (snapped), or just where it got to.
+   */
+  private stoppedAt(walls: WallIndex, at: Point, to: Point, size: number, scene: Scene, snap: boolean): Point {
+    const clear = (p: Point) => {
+      const [x, y] = moveStop(walls, at.x, at.y, p.x, p.y, 0);
+      return x === p.x && y === p.y;
+    };
+    if (clear(to)) return to;
+    const own = snap ? snapTokenCenter(at, size, scene.grid) : at;
+    return clear(own) ? own : at;
+  }
+
+  /** For the arrow keys: whether a token's step from one point to another crosses a wall that stops it. */
+  private stepBlocked = (from: Point, to: Point): boolean => {
+    const scene = this.renderedScene;
+    const walls = scene ? this.wallsFor(scene) : null;
+    if (!walls) return false;
+    const [x, y] = moveStop(walls, from.x, from.y, to.x, to.y, 0);
+    return x !== to.x || y !== to.y;
+  };
+
+  /**
+   * Where the tokens this page sees with stand (`xy`: [x0, y0, ...]): the party's sight tokens, or
+   * only `eyes`; as dragged, while they're being dragged. At night, how far each one's nightvision
+   * reaches (`night`, in squares: 0 for none), from their character's race.
+   */
+  private sightViewers(scene: Scene, v: SceneVision, eyes: ReadonlySet<string> | null): { xy: number[]; night: number[] } {
+    const xy: number[] = [];
+    const night: number[] = [];
+    const isNight = !v.daylight && !!v.night;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || t.sceneId !== scene.id || !(eyes ? eyes.has(t.id) : isSightToken(t))) continue;
+      const p = n.group.position();
+      xy.push(Math.round(p.x), Math.round(p.y));
+      const metres = isNight ? nightvisionOf(this.room.characterOf(t)) : 0;
+      night.push(metres > 0 ? distanceSquares({ d: metres, unit: "m" }, scene.grid) : 0);
+    }
+    return { xy, night };
+  }
+
+  /**
+   * Whose eyes this page sees with: the whole party's (every sight token, and the party's explored
+   * map), or with per-player sight a player's own (their character's tokens and the ones they put
+   * down, `eyes`, and their character's explored map, `who`). The GM sees with the party, or as a
+   * character's player in fog's player view (Look as); a table display always with the party. A
+   * player with no tokens of their own on the scene sees with the party.
+   */
+  private sightLook(scene: Scene, v: SceneVision): { who: string; eyes: Set<string> | null } {
+    const party = { who: "", eyes: null };
+    if (!v.perPlayer || this.room.display) return party;
+    const s = this.room.state;
+    let character: string | null;
+    let userId: string | null = null;
+    if (this.isGm) {
+      if (!s.fogOpts.preview || !s.fogOpts.lookAs) return party;
+      character = s.fogOpts.lookAs;
+    } else {
+      character = this.room.myCharacter;
+      userId = s.me?.userId ?? null;
+    }
+    const eyes = new Set<string>();
+    let theirs = false;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || t.sceneId !== scene.id || !isOwnSightToken(t, character, userId)) continue;
+      eyes.add(t.id);
+      if (t.character) theirs = true;
+    }
+    if (!eyes.size) return party;
+    // Their character's own map once they're on the scene; tokens of their own alone add to the party's.
+    return { who: theirs && character ? character : "", eyes };
+  }
+
+  /**
+   * Lighting and line of sight's darkness: all of the scene but what the party can see. Remade
+   * only when what it's made from changes (a sight token moving, a door, the lighting); panning
+   * and zooming just draw it.
+   */
+  private drawSight(c: CanvasRenderingContext2D): void {
+    const area = this.ensureSight();
+    if (area) this.sight.draw(c, area);
+    // Lighting off: every token shows again.
+    this.applySightToTokens();
+  }
+
+  /** The night's black and white, where only nightvision sees (players' views: the layer's hidden for the GM). */
+  private drawMono(c: CanvasRenderingContext2D): void {
+    const area = this.ensureSight();
+    if (area) this.sight.drawMono(c, area);
+  }
+
+  /** Draws the dark again, and the night's black and white with it. */
+  private redrawSight(): void {
+    this.sightLayer.batchDraw();
+    this.monoLayer.batchDraw();
+  }
+
+  /**
+   * Makes the dark (and the night's black and white) again when what it's made from has changed,
+   * whichever layer asks first; the scene's area, or null with lighting off.
+   */
+  private ensureSight(): SceneArea | null {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on) {
+      this.sight.seen = null;
+      return null;
+    }
+    const geom = this.sightGeometry(scene, v);
+    const look = this.sightLook(scene, v);
+    this.sightEyes = look.eyes;
+    // At night, the moons light what the party sees, as they are that night (the calendar).
+    const calendar = this.room.state.calendar;
+    const moon = v.night && !v.daylight && calendar ? moonlightOf(calendar, calendar.today) : 0;
+    return this.sight.ensure(scene, v, geom, look.who, this.sightViewers(scene, v, look.eyes), moon);
+  }
+
+  /** The tokens the dark was last made with, with per-player sight (sightLook); null: the party's. */
+  private sightEyes: ReadonlySet<string> | null = null;
+
+  /**
+   * Players (and the GM looking as players), lighting on: only the tokens on what the party sees
+   * now show, and its own, and compasses; a token in an explored place it's moved on from, or in
+   * the dark, doesn't. Everyone else sees every token.
+   */
+  private applySightToTokens(): void {
+    const scene = this.renderedScene;
+    const seen = this.sight.seen;
+    const hide = !!scene?.vision?.on && !!seen && (!this.isGm || this.room.state.fogOpts.preview);
+    let changed = false;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t) continue;
+      let show = !n.gone;
+      // A page's own eyes always show (with per-player sight, other players' tokens don't, out of its sight).
+      const eyes = this.sightEyes;
+      if (show && hide && !isCompass(t) && !(eyes ? eyes.has(t.id) : isSightToken(t))) {
+        const g = seen!.grid;
+        const col = Math.floor((n.group.x() - g.x0) / g.cell), row = Math.floor((n.group.y() - g.y0) / g.cell);
+        show = col >= 0 && row >= 0 && col < g.cols && row < g.rows && seen!.alpha[(row * g.cols + col) * 4 + 3] > 100;
+      }
+      if (n.group.visible() !== show) {
+        n.group.visible(show);
+        changed = true;
+      }
+    }
+    if (changed) this.tokenLayer.batchDraw();
+  }
+
+  /** The doors' markers for the GM (lighting on, not looking as players): shut ones brown, open ones green. */
+  private drawDoors(c: CanvasRenderingContext2D): void {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return;
+    const geom = this.sightGeometry(scene, v);
+    const s = this.stage.scaleX();
+    const r = Math.max(scene.grid.size * 0.16, 6 / s);
+    c.save();
+    c.lineWidth = 1.5 / s;
+    c.strokeStyle = "#fff";
+    for (const d of geom.doors) {
+      const [ax, ay, bx, by] = d.line;
+      c.beginPath();
+      c.arc((ax + bx) / 2, (ay + by) / 2, r, 0, Math.PI * 2);
+      c.fillStyle = d.open ? "rgba(91, 216, 143, 0.9)" : "rgba(154, 101, 50, 0.95)";
+      c.fill();
+      c.stroke();
+    }
+    // The lights: a dot of each one's colour (pale yellow for plain light), dashed round when it flickers.
+    const picked = this.room.state.lightPick;
+    v.lights.forEach((l0, i) => {
+      const on = picked?.sceneId === scene.id && picked.index === i;
+      // One being dragged is drawn where it's going.
+      const l = this.lightDragAt?.index === i ? { ...l0, x: this.lightDragAt.x, y: this.lightDragAt.y } : l0;
+      c.beginPath();
+      c.arc(l.x, l.y, r * 0.8, 0, Math.PI * 2);
+      c.fillStyle = l.color ?? "#fff6c8";
+      c.fill();
+      c.setLineDash(l.flicker ? [3 / s, 2 / s] : []);
+      c.strokeStyle = on ? "#4fd1ff" : "#fff";
+      c.lineWidth = (on ? 3 : 1.5) / s;
+      c.beginPath();
+      c.arc(l.x, l.y, r * 1.15, 0, Math.PI * 2);
+      c.stroke();
+    });
+    c.restore();
+  }
+
+  /**
+   * GM, lighting on: a light's marker pressed picks it, to set its colour, flicker and reach, and
+   * a drag from there moves it (true if one was pressed).
+   */
+  private lightDown(pointerId: number, pos: Point, world: Point): boolean {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return false;
+    const i = lightNear(v.lights, world.x, world.y, Math.max(scene.grid.size * 0.3, 10 / this.stage.scaleX()));
+    if (i < 0) return false;
+    this.room.select([]);
+    this.room.store.set({ lightPick: { sceneId: scene.id, index: i } });
+    this.gesture = { kind: "light-drag", pointerId, index: i, start: pos, moved: false };
+    this.uiLayer.batchDraw();
+    return true;
+  }
+
+  /** Where a light being dragged is now (its marker's drawn there; the light moves when it's let go). */
+  private lightDragAt: { index: number; x: number; y: number } | null = null;
+
+  /** GM: a light of their own where the map was clicked (Add a light), picked so its look can be set. */
+  private addLight(scene: Scene, world: Point): void {
+    const v = scene.vision;
+    this.room.store.set({ lightAdd: null });
+    if (!v) return;
+    const light: SceneLight = { x: round2(world.x), y: round2(world.y), r: scene.grid.size * OWN_LIGHT_SQUARES, own: true };
+    this.room.updateScene(scene.id, { vision: { ...v, lights: [...v.lights, light] } });
+    this.room.select([]);
+    this.room.store.set({ lightPick: { sceneId: scene.id, index: v.lights.length } });
+  }
+
+  /** GM, lighting on: a click on a door's marker opens or shuts it (true if it did). */
+  private doorClick(world: Point): boolean {
+    const scene = this.renderedScene;
+    const v = scene?.vision;
+    if (!scene || !v?.on || !this.isGm || this.room.state.fogOpts.preview) return false;
+    const geom = this.sightGeometry(scene, v);
+    const door = doorNear(geom.doors, world.x, world.y, Math.max(scene.grid.size * 0.3, 10 / this.stage.scaleX()));
+    if (!door) return false;
+    this.room.updateScene(scene.id, { vision: toggledDoor(v, door) });
+    return true;
+  }
+
   private drawFog(c: CanvasRenderingContext2D): void {
     const scene = this.renderedScene;
     if (!scene) return;
@@ -1677,7 +2254,9 @@ export class Board implements BoardApi {
     c.save();
     c.globalAlpha = 1;
     c.imageSmoothingEnabled = true;
-    c.drawImage(this.fogCanvas!, 0, 0, scene.width, scene.height);
+    // The fog image covers the scene's whole area, from its top-left corner (below 0 when extended).
+    const area = sceneBounds(scene);
+    c.drawImage(this.fogCanvas!, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     c.restore();
   }
 
@@ -1708,6 +2287,8 @@ export class Board implements BoardApi {
    */
   private drawTokens(): void {
     this.tokenLayer.batchDraw();
+    // The darkness follows the party's tokens (remade only if one of them moved).
+    if (this.renderedScene?.vision?.on) this.redrawSight();
     const shown: CompassLook[] = [];
     for (const [id, n] of this.tokens) {
       const t = n.item;
@@ -1723,10 +2304,11 @@ export class Board implements BoardApi {
 
   /** Composites every fog shape into the cached fog image. */
   private renderFogImage(scene: Scene): void {
-    const k = Math.min(1, FOG_CACHE_MAX / Math.max(scene.width, scene.height));
+    const area = sceneBounds(scene);
+    const k = Math.min(1, FOG_CACHE_MAX / Math.max(area.x1 - area.x0, area.y1 - area.y0));
     const canvas = (this.fogCanvas ??= document.createElement("canvas"));
-    const w = Math.max(1, Math.ceil(scene.width * k));
-    const h = Math.max(1, Math.ceil(scene.height * k));
+    const w = Math.max(1, Math.ceil((area.x1 - area.x0) * k));
+    const h = Math.max(1, Math.ceil((area.y1 - area.y0) * k));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
@@ -1735,11 +2317,11 @@ export class Board implements BoardApi {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = "source-over";
     c.clearRect(0, 0, w, h);
-    c.setTransform(k, 0, 0, k, 0, 0);
+    c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
     this.fogDirty = false;
     c.save();
     c.fillStyle = FOG_COLOR;
-    if (scene.fogCover) c.fillRect(0, 0, scene.width, scene.height);
+    if (scene.fogCover) c.fillRect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     for (const f of this.fogItems) {
       c.globalCompositeOperation = f.mode === "reveal" ? "destination-out" : "source-over";
       c.beginPath();
@@ -1854,6 +2436,8 @@ export class Board implements BoardApi {
       if (now - p.t < PING_MS) active = true;
       else this.pings.delete(id);
     }
+    this.fxPlays = this.fxPlays.filter((f) => now - f.t0 < fxDuration(f.look));
+    if (this.fxPlays.length) active = true;
     const wall = Date.now();
     let rulersChanged = false;
     for (const [id, r] of this.remoteRulers) {
@@ -1897,7 +2481,7 @@ export class Board implements BoardApi {
   private rulerNode(r: Ruler, scale: number): Konva.Group {
     const k = 1 / scale;
     const g = new Konva.Group();
-    const grid = this.renderedScene?.grid;
+    const grid = this.renderedScene && this.measureGrid(this.renderedScene);
     if (r.shape !== "ruler" && grid) {
       const t = templateGeometry(r.shape, r.a, r.b, grid);
       const area = {
@@ -1956,6 +2540,405 @@ export class Board implements BoardApi {
     return s.players.find((p) => p.connId === connId)?.color ?? "#ffffff";
   }
 
+  /** The spell zones on a scene that change the lighting (fog, darkness, light), as zones. */
+  private sightZones(scene: Scene): Zone[] {
+    const out: Zone[] = [];
+    for (const item of Object.values(this.room.state.items)) {
+      if (item.kind !== "drawing" || item.sceneId !== scene.id || !isZoneLook(item.fx) || !ZONE_LOOKS[item.fx].sight) continue;
+      if (item.shape !== "ellipse" && item.shape !== "rect") continue;
+      out.push(zoneOf(item.fx, item.shape, item.points, seedOf(item.id), item.color));
+    }
+    return out;
+  }
+
+  /** What about the drawings changes the lighting: the fog, darkness and light zones, where they are. */
+  private zoneSightKeyOf(drawings: readonly DrawingItem[]): string {
+    return drawings
+      .filter((d) => isZoneLook(d.fx) && ZONE_LOOKS[d.fx].sight)
+      .map((d) => `${d.id}:${d.fx}:${d.points.join(",")}`)
+      .sort()
+      .join("|");
+  }
+
+  /** The spell zones of one layer, each where its drawing is now (dragged too). */
+  private drawZones(c: CanvasRenderingContext2D, layer: "ground" | "air"): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const now = performance.now();
+    const px = 1 / this.stage.scaleX();
+    const gmView = this.isGm && !this.room.state.fogOpts.preview;
+    for (const n of this.drawings.values()) {
+      const d = n.item;
+      if (!isZoneLook(d?.fx) || ZONE_LOOKS[d.fx].layer !== layer || !n.shape.visible()) continue;
+      if (d.shape !== "ellipse" && d.shape !== "rect") continue;
+      const p = n.shape.position();
+      const dx = p.x - n.base.x, dy = p.y - n.base.y;
+      const pts = [d.points[0] + dx, d.points[1] + dy, d.points[2] + dx, d.points[3] + dy];
+      c.save();
+      if (d.hidden) c.globalAlpha = 0.5;
+      drawZone(c, zoneOf(d.fx, d.shape, pts, seedOf(d.id), d.color, d.spell), now, scene.grid.size, px, gmView);
+      c.restore();
+    }
+    this.drawTokenLooks(c, layer, now, px);
+  }
+
+  /** The spells on tokens of one layer, each on its token as the token is now (dragged too). */
+  private drawTokenLooks(c: CanvasRenderingContext2D, layer: "ground" | "air", now: number, px: number): void {
+    for (const [id, list] of this.spellsOn) {
+      const n = this.tokens.get(id);
+      const t = n?.item;
+      if (!n || !t || !n.group.visible()) continue;
+      const p = n.group.position();
+      const r = (t.size * n.cell) / 2;
+      // Over a flying token, a look goes with its picture, up in the air; its shadow stays below.
+      const up = n.lifted && layer === "air" ? flyLift(r, now, n.lifted.seed) : 0;
+      for (const d of list) {
+        const look = d.fx as TokenLook;
+        if (tokenLookLayer(look) !== layer) continue;
+        const on: OnToken = { look, x: p.x, y: p.y - up, r, color: d.color, seed: seedOf(d.id) };
+        // After-images (spectral, haste) need where it's been; copies (mirror, blur) its picture.
+        if (look === "spectral" || look === "haste") on.trail = this.ghostTrail(id, p, now);
+        if (look === "spectral" || look === "haste" || look === "mirror" || look === "blur") {
+          on.picture = n.picture;
+          on.disc = t.color;
+        }
+        c.save();
+        if (d.hidden) c.globalAlpha = 0.5;
+        drawTokenLook(c, on, now, px);
+        c.restore();
+      }
+    }
+  }
+
+  /** Where a spectral token was lately, oldest first (its after-image), with where it is now. */
+  private ghostTrail(id: string, p: Point, now: number): { x: number; y: number; t: number }[] {
+    let trail = this.ghostTrails.get(id);
+    if (!trail) this.ghostTrails.set(id, (trail = []));
+    const last = trail.at(-1);
+    // Standing still, its newest place is always now: only where it has moved from fades.
+    if (last && Math.hypot(p.x - last.x, p.y - last.y) < 2) last.t = now;
+    else trail.push({ x: p.x, y: p.y, t: now });
+    while (trail.length && now - trail[0].t > AFTER_IMAGE_MS) trail.shift();
+    if (trail.length > 40) trail.splice(0, trail.length - 40);
+    return trail;
+  }
+
+  /** Each frame while a spell keeps moving: flying tokens' pictures bob, blinking ones flicker. */
+  private animateTokens(): void {
+    const now = performance.now();
+    for (const n of this.tokens.values()) {
+      if (n.lifted && n.item) n.lifted.body.y(-flyLift((n.item.size * n.cell) / 2, now, n.lifted.seed));
+      if (n.blink) n.blink.body.opacity(n.blink.base * blinkFade(now, n.blink.seed));
+    }
+  }
+
+  /** The looks of the spells on a token, as a key: what it was drawn with. */
+  private looksOn(id: string): string {
+    return (this.spellsOn.get(id) ?? [])
+      .map((d) => `${d.id}:${d.fx}`)
+      .sort()
+      .join(",");
+  }
+
+  /**
+   * How an unseen token (Invisibility and the like) shows on this page: faint for the GM and the
+   * player it belongs to, and for everyone while Faerie Fire's outline is on it too; not at all
+   * for anyone else. (The GM in Player view sees what players do, even of the GM's own tokens.)
+   */
+  private unseenLook(t: TokenItem, gmView: boolean, outlined: boolean): "faint" | "gone" {
+    const own = !this.isGm && t.owner === this.room.state.me?.userId;
+    return gmView || outlined || own ? "faint" : "gone";
+  }
+
+  /** The topmost token (not a compass) this page shows at a point on the map. */
+  private tokenAt(p: Point): TokenItem | null {
+    let best: { t: TokenItem; z: number } | null = null;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || isCompass(t) || !n.group.visible() || !n.group.isListening()) continue;
+      const z = n.group.zIndex();
+      if (best && z < best.z) continue;
+      if (tokenCovers({ x: n.group.x(), y: n.group.y(), size: t.size, rotation: t.rotation, assetId: t.assetId }, n.cell, p)) best = { t, z };
+    }
+    return best?.t ?? null;
+  }
+
+  /**
+   * A spell put on a token, or ended when it's already on it (the same spell, clicked again). A
+   * drawing naming the token, so it's undone, hidden and ended like a zone, and players need
+   * the GM's leave to draw.
+   */
+  private spellOnToken(t: TokenItem | null): boolean {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    const spell = tokenSpell(s.spellOpts.spell);
+    const me = s.me;
+    if (!scene || !me || !spell) return false;
+    if (!t) {
+      this.room.toast(`Click a token to put ${spell.name} on it.`);
+      return false;
+    }
+    const already = this.spellOn(t, spell.name);
+    if (already) {
+      if (canDelete(already, me)) this.room.change({ delete: [already.id] });
+      else this.room.toast(`${spell.name} is already on ${t.label || "that token"}. Only the GM or whoever cast it can end it.`);
+      return false;
+    }
+    if (!this.isGm && !s.room?.settings.playersCanDraw) {
+      this.room.toast("The GM has turned drawing off, so spells can't be put on tokens.", "error");
+      return false;
+    }
+    const r = (t.size * scene.grid.size) / 2;
+    const item: DrawingItem = {
+      id: randomId(12),
+      sceneId: scene.id,
+      kind: "drawing",
+      z: this.room.nextZ(scene.id, "drawing"),
+      owner: me.userId,
+      shape: "ellipse",
+      points: [t.x - r, t.y - r, t.x + r, t.y + r].map(round2),
+      color: spell.color,
+      width: 2,
+      fill: false,
+      fx: spell.look,
+      spell: spell.name,
+      on: t.id,
+    };
+    const rounds = castRounds(this.room, spell.name);
+    if (rounds) item.rounds = rounds;
+    this.room.change({ upsert: [item] });
+    return true;
+  }
+
+  /** A spell that's on a token now (its drawing), if it is. */
+  private spellOn(t: TokenItem, name: string): DrawingItem | undefined {
+    return Object.values(this.room.state.items).find((i): i is DrawingItem => i.kind === "drawing" && i.on === t.id && i.spell === name);
+  }
+
+  /**
+   * A spell zone, let go: where it was clicked at the spell's own size, or as dragged (a circle
+   * from its middle out, a rectangle corner to corner). A drawing, so it's undone, erased and
+   * hidden like one, and players need the GM's leave to draw.
+   */
+  private placeZone(name: string, start: Point, end: Point): boolean {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    const spell = zoneSpell(name);
+    if (!scene || !s.me || !spell) return false;
+    if (!this.isGm && !s.room?.settings.playersCanDraw) {
+      this.room.toast("The GM has turned drawing off, so spells can't be left on the map.", "error");
+      return false;
+    }
+    const cell = scene.grid.size;
+    const dragged = Math.hypot(end.x - start.x, end.y - start.y) > cell * 0.3;
+    // Cast as a character at a higher level: the size that level gives.
+    const size = sizeAt(spell.size, spell.perLevel, castRaise(this.room, name));
+    let points: number[];
+    if (spell.shape === "circle") {
+      const c = dragged ? start : end;
+      const r = Math.max(cell * 0.25, dragged ? Math.hypot(end.x - start.x, end.y - start.y) : this.spellReach(size));
+      points = [c.x - r, c.y - r, c.x + r, c.y + r];
+    } else if (dragged) {
+      points = [Math.min(start.x, end.x), Math.min(start.y, end.y), Math.max(start.x, end.x), Math.max(start.y, end.y)];
+      if (points[2] - points[0] < cell * 0.5) points[2] = points[0] + cell * 0.5;
+      if (points[3] - points[1] < cell * 0.5) points[3] = points[1] + cell * 0.5;
+    } else {
+      // A click: the spell's own size, a bridge lying across the map.
+      const h = Math.max(cell * 0.25, this.spellReach(size) / 2);
+      const w = spell.width ? Math.max(cell * 0.25, this.spellReach(spell.width) / 2) : h;
+      points = [end.x - h, end.y - w, end.x + h, end.y + w];
+    }
+    const item: DrawingItem = {
+      id: randomId(12),
+      sceneId: scene.id,
+      kind: "drawing",
+      z: this.room.nextZ(scene.id, "drawing"),
+      owner: s.me.userId,
+      shape: spell.shape === "circle" ? "ellipse" : "rect",
+      points: points.map(round2),
+      color: s.me.color,
+      width: 2,
+      fill: false,
+      fx: spell.look,
+      spell: spell.name,
+    };
+    const rounds = castRounds(this.room, spell.name);
+    if (rounds) item.rounds = rounds;
+    this.room.change({ upsert: [item] });
+    return true;
+  }
+
+  /** A spell's size in map pixels: a burst's radius or a cone's length, from its metres. */
+  private spellReach(size: number | undefined): number {
+    const grid = this.renderedScene?.grid;
+    return grid && size ? distanceSquares({ d: size, unit: "m" }, grid) * grid.size : 0;
+  }
+
+  /**
+   * The Spells tool, let go: the picked spell plays here and on everyone's screen. A burst goes
+   * where it was let go; a cone points from the caster towards it; a bolt or a jump goes from
+   * the caster to it.
+   */
+  private castSpell(start: Point, end: Point): boolean {
+    const scene = this.renderedScene;
+    const name = this.room.state.spellOpts.spell;
+    if (zoneSpell(name)) return this.placeZone(name, start, end);
+    const spell = spellFx(name);
+    if (!scene || !spell) return false;
+    const cast = FX_LOOKS[spell.look].cast;
+    // Cast as a character (from their card's Spells list): from their token, so a click on the
+    // target is enough.
+    const from = this.casterPoint() ?? start;
+    const far = Math.hypot(end.x - from.x, end.y - from.y);
+    if ((cast === "bolt" || cast === "jump" || cast === "cone") && far < scene.grid.size * 0.3) {
+      this.room.toast(cast === "cone" ? "Drag from the caster the way the spell goes." : "Drag from the caster to the target.");
+      return false;
+    }
+    const round = (v: number) => Math.round(v * 100) / 100;
+    const area = cast === "burst" || cast === "strike";
+    const a = area ? end : from;
+    const fx: Extract<Ephemeral, { k: "fx" }> = {
+      k: "fx",
+      sceneId: scene.id,
+      look: spell.look,
+      a: [round(a.x), round(a.y)],
+      b: [round(end.x), round(end.y)],
+      r: round(this.spellReach(sizeAt(spell.size, spell.perLevel, castRaise(this.room, name)))),
+      ...(spell.spread ? { spread: spell.spread } : {}),
+      ...(spell.color ? { color: spell.color } : {}),
+      seed: Math.floor(Math.random() * 2 ** 31),
+    };
+    this.playFx(fx);
+    this.room.sendEph(fx);
+    return true;
+  }
+
+  /** Where a spell cast as a character comes from: their token, when it's on this scene and shows here. */
+  private casterPoint(): Point | null {
+    const id = this.room.state.spellOpts.caster;
+    const n = id ? this.tokens.get(id) : undefined;
+    return n?.item && n.group.visible() ? n.group.position() : null;
+  }
+
+  /** Starts an effect playing here. */
+  private playFx(e: Extract<Ephemeral, { k: "fx" }>): void {
+    const grid = this.renderedScene?.grid;
+    if (!grid || !isFxLook(e.look) || this.fxPlays.length > 40) return;
+    this.fxPlays.push({
+      look: e.look,
+      a: { x: e.a[0], y: e.a[1] },
+      b: { x: e.b[0], y: e.b[1] },
+      r: e.r,
+      spread: e.spread ?? 90,
+      color: e.color ?? "#ffffff",
+      seed: e.seed,
+      t0: performance.now(),
+      cell: grid.size,
+    });
+    this.startAnim();
+  }
+
+  /** The effects playing, and (Spells tool) where the next one would go. */
+  private drawSpells(c: CanvasRenderingContext2D): void {
+    const now = performance.now();
+    const px = 1 / this.stage.scaleX();
+    for (const f of this.fxPlays) drawFx(c, f, now, px);
+    const s = this.room.state;
+    if (s.tool !== "spell" || this.room.display) return;
+    const g = this.gesture;
+    const aiming = g.kind === "spell" ? g : null;
+    const at = aiming?.end ?? this.spellHover;
+    const caster = this.casterPoint();
+    if (caster) {
+      const n = this.tokens.get(s.spellOpts.caster ?? "");
+      c.save();
+      c.setLineDash([4 * px, 4 * px]);
+      c.lineWidth = 2 * px;
+      c.strokeStyle = s.me?.color ?? "#ffffff";
+      c.beginPath();
+      c.arc(caster.x, caster.y, (((n?.item?.size ?? 1) * (n?.cell ?? 70)) / 2) * 1.3, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
+    if (tokenSpell(s.spellOpts.spell)) {
+      const n = at ? this.tokens.get(this.tokenAt(at)?.id ?? "") : undefined;
+      if (!n?.item) return;
+      c.save();
+      c.setLineDash([8 * px, 6 * px]);
+      c.lineWidth = 2 * px;
+      c.strokeStyle = s.me?.color ?? "#ffffff";
+      c.beginPath();
+      c.arc(n.group.x(), n.group.y(), ((n.item.size * n.cell) / 2) * 1.2, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+      return;
+    }
+    const zone = zoneSpell(s.spellOpts.spell);
+    if (zone && at) {
+      const cell = this.renderedScene?.grid.size ?? 70;
+      const color = s.me?.color ?? "#ffffff";
+      const dragged = aiming && Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) > cell * 0.3;
+      c.save();
+      c.setLineDash([8 * px, 6 * px]);
+      c.lineWidth = 2 * px;
+      c.strokeStyle = color;
+      c.fillStyle = hexToRgba(color, 0.12);
+      c.beginPath();
+      if (zone.shape === "circle") {
+        const ctr = dragged ? aiming.start : at;
+        c.arc(ctr.x, ctr.y, dragged ? Math.hypot(at.x - aiming.start.x, at.y - aiming.start.y) : this.spellReach(sizeAt(zone.size, zone.perLevel, castRaise(this.room, zone.name))), 0, Math.PI * 2);
+      } else if (dragged) {
+        c.rect(aiming.start.x, aiming.start.y, at.x - aiming.start.x, at.y - aiming.start.y);
+      } else {
+        const h = this.spellReach(sizeAt(zone.size, zone.perLevel, castRaise(this.room, zone.name))) / 2;
+        const w = zone.width ? this.spellReach(zone.width) / 2 : h;
+        c.rect(at.x - h, at.y - w, 2 * h, 2 * w);
+      }
+      c.fill();
+      c.stroke();
+      c.restore();
+      return;
+    }
+    const spell = spellFx(s.spellOpts.spell);
+    if (!spell || !at) return;
+    const cast = FX_LOOKS[spell.look].cast;
+    const reach = this.spellReach(sizeAt(spell.size, spell.perLevel, castRaise(this.room, spell.name)));
+    const color = s.me?.color ?? "#ffffff";
+    c.save();
+    c.setLineDash([8 * px, 6 * px]);
+    c.lineWidth = 2 * px;
+    c.strokeStyle = color;
+    c.fillStyle = hexToRgba(color, 0.12);
+    if (cast === "burst" || cast === "strike") {
+      c.beginPath();
+      c.arc(at.x, at.y, Math.max(reach, 6 * px), 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+    } else if (aiming || caster) {
+      const from = caster ?? aiming!.start;
+      if (cast === "cone") {
+        const dir = Math.atan2(at.y - from.y, at.x - from.x);
+        const h = (((spell.spread ?? 90) / 2) * Math.PI) / 180;
+        c.beginPath();
+        c.moveTo(from.x, from.y);
+        c.arc(from.x, from.y, reach, dir - h, dir + h);
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else {
+        c.beginPath();
+        c.moveTo(from.x, from.y);
+        c.lineTo(at.x, at.y);
+        c.stroke();
+        c.setLineDash([]);
+        c.beginPath();
+        c.arc(at.x, at.y, 6 * px, 0, Math.PI * 2);
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+
   private addTrail(key: string, color: string, p: Point): void {
     let trail = this.trails.get(key);
     if (!trail) {
@@ -1974,6 +2957,10 @@ export class Board implements BoardApi {
       if (!this.room.display) return;
       this.followRect = e.rect;
       this.applyDisplayView();
+      return;
+    }
+    if (e.k === "fx") {
+      this.playFx(e);
       return;
     }
     if (e.k === "pointer") {
@@ -2117,6 +3104,11 @@ export class Board implements BoardApi {
     const world = this.toWorld(pos);
     const s = this.room.state;
     const scene = this.renderedScene;
+    // GM: Add a light (Edit scene › Lighting): the light goes where the map's clicked, whatever the tool.
+    if (s.lightAdd && this.isGm && scene && s.lightAdd.sceneId === scene.id) {
+      this.addLight(scene, world);
+      return;
+    }
     if (s.gridAlign && this.isGm) {
       const node = new Konva.Rect({
         x: world.x,
@@ -2134,13 +3126,21 @@ export class Board implements BoardApi {
     }
     switch (s.tool) {
       case "select":
-        this.selectDown(e.pointerId, pos, world, e.shiftKey);
+        // GM, lighting on: a click on a door's marker opens or shuts it; on a light's, picks it, and a
+        // drag moves it. A token there is picked instead; a drawing (a spell's zone, say) isn't, as
+        // the small marker is what was aimed at.
+        if (this.isGm && this.pickAt(pos)?.kind !== "token" && (this.doorClick(world) || this.lightDown(e.pointerId, pos, world))) return;
+        if (s.lightPick) {
+          this.room.store.set({ lightPick: null });
+          this.uiLayer.batchDraw();
+        }
+        this.selectDown(e.pointerId, pos, world, this.shiftHeld(e));
         return;
       case "draw":
         this.drawDown(e.pointerId, world);
         return;
       case "erase":
-        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set(), warned: false };
+        this.gesture = { kind: "erase", pointerId: e.pointerId, ids: new Set(), warned: false, built: false };
         this.eraseAt(this.gesture, pos);
         return;
       case "fog":
@@ -2154,13 +3154,21 @@ export class Board implements BoardApi {
       case "measure": {
         const shape = s.measureOpts.shape;
         // Rulers run centre to centre; spell templates start on a grid intersection.
-        const start = !scene.grid.snap
+        const start = !this.room.snaps(scene)
           ? world
           : shape === "ruler"
             ? snapToCellCenter(world, scene.grid)
             : snapToVertex(world, scene.grid);
         this.gesture = { kind: "measure", pointerId: e.pointerId, shape, start, end: start, lastEph: 0 };
         this.setLocalRuler(start, start, shape);
+        return;
+      }
+      case "spell": {
+        // Cast from a token pressed on, from its middle.
+        const hit = this.pickAt(pos);
+        const start = hit?.kind === "token" ? { x: hit.x, y: hit.y } : world;
+        this.gesture = { kind: "spell", pointerId: e.pointerId, start, end: world };
+        this.uiLayer.batchDraw();
         return;
       }
       case "pointer":
@@ -2197,8 +3205,9 @@ export class Board implements BoardApi {
       this.toggleSelected(hit.id);
       return;
     }
-    // Drawings move only once selected, so a big shape doesn't hijack every attempt to pan.
-    if (hit?.kind === "token" || (hit?.kind === "drawing" && s.selection.includes(hit.id))) {
+    // Drawings move only once selected, so a big shape doesn't hijack every attempt to pan. A
+    // conjured weapon is a square across and moved round like a token: it goes at once.
+    if (hit?.kind === "token" || (hit?.kind === "drawing" && (s.selection.includes(hit.id) || hit.fx === "spirit-weapon"))) {
       // Grabbing something that's part of the selection moves the whole selection:
       // tokens, drawings and notes together.
       const group = s.selection.includes(hit.id) ? s.selection : [hit.id];
@@ -2222,6 +3231,7 @@ export class Board implements BoardApi {
           startWorld: world,
           moved: false,
           lastEph: 0,
+          at: new Map(),
         };
       } else {
         this.startPan(pointerId, pos, hit.kind === "drawing" ? () => this.room.select([hit.id]) : undefined);
@@ -2354,6 +3364,7 @@ export class Board implements BoardApi {
   private eraseAt(g: Extract<Gesture, { kind: "erase" }>, pos: Point): void {
     const me = this.room.state.me;
     if (!me) return;
+    if (this.isGm && !g.built) g.built = this.builtAt(this.toWorld(pos));
     // Sample a small cross so thin lines are easy to hit on a touch screen.
     const r = 6;
     for (const p of [pos, { x: pos.x + r, y: pos.y }, { x: pos.x - r, y: pos.y }, { x: pos.x, y: pos.y + r }, { x: pos.x, y: pos.y - r }]) {
@@ -2387,6 +3398,14 @@ export class Board implements BoardApi {
       this.drawings.get(item.id)?.shape.hide();
       this.drawLayer.batchDraw();
     }
+  }
+
+  /** Whether floor, terrain or an object made with the Build tool is at a point on the map. */
+  private builtAt(p: Point): boolean {
+    const scene = this.renderedScene;
+    if (!scene || isHex(scene.grid)) return false;
+    const { u, v } = this.cellsAt(p);
+    return this.build.model.cell(Math.floor(u), Math.floor(v)) !== EMPTY || !!this.build.model.stampAtPoint(u, v, 0);
   }
 
   private fogDown(pointerId: number, world: Point): void {
@@ -2503,8 +3522,34 @@ export class Board implements BoardApi {
         // (otherwise a drag moves the map). A click always places a new one.
         const mouse = e.pointerType === "mouse";
         const { u, v } = this.cellsAt(world);
-        const grab = mouse && !alt && o.stampMode === "place" ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
-        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", alt, grab, touch: !mouse };
+        if (o.stampMode === "remove" || (alt && !this.altScaled)) {
+          // Erasing: a click takes the object drawn on top there, a drag every object it passes over.
+          const pad = mouse ? 0 : Math.min(0.5, 12 / (this.cam.scale * scene.grid.size));
+          const hit = this.build.model.stampAtPoint(u, v, pad);
+          const refs = hit ? [refOf(hit)] : [];
+          this.gesture = { kind: "build-erase-objects", pointerId, refs, start: pos, moved: false, last: world, pad };
+          this.build.hideStamps(refs);
+          this.setHover(null);
+          this.bgLayer.batchDraw();
+          return;
+        }
+        if (o.stampMode === "scatter") {
+          this.newBurst();
+          const g: Extract<Gesture, { kind: "build-scatter" }> = {
+            kind: "build-scatter",
+            pointerId,
+            last: null,
+            start: pos,
+            key: `scatter|${this.burstKey()}`,
+            applied: false,
+            full: false,
+          };
+          this.gesture = g;
+          if (mouse) this.scatterAlong(g, world);
+          return;
+        }
+        const grab = mouse && !alt ? (this.build.model.stampAtPoint(u, v, 0) ?? undefined) : undefined;
+        this.gesture = { kind: "tap", pointerId, start: pos, world, action: "stamp", grab };
         return;
       }
       case "select": {
@@ -2515,7 +3560,7 @@ export class Board implements BoardApi {
           pointerId,
           start: pos,
           startWorld: world,
-          shift: mouse && e.shiftKey,
+          shift: mouse && this.shiftHeld(e),
           mouse,
           grab: under.some((h) => this.buildSel.objects.some((r) => sameRef(r, h))),
         };
@@ -2540,13 +3585,17 @@ export class Board implements BoardApi {
       : { col: Math.round(u) - n / 2, row: Math.round(v) - n / 2 };
   }
 
-  /** Where an n x n object goes when placed at a point: centred on it, and inside the scene. */
+  /**
+   * Where an n x n object goes when placed at a point: centred on it (on whole squares, or
+   * with Snap to squares off to a sixteenth of a square), and inside the scene.
+   */
   private stampAnchor(p: Point, n: number): Cell {
     const scene = this.renderedScene!;
     const g = scene.grid;
-    const all = sceneCells(scene.width, scene.height, g);
-    const col = Math.round((p.x - g.offsetX) / g.size - n / 2);
-    const row = Math.round((p.y - g.offsetY) / g.size - n / 2);
+    const all = sceneAreaCells(scene, g);
+    const snap = this.room.objectSnaps() ? Math.round : snapPos;
+    const col = snap((p.x - g.offsetX) / g.size - n / 2);
+    const row = snap((p.y - g.offsetY) / g.size - n / 2);
     return {
       col: Math.max(all.c0, Math.min(all.c1 - n + 1, col)),
       row: Math.max(all.r0, Math.min(all.r1 - n + 1, row)),
@@ -2555,7 +3604,7 @@ export class Board implements BoardApi {
 
   /** The cells a scene covers: objects are kept within them. */
   private sceneBounds(scene: Scene): CellBounds {
-    return sceneCells(scene.width, scene.height, scene.grid);
+    return sceneAreaCells(scene, scene.grid);
   }
 
   /** What the brush and shapes paint in the current mode: a floor, or "." to erase. */
@@ -2564,7 +3613,10 @@ export class Board implements BoardApi {
     const mode = this.paintMode();
     const floor = o.floor[mode];
     if (erase || floor === "erase") return EMPTY;
-    return mode === "terrain" ? floor : floorChar(floor, wallsFor(this.renderedScene!, o.walls));
+    const walls = wallsFor(this.renderedScene!, o.walls);
+    const texture = textureChoice(floor);
+    if (texture) return paintCode(textureFloor(texture, mode, walls), texture);
+    return mode === "terrain" ? floor : floorChar(floor as FloorId, walls);
   }
 
   /**
@@ -2581,7 +3633,7 @@ export class Board implements BoardApi {
   private paintBrush(from: Point, to: Point, erase: boolean): void {
     const scene = this.renderedScene!;
     const g = scene.grid;
-    const all = sceneCells(scene.width, scene.height, g);
+    const all = sceneAreaCells(scene, g);
     const ch = this.paintChar(erase);
     const n = this.brushCells();
     const steps = Math.max(1, Math.ceil((Math.hypot(to.x - from.x, to.y - from.y) / g.size) * 2));
@@ -2601,7 +3653,7 @@ export class Board implements BoardApi {
   /** A rectangle from one cell to another, or the oval inside it. */
   private paintArea(a: Cell, b: Cell, erase: boolean, circle: boolean): void {
     const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const all = sceneAreaCells(scene, scene.grid);
     const ch = this.paintChar(erase);
     this.build.clearDraftCells();
     const c0 = Math.min(a.col, b.col);
@@ -2667,7 +3719,7 @@ export class Board implements BoardApi {
   /** Whether an edge is on the scene: inside it, or along its border. */
   private edgeOnScene(col: number, row: number, side: Side): boolean {
     const scene = this.renderedScene!;
-    const all = sceneCells(scene.width, scene.height, scene.grid);
+    const all = sceneAreaCells(scene, scene.grid);
     return side === "t"
       ? col >= all.c0 && col <= all.c1 && row >= all.r0 && row <= all.r1 + 1
       : row >= all.r0 && row <= all.r1 && col >= all.c0 && col <= all.c1 + 1;
@@ -2788,12 +3840,12 @@ export class Board implements BoardApi {
    * between). With a burst's key (see newBurst), it folds into the undo step before it
    * when that's from the same burst; without one it's a step of its own, and ends the burst.
    */
-  private applyBuild(edit: BuildEdit, coalesce?: string): void {
+  private applyBuild(edit: BuildEdit, coalesce?: string, held = false): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const before = this.room.state.items;
     const ops = edit.ops();
-    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops, edit.pairs()), coalesce);
+    this.room.changeWith(ops, scene.id, buildUndo(before, scene.id, ops, edit.pairs()), coalesce, held);
     this.build.update(sceneTerrain(this.room.state.items, scene.id));
     this.build.endDraft();
     this.bgLayer.batchDraw();
@@ -2819,9 +3871,9 @@ export class Board implements BoardApi {
       return;
     }
     const edit = new BuildEdit(this.room.state.items, scene.id);
-    for (const [k, ch] of d.cells) {
-      if (ch === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
-      else edit.setCell(keyCol(k), keyRow(k), ch);
+    for (const [k, code] of d.cells) {
+      if (code === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
+      else edit.setCell(keyCol(k), keyRow(k), code[0], code.slice(2));
     }
     for (const [k, mode] of d.walls) {
       const { col, row, side } = edgeOf(k);
@@ -2841,23 +3893,95 @@ export class Board implements BoardApi {
     this.applyBuild(edit);
   }
 
+  /** What the scatter brush puts down: the picked object, or with Mix its whole group in the picker ("Leafy trees"). */
+  private scatterIds(): readonly StampId[] {
+    const o = this.room.state.buildOpts;
+    return (o.scatter.mix && foldOf(o.stamp)?.ids) || [o.stamp];
+  }
+
   /**
-   * Objects: a click places the next object, even on top of another (a chair at a table);
-   * with Alt (or Remove), it takes away the object drawn on top there.
+   * Objects › Scatter: dabs of the brush from the last dab to this point, a quarter of the
+   * brush apart, each applied at once into the drag's one undo step.
    */
-  private stampTap(world: Point, alt: boolean, touch: boolean): void {
+  private scatterAlong(g: Extract<Gesture, { kind: "build-scatter" }>, world: Point): void {
+    const scene = this.renderedScene;
+    if (!scene) return;
+    const o = this.room.state.buildOpts;
+    const brush = o.scatter.brush;
+    const b = this.cellsAt(world);
+    const a = g.last ? this.cellsAt(g.last) : null;
+    const gap = a ? Math.hypot(b.u - a.u, b.v - a.v) : 0;
+    // The first dab, then one each quarter of the brush the pointer moves.
+    if (a && gap < brush / 4) return;
+    g.last = world;
+    const steps = a ? Math.min(40, Math.floor(gap / (brush / 4))) : 1;
+    const all = sceneAreaCells(scene, scene.grid);
+    const inside = (c: CellBounds) => c.c0 >= all.c0 && c.r0 >= all.r0 && c.c1 <= all.c1 && c.r1 <= all.r1;
+    const spec = { ids: this.scatterIds(), brush, density: o.scatter.density };
+    const edit = new BuildEdit(this.room.state.items, scene.id);
+    // What this move has added so far counts for its next dabs, before it's applied.
+    const pending: Placed[] = [];
+    const near = (x: number, y: number, r: number) => [...this.build.model.placedNear(x, y, r), ...pending];
+    for (let i = 1; i <= steps; i++) {
+      const u = a ? a.u + ((b.u - a.u) * i) / steps : b.u;
+      const v = a ? a.v + ((b.v - a.v) * i) / steps : b.v;
+      for (const p of scatterDab(spec, u, v, near, inside)) {
+        const r = edit.addPlaced(p);
+        if (r.ok) pending.push(p);
+        else if (r.reason === "full") g.full = true;
+      }
+    }
+    if (!pending.length) return;
+    this.applyBuild(edit, g.key, true);
+    g.applied = true;
+  }
+
+  /**
+   * Objects › Erase: every object under the drag from its last point to this one is hidden,
+   * to be taken away when it's let go. A sample every quarter of a square, so a quick drag
+   * doesn't jump over a small object.
+   */
+  private eraseObjectsAlong(g: Extract<Gesture, { kind: "build-erase-objects" }>, world: Point): void {
+    const a = this.cellsAt(g.last);
+    const b = this.cellsAt(world);
+    g.last = world;
+    const n = Math.min(400, Math.max(1, Math.ceil(Math.hypot(b.u - a.u, b.v - a.v) / 0.25)));
+    let added = false;
+    for (let i = 1; i <= n; i++) {
+      const u = a.u + ((b.u - a.u) * i) / n;
+      const v = a.v + ((b.v - a.v) * i) / n;
+      for (const hit of this.build.model.stampsAtPoint(u, v, g.pad)) {
+        if (g.refs.some((r) => sameRef(r, hit))) continue;
+        g.refs.push(refOf(hit));
+        added = true;
+      }
+    }
+    if (!added) return;
+    this.build.hideStamps(g.refs);
+    this.bgLayer.batchDraw();
+  }
+
+  /** Takes away the objects an erasing drag (or click) picked out, as one undo step. */
+  private eraseObjects(refs: StampRef[]): void {
+    const scene = this.renderedScene;
+    if (scene && refs.length) {
+      const edit = new BuildEdit(this.room.state.items, scene.id);
+      if (edit.removeRefs(refs)) this.applyBuild(edit);
+    }
+    // Shown again only now, with them gone: no frame shows them back for a moment.
+    this.build.hideStamps([]);
+    this.bgLayer.batchDraw();
+  }
+
+  /**
+   * Objects: a click places the next object, even on top of another (a chair at a table).
+   * (Erasing them is a drag of its own: see eraseObjectsAlong.)
+   */
+  private stampTap(world: Point): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const o = this.room.state.buildOpts;
     const edit = new BuildEdit(this.room.state.items, scene.id);
-    if ((alt && !this.altScaled) || o.stampMode === "remove") {
-      const { u, v } = this.cellsAt(world);
-      const pad = touch ? Math.min(0.5, 12 / (this.cam.scale * scene.grid.size)) : 0;
-      const hit = this.build.model.stampAtPoint(u, v, pad);
-      if (!hit || !edit.removeRefs([refOf(hit)])) return;
-      this.applyBuild(edit);
-      return;
-    }
     const r = edit.addPlaced({ id: o.stamp, ...this.stampAnchor(world, stampBlock(o.stampSize)), deg: o.stampDeg, size: o.stampSize });
     if (!r.ok) {
       this.room.toast(r.reason === "same" ? BUILD_TOASTS.samePlace : BUILD_TOASTS.full, "error");
@@ -3001,7 +4125,9 @@ export class Board implements BoardApi {
     const keys = keysOf(ctx.refs);
     const from = this.turnBase?.keys === keys ? this.turnBase : { base: ctx.cur, deg: 0, keys };
     const deg = (((from.deg + delta) % 360) + 360) % 360;
-    const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds), coalesce);
+    // Off the grid, or with Snap to squares off, they turn exactly about their middle.
+    const free = !this.room.objectSnaps() || from.base.some((p) => !onGrid(p));
+    const r = this.placeSelection(ctx.scene, ctx.refs, turnGroup(from.base, deg, ctx.bounds, free), coalesce);
     if (r.ok) this.turnBase = { base: from.base, deg, keys: keysOf(r.refs) };
   }
 
@@ -3098,7 +4224,8 @@ export class Board implements BoardApi {
 
   /**
    * Paste: objects (copied here, or text copied from Tabletop anywhere) centred on the
-   * square under the mouse, or the middle of the view; then they're what's selected.
+   * square under the mouse (with Snap to squares off, on the mouse itself), or the middle
+   * of the view; then they're what's selected.
    */
   private pasteObjects(ps: Placed[] | null): void {
     const scene = this.renderedScene;
@@ -3112,8 +4239,14 @@ export class Board implements BoardApi {
       return;
     }
     const at = this.pointerPos ? this.toWorld(this.pointerPos) : this.viewCenter();
-    const cell = cellAt(at.x, at.y, scene.grid);
-    const placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
+    let placed: Placed[] | null;
+    if (this.room.objectSnaps()) {
+      const cell = cellAt(at.x, at.y, scene.grid);
+      placed = placeGroupAt(ps, cell.col, cell.row, this.sceneBounds(scene));
+    } else {
+      const { u, v } = this.cellsAt(at);
+      placed = placeGroupAt(ps, u, v, this.sceneBounds(scene), true);
+    }
     if (!placed) {
       this.room.toast(BUILD_TOASTS.tooBig, "error");
       return;
@@ -3180,7 +4313,8 @@ export class Board implements BoardApi {
     const g: Extract<Gesture, { kind: "build-move-sel" }> = {
       kind: "build-move-sel",
       pointerId,
-      grab: cellAt(from.x, from.y, scene.grid),
+      grab: this.cellsAt(from),
+      free: !this.room.objectSnaps(),
       refs: r.refs,
       orig,
       shift: { dCol: 0, dRow: 0 },
@@ -3196,11 +4330,16 @@ export class Board implements BoardApi {
     return true;
   }
 
-  /** Objects being dragged follow the pointer a square at a time, all together, kept on the scene. */
+  /**
+   * Objects being dragged follow the pointer a square at a time (free: a sixteenth of a
+   * square at a time), all together, kept on the scene.
+   */
   private moveSelTo(g: Extract<Gesture, { kind: "build-move-sel" }>, world: Point): void {
     const scene = this.renderedScene!;
-    const cell = cellAt(world.x, world.y, scene.grid);
-    const d = clampShift(g.orig, cell.col - g.grab.col, cell.row - g.grab.row, this.sceneBounds(scene));
+    const { u, v } = this.cellsAt(world);
+    const dCol = g.free ? snapPos(u - g.grab.u) : Math.floor(u) - Math.floor(g.grab.u);
+    const dRow = g.free ? snapPos(v - g.grab.v) : Math.floor(v) - Math.floor(g.grab.v);
+    const d = clampShift(g.orig, dCol, dRow, this.sceneBounds(scene));
     if (d.dCol === g.shift.dCol && d.dRow === g.shift.dRow) return;
     g.shift = d;
     this.uiLayer.batchDraw();
@@ -3495,7 +4634,7 @@ export class Board implements BoardApi {
       this.room.toast("The GM has turned drawing off, so templates can't be pinned.", "error");
       return;
     }
-    const t = templateGeometry(shape, a, b, scene.grid);
+    const t = templateGeometry(shape, a, b, this.measureGrid(scene));
     const base = {
       id: randomId(12),
       sceneId: scene.id,
@@ -3516,13 +4655,18 @@ export class Board implements BoardApi {
     this.room.change({ upsert: [item] });
   }
 
+  /** A scene's grid as rulers and spell areas go by it: not snapped in a room whose tokens never snap. */
+  private measureGrid(scene: Scene): Scene["grid"] {
+    return { ...scene.grid, snap: this.room.snaps(scene) };
+  }
+
   private setLocalRuler(a: Point, b: Point, shape: MeasureShape): void {
     const scene = this.renderedScene;
     if (!scene) return;
     const label =
       shape === "ruler"
         ? formatDistance(cellDistance(a, b, scene.grid), scene.grid)
-        : templateGeometry(shape, a, b, scene.grid).label;
+        : templateGeometry(shape, a, b, this.measureGrid(scene)).label;
     this.localRuler = { a, b, label, shape, color: this.room.state.me?.color ?? "#fff", expires: Infinity };
     this.renderRulers();
   }
@@ -3557,6 +4701,10 @@ export class Board implements BoardApi {
       this.pointerPos = pos;
       this.updateBrushCursor(world);
       if (this.room.state.tool === "build") this.setHover(world);
+      if (this.room.state.tool === "spell") {
+        this.spellHover = world;
+        this.uiLayer.batchDraw();
+      }
     }
     if (!this.pointers.has(e.pointerId)) {
       if (this.poly) this.updatePolyPreview(world);
@@ -3606,10 +4754,18 @@ export class Board implements BoardApi {
         const dy = world.y - g.startWorld.y;
         // Tokens carry their centre; drawings carry how far they've moved.
         const moves: { id: string; x: number; y: number }[] = [];
+        const walls = this.wallsFor(scene);
         for (const [id, o] of g.origs) {
           const n = this.tokens.get(id);
           if (!n) continue;
-          const p = { x: o.x + dx, y: o.y + dy };
+          let p = { x: o.x + dx, y: o.y + dy };
+          if (walls) {
+            // A wall in the way: it stops there, until it's taken back round.
+            const from = g.at.get(id) ?? o;
+            const [x, y] = moveStop(walls, from.x, from.y, p.x, p.y, scene.grid.size * WALL_GAP);
+            p = { x, y };
+            g.at.set(id, p);
+          }
           n.group.position(p);
           moves.push({ id, x: round2(p.x), y: round2(p.y) });
         }
@@ -3625,6 +4781,13 @@ export class Board implements BoardApi {
           g.lastEph = now;
           this.room.sendEph({ k: "drag", sceneId: scene.id, moves });
         }
+        return;
+      }
+      case "light-drag": {
+        if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        g.moved = true;
+        this.lightDragAt = { index: g.index, x: world.x, y: world.y };
+        this.uiLayer.batchDraw();
         return;
       }
       case "grid-align": {
@@ -3696,6 +4859,19 @@ export class Board implements BoardApi {
       case "erase":
         this.eraseAt(g, pos);
         return;
+      case "spell":
+        g.end = world;
+        this.uiLayer.batchDraw();
+        return;
+      case "build-scatter":
+        if (!g.last && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        this.scatterAlong(g, world);
+        return;
+      case "build-erase-objects":
+        if (!g.moved && Math.hypot(pos.x - g.start.x, pos.y - g.start.y) < DRAG_THRESHOLD) return;
+        g.moved = true;
+        this.eraseObjectsAlong(g, world);
+        return;
       case "build-paint":
         this.paintBrush(g.last, world, g.erase);
         g.last = world;
@@ -3751,7 +4927,7 @@ export class Board implements BoardApi {
         return;
       }
       case "measure": {
-        const end = scene.grid.snap && g.shape === "ruler" ? snapToCellCenter(world, scene.grid) : world;
+        const end = this.room.snaps(scene) && g.shape === "ruler" ? snapToCellCenter(world, scene.grid) : world;
         if (end.x === g.end.x && end.y === g.end.y) return;
         g.end = end;
         this.setLocalRuler(g.start, end, g.shape);
@@ -3821,6 +4997,15 @@ export class Board implements BoardApi {
       case "pan":
         if (!g.moved) g.onClick?.();
         return;
+      case "light-drag": {
+        this.lightDragAt = null;
+        this.uiLayer.batchDraw();
+        const v = scene.vision;
+        if (!g.moved || !v?.lights[g.index]) return;
+        const lights = v.lights.map((l, i) => (i === g.index ? { ...l, x: round2(world.x), y: round2(world.y) } : l));
+        this.room.updateScene(scene.id, { vision: { ...v, lights } });
+        return;
+      }
       case "grid-align": {
         g.node.destroy();
         this.uiLayer.batchDraw();
@@ -3849,7 +5034,7 @@ export class Board implements BoardApi {
             this.doorTap(g.world, !!g.alt);
             break;
           case "stamp":
-            this.stampTap(g.world, !!g.alt, !!g.touch);
+            this.stampTap(g.world);
             break;
           case "wallpoint":
             this.wallPointClick(g.world);
@@ -3861,6 +5046,40 @@ export class Board implements BoardApi {
             break;
           }
         }
+        return;
+      case "spell": {
+        const name = this.room.state.spellOpts.spell;
+        const target = tokenSpell(name) ? this.tokenAt(world) : null;
+        // Cast as a character (from their card's Spells list): a spell needs a prayer left (if it
+        // has to be prayed for) and the spell points, and casting it uses them up. Ending one on a
+        // token (clicked again) doesn't.
+        const as = target && this.spellOn(target, name) ? null : castingAs(this.room, name);
+        const why = as && cantCast(as);
+        let cast = false;
+        if (why) this.room.toast(why, "error");
+        else if (tokenSpell(name)) cast = this.spellOnToken(target);
+        else {
+          // Aimed at a token let go over: its middle.
+          const hit = this.pickAt(this.localPos(e));
+          cast = this.castSpell(g.start, hit?.kind === "token" ? { x: hit.x, y: hit.y } : world);
+        }
+        if (cast && as) {
+          const lasting = zoneSpell(name) || tokenSpell(name) ? castRounds(this.room, name) : null;
+          payForCast(this.room, as, { target: target?.label || undefined, rounds: lasting });
+        }
+        this.uiLayer.batchDraw();
+        return;
+      }
+      case "build-scatter":
+        // A tap on a touch screen is one dab, there.
+        if (!g.last) this.scatterAlong(g, world);
+        if (g.full) this.room.toast(BUILD_TOASTS.full, "error");
+        this.newBurst();
+        return;
+      case "build-erase-objects":
+        // Where the pointer let go, in case its last move wasn't sent on its own.
+        if (g.moved) this.eraseObjectsAlong(g, world);
+        this.eraseObjects(g.refs);
         return;
       case "build-paint":
       case "build-rect":
@@ -3886,7 +5105,7 @@ export class Board implements BoardApi {
       case "build-box":
         // Where the pointer let go, in case its last move wasn't sent on its own.
         g.end = world;
-        this.dropBox(g, g.additive || e.shiftKey);
+        this.dropBox(g, g.additive || this.shiftHeld(e));
         return;
       case "build-move-sel":
         this.moveSelTo(g, world);
@@ -3907,7 +5126,7 @@ export class Board implements BoardApi {
         }
         this.itemsDirty = true;
         const items = this.room.state.items;
-        const snap = scene.grid.snap && !e.altKey;
+        const snap = this.room.tokenSnaps(scene) && !e.altKey;
         let offset = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
         const lead = items[g.id];
         const leadOrig = g.origs.get(g.id);
@@ -3918,12 +5137,14 @@ export class Board implements BoardApi {
         }
         const patches: ItemPatch[] = [];
         const finalMoves: { id: string; x: number; y: number }[] = [];
+        const walls = this.wallsFor(scene);
         for (const [id, o] of g.origs) {
           const item = items[id];
           if (!item || item.kind !== "token") continue;
           let p = { x: o.x + offset.x, y: o.y + offset.y };
           // A token that sat on the grid stays on it, whatever size the one being held is.
           if (snap && id !== g.id && isOnGrid(o, item.size, scene.grid)) p = snapTokenCenter(p, item.size, scene.grid);
+          if (walls) p = this.stoppedAt(walls, g.at.get(id) ?? o, p, item.size, scene, snap);
           const x = round2(p.x);
           const y = round2(p.y);
           if (x !== item.x || y !== item.y) patches.push({ id, set: { x, y } });
@@ -3955,11 +5176,12 @@ export class Board implements BoardApi {
         const inside = (x: number, y: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
         const picked: string[] = [];
         for (const [id, n] of this.tokens) {
-          // (Nor what can't be clicked: a compass, for players.)
-          if (!n.item || !n.group.listening()) continue;
+          // (Nor what can't be clicked: a compass, for players; an unseen token.)
+          if (!n.item || !n.group.listening() || n.gone) continue;
           if (inside(n.item.x, n.item.y) && !this.fogged(this.toScreen(n.item))) picked.push(id);
         }
         for (const [id, n] of this.drawings) {
+          if (n.item.on) continue;
           const r = n.shape.getClientRect({ relativeTo: this.drawLayer });
           const centre = this.toScreen({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
           if (inside(r.x, r.y) && inside(r.x + r.width, r.y + r.height) && !this.fogged(centre)) picked.push(id);
@@ -3973,6 +5195,12 @@ export class Board implements BoardApi {
         return;
       case "erase":
         if (g.ids.size) this.room.change({ delete: [...g.ids] });
+        // The GM tried it on what the Build tool made: say where that tool's own eraser is
+        // (once with other things erased, every time it took nothing).
+        if (g.built && (!g.ids.size || !this.builtEraseHinted)) {
+          this.builtEraseHinted = true;
+          this.room.toast(BUILD_TOASTS.eraserBuilt);
+        }
         return;
       case "fog-rect": {
         g.node.destroy();
@@ -4026,6 +5254,10 @@ export class Board implements BoardApi {
     const g = this.gesture;
     this.gesture = { kind: "none" };
     switch (g.kind) {
+      case "light-drag":
+        this.lightDragAt = null;
+        this.uiLayer.batchDraw();
+        return;
       case "drag-items": {
         for (const id of g.origs.keys()) {
           this.dragging.delete(id);
@@ -4079,6 +5311,18 @@ export class Board implements BoardApi {
         this.build.hideStamps([]);
         this.bgLayer.batchDraw();
         this.uiLayer.batchDraw();
+        break;
+      case "build-erase-objects":
+        this.build.hideStamps([]);
+        this.bgLayer.batchDraw();
+        break;
+      case "spell":
+        this.uiLayer.batchDraw();
+        break;
+      case "build-scatter":
+        // The drag's one undo step is on top: take it back.
+        if (g.applied) this.room.undo();
+        this.newBurst();
         break;
       case "build-box":
         g.node.destroy();
@@ -4171,24 +5415,26 @@ export class Board implements BoardApi {
       return;
     }
     const world = this.toWorld(this.localPos(e));
+    // Alt held as it's dropped: exactly there, not snapped to the grid (as when letting go of one being moved).
+    const free = e.altKey;
     const assetId = e.dataTransfer?.getData("application/x-tabletop-asset");
     if (assetId) {
-      this.room.addToken({ assetId }, world);
+      this.room.addToken({ assetId }, world, free);
       return;
     }
     // A creature from the GM's Monsters list, hidden or not as the list showed.
     const monster = readMonsterDrag(e.dataTransfer?.getData(MONSTER_DRAG_TYPE));
     if (monster) {
-      void placeMonster(this.room, monster.id, world, monster.hidden);
+      void placeMonster(this.room, monster.id, world, monster.hidden, free);
       return;
     }
     // An NPC from the GM's NPCs list, likewise.
     const npc = readNpcDrag(e.dataTransfer?.getData(NPC_DRAG_TYPE));
     if (npc) {
-      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden);
+      void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden, free);
       return;
     }
-    void this.takeFiles([...(e.dataTransfer?.files ?? [])], world);
+    void this.takeFiles([...(e.dataTransfer?.files ?? [])], world, free);
   };
 
   /**
@@ -4253,8 +5499,9 @@ export class Board implements BoardApi {
    * With a Dungeondraft project file among them, every image goes with it (sortDroppedFiles);
    * a project file dropped on its own attaches to the scene being viewed when its picture
    * could be that map's export, else waits in the new-scene dialog for its export (design 2.1 A).
+   * Free: Alt was held as they were dropped, so the tokens go exactly there.
    */
-  private async takeFiles(files: File[], at: Point | null): Promise<void> {
+  private async takeFiles(files: File[], at: Point | null, free = false): Promise<void> {
     const sorted = await sortDroppedFiles(files, this.isGm);
     if (sorted.refused) this.room.toast("Only the GM can add maps.", "error");
     if (sorted.lone) {
@@ -4267,7 +5514,12 @@ export class Board implements BoardApi {
       }
     }
     if (sorted.maps.length) this.room.store.set({ mapImport: sorted.maps });
-    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at);
+    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at, free);
+  }
+
+  /** Shift held for a click or drag, unless it's held to talk (voice chat), when tokens and the map still move. */
+  private shiftHeld(e: { shiftKey: boolean }): boolean {
+    return e.shiftKey && !voiceLink.voice.shiftTalks();
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -4310,7 +5562,9 @@ export class Board implements BoardApi {
     if (mod) {
       const k = key.toLowerCase();
       const g = this.gesture.kind;
-      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select")) this.cancelGesture();
+      if ((k === "z" || k === "y") && (g === "build-move-sel" || g === "build-box" || g === "build-select" || g === "build-erase-objects" || g === "build-scatter")) {
+        this.cancelGesture();
+      }
       if (k === "z") {
         e.preventDefault();
         if (e.shiftKey) this.room.redo();
@@ -4361,6 +5615,10 @@ export class Board implements BoardApi {
       const deg = dir * (e.shiftKey ? 5 : 15);
       if ((o.mode === "building" || o.mode === "terrain") && o.shape[o.mode] === "brush") {
         room.store.set({ buildOpts: { ...o, brush: Math.min(5, Math.max(1, o.brush + dir)) } });
+      } else if (o.mode === "stamps" && o.stampMode === "scatter") {
+        const sizes: readonly number[] = SCATTER_BRUSHES;
+        const i = Math.max(0, Math.min(sizes.length - 1, sizes.indexOf(o.scatter.brush) + dir));
+        room.store.set({ buildOpts: { ...o, scatter: { ...o.scatter, brush: sizes[i] } } });
       } else if (o.mode === "stamps") {
         room.store.set({ buildOpts: { ...o, stampDeg: snapDeg(o.stampDeg + deg) } });
       } else if (selecting) {
@@ -4374,7 +5632,8 @@ export class Board implements BoardApi {
       return;
     }
     if (selecting) {
-      const nudge = e.shiftKey ? 5 : 1;
+      // A square (Shift: 5); with Snap to squares off, a quarter square (Shift: a square).
+      const nudge = this.room.objectSnaps() ? (e.shiftKey ? 5 : 1) : e.shiftKey ? 1 : 0.25;
       switch (key) {
         case "Delete":
         case "Backspace":
@@ -4402,6 +5661,7 @@ export class Board implements BoardApi {
     switch (key) {
       case "Escape":
         if (room.state.gridAlign && this.gesture.kind === "none") room.store.set({ gridAlign: null });
+        else if (room.state.lightAdd && this.gesture.kind === "none") room.store.set({ lightAdd: null });
         else if (this.wallPath && this.gesture.kind === "none") this.cancelWallPath();
         else if (this.poly) this.cancelPoly();
         else if (this.gesture.kind !== "none") this.cancelGesture();
@@ -4471,6 +5731,10 @@ export class Board implements BoardApi {
       case "P":
         room.setTool("pointer");
         return;
+      case "s":
+      case "S":
+        room.setTool("spell");
+        return;
       case "h":
       case "H":
         toggleHidden(room);
@@ -4481,19 +5745,19 @@ export class Board implements BoardApi {
         return;
       case "ArrowUp":
         e.preventDefault();
-        nudgeSelection(room, 0, -1);
+        nudgeSelection(room, 0, -1, this.stepBlocked);
         return;
       case "ArrowDown":
         e.preventDefault();
-        nudgeSelection(room, 0, 1);
+        nudgeSelection(room, 0, 1, this.stepBlocked);
         return;
       case "ArrowLeft":
         e.preventDefault();
-        nudgeSelection(room, -1, 0);
+        nudgeSelection(room, -1, 0, this.stepBlocked);
         return;
       case "ArrowRight":
         e.preventDefault();
-        nudgeSelection(room, 1, 0);
+        nudgeSelection(room, 1, 0, this.stepBlocked);
         return;
       case "+":
       case "=":
@@ -4531,7 +5795,7 @@ export class Board implements BoardApi {
     else if (tool === "build" && s.buildOpts.mode === "select") {
       // Select: a drag on an object moves it, and anywhere else draws a box.
       cursor = g.kind === "build-move-sel" ? "grabbing" : g.kind === "build-box" ? "crosshair" : this.hoverObject ? "move" : "default";
-    } else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer") cursor = "crosshair";
+    } else if (tool === "draw" || tool === "fog" || tool === "build" || tool === "measure" || tool === "pointer" || tool === "spell") cursor = "crosshair";
     else if (tool === "erase") cursor = "cell";
     this.el.style.cursor = cursor;
   }

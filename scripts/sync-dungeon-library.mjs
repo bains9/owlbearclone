@@ -1,0 +1,129 @@
+// Copies Dungeon's drawing library (dungeon.parhome.ca's objects and textures) into Tabletop,
+// so the Build tool can draw every one of them. Dungeon stays the one place they're made:
+// change them there, then run this.
+//
+//   node scripts/sync-dungeon-library.mjs              (Dungeon next to Tabletop: C:\Users\G\dungeon)
+//   DUNGEON_DIR=/path/to/dungeon node scripts/sync-dungeon-library.mjs
+//
+// It writes:
+//   src/client/dungeonLib/<file>.ts  the library's files, as they are, under a header line: the
+//                                    drawing kit, the textures, and the objects (props.ts and
+//                                    every file it's made from: props-*.ts, library.ts...)
+//   src/shared/dungeonCatalog.ts     what the server needs to know without drawing anything:
+//                                    every object's id, name, category, group, size and layer,
+//                                    and every texture's id, name and group, read from the
+//                                    library itself (loaded with esbuild), because most objects
+//                                    are made in code as versions of a design
+// test/dungeonLib.test.ts checks the copies still match Dungeon (when it's there) and that the
+// catalogue matches the copies.
+
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "esbuild";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const dungeon = process.env.DUNGEON_DIR ?? fileURLToPath(new URL("../../dungeon/", import.meta.url));
+/** The library's files in Dungeon's src/render: the drawing kit, the textures, the objects, the scatter brush. */
+export const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|scatter|props(-[a-z]+)?)\.ts$/;
+export const HEADER_PREFIX = "// Copied from Dungeon (src/render/";
+
+if (!existsSync(`${dungeon}/src/render/props.ts`)) {
+  console.error(`No Dungeon library at ${dungeon}: set DUNGEON_DIR.`);
+  process.exit(1);
+}
+
+let commit = "unknown";
+try {
+  commit = execFileSync("git", ["-C", dungeon, "log", "-1", "--format=%h"], { encoding: "utf8" }).trim();
+  const dirty = execFileSync("git", ["-C", dungeon, "status", "--porcelain", "--", "src/render"], { encoding: "utf8" }).trim();
+  if (dirty) commit += " plus uncommitted changes";
+} catch {
+  // Not a git checkout: the copy still works, it just can't say which version it is.
+}
+
+const libDir = `${root}/src/client/dungeonLib`;
+mkdirSync(libDir, { recursive: true });
+const FILES = readdirSync(`${dungeon}/src/render`).filter((f) => LIBRARY_FILE.test(f)).sort();
+for (const f of FILES) {
+  const text = readFileSync(`${dungeon}/src/render/${f}`, "utf8").replace(/\r\n/g, "\n");
+  const header = `${HEADER_PREFIX}${f}) by scripts/sync-dungeon-library.mjs, Dungeon ${commit}. Change it there and run the script again.\n`;
+  writeFileSync(`${libDir}/${f}`, header + text);
+}
+// A file Dungeon no longer has goes here too.
+for (const f of readdirSync(libDir)) if (!FILES.includes(f)) unlinkSync(`${libDir}/${f}`);
+
+// The catalogue, from the library itself: the copies bundled into one module and loaded.
+const bundled = await build({
+  stdin: { contents: `export { PROPS } from "./props"; export { MATERIALS } from "./textures";`, resolveDir: libDir, loader: "ts" },
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  write: false,
+  logLevel: "silent",
+});
+const tmp = join(tmpdir(), `dungeon-library-${process.pid}.mjs`);
+writeFileSync(tmp, bundled.outputFiles[0].text);
+const library = await import(pathToFileURL(tmp).href);
+unlinkSync(tmp);
+const props = library.PROPS.map((p) => ({ id: p.id, name: p.name, category: p.category, group: p.group, w: p.w, h: p.h, layer: p.layer }));
+const materials = library.MATERIALS.map((m) => ({ id: m.id, name: m.name, group: m.group }));
+
+/** An object literal on one line, as the rest of the code writes them: { id: "x", w: 2 }. */
+const literal = (o) => `{ ${Object.entries(o).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ")} }`;
+
+// The objects go in compactly, a line each, as every page and the server load them: written as
+// object literals they were a fifth of the page, for a browser to read before the map shows.
+const categories = [...new Set(props.map((p) => p.category))];
+const groups = [...new Set(props.map((p) => p.group))];
+const LAYERS = ["floor", "object", "canopy"];
+for (const p of props) {
+  if (/[|\n`\\]|\$\{/.test(`${p.id}${p.name}${p.category}${p.group}`)) throw new Error(`Object ${p.id} has a character the catalogue can't hold.`);
+  if (!LAYERS.includes(p.layer)) throw new Error(`Object ${p.id} is on a layer Tabletop doesn't know: ${p.layer}.`);
+}
+const propLines = props.map((p) => [p.id, p.name, categories.indexOf(p.category), groups.indexOf(p.group), p.w, p.h, LAYERS.indexOf(p.layer)].join("|"));
+
+const catalog = `// Generated by scripts/sync-dungeon-library.mjs from Dungeon's library (Dungeon ${commit}). Don't edit:
+// change Dungeon and run the script. What the Build tool and the server know about Dungeon's
+// objects and textures without drawing them; the drawings are in src/client/dungeonLib/.
+
+export interface DungeonPropInfo {
+  id: string;
+  name: string;
+  category: string;
+  /** The group it folds under in the picker, inside its category ("Tables" in Furniture). */
+  group: string;
+  /** Natural size in squares. */
+  w: number;
+  h: number;
+  layer: "floor" | "object" | "canopy";
+}
+
+export interface DungeonMaterialInfo {
+  id: string;
+  name: string;
+  group: "floor" | "terrain" | "wall";
+}
+
+export const DUNGEON_LIBRARY_VERSION = ${JSON.stringify(commit)};
+
+const CATEGORIES: readonly string[] = ${JSON.stringify(categories)};
+const GROUPS: readonly string[] = ${JSON.stringify(groups)};
+const LAYERS = ${JSON.stringify(LAYERS)} as const;
+
+/** Each object on a line: id|name|category|group|w|h|layer, the last three of those places in CATEGORIES, GROUPS and LAYERS. */
+const PROP_LINES = \`${propLines.join("\n")}\`;
+
+export const DUNGEON_PROPS: readonly DungeonPropInfo[] = PROP_LINES.split("\\n").map((line) => {
+  const [id, name, category, group, w, h, layer] = line.split("|");
+  return { id, name, category: CATEGORIES[+category], group: GROUPS[+group], w: +w, h: +h, layer: LAYERS[+layer] };
+});
+
+export const DUNGEON_MATERIALS: readonly DungeonMaterialInfo[] = [
+${materials.map((m) => `  ${literal(m)},`).join("\n")}
+];
+`;
+writeFileSync(`${root}/src/shared/dungeonCatalog.ts`, catalog);
+console.log(`Copied ${FILES.length} files from Dungeon ${commit}: ${props.length} objects, ${materials.length} textures.`);

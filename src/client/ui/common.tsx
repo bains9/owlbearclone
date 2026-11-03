@@ -1,8 +1,9 @@
 import { createContext } from "preact";
 import type { ComponentChildren } from "preact";
-import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useErrorBoundary, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { X } from "lucide-preact";
 import type { RoomClient, RoomState } from "../room/client";
+import type { LoadFailure } from "../updated";
 import { useStore } from "../store";
 
 export const RoomContext = createContext<RoomClient | null>(null);
@@ -15,6 +16,132 @@ export function useRoom(): RoomClient {
 
 export function useRoomState<T>(select: (s: RoomState) => T): T {
   return useStore(useRoom().store, select);
+}
+
+/** A phone-narrow window (760 px or less), as the styles have it. */
+export const NARROW = "(max-width: 760px)";
+/** The map's area is phone-narrow at this width or less (as NARROW is for the window). */
+export const NARROW_STAGE = 760;
+
+/**
+ * Marks the map's area (`ref`'s parent) narrow while it's no wider than a phone's: on a phone, or
+ * on a tablet beside the side panel. Its bars then stack as a phone's do (.stage-area.narrow in the
+ * styles), and the room's stageNarrow tells what's drawn (the character card joins the selection
+ * bar's stack). Followed as the area changes size: a panel opening or closing, a phone turned.
+ */
+export function useStageNarrow(ref: { current: HTMLElement | null }): void {
+  const room = useRoom();
+  useLayoutEffect(() => {
+    const area = ref.current?.parentElement;
+    if (!area) return;
+    const set = () => {
+      const narrow = area.clientWidth <= NARROW_STAGE;
+      area.classList.toggle("narrow", narrow);
+      if (room.state.stageNarrow !== narrow) room.store.set({ stageNarrow: narrow });
+    };
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(area);
+    return () => {
+      watch.disconnect();
+      area.classList.remove("narrow");
+    };
+  }, [room]);
+}
+
+/**
+ * Keeps the board's area told how tall one of its containers is, plus the gap above it (0 when
+ * it's empty), as a CSS variable: the bars along the bottom (--bottom-h), which the corners keep
+ * above. Measured as it changes, however many rows its bars wrap to.
+ */
+export function useStageHeight(ref: { current: HTMLElement | null }, name: string, gap = 8): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const area = el?.parentElement;
+    if (!el || !area) return;
+    const set = () => area.style.setProperty(name, `${el.offsetHeight ? el.offsetHeight + gap : 0}px`);
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(el);
+    return () => {
+      watch.disconnect();
+      area.style.removeProperty(name);
+    };
+  }, [name, gap]);
+}
+
+/**
+ * Moves something at the top of the map down below anything it would cover there (a tool's bar,
+ * the season note), as they come, go and change height: checked as it changes and a few times a
+ * second while `shown`.
+ */
+export function useClearOfBars(ref: { current: HTMLElement | null }, shown: boolean, obstacles: string): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const area = el?.parentElement;
+    if (!shown || !el || !area) return;
+    const place = () => {
+      const a = area.getBoundingClientRect();
+      const right = a.right - (parseFloat(getComputedStyle(el).right) || 0);
+      const left = right - el.offsetWidth;
+      let top = 10;
+      const bars = [...area.querySelectorAll<HTMLElement>(obstacles)]
+        .map((b) => b.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.right > left && r.left < right)
+        .sort((p, q) => p.top - q.top);
+      for (const r of bars) if (r.top - a.top < top + el.offsetHeight) top = Math.max(top, r.bottom - a.top + 8);
+      el.style.top = `${Math.round(top)}px`;
+    };
+    place();
+    const timer = setInterval(place, 250);
+    return () => clearInterval(timer);
+  });
+}
+
+const noRetry = () => 0;
+
+/**
+ * Its children, or nothing while they fail to draw (a bug, or a sheet with something unexpected in
+ * it), so one bar or card failing never takes the rest of the page with it. The error goes to the
+ * console, and to the GM (More › Problems on devices); it tries again when what `retry` picks from
+ * the room's state changes.
+ */
+export function Guard(props: { name: string; retry?: (s: RoomState) => unknown; children: ComponentChildren }) {
+  const room = useRoom();
+  const [error, reset] = useErrorBoundary((err) => {
+    console.error(`Tabletop: ${props.name} couldn't be shown.`, err);
+    room.reportProblem(props.name, err);
+  });
+  const key = useRoomState(props.retry ?? noRetry);
+  const shown = useRef(key);
+  useEffect(() => {
+    if (shown.current === key) return;
+    shown.current = key;
+    if (error) reset();
+  }, [key, error, reset]);
+  return error ? null : <>{props.children}</>;
+}
+
+/** Whether this browser can show the page full screen (not an iPhone's). */
+export function canFullscreen(): boolean {
+  return typeof document !== "undefined" && document.fullscreenEnabled === true;
+}
+
+/** The page full screen, or back out of it. */
+export function toggleFullscreen(): void {
+  if (document.fullscreenElement) void document.exitFullscreen();
+  else void document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+/** Whether the page is full screen now, following it as it changes. */
+export function useFullscreen(): boolean {
+  const [on, setOn] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
+  useEffect(() => {
+    const sync = () => setOn(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  return on;
 }
 
 export function cx(...names: (string | false | null | undefined)[]): string {
@@ -294,4 +421,20 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * What a list that loads when first opened shows when it couldn't load: on a page from before an
+ * update, the reason and a Reload button; otherwise `failed` and Try again.
+ */
+export function LoadFailed(props: { failure: LoadFailure; updated: string; failed: string; onRetry: () => void }) {
+  const updated = props.failure === "updated";
+  return (
+    <>
+      <p class="small muted">{updated ? props.updated : props.failed}</p>
+      <button class="btn btn-sm" onClick={updated ? () => location.reload() : props.onRetry}>
+        {updated ? "Reload" : "Try again"}
+      </button>
+    </>
+  );
 }

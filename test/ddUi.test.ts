@@ -592,12 +592,12 @@ describe("the guide (6.2)", () => {
   const whatsNew = GUIDE.find((s) => s.id === "whats-new")!;
   const seasons = GUIDE.find((s) => s.id === "seasons")!;
 
-  it("leads What's new with the exact seasons entry, dated with the intro", () => {
-    // "latest": main has two other 4 October entries ("Measure in metres", and "NPC tokens by race and class (..., later)");
-    // this one goes above them, newest first (re-date it if it ships another day).
-    expect(whatsNew.parts[0].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, latest)");
-    expect(whatsNew.intro).toContain("4 October 2026");
-    expect(whatsNew.parts[1].title).toBe("NPC tokens by race and class (4 October 2026, later)");
+  it("has the exact seasons entry eighteenth in What's new, under the 25, 24, 22 and 5 October ones, above the NPCs", () => {
+    // "evening": two other 4 October entries ("Measure in metres", and "NPC tokens by race and class (..., later)")
+    // come after it, newest first.
+    expect(whatsNew.parts[34].title).toBe("Clearer messages after an update (5 October 2026)");
+    expect(whatsNew.parts[35].title).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(whatsNew.parts[36].title).toBe("NPC tokens by race and class (4 October 2026, later)");
     expect(whatsNew.parts.map((p) => p.title)).toContain("Dungeondraft project files explained (30 September 2026)");
   });
 
@@ -636,11 +636,12 @@ describe("the guide (6.2)", () => {
     expect(part("Coming from Dungeondraft").notes.join("\n")).toMatch(/Keep the \.dungeondraft_map file/);
   });
 
-  it("never claims a plain picture melts: melting is a campfire's, or Dungeondraft data's", () => {
+  it("never claims a plain picture melts: melting is a campfire's, or exact data's (Dungeondraft's or Dungeon's)", () => {
     for (const p of parts) {
       for (const text of [...p.steps, ...p.notes]) {
         if (!/melt/.test(text)) continue;
-        expect([p.title, text]).toSatisfy(([, t]: [string, string]) => /campfire|Dungeondraft|project file/.test(t));
+        // "Dungeon" covers "Dungeondraft" too, and the data that comes inside a Dungeon export.
+        expect([p.title, text]).toSatisfy(([title, t]: [string, string]) => /campfire|Dungeon|project file/.test(t) || /from Dungeon/.test(title));
       }
     }
   });

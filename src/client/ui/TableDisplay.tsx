@@ -6,8 +6,10 @@ import { Copy, ExternalLink, WifiOff } from "lucide-preact";
 import { randomId } from "../../shared/ids";
 import { api, displayUrl } from "../api";
 import { RoomClient } from "../room/client";
+import { toggleFullscreen } from "./common";
 import { Modal, RoomContext, copyText, cx, useRoom, useRoomState } from "./common";
 import { BoardView } from "./RoomPage";
+import { DateOverlay, DayCard, WeatherFx } from "./CalendarPanel";
 
 /** GM: open or copy the display link, and choose what the display shows. */
 export function TableDisplayDialog(props: { onClose: () => void }) {
@@ -132,10 +134,6 @@ function DisplayRoom(props: { roomId: string; displayKey: string }) {
   );
 }
 
-function toggleFullscreen(): void {
-  if (document.fullscreenElement) void document.exitFullscreen();
-  else void document.documentElement.requestFullscreen?.().catch(() => {});
-}
 
 function DisplayShell() {
   const status = useRoomState((s) => s.status);
@@ -172,6 +170,9 @@ function DisplayShell() {
   return (
     <div class={cx("display-room", idle && "idle")} onPointerMove={wake} onDblClick={toggleFullscreen}>
       {hasHello && <BoardView />}
+      {hasHello && <DateOverlay />}
+      {hasHello && <WeatherFx />}
+      {hasHello && <DayCard />}
       {hasHello && !hasScene && <div class="display-empty">Waiting for the GM to show a scene</div>}
       {!hasHello && <div class="display-empty">Connecting…</div>}
       <DisplayTurn />

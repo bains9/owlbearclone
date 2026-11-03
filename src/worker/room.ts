@@ -9,15 +9,22 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
+import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
+import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
-import { looksLikeTerrainId } from "../shared/terrain";
-import { defaultGrid } from "../shared/units";
+import { PROBLEM_LIMITS, addProblem } from "../shared/problems";
+import type { Problem } from "../shared/problems";
+import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
+import { defaultGrid, switchUnits } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
+import { INITIATIVE_MAX } from "../shared/characters";
 import { applyInitOp } from "../shared/initiative";
 import type { InitOp } from "../shared/initiative";
 import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } from "../shared/permissions";
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
+import { cleanFx, fxVersion } from "../shared/spellfx";
+import { lookVersion } from "../shared/zones";
 import {
   DEFAULT_SETTINGS,
   GM_OWNER,
@@ -26,6 +33,7 @@ import {
   cleanText,
   isId,
   isOwner,
+  isSheetId,
   sanitizeInitiative,
   sanitizeItem,
   sanitizeScene,
@@ -80,9 +88,31 @@ const TERRAIN_VERSION = 3;
  * compasses, can't change them, and are asked to reload, as with terrain.
  */
 const COMPASS_VERSION = 4;
+/**
+ * Dungeon's objects and textures in built maps ("d:oak-tree"; tex and pal) need code from
+ * 26 October 2026 (5). Older code has no drawing for them and, worse, couldn't read a chunk
+ * with an object (its check knows only the sixteen first objects), so it would stop drawing
+ * that part of the map; textures it would leave out, and then write the chunk back without
+ * them. Such tabs don't get chunks holding either, can't change them, and are asked to
+ * reload, as with terrain.
+ */
+const DUNGEON_VERSION = 5;
+/**
+ * Objects off the grid, and more than 64 objects in a chunk, need code from 27 October 2026
+ * (6). Older code checks a chunk's objects as whole cells, at most 64 of them, and would drop
+ * the whole chunk: that part of the map would stop being drawn. Such tabs don't get those
+ * chunks, can't change them, and are asked to reload, as with terrain.
+ */
+const FREE_VERSION = 6;
 /** The oldest protocol version whose code can show this item. */
 function versionFor(item: Item): number {
-  if (item.kind === "terrain") return TERRAIN_VERSION;
+  if (item.kind === "terrain") {
+    if (!stampsOnGrid(item.stamps)) return FREE_VERSION;
+    return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
+  }
+  // Spells on tokens and conjured things need code from 31 October 2026 (7): older code has no
+  // drawing for their looks, and would stop drawing the map at one.
+  if (item.kind === "drawing" && item.fx) return lookVersion(item.fx);
   return isCompass(item) ? COMPASS_VERSION : 1;
 }
 const OUTDATED_DISPLAY = "A table display is running an older version of Tabletop. Reload the display's page.";
@@ -99,6 +129,9 @@ interface Change {
 const HISTORY_KEEP = 300;
 const HELLO_MESSAGES = 150;
 const MAX_SCENES = 100;
+/** Each tab may tell of this many problems (shared/problems.ts) in PROBLEM_WINDOW_MS, so one stuck page can't flood the list. */
+const MAX_PROBLEMS_PER_WINDOW = 5;
+const PROBLEM_WINDOW_MS = 10 * 60 * 1000;
 /** A scene can hold LIMITS.itemsPerScene items, so one message may clear them all. */
 const MAX_OPS_PER_MESSAGE = LIMITS.itemsPerScene;
 /**
@@ -131,11 +164,28 @@ export function fileKey(roomId: string, assetId: string): string {
   return `rooms/${roomId}/${assetId}`;
 }
 
+/** An explored map as the Room holds it: the grid's key, its bits, and those seen in colour (missing: all). */
+interface KeptExplored {
+  key: string;
+  bits: Uint8Array;
+  lit?: Uint8Array;
+}
+
+/** A roll's label in the chat; an initiative roll past the handbook's most says what it counts as. */
+function rollLabel(raw: unknown, capped: boolean): string {
+  const label = cleanText(raw, 60) ?? "";
+  if (!capped) return label;
+  const note = ` (${INITIATIVE_MAX} at most)`;
+  return `${label.slice(0, 60 - note.length)}${note}`;
+}
+
 export class Room extends DurableObject<Env> {
   private sql: SqlStorage;
   private info: RoomInfo | null = null;
   private activeSceneId: string | null = null;
   private scenes = new Map<string, Scene>();
+  /** Explored cells, by exploreSlot (the party's or a character's of a scene), as read from the explored_maps table (exploredOf). */
+  private explored = new Map<string, KeptExplored>();
   private items = new Map<string, Item>();
   private itemBytes = new Map<string, number>();
   private totalItemBytes = 0;
@@ -153,6 +203,10 @@ export class Room extends DurableObject<Env> {
   private lastPlayerInitiative = "";
   private assets = new Map<string, Asset>();
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
+  /** What failed on people's devices, newest first, for the GM (shared/problems.ts). */
+  private problems: Problem[] = [];
+  /** How many problems each connection has told of lately (by connId). */
+  private problemCounts = new Map<string, { n: number; since: number }>();
   /**
    * The part of the live scene the GM last showed table displays, for a display that
    * connects later. Only in memory: if it's lost, displays show the whole scene.
@@ -170,6 +224,7 @@ export class Room extends DurableObject<Env> {
       if (this.hasTables()) {
         this.migrate();
         this.load();
+        this.toMetres();
       }
     });
     // Keep-alive pings are answered without waking the object from hibernation.
@@ -191,6 +246,89 @@ export class Room extends DurableObject<Env> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (seq INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, owner TEXT NOT NULL, at INTEGER NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL, at INTEGER NOT NULL)`);
+    // What the party, and each of its characters, has explored of each scene with lighting on
+    // (shared/explore.ts): the grid's key and its bits, and those seen in colour (`lit`; null: all
+    // of them). `who` is "" for the party's, else the character's sheet id.
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS explored_maps (scene_id TEXT NOT NULL, who TEXT NOT NULL, key TEXT NOT NULL, bits TEXT NOT NULL, lit TEXT, PRIMARY KEY (scene_id, who))`,
+    );
+    try {
+      // Kept before nightvision's black and white: everything explored was seen in colour.
+      this.sql.exec(`ALTER TABLE explored_maps ADD COLUMN lit TEXT`);
+    } catch {
+      // Already there.
+    }
+    // The party's, kept before characters had their own.
+    if (this.sql.exec(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'explored'`).toArray().length) {
+      this.sql.exec(`INSERT OR IGNORE INTO explored_maps (scene_id, who, key, bits) SELECT scene_id, '', key, bits FROM explored`);
+      this.sql.exec(`DROP TABLE explored`);
+    }
+  }
+
+  /** The party's (or with `who`, a character's) explored cells of a scene as kept (read once, then held), or null for none. */
+  private exploredOf(sceneId: string, who = ""): KeptExplored | null {
+    const slot = exploreSlot(sceneId, who);
+    const held = this.explored.get(slot);
+    if (held) return held;
+    const row = this.sql
+      .exec<{ key: string; bits: string; lit: string | null }>(`SELECT key, bits, lit FROM explored_maps WHERE scene_id = ? AND who = ?`, sceneId, who)
+      .toArray()[0];
+    if (!row) return null;
+    const total = keyCells(row.key);
+    const kept = { key: row.key, bits: textToBits(row.bits, total), lit: row.lit === null ? undefined : textToBits(row.lit, total) };
+    this.explored.set(slot, kept);
+    return kept;
+  }
+
+  /** Every explored map of a scene, by exploreSlot, its bits (and those seen in colour, when kept) as text. */
+  private exploredMaps(sceneId: string): Record<string, { key: string; bits: string; lit?: string }> {
+    const out: Record<string, { key: string; bits: string; lit?: string }> = {};
+    const rows = this.sql.exec<{ who: string; key: string; bits: string; lit: string | null }>(`SELECT who, key, bits, lit FROM explored_maps WHERE scene_id = ?`, sceneId);
+    for (const r of rows) out[exploreSlot(sceneId, r.who)] = { key: r.key, bits: r.bits, ...(r.lit !== null ? { lit: r.lit } : {}) };
+    return out;
+  }
+
+  /**
+   * Adds cells to the party's (or a character's) explored map of a scene, and with `lit` those
+   * seen in colour (shared/explore.ts addExplored), and tells everyone the new ones.
+   */
+  private addExplored(sceneId: string, who: string, grid: ExploreGrid, cells: readonly unknown[], lit: readonly unknown[] | undefined): void {
+    const total = grid.cols * grid.rows;
+    let had = this.exploredOf(sceneId, who);
+    if (had && had.key !== grid.key) had = null;
+    // Only so many maps a scene: a character's is made only while there's room.
+    if (!had && who && !this.exploredOf(sceneId, who)) {
+      const maps = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM explored_maps WHERE scene_id = ?`, sceneId).one().n;
+      if (maps >= MAX_EXPLORE_MAPS) return;
+    }
+    const next = addExplored(had, cells, lit, total);
+    if (!next.fresh.length && !next.freshLit.length) return;
+    const kept = { key: grid.key, bits: next.bits, lit: next.lit };
+    this.explored.set(exploreSlot(sceneId, who), kept);
+    this.sql.exec(
+      `INSERT INTO explored_maps (scene_id, who, key, bits, lit) VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, who) DO UPDATE SET key = excluded.key, bits = excluded.bits, lit = excluded.lit`,
+      sceneId,
+      who,
+      kept.key,
+      bitsToText(kept.bits),
+      kept.lit ? bitsToText(kept.lit) : null,
+    );
+    this.broadcast({ t: "explore", sceneId, key: kept.key, ...(who ? { who } : {}), cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });
+  }
+
+  /** Forgets every explored map of a scene (in storage too). */
+  private forgetExplored(sceneId: string): void {
+    this.sql.exec(`DELETE FROM explored_maps WHERE scene_id = ?`, sceneId);
+    for (const slot of [...this.explored.keys()]) if (isSceneSlot(slot, sceneId)) this.explored.delete(slot);
+  }
+
+  /** The characters with a token on a scene that sees for the party (as client/room/vision.ts's isSightToken). */
+  private charactersOn(sceneId: string): Set<string> {
+    const out = new Set<string>();
+    for (const i of this.items.values()) {
+      if (i.kind === "token" && i.sceneId === sceneId && i.character && !i.hidden && !i.art && i.layer !== "prop") out.add(i.character);
+    }
+    return out;
   }
 
   private load(): void {
@@ -203,6 +341,7 @@ export class Room extends DurableObject<Env> {
     this.info = meta.has("info") ? (JSON.parse(meta.get("info")!) as RoomInfo) : null;
     this.activeSceneId = meta.has("active") ? (JSON.parse(meta.get("active")!) as string | null) : null;
     if (meta.has("initiative")) this.initiative = JSON.parse(meta.get("initiative")!) as Initiative;
+    this.problems = meta.has("problems") ? (JSON.parse(meta.get("problems")!) as Problem[]) : [];
     this.scenes.clear();
     for (const r of this.sql.exec<{ data: string }>(`SELECT data FROM scenes`)) {
       const s = JSON.parse(r.data) as Scene;
@@ -231,6 +370,27 @@ export class Room extends DurableObject<Env> {
       const a = JSON.parse(r.data) as Asset;
       this.assets.set(a.id, a);
     }
+  }
+
+  /**
+   * The table measures in metres (the GM's call, 3 November 2026). A room from before the setting
+   * existed (none set) switches its scenes in feet to metres once, 5 ft = 1.5 m, and measures in
+   * metres from then on. A room whose GM chose feet keeps them; scenes in squares or km stay.
+   */
+  private toMetres(): void {
+    if (!this.info || this.info.settings.metric !== undefined) return;
+    const info: RoomInfo = { ...this.info, settings: { ...this.info.settings, metric: true } };
+    const switched: Scene[] = [];
+    for (const s of this.scenes.values()) {
+      const units = switchUnits(s.grid, true);
+      if (units) switched.push({ ...s, grid: { ...s.grid, ...units } });
+    }
+    this.ctx.storage.transactionSync(() => {
+      this.setMeta("info", info);
+      for (const s of switched) this.saveScene(s);
+    });
+    this.info = info;
+    for (const s of switched) this.scenes.set(s.id, s);
   }
 
   /** Adds (or with a negative size, removes) an item's bytes to the running totals. */
@@ -431,6 +591,7 @@ export class Room extends DurableObject<Env> {
     else if (build !== BUILD_ID) this.send(server, { t: "outdated" });
     if ([...this.items.values()].some((i) => this.withheld(conn, i))) this.warnOutdated(server, conn);
     if (role === "gm") this.tellAboutOutdatedDisplays(server);
+    if (role === "gm" && !display && this.problems.length) this.send(server, { t: "problems", problems: this.problems });
     if (display && this.displayView && this.displayView.sceneId === this.activeSceneId) {
       this.send(server, { t: "eph", from: "", e: this.displayView });
     }
@@ -454,8 +615,8 @@ export class Room extends DurableObject<Env> {
       return;
     }
     if (!msg || typeof msg !== "object") return;
-    // A table display only watches.
-    if (conn.display) return;
+    // A table display only watches (but tells the GM what it couldn't show).
+    if (conn.display && msg.t !== "problem") return;
     const raw = msg.t === "eph" ? undefined : (msg as { seq?: unknown }).seq;
     const seq = typeof raw === "number" && Number.isSafeInteger(raw) && raw > 0 ? raw : undefined;
     if (seq !== undefined) {
@@ -606,6 +767,7 @@ export class Room extends DurableObject<Env> {
         this.ctx.storage.transactionSync(() => {
           this.sql.exec(`DELETE FROM items WHERE scene_id = ?`, scene.id);
           this.sql.exec(`DELETE FROM scenes WHERE id = ?`, scene.id);
+          this.forgetExplored(scene.id);
           if (nextActive !== this.activeSceneId) this.setMeta("active", nextActive);
         });
         for (const [id, item] of this.items) {
@@ -690,10 +852,7 @@ export class Room extends DurableObject<Env> {
           this.send(ws, { t: "initiative", initiative: this.initiativeFor(conn), by: conn.connId, seq });
           return;
         }
-        const next = applyInitOp(this.initiative, op);
-        this.setMeta("initiative", next);
-        this.initiative = next;
-        this.broadcastInitiative(conn.connId, seq);
+        this.applyInitiative(op, conn.connId, seq);
         return;
       }
 
@@ -710,6 +869,35 @@ export class Room extends DurableObject<Env> {
           kind: "chat",
           text,
         });
+        return;
+      }
+
+      case "explore": {
+        // Anyone at the table but a display (which changes nothing) adds what the party, or with
+        // `who` one of its characters on the scene, has just seen, on a scene with lighting on, on
+        // the scene's grid as it is now.
+        if (conn.display) return;
+        const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
+        if (!scene?.vision?.on || !Array.isArray(msg.cells) || msg.cells.length > MAX_EXPLORE_BATCH) return;
+        const lit = Array.isArray(msg.lit) && msg.lit.length <= MAX_EXPLORE_BATCH ? msg.lit : undefined;
+        const grid = exploreGrid(scene);
+        if (msg.key !== grid.key) return;
+        const who = msg.who ?? "";
+        const here = this.charactersOn(scene.id);
+        if (who && !(isSheetId(who) && here.has(who))) return;
+        // A character's exploring is the party's too (the GM's map); the party's, seeing together,
+        // is every character's there.
+        const maps = who ? [who, ""] : ["", ...(scene.vision.perPlayer ? [] : here)];
+        for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells, lit);
+        return;
+      }
+
+      case "explore.reset": {
+        if (!gm) return this.deny(ws);
+        const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
+        if (!scene) return;
+        this.forgetExplored(scene.id);
+        this.broadcast({ t: "explore", sceneId: scene.id, key: exploreGrid(scene).key, reset: true });
         return;
       }
 
@@ -730,10 +918,11 @@ export class Room extends DurableObject<Env> {
           color: conn.color,
           role: conn.role,
           kind: "roll",
-          text: cleanText(msg.label, 60) ?? "",
+          text: rollLabel(msg.label, !!msg.initiative && roll.total > INITIATIVE_MAX),
           roll,
           ...(msg.private ? { private: true } : {}),
         });
+        if (msg.initiative) this.rollIntoInitiative(conn, msg.initiative, roll.total);
         return;
       }
 
@@ -752,6 +941,41 @@ export class Room extends DurableObject<Env> {
       case "eph":
         this.handleEph(ws, conn, msg.e);
         return;
+
+      case "problem":
+        this.addProblem(conn, msg);
+        return;
+
+      case "calendar.changed": {
+        // Anyone's (a player's log line changes it too), never a display's.
+        if (conn.display) return;
+        const version = (msg as { version?: unknown }).version;
+        this.broadcast({ t: "calendar", version: typeof version === "number" && Number.isFinite(version) ? version : 0 });
+        return;
+      }
+
+      case "problems.clear":
+        if (!gm) return this.deny(ws);
+        this.problems = [];
+        this.setMeta("problems", this.problems);
+        this.sendProblems();
+        return;
+
+      case "room.goto": {
+        if (!gm) return this.deny(ws);
+        const to = (msg as { to?: unknown }).to;
+        const target =
+          typeof to === "string" && to !== this.info?.id
+            ? (await this.env.DIRECTORY.getByName("main").listRooms()).find((r) => r.id === to)
+            : undefined;
+        if (!target) {
+          this.send(ws, { t: "error", message: "That room isn't there any more." });
+          return;
+        }
+        // Everyone but table displays, which have a link of their own for each room.
+        this.broadcast({ t: "goto", room: { id: target.id, name: target.name } }, (c) => !c.display);
+        return;
+      }
 
       default:
         return;
@@ -1063,6 +1287,13 @@ export class Room extends DurableObject<Env> {
       this.send(ws, { t: "error", message: "Some of that wasn't allowed, so it was undone." });
     }
 
+    // A token taken off the map (a creature killed, say) leaves the initiative list with it.
+    const deleted = new Set(changes.filter((ch) => !ch.after).map((ch) => ch.id));
+    const leaving = this.initiative.entries.filter((e) => e.tokenId && deleted.has(e.tokenId));
+    if (leaving.length) {
+      this.applyInitiative(leaving.map((e) => ({ op: "remove", id: e.id })));
+      return;
+    }
     // Initiative entries follow their tokens' visibility, so a token appearing or
     // vanishing for players changes the list they see.
     const tracked = new Set(this.initiative.entries.map((e) => e.tokenId).filter((id): id is string => !!id));
@@ -1120,6 +1351,10 @@ export class Room extends DurableObject<Env> {
     } else if (e.k === "pointer") {
       if (!finite(e.x) || !finite(e.y)) return;
       clean = { k: "pointer", sceneId: e.sceneId, x: e.x, y: e.y, ...(e.ping === true ? { ping: true } : {}) };
+    } else if (e.k === "fx") {
+      const fx = cleanFx(e);
+      if (!fx) return;
+      clean = fx;
     } else {
       return;
     }
@@ -1128,8 +1363,10 @@ export class Room extends DurableObject<Env> {
     let forPlayers: string | null | undefined;
     for (const target of this.ctx.getWebSockets()) {
       if (target === ws) continue;
-      const c = target.deserializeAttachment() as Player | null;
+      const c = target.deserializeAttachment() as Conn | null;
       if (!c) continue;
+      // A spell effect whose look a tab's code doesn't know isn't sent to it: it couldn't draw it.
+      if (clean.k === "fx" && (c.v ?? 1) < fxVersion(clean.look)) continue;
       if (c.role === "gm") {
         forGm ??= JSON.stringify({ t: "eph", from: conn.connId, e: clean } satisfies ServerMsg);
         this.sendRaw(target, forGm);
@@ -1157,8 +1394,9 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- initiative
 
-  /** Whether players may see an initiative entry: not if it belongs to a token they can't see. */
+  /** Whether players may see an initiative entry: not one the GM keeps to themself, nor one for a token they can't see. */
   private entryVisible(e: InitEntry): boolean {
+    if (e.hidden) return false;
     if (!e.tokenId) return true;
     const token = this.items.get(e.tokenId);
     return !!token && visibleToPlayer(token, this.activeSceneId);
@@ -1192,6 +1430,7 @@ export class Room extends DurableObject<Env> {
         if (!entry) return null;
         // A taken id (perhaps a hidden entry's) gets a fresh one rather than an error.
         if (this.initiative.entries.some((e) => e.id === entry.id)) entry.id = randomId(10);
+        if (!gm) delete entry.hidden;
         if (entry.tokenId && !gm && !this.entryVisible(entry)) entry.tokenId = null;
         return { op: "add", entry };
       }
@@ -1200,8 +1439,10 @@ export class Room extends DurableObject<Env> {
         const name = r.name === undefined ? undefined : cleanText(r.name, 40) || undefined;
         const value =
           typeof r.value === "number" && Number.isFinite(r.value) ? Math.max(-10000, Math.min(10000, r.value)) : undefined;
-        if (name === undefined && value === undefined) return null;
-        return { op: "update", id: r.id, name, value };
+        // Only the GM keeps an entry from the players, or shows it to them.
+        const hidden = gm && typeof r.hidden === "boolean" ? r.hidden : undefined;
+        if (name === undefined && value === undefined && hidden === undefined) return null;
+        return { op: "update", id: r.id, name, value, ...(hidden !== undefined ? { hidden } : {}) };
       }
       case "remove":
         return mayTouch(r.id) ? { op: "remove", id: r.id } : null;
@@ -1219,6 +1460,43 @@ export class Room extends DurableObject<Env> {
       default:
         return null;
     }
+  }
+
+  /** Initiative changes made: stored, sent to everyone (each their own view), and rounds passed counted. */
+  private applyInitiative(ops: InitOp | InitOp[], by?: string, seq?: number): void {
+    const all = Array.isArray(ops) ? ops : [ops];
+    const next = all.reduce(applyInitOp, this.initiative);
+    const passed = all.some((op) => op.op === "clear") ? 0 : next.round - this.initiative.round;
+    this.setMeta("initiative", next);
+    this.initiative = next;
+    this.broadcastInitiative(by, seq);
+    // Spells that last so many rounds count down as rounds pass (not when the list is cleared).
+    if (passed) this.passRounds(passed);
+  }
+
+  /**
+   * A token's initiative rolled in the chat (a character card's Initiative): the roll's total goes
+   * into the list, as a new entry or as the number of the token's entry already there. Only for a
+   * token the roller can see, and never into an entry the GM keeps from them.
+   */
+  private rollIntoInitiative(conn: Player, raw: unknown, total: number): void {
+    const tokenId = raw && typeof raw === "object" ? (raw as { tokenId?: unknown }).tokenId : undefined;
+    const token = isId(tokenId) ? this.items.get(tokenId) : undefined;
+    if (token?.kind !== "token" || isCompass(token)) return;
+    const gm = conn.role === "gm";
+    if (!gm && !visibleToPlayer(token, this.activeSceneId)) return;
+    // A d10 and a bonus past the handbook's most is the most.
+    const value = Math.max(-10000, Math.min(INITIATIVE_MAX, total));
+    const have = this.initiative.entries.find((e) => e.tokenId === token.id);
+    if (have) {
+      if (gm || this.entryVisible(have)) this.applyInitiative({ op: "update", id: have.id, value });
+      return;
+    }
+    if (this.initiative.entries.length >= LIMITS.initiativeEntries) return;
+    this.applyInitiative({
+      op: "add",
+      entry: { id: randomId(10), name: cleanText(token.label, 40) || "Token", value, color: token.color, tokenId: token.id },
+    });
   }
 
   private broadcastInitiative(by?: string, seq?: number): void {
@@ -1242,6 +1520,77 @@ export class Room extends DurableObject<Env> {
   // ---------------------------------------------------------------- helpers
 
   /** Whether this connection is sent this item: the GM gets everything its code can draw. */
+  /**
+   * Rounds passing in initiative (`passed`, or back with a negative one): each spell that lasts so
+   * many rounds (DrawingItem.rounds) counts down, and one with none left ends. A step back gives
+   * each one still on the map its round back.
+   */
+  private passRounds(passed: number): void {
+    const next = new Map<string, Item | null>();
+    for (const item of this.items.values()) {
+      if (item.kind !== "drawing" || item.rounds === undefined) continue;
+      const left = item.rounds - passed;
+      next.set(item.id, left <= 0 ? null : { ...item, rounds: Math.min(LIMITS.spellRounds, left) });
+    }
+    this.changeItems(next);
+  }
+
+  /**
+   * Changes the Room makes itself, as from no one (a spell's rounds counting down, or running out):
+   * kept, and sent to every page that sees them.
+   */
+  private changeItems(next: Map<string, Item | null>): void {
+    if (!next.size) return;
+    const changes = [...next].map(([id, after]) => ({ id, before: this.items.get(id) ?? null, after }));
+    this.ctx.storage.transactionSync(() => {
+      for (const { id, after } of changes) {
+        if (after) {
+          this.sql.exec(
+            `INSERT INTO items (id, scene_id, data) VALUES (?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET scene_id = excluded.scene_id, data = excluded.data`,
+            id,
+            after.sceneId,
+            JSON.stringify(after),
+          );
+        } else {
+          this.sql.exec(`DELETE FROM items WHERE id = ?`, id);
+        }
+      }
+    });
+    const now = Date.now();
+    for (const { id, before, after } of changes) {
+      if (before) this.countBytes(before.owner, -(this.itemBytes.get(id) ?? 0));
+      if (after) {
+        const bytes = JSON.stringify(after).length;
+        this.items.set(id, after);
+        this.itemBytes.set(id, bytes);
+        this.countBytes(after.owner, bytes);
+      } else if (before) {
+        this.items.delete(id);
+        this.itemBytes.delete(id);
+        this.tombstones.set(id, before.owner);
+        this.sql.exec(
+          `INSERT INTO tombstones (id, owner, at) VALUES (?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET owner = excluded.owner, at = excluded.at`,
+          id,
+          before.owner,
+          now,
+        );
+      }
+    }
+    for (const target of this.ctx.getWebSockets()) {
+      const c = target.deserializeAttachment() as Conn | null;
+      if (!c) continue;
+      const upsert: Item[] = [];
+      const del: string[] = [];
+      for (const ch of changes) {
+        if (ch.after && this.sees(c, ch.after)) upsert.push(ch.after);
+        else if (ch.before && this.sees(c, ch.before)) del.push(ch.id);
+      }
+      if (upsert.length || del.length) this.send(target, { t: "items", by: "", ...(upsert.length ? { upsert } : {}), ...(del.length ? { delete: del } : {}) });
+    }
+  }
+
   private sees(c: Conn, item: Item): boolean {
     if ((c.v ?? 1) < versionFor(item)) return false;
     return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
@@ -1276,11 +1625,16 @@ export class Room extends DurableObject<Env> {
   }
 
   private hello(conn: Conn): ServerMsg {
+    const scenes = helloScenes(this.scenes.values(), conn, this.activeSceneId);
+    // What the party and its characters have explored of those scenes (with lighting on).
+    const explored: Record<string, { key: string; bits: string }> = {};
+    for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));
     return {
       t: "hello",
       you: publicPlayer(conn),
       room: this.info!,
-      scenes: helloScenes(this.scenes.values(), conn, this.activeSceneId),
+      scenes,
+      explored,
       activeSceneId: this.activeSceneId,
       items: [...this.items.values()].filter((i) => this.sees(conn, i)),
       assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn)),
@@ -1379,6 +1733,13 @@ export class Room extends DurableObject<Env> {
         this.sendRaw(ws, forPlayers);
       }
     }
+    // What the party and its characters have explored of the live scene (players had only the last one's).
+    if (live?.vision?.on) {
+      for (const [slot, m] of Object.entries(this.exploredMaps(live.id))) {
+        const who = slot.slice(live.id.length + 1);
+        this.broadcast({ t: "explore", sceneId: live.id, key: m.key, ...(who ? { who } : {}), bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) }, (c) => c.role !== "gm");
+      }
+    }
     // Which initiative entries players may see depends on the live scene.
     this.broadcastInitiative();
   }
@@ -1398,6 +1759,29 @@ export class Room extends DurableObject<Env> {
 
   private broadcastAsset(asset: Asset): void {
     this.broadcast({ t: "asset.upsert", asset }, (c) => canSeeAsset(asset, c));
+  }
+
+  /** Something that failed on a device, kept for the GM: the same again counts up, and each tab may tell of only a few. */
+  private addProblem(conn: Conn, msg: Extract<ClientMsg, { t: "problem" }>): void {
+    const now = Date.now();
+    const seen = this.problemCounts.get(conn.connId);
+    const count = seen && now - seen.since < PROBLEM_WINDOW_MS ? seen : { n: 0, since: now };
+    if (count.n >= MAX_PROBLEMS_PER_WINDOW) return;
+    count.n++;
+    if (this.problemCounts.size > 200) this.problemCounts.clear();
+    this.problemCounts.set(conn.connId, count);
+    const where = cleanText(msg.where, PROBLEM_LIMITS.where);
+    const message = cleanText(msg.message, PROBLEM_LIMITS.message);
+    if (!where || !message) return;
+    const device = cleanText(msg.device, PROBLEM_LIMITS.device) || "a device";
+    this.problems = addProblem(this.problems, { at: now, name: conn.display ? "Table display" : conn.name, device, where, message });
+    this.setMeta("problems", this.problems);
+    this.sendProblems();
+  }
+
+  /** The problems list to the GM's pages (not a table display). */
+  private sendProblems(): void {
+    this.broadcast({ t: "problems", problems: this.problems }, (c) => c.role === "gm" && !c.display);
   }
 
   private broadcast(msg: ServerMsg, filter?: (c: Player) => boolean): void {

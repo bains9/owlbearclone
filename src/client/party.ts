@@ -1,0 +1,564 @@
+// The party on the map: a character from their sheet (shared/characters.ts) placed as a token
+// linked to the sheet, in their full-body figure (npcs/pcArt.ts) or the picture the GM chose for
+// them. The picture is drawn (or fetched) and uploaded to the room the first time someone places
+// them, then reused by that person (a player sees only their own uploads, so each uploads their own).
+
+import { KI_KEY, MAX_PRAYED, castCost, characterLabel, prayedKey, prayedOnSheet, type Character, type CharacterPlayer, type KiAbility, type RestKind } from "../shared/characters";
+import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
+import type { Point } from "../shared/geometry";
+import type { TokenItem } from "../shared/types";
+import { prepareImage } from "./api";
+import { ART_PX, npcSquares } from "./npcs/npcs";
+import { drawPcArt } from "./npcs/pcArt";
+import { classesOf, figureOf, raceOf } from "./npcs/pcTokens";
+import { NPCS_LOAD_FAILED, loadNpcs } from "./npcs/place";
+import type { RoomClient } from "./room/client";
+
+type Drawn = Pick<Character, "id" | "name" | "picture" | "race" | "culture" | "cls" | "subclass" | "cls2" | "subclass2" | "figure">;
+
+/**
+ * The name a character's token picture is uploaded under: per picture, and for a figure, per what
+ * it's drawn from (their sheet, race, classes and figure), so a new picture, a sheet that changes
+ * their race or a class, or another figure is uploaded anew, and two characters with one name
+ * don't share a token.
+ */
+export function characterAssetName(c: Drawn): string {
+  const who = c.name.slice(0, 40);
+  if (c.picture) return `${who} · picture ${c.picture.slice(0, 8)}`;
+  // FNV-1a, 32 bits, written short.
+  let h = 0x811c9dc5;
+  for (const ch of [c.id, c.race, c.culture, c.cls, c.subclass, c.cls2, c.subclass2, figureOf(c)].join("|")) {
+    h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  }
+  return `${who} · figure ${(h >>> 0).toString(36)}`;
+}
+
+/** Where the picture the GM chose for a character is, for this room's pages. */
+export function characterPictureUrl(roomId: string, c: Pick<Character, "id" | "picture">): string {
+  return `/api/characters/${encodeURIComponent(c.id)}/picture?room=${encodeURIComponent(roomId)}&v=${encodeURIComponent(c.picture ?? "")}`;
+}
+
+/** Draws a character's figure token onto a canvas `px` across (for the list's previews, and to upload). */
+export async function drawCharacter(canvas: HTMLCanvasElement, c: Character, px = ART_PX): Promise<void> {
+  const icons = await loadNpcs();
+  canvas.width = px;
+  canvas.height = px;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("This browser couldn't draw the token.");
+  drawPcArt(ctx, raceOf(c), classesOf(c), figureOf(c), icons, px);
+}
+
+async function figureFile(c: Character): Promise<File> {
+  const canvas = document.createElement("canvas");
+  await drawCharacter(canvas, c);
+  const encode = (type: string) => new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.92));
+  let blob = await encode("image/webp");
+  if (!blob || blob.type !== "image/webp") blob = await encode("image/png");
+  if (!blob) throw new Error("This browser couldn't draw the token.");
+  return new File([blob], `${characterAssetName(c)}.${blob.type === "image/webp" ? "webp" : "png"}`, { type: blob.type });
+}
+
+async function pictureFile(roomId: string, c: Character): Promise<File> {
+  const res = await fetch(characterPictureUrl(roomId, c), { credentials: "same-origin" });
+  if (!res.ok) throw new Error("Their picture couldn't be fetched.");
+  const blob = await res.blob();
+  const ext = blob.type.split("/")[1] ?? "png";
+  return new File([blob], `${characterAssetName(c)}.${ext}`, { type: blob.type });
+}
+
+/** Pictures being uploaded, by room and name, so a second click waits for the first. */
+const making = new Map<string, Promise<string | null>>();
+
+/** The id of a character's token picture in this room, uploaded first if it hasn't one. */
+function characterAsset(room: RoomClient, c: Character): Promise<string | null> {
+  const name = characterAssetName(c);
+  const have = Object.values(room.state.assets)
+    .filter((a) => a.kind === "token" && a.name === name)
+    .sort((a, b) => a.createdAt - b.createdAt)[0];
+  if (have) return Promise.resolve(have.id);
+  const key = `${room.roomId}|${name}`;
+  let job = making.get(key);
+  if (!job) {
+    job = (async () => {
+      try {
+        const file = c.picture ? await pictureFile(room.roomId, c) : await figureFile(c);
+        const [asset] = await room.upload([file], "token");
+        return asset?.id ?? null;
+      } catch (err) {
+        room.toast(err instanceof Error && err.message ? `${c.name}: ${err.message}` : NPCS_LOAD_FAILED, "error");
+        return null;
+      } finally {
+        making.delete(key);
+      }
+    })();
+    making.set(key, job);
+  }
+  return job;
+}
+
+/**
+ * Puts a character on the scene in view, at `at` (where they were dropped; with `free`, not
+ * snapped) or in the middle of the view: a token named after them, linked to their sheet,
+ * sized by their race. The first time in a room takes a moment (their picture is uploaded).
+ */
+export async function placeCharacter(room: RoomClient, c: Character, at?: Point, free = false): Promise<TokenItem | null> {
+  const sceneId = room.state.viewSceneId;
+  const assetId = await characterAsset(room, c);
+  const scene = room.viewScene;
+  if (!assetId || !scene) return null;
+  if (scene.id !== sceneId) {
+    room.toast(`${characterLabel(c)} is ready. You moved to another scene, so place them again here.`);
+    return null;
+  }
+  return room.addToken({ assetId, label: characterLabel(c), size: npcSquares(raceOf(c)), color: classesOf(c)[0].color, character: c.id }, at, free);
+}
+
+/** GM: gives a character a picture of the GM's own for their token, in every room, instead of their figure. */
+export async function setCharacterPicture(room: RoomClient, c: Character, file: File): Promise<void> {
+  const { blob } = await prepareImage(file, "token");
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/picture`, {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `The picture couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
+/** GM: chooses a character's figure (an icon of PC_FIGURE_CHOICES) for every room; null goes back to their class's. */
+export async function setCharacterFigure(room: RoomClient, c: Character, figure: string | null): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/figure`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ figure }),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `The figure couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
+/** GM: marks one of a character's ranged weapons as matched to their strength (its damage adds their STR bonus), or not. */
+export async function setCharacterStrMatched(room: RoomClient, c: Character, weapon: string, matched: boolean): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/str-matched`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ weapon, matched }),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  }
+  await room.refreshParty();
+}
+
+/**
+ * Who plays a character, for every room (per-player sight sees through them). A player: this
+ * browser plays them, or not. The GM: `who`, a player at the table, plays them, or with null,
+ * nobody does.
+ */
+export async function setCharacterPlayer(room: RoomClient, c: Character, playing: boolean, who?: { userId: string; name: string } | null): Promise<void> {
+  const me = room.profileInfo;
+  const body = room.isGm ? { playing, userId: who?.userId ?? null, name: who?.name } : { playing, name: me.name };
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/player?room=${encodeURIComponent(room.roomId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": me.uid },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; players?: Record<string, CharacterPlayer[]> };
+  if (!res.ok) throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  // Shown at once from the answer, without reading the sheets again (which can take seconds);
+  // other pages see it with their next reading, within the minute.
+  const party = room.state.party;
+  const players = data.players;
+  if (!party || !players) return;
+  room.store.set({
+    party: { ...party, characters: party.characters.map(({ players: _p, ...c }) => (players[c.id]?.length ? { ...c, players: players[c.id] } : c)) },
+  });
+}
+
+/** Whether this page chooses what a character has prayed for: the GM's, or a browser playing them. */
+export function mayPray(room: RoomClient, c: Character): boolean {
+  return room.isGm || !!c.players?.some((p) => p.userId === room.state.me?.userId);
+}
+
+/**
+ * Their player or the GM: how many casts of a spell (the sheet's name for it) a character has left
+ * today; 0 takes it off. Shown here at once, and on other pages with their next reading.
+ */
+export async function setPrayed(room: RoomClient, c: Character, spell: string, left: number): Promise<void> {
+  const n = Math.max(0, Math.min(MAX_PRAYED, left));
+  const prayed = { ...(c.prayed ?? {}) };
+  if (n) prayed[spell] = n;
+  else delete prayed[spell];
+  showPrayed(room, c.id, prayed);
+  await putPrayed(room, c, { spell, left: n });
+}
+
+/** Their player or the GM: a new day, with nothing prayed for and their ki full. */
+export async function newPrayerDay(room: RoomClient, c: Character): Promise<void> {
+  showPrayed(room, c.id, {}, null);
+  await putPrayed(room, c, { newDay: true });
+}
+
+/**
+ * A character's day shown here at once: what's been prayed for, and (when given) the ki they have
+ * left, null for full.
+ */
+function showPrayed(room: RoomClient, id: string, prayed: Record<string, number>, kiLeft?: number | null): void {
+  const party = room.state.party;
+  if (!party) return;
+  const day = (x: Character): Character => {
+    const out: Character = { ...x, prayed };
+    if (kiLeft === null) delete out.kiLeft;
+    else if (kiLeft !== undefined) out.kiLeft = kiLeft;
+    return out;
+  };
+  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? day(x) : x)) } });
+}
+
+/** The ki a character has left today: full when none has been used (0 without a ki pool). */
+export function kiLeft(c: Pick<Character, "ki" | "kiLeft">): number {
+  return c.ki ? Math.max(0, Math.min(c.ki.max, c.kiLeft ?? c.ki.max)) : 0;
+}
+
+/** Their player or the GM: the ki a character has left today. Shown here at once. */
+export async function setKi(room: RoomClient, c: Character, left: number): Promise<void> {
+  const n = Math.max(0, Math.min(c.ki?.max ?? 0, Math.round(left)));
+  showPrayed(room, c.id, c.prayed ?? {}, n);
+  await putPrayed(room, c, { ki: n });
+}
+
+/** The chat's line for a ki ability used: "Hana uses Omen (3 ki, 11 left)." */
+export function kiLine(c: Character, a: KiAbility, left: number): string {
+  return `${characterLabel(c)} uses ${a.name} (${a.cost} ki, ${left} left).`;
+}
+
+/**
+ * A ki ability used from a character's card (on the GM's page, or their player's): its cost off
+ * their ki today, and a line in the chat. False when it can't be (and a toast says why).
+ */
+export function spendKi(room: RoomClient, c: Character, a: KiAbility): boolean {
+  if (!mayPray(room, c)) return false;
+  const left = kiLeft(c);
+  if (a.cost > left) {
+    room.toast(`${characterLabel(c)} has ${left} ki left, and ${a.name} costs ${a.cost}.`, "error");
+    return false;
+  }
+  room.sendChat(kiLine(c, a, left - a.cost));
+  void setKi(room, c, left - a.cost).catch((err: Error) => room.toast(err.message, "error"));
+  return true;
+}
+
+/**
+ * GM: a new day for the whole party: nothing prayed for and ki full, and, with `rest`, their spell
+ * points back to full on their sheets (through the GM's script). How many were done, and the
+ * first thing that went wrong, if anything. What it changed is kept for a while (newDayUndo), so
+ * the GM can take it back.
+ */
+export async function newPartyDay(room: RoomClient, rest: RestKind | null): Promise<{ done: number; error: string | null }> {
+  const party = room.state.party?.characters ?? [];
+  const undo: NewDayUndo = { at: Date.now(), characters: [] };
+  const results = await Promise.allSettled(
+    party.map(async (c) => {
+      const was: NewDayUndo["characters"][number] = { id: c.id, prayed: { ...(c.prayed ?? {}) }, added: 0 };
+      if (c.kiLeft !== undefined) was.kiLeft = c.kiLeft;
+      undo.characters.push(was);
+      await newPrayerDay(room, c);
+      if (rest && c.maxSp !== null) was.added = await restSpellPoints(room, c, rest);
+    }),
+  );
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  room.store.set({ newDayUndo: undo });
+  void room.refreshParty();
+  return { done: results.length - (failed ? results.filter((r) => r.status === "rejected").length : 0), error: failed ? (failed.reason as Error).message : null };
+}
+
+/** How long the GM can take a new day back. */
+export const NEW_DAY_UNDO_MS = 30 * 60 * 1000;
+
+/**
+ * What a new day for the party changed, to take it back: each character's prayers and ki as they
+ * were, and the spell points the new day put on their sheet (`added`).
+ */
+export interface NewDayUndo {
+  at: number;
+  characters: { id: string; prayed: Record<string, number>; kiLeft?: number; added: number }[];
+}
+
+/**
+ * GM: takes the last new day back: each character's prayers and ki as they were, and the spell
+ * points it put on their sheet taken off again (no more than they have now, so a spell cast since
+ * still counts). The first thing that went wrong, if anything.
+ */
+export async function undoNewDay(room: RoomClient): Promise<string | null> {
+  const undo = room.state.newDayUndo;
+  if (!undo) return null;
+  room.store.set({ newDayUndo: null });
+  const results = await Promise.allSettled(
+    undo.characters.map(async (was) => {
+      const c = room.state.party?.characters.find((x) => x.id === was.id);
+      if (!c) return;
+      for (const [spell, left] of Object.entries(was.prayed)) await putPrayed(room, c, { spell, left });
+      if (was.kiLeft !== undefined) await putPrayed(room, c, { ki: was.kiLeft });
+      const back = Math.min(was.added, c.sp ?? 0);
+      if (back > 0) showSpellPoints(room, c.id, await spendOnSheet(room, c, back));
+    }),
+  );
+  void room.refreshParty();
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  return failed ? (failed.reason as Error).message || "The new day couldn't all be taken back: check the sheets." : null;
+}
+
+/**
+ * GM: a character's spell points back to full on their sheet: shown here at once. How many it
+ * added (from their spell points as last read).
+ */
+export async function restSpellPoints(room: RoomClient, c: Character, kind: RestKind = "long"): Promise<number> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/rest?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ kind }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
+  if (!res.ok || typeof data.sp !== "number") throw new Error(data.error ?? `${characterLabel(c)}'s spell points couldn't be filled up (${res.status}).`);
+  showSpellPoints(room, c.id, data.sp);
+  return Math.max(0, data.sp - (c.sp ?? data.sp));
+}
+
+/** Takes spell points off a character's sheet (their player or the GM): how many they have now. Fails with the reason, if the Worker gave one. */
+async function spendOnSheet(room: RoomClient, c: Character, spend: number): Promise<number> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/spend?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ spend }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; sp?: number };
+  if (!res.ok || typeof data.sp !== "number") throw new Error(data.error ?? "");
+  return data.sp;
+}
+
+async function putPrayed(room: RoomClient, c: Character, body: { spell: string; left: number } | { newDay: true } | { ki: number }): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/prayed?room=${encodeURIComponent(room.roomId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; prayed?: Record<string, number> };
+  if (!res.ok) {
+    // Back to what the Worker has.
+    void room.refreshParty();
+    throw new Error(data.error ?? `That couldn't be saved (${res.status}).`);
+  }
+  if (data.prayed) {
+    const { [KI_KEY]: ki, ...prayed } = data.prayed;
+    showPrayed(room, c.id, prayed, ki ?? null);
+  }
+}
+
+/** A spell picked from a character's card: the Spells tool, with that spell, cast from their token at its own level. */
+export function castAs(room: RoomClient, tokenId: string, spell: string): void {
+  room.store.set({ spellOpts: { ...room.state.spellOpts, spell, caster: tokenId, level: null } });
+  room.setTool("spell");
+}
+
+/** Casting as a character: who, the spell as their list has it (null when they don't have it), and the level it's cast at. */
+export interface Casting {
+  token: TokenItem;
+  character: Character;
+  entry: CastSpell | null;
+  /**
+   * The level it's cast at: its own, or the one chosen in the Spells bar for a spell that can take
+   * more points, up to the highest they cast at. Null when their sheet doesn't give its level.
+   */
+  level: number | null;
+}
+
+/** Casting as a character (the Spells tool's caster). Null when no one is being cast as, or their token or sheet is gone. */
+export function castingAs(room: RoomClient, spell: string): Casting | null {
+  const id = room.state.spellOpts.caster;
+  const token = id ? room.state.items[id] : undefined;
+  if (token?.kind !== "token") return null;
+  const character = room.characterOf(token);
+  if (!character) return null;
+  const entry = castList(character).find((s) => s.name === spell) ?? null;
+  return { token, character, entry, level: castLevel(character, entry, room.state.spellOpts.level ?? null) };
+}
+
+/**
+ * The level a character casts a spell at: its own, or the one chosen for a spell that can take more
+ * points, up to the highest they cast at. Null when their sheet doesn't give its level.
+ */
+export function castLevel(character: Character, entry: CastSpell | null, chosen: number | null): number | null {
+  const own = entry?.sheet.level ?? null;
+  if (own === null) return null;
+  return entry?.raise && chosen && chosen > own ? Math.min(chosen, Math.max(own, highestLevel(castList(character)))) : own;
+}
+
+/**
+ * A spell the Spells tool has nothing to show for, cast from the character's card (on the GM's page,
+ * or their player's): a line in the chat, a prayer used up and its points off their sheet. False when
+ * this page may not, or they can't cast it now (and a toast says why).
+ */
+export function castFromCard(room: RoomClient, character: Character, entry: CastSpell, chosen: number | null = null): boolean {
+  if (!mayPray(room, character)) return false;
+  const as = { character, entry, level: castLevel(character, entry, chosen) };
+  const why = cantCast(as);
+  if (why) {
+    room.toast(why, "error");
+    return false;
+  }
+  payForCast(room, as);
+  return true;
+}
+
+/** Levels above its own a spell is cast at now (0 unless cast as a character at a higher level). */
+export function castRaise(room: RoomClient, spell: string): number {
+  const as = castingAs(room, spell);
+  const own = as?.entry?.sheet.level;
+  return own != null && as?.level != null ? Math.max(0, as.level - own) : 0;
+}
+
+/**
+ * How many rounds a spell left on the map now lasts: as set in the Spells bar for it, or else the
+ * sheets' rounds at the level it's cast at. Null: until it's ended.
+ */
+export function castRounds(room: RoomClient, spell: string): number | null {
+  const lasts = room.state.spellOpts.lasts;
+  if (lasts && lasts.spell === spell) return lasts.rounds;
+  return roundsAt(spell, castRaise(room, spell));
+}
+
+/** What casting it costs: the sheet's spell points at its own level, or the cost of the level it's cast at. */
+export function castingCost(as: Pick<Casting, "entry" | "level">): number {
+  const e = as.entry;
+  return e ? castCost(e.sheet.sp, e.sheet.level, as.level ?? e.sheet.level ?? 0) : 0;
+}
+
+/**
+ * Why a character can't cast a spell now, or null: it has to be prayed for and none are left today,
+ * or it costs more spell points than their sheet has left.
+ */
+export function cantCast(as: Pick<Casting, "character" | "entry" | "level">): string | null {
+  const e = as.entry;
+  const c = as.character;
+  const who = characterLabel(c);
+  if (e?.prayer && e.left <= 0) {
+    const where = prayedOnSheet(c, e.sheet.name) === null ? "Pray for it on their card." : "Their sheet's Prayed for today list says so.";
+    return `${who} hasn't prayed for ${e.name} today, or has cast it as many times as prayed for. ${where}`;
+  }
+  const cost = castingCost(as);
+  if (e && cost && c.sp !== null && cost > c.sp) return `${who} has ${c.sp} spell point${c.sp === 1 ? "" : "s"} left, and ${e.name} costs ${cost}.`;
+  return null;
+}
+
+/**
+ * After casting as a character (when this page may: the GM's, or their player's): a line in the
+ * chat saying so, a prayer used up, and the spell points off their sheet.
+ */
+export function payForCast(room: RoomClient, as: Pick<Casting, "character" | "entry" | "level">, what: { target?: string; rounds?: number | null } = {}): void {
+  if (mayPray(room, as.character)) room.sendChat(castLine(as, what));
+  spendPrayer(room, as);
+  spendSpellPoints(room, as);
+}
+
+/** The chat's line for a spell cast as a character: "Testa casts Fog Cloud at level 2 (2 SP, lasts 9 rounds)." */
+export function castLine(as: Pick<Casting, "character" | "entry" | "level">, what: { target?: string; rounds?: number | null } = {}): string {
+  const e = as.entry;
+  const name = e?.name ?? "a spell";
+  const higher = e && as.level !== null && e.sheet.level !== null && as.level > e.sheet.level ? ` at level ${as.level}` : "";
+  const cost = castingCost(as);
+  const notes = [
+    cost ? `${cost} SP` : "no SP",
+    ...(e?.prayer ? [`${Math.max(0, e.left - 1)} prayed left today`] : []),
+    ...(what.rounds ? [`lasts ${what.rounds} round${what.rounds === 1 ? "" : "s"}`] : []),
+  ];
+  return `${characterLabel(as.character)} casts ${name}${higher}${what.target ? ` on ${what.target}` : ""} (${notes.join(", ")}).`;
+}
+
+/**
+ * After casting as a character: the spell's cost at the level cast off their sheet's spell points
+ * (when this page may spend them: the GM's, or their player's). Shown here at once, and on other
+ * pages with their next reading.
+ */
+export function spendSpellPoints(room: RoomClient, as: Pick<Casting, "character" | "entry" | "level">): void {
+  const c = as.character;
+  const cost = castingCost(as);
+  if (!cost || c.sp === null || !mayPray(room, c)) return;
+  showSpellPoints(room, c.id, Math.max(0, c.sp - cost));
+  const failed = (why?: string) => {
+    room.toast(why ?? "The spell points couldn't be taken off the sheet. Change them there.", "error");
+    void room.refreshParty();
+  };
+  spendOnSheet(room, c, cost)
+    .then((sp) => showSpellPoints(room, c.id, sp))
+    .catch((err: Error) => failed(err.message || undefined));
+}
+
+function showSpellPoints(room: RoomClient, id: string, sp: number): void {
+  const party = room.state.party;
+  if (!party) return;
+  room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === id ? { ...x, sp } : x)) } });
+}
+
+/** After casting as a character: one of the spell's prayers used up (when this page may say so). */
+export function spendPrayer(room: RoomClient, as: { character: Character; entry: CastSpell | null }): void {
+  const e = as.entry;
+  if (!e?.prayer || !mayPray(room, as.character)) return;
+  const c = as.character;
+  // The sheet keeps the prayers: one more Cast ticked there, shown here at once.
+  if (prayedOnSheet(c, e.sheet.name) !== null) {
+    showSheetCast(room, c.id, e.sheet.name, (row) => ({ ...row, cast: Math.min(row.prayed, row.cast + 1) }));
+    void castOnSheetFor(room, c, e.sheet.name).catch((err: Error) => {
+      room.toast(err.message, "error");
+      void room.refreshParty();
+    });
+    return;
+  }
+  void setPrayed(room, c, e.sheet.name, e.left - 1).catch((err: Error) => room.toast(err.message, "error"));
+}
+
+/** A character's sheet prayers shown here at once, one row changed. */
+function showSheetCast(room: RoomClient, id: string, spell: string, change: (row: { spell: string; prayed: number; cast: number }) => { spell: string; prayed: number; cast: number }): void {
+  const party = room.state.party;
+  if (!party) return;
+  const key = prayedKey(spell);
+  room.store.set({
+    party: {
+      ...party,
+      characters: party.characters.map((x) => (x.id === id && x.prayedToday ? { ...x, prayedToday: x.prayedToday.map((p) => (prayedKey(p.spell) === key ? change(p) : p)) } : x)),
+    },
+  });
+}
+
+/** Ticks one more cast of a prayed spell on their sheet (the script's version 9 on). */
+async function castOnSheetFor(room: RoomClient, c: Character, spell: string): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/cast?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ spell }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; prayed?: number; cast?: number };
+  if (!res.ok || typeof data.cast !== "number" || typeof data.prayed !== "number") throw new Error(data.error ?? `The cast couldn't be ticked on ${characterLabel(c)}'s sheet (${res.status}).`);
+  const prayed = data.prayed, cast = data.cast;
+  showSheetCast(room, c.id, spell, (row) => ({ ...row, prayed, cast }));
+}
+
+/** GM: back to their figure. */
+export async function clearCharacterPicture(room: RoomClient, c: Character): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/picture`, { method: "DELETE", credentials: "same-origin" });
+  if (!res.ok) throw new Error(`The picture couldn't be removed (${res.status}).`);
+  await room.refreshParty();
+}

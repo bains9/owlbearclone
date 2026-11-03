@@ -5,11 +5,21 @@
 // A scene with Dungeondraft data is analysed from that data instead of guessed from the picture
 // (seasonExact.ts); whenever the data can't be used, it's guessed as before, never left plain.
 
-import { analyse, bake, outdoorFraction } from "./seasonPixels";
 import type { BakeOptions, SeasonAnalysis } from "./seasonPixels";
-import { EXACT_VERSION, analyseExact, isSnowy } from "./seasonExact";
+import { EXACT_VERSION, isSnowy } from "./seasonKeys";
 import { decodeSidecar } from "../dd/sidecar";
 import type { SeasonDdData } from "../dd/messages";
+
+let loading: Promise<[typeof import("./seasonPixels"), typeof import("./seasonExact")]> | null = null;
+
+/**
+ * The season code, for a page that makes seasons without the worker: loaded the first time it's
+ * needed rather than with the page (the worker loads its own copy).
+ */
+function seasonCode(): Promise<[typeof import("./seasonPixels"), typeof import("./seasonExact")]> {
+  loading ??= Promise.all([import("./seasonPixels"), import("./seasonExact")]);
+  return loading;
+}
 import type { SceneDataState, SidecarCache, SidecarResult } from "./mapData";
 import type { SeasonLook } from "../../shared/types";
 
@@ -574,6 +584,7 @@ export class SeasonBaker {
       this.fractions.set(key, r.frac);
       return exact;
     }
+    const [{ analyse, outdoorFraction }, { analyseExact }] = await seasonCode();
     let a: SeasonAnalysis;
     let exact = true;
     if (dd) {
@@ -609,6 +620,7 @@ export class SeasonBaker {
     }
     const a = this.local.get(aKey);
     if (!a) throw new Error("no analysis");
+    const [{ bake }] = await seasonCode();
     bake(rgba, width, rows, { ...opts, a });
     return rgba;
   }

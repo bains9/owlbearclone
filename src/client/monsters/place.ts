@@ -5,6 +5,7 @@
 import type { Point } from "../../shared/geometry";
 import type { TokenItem } from "../../shared/types";
 import type { RoomClient } from "../room/client";
+import { pageOutdated, updatedText } from "../updated";
 import { monsterArtFile } from "./art";
 import { TYPE_COLORS, findMonsterAsset, monsterLabel, monsterSquares } from "./monsters";
 import type { MonsterIcon } from "./monsters";
@@ -36,6 +37,12 @@ export function readMonsterDrag(data: string | undefined): MonsterDrag | null {
   }
   return null;
 }
+
+/** What the list, or a drop, says when the creatures can't be loaded (the browser's own words for it aren't plain). */
+export const MONSTERS_LOAD_FAILED = "Couldn't load the monsters. Check the connection, then try again.";
+
+/** The same on a page from before an update, whose icons file has gone. */
+export const MONSTERS_UPDATED = updatedText("use the monsters");
 
 let icons: Promise<readonly MonsterIcon[]> | null = null;
 
@@ -109,21 +116,29 @@ function monsterAsset(room: RoomClient, m: MonsterIcon): Promise<string | null> 
 }
 
 /**
- * GM: puts creature `id` on the scene in view, at `at` (where it was dropped) or in the middle
- * of the view, and selects it. The first of a creature in a room takes a moment (its picture is
- * uploaded); after that it's at once. If the GM moves to another scene meanwhile, it isn't
- * placed (`at` was on the old one): the picture is ready, so placing it again is at once.
+ * GM: puts creature `id` on the scene in view, at `at` (where it was dropped; with `free`, Alt
+ * held, not snapped to the grid) or in the middle of the view, and selects it. The first of a
+ * creature in a room takes a moment (its picture is uploaded); after that it's at once. If the
+ * GM moves to another scene meanwhile, it isn't placed (`at` was on the old one): the picture
+ * is ready, so placing it again is at once.
  */
 export async function placeMonster(
   room: RoomClient,
   id: string,
   at?: Point,
   hidden = loadAddHidden(),
+  free = false,
 ): Promise<TokenItem | null> {
   if (!room.isGm) return null;
   // The scene it's meant for (and `at` is on).
   const sceneId = room.state.viewSceneId;
-  const m = (await loadMonsters()).find((x) => x.id === id);
+  // A drop from another page of the room can come before this page has the creatures.
+  const all = await loadMonsters().catch(() => null);
+  if (!all) {
+    room.toast((await pageOutdated()) ? MONSTERS_UPDATED : MONSTERS_LOAD_FAILED, "error");
+    return null;
+  }
+  const m = all.find((x) => x.id === id);
   if (!m) return null;
   const assetId = await monsterAsset(room, m);
   const scene = room.viewScene;
@@ -138,5 +153,6 @@ export async function placeMonster(
   return room.addToken(
     { assetId, label: monsterLabel(m.name, taken), size: monsterSquares(m), color: TYPE_COLORS[m.type], hidden },
     at,
+    free,
   );
 }

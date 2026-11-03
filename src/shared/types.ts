@@ -2,6 +2,7 @@
 // All coordinates are in "world" units: pixels of the scene's map image.
 
 import type { Stamp } from "./terrain";
+import type { SpellLook } from "./zones";
 
 export type Role = "gm" | "player";
 
@@ -32,6 +33,8 @@ export type SeasonLook = (typeof SEASON_LOOKS)[number];
 
 export interface SceneSeason {
   look: SeasonLook;
+  /** Keeps this season when the calendar's changes (shared/calendar.ts seasonsFollow). */
+  pinned?: boolean;
   /** How drastic: 1 light, 2 in season, 3 the most. */
   level: 1 | 2 | 3;
   /**
@@ -46,6 +49,10 @@ export interface Scene {
   name: string;
   order: number;
   mapAssetId: string | null;
+  /** This scene's own weather region (a climate's name in the calendar); none: the party's. */
+  region?: string;
+  /** Rain and snow on this map: "on" always, "off" never; none, Automatic (shared/calendar.ts weatherHere). */
+  weather?: "on" | "off";
   width: number;
   height: number;
   background: string;
@@ -62,6 +69,133 @@ export interface Scene {
    * Cleared when the picture changes.
    */
   mapRect?: [number, number, number, number];
+  /** Dungeon's texture for the walls of the scene's built map (a wall texture's id). Missing: Tabletop's plain dark walls. */
+  wallTexture?: string;
+  /**
+   * The scene's area in world units, [left, top, right, bottom], when the GM has extended it
+   * past its picture. It always holds the picture, [0, 0, width, height]; left and top may be
+   * below 0, so extending never moves anything already on the scene. Missing: the picture's
+   * own rectangle.
+   */
+  bounds?: [number, number, number, number];
+  /** The Dungeon map and level it came from (New scene › From Dungeon), so it can be updated from Dungeon. */
+  dungeon?: SceneDungeon;
+  /** One level of a map with several, brought in from one file (from Dungeon, levels go by `dungeon`). */
+  level?: SceneLevel;
+  /** Lighting and line of sight: its walls, doors and lights, and whether players see only what the party sees. */
+  vision?: SceneVision;
+}
+
+/**
+ * Lighting and line of sight on a scene (client/room/vision.ts). With it on, players see only
+ * what the party's tokens can see: walls and closed doors block sight (the map file's, and the
+ * Build tool's), and in the dark only what a light, or the party's own light, falls on.
+ */
+export interface SceneVision {
+  /** On: players see only what the party can see. Off: everything, as before. */
+  on: boolean;
+  /** Lit all over, as by day. Off, it's dark: only the lights and the party's own light show. */
+  daylight: boolean;
+  /**
+   * Not by day, night by moon or starlight rather than dark (underground): characters with
+   * nightvision see as well, in black and white (shared/characters.ts nightvisionOf).
+   */
+  night?: boolean;
+  /** Day and night follow the calendar's time of day (shared/calendar.ts): daylight by day, night at night. */
+  followsDay?: boolean;
+  /** How far the party's own light reaches in the dark, in squares (0: none), when `light` isn't set (scenes from before distances). */
+  partyLight: number;
+  /** How far the party can see at all, in squares, light or dark (0: as far as the walls allow), when `sight` isn't set. */
+  sightRange: number;
+  /**
+   * How far the party's own light reaches in the dark as a distance (18 m, 60 ft; 0: none): it's
+   * the same distance whatever a square is (shared/units.ts visionSquares). Wins over partyLight.
+   */
+  light?: VisionDistance;
+  /** How far the party can see as a distance (0: as far as the walls allow). Wins over sightRange. */
+  sight?: VisionDistance;
+  /** The map file's walls that block sight: lines, each [x0, y0, x1, y1, ...] in scene units. */
+  walls: number[][];
+  /** The map file's doors: from one end to the other in scene units, and whether each is open. */
+  doors: { line: [number, number, number, number]; open: boolean }[];
+  /** The map file's lights: where, and how far they reach, in scene units. */
+  lights: SceneLight[];
+  /** The Build tool's doors that are open (build.ts edge keys); the rest are shut. */
+  openEdges?: number[];
+  /**
+   * Each player sees only through their own character's token (and tokens they placed), and keeps
+   * their character's own explored map. Missing or false: the whole party sees together.
+   */
+  perPlayer?: boolean;
+  /** Players' tokens go through walls and shut doors. Missing or false: walls stop them, as they stop sight. */
+  passWalls?: boolean;
+}
+
+/** A light on a scene (from its map file): where, how far it reaches, and how it looks. */
+export interface SceneLight {
+  x: number;
+  y: number;
+  r: number;
+  /** The colour it casts (#rrggbb): from the map file, or the GM's. Missing: plain light, no tint. */
+  color?: string;
+  /** It flickers, as a torch or a fire does. */
+  flicker?: boolean;
+  /** The GM put it there (Add a light), rather than the map file: bringing the map in again keeps it. */
+  own?: boolean;
+}
+
+/** A distance in a unit, as a scene's grid names it ("m", "ft"). */
+export interface VisionDistance {
+  d: number;
+  unit: string;
+}
+
+/** Where a scene came from in Dungeon, the map maker (New scene › From Dungeon). */
+/** A scene's level in a map with several, from one file: the levels' group, its place, and its name. */
+export interface SceneLevel {
+  group: string;
+  index: number;
+  name: string;
+}
+
+export interface SceneDungeon {
+  /** The map's id in Dungeon's maps online. */
+  map: string;
+  /** The bringing-in it was part of: the scenes brought in together are updated together. */
+  batch: string;
+  /**
+   * Its level's name ("" for a map with one level). Levels are matched by name, so adding, moving
+   * or deleting levels in Dungeon doesn't put a scene on another floor.
+   */
+  level: string;
+  /** Its level's place in the map when it was last brought in (tells levels of the same name apart). */
+  index: number;
+  /** Every level's name then: an update tells a level that's new from one whose scene was deleted. */
+  levels: string[];
+  /** The picture Dungeon drew for it. Showing another (changed by hand), the scene isn't Dungeon's any more. */
+  asset: string;
+  /** Whether Dungeon's lighting was painted into the picture (an update does the same). */
+  lighting?: boolean;
+}
+
+/** A rectangle in world units, from (x0, y0) to (x1, y1). */
+export interface SceneArea {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** A scene's area: its bounds when it's been extended, else its picture's rectangle. */
+export function sceneBounds(scene: Pick<Scene, "width" | "height" | "bounds">): SceneArea {
+  const b = scene.bounds;
+  return b ? { x0: b[0], y0: b[1], x1: b[2], y1: b[3] } : { x0: 0, y0: 0, x1: scene.width, y1: scene.height };
+}
+
+/** The middle of a scene's area. */
+export function sceneMiddle(scene: Pick<Scene, "width" | "height" | "bounds">): { x: number; y: number } {
+  const a = sceneBounds(scene);
+  return { x: (a.x0 + a.x1) / 2, y: (a.y0 + a.y1) / 2 };
 }
 
 /** A Dungeondraft map's exact data for Seasons, compiled from its .dungeondraft_map (no picture in it). */
@@ -82,6 +216,8 @@ export interface SceneMapData {
    * never opened either way.
    */
   packs?: "guess";
+  /** "dungeon": the data came inside a Dungeon export (dungeon.parhome.ca). Missing: from a Dungeondraft project file. */
+  from?: "dungeon";
 }
 
 /** "mapdata": a compiled Dungeondraft sidecar, packed losslessly in a PNG (GM only, never shown as a picture). */
@@ -134,6 +270,13 @@ export interface TokenItem extends ItemBase {
    * under 4) isn't sent compasses: it would take one for a plain token.
    */
   art?: TokenArt;
+  /**
+   * The character sheet it stands for (its Google Sheets id; shared/characters.ts): its card, HP
+   * bar and rolls come from there. Missing or null on any other token.
+   */
+  character?: string | null;
+  /** Its picture mirrored left to right, so it faces the other way. Missing on tokens that aren't. */
+  flipped?: boolean;
 }
 
 export type TokenLayer = "character" | "prop";
@@ -180,6 +323,24 @@ export interface DrawingItem extends ItemBase {
   text?: string;
   /** GM only: players never receive it (a secret note, say). */
   hidden?: boolean;
+  /**
+   * A spell effect that stays on the map (the Spells tool): an ellipse or a rect drawn with this
+   * look instead of an outline, or with a token's look (an ellipse, with `on`). Pages from before
+   * a look aren't sent it (lookVersion).
+   */
+  fx?: SpellLook;
+  /** The spell it's from, as its name ("Fog Cloud"), shown on marked zones. fx only. */
+  spell?: string;
+  /**
+   * A token's look only: the token the spell is on. The look is drawn on that token wherever it
+   * goes (the drawing's own points stay where it was cast), and goes with it when it's deleted.
+   */
+  on?: string;
+  /**
+   * A spell that lasts so many rounds: how many are left. Initiative counts it down as rounds pass
+   * (the Room does, room.ts passRounds), and it ends when none are left. Missing: until it's ended.
+   */
+  rounds?: number;
 }
 
 /** rect: two corners. poly: a closed outline. stroke: a brush stroke along the points. */
@@ -209,6 +370,13 @@ export interface TerrainItem extends ItemBase {
   edges: string;
   /** Objects whose top-left cell is in this block. */
   stamps: Stamp[];
+  /**
+   * Dungeon's textures on its cells, if any (terrain.ts, encodeTextures): 256 characters,
+   * "." for none or an index into pal, the texture ids. Both or neither; "" and [] when a
+   * patch takes them all away.
+   */
+  tex?: string;
+  pal?: string[];
   hidden?: boolean;
 }
 
@@ -229,6 +397,8 @@ export interface MutableFields {
   locked: boolean;
   rings: string[];
   layer: TokenLayer;
+  character: string | null;
+  flipped: boolean;
   shape: DrawShape | FogShape;
   points: number[];
   width: number;
@@ -238,6 +408,8 @@ export interface MutableFields {
   cells: string;
   edges: string;
   stamps: Stamp[];
+  tex: string;
+  pal: string[];
 }
 
 export interface ItemPatch {
@@ -252,9 +424,21 @@ export interface RoomSettings {
   playersMoveAll: boolean;
   /**
    * Measure in metres: new scenes start with one square being 1.5 m rather than 5 ft.
-   * Missing on rooms made before it existed, which measure in feet.
+   * Missing on rooms made before it existed, until they next start and switch to metres
+   * (worker/room.ts toMetres); false when the GM chose feet.
    */
   metric?: boolean;
+  /**
+   * Never snap to the grid: in every scene, tokens and the Build tool's objects go exactly where
+   * they're put, whatever a scene's own Snap tokens box or a browser's Snap to squares says
+   * (rulers and spell areas aren't snapped either). Missing: off.
+   */
+  freePlacement?: boolean;
+}
+
+/** Whether a scene snaps tokens (and rulers and spell areas) to its grid, in a room with these settings. */
+export function sceneSnaps(scene: Pick<Scene, "grid">, settings: Pick<RoomSettings, "freePlacement"> | null | undefined): boolean {
+  return scene.grid.snap && !settings?.freePlacement;
 }
 
 export interface RoomInfo {
@@ -319,6 +503,11 @@ export interface InitEntry {
   value: number;
   color: string;
   tokenId: string | null;
+  /**
+   * Seen only by the GM: a creature's, whose roll the players don't get to know. Missing: everyone
+   * who can see its token sees it.
+   */
+  hidden?: boolean;
 }
 
 export interface Initiative {

@@ -53,6 +53,15 @@ vi.mock("../src/client/room/seasonPixels", () => ({
   },
 }));
 
+// The keys the page has without the season code (seasonKeys.ts), as the code above has them.
+vi.mock("../src/client/room/seasonKeys", () => ({
+  ALGO_VERSION: 4,
+  EXACT_VERSION: 1,
+  SNOWY_SHARE: 0.5,
+  seedFrom: () => 7,
+  isSnowy: (meta: { snowShare: number }, drawn?: string) => (drawn ? drawn === "winter" : meta.snowShare >= 0.5),
+}));
+
 vi.mock("../src/client/room/seasonExact", () => ({
   EXACT_VERSION: 1,
   isSnowy: (meta: { snowShare: number }, drawn?: string) => (drawn ? drawn === "winter" : meta.snowShare >= 0.5),

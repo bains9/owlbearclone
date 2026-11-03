@@ -40,16 +40,10 @@ import {
   pixelSnowInfo, ramp, snowColours, type ExactSnow, type SeasonAnalysis, type SnowInfo,
 } from "./seasonPixels";
 
-/** Goes up with every role table or kernel change for exact scenes; part of their bake keys. */
-export const EXACT_VERSION = 1;
-
-/** Snowy when snow is at least this share of the visible open soft ground (4.2). */
-export const SNOWY_SHARE = 0.5;
-
-/** Whether an attached map is snowy: the GM's "drawn in", else META.snowShare (4.2). */
-export function isSnowy(meta: SidecarMeta, drawn?: "winter" | "green"): boolean {
-  return drawn ? drawn === "winter" : meta.snowShare >= SNOWY_SHARE;
-}
+// The exact version (part of the bake keys) and whether a map is snowy: in seasonKeys.ts, which
+// the page loads without the rest of this.
+import { isSnowy } from "./seasonKeys";
+export { EXACT_VERSION, SNOWY_SHARE, isSnowy } from "./seasonKeys";
 
 /** The derived masks at analysis size (aw x ah), 0..255 a pixel. */
 export interface ExactLayers {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   Armchair,
   BrickWall,
   Castle,
@@ -24,15 +26,19 @@ import {
   Circle,
   CloudFog,
   Eraser,
+  SprayCan,
   Eye,
   EyeOff,
   Maximize,
+  Maximize2,
+  Minimize2,
   Minus,
   MousePointer2,
   Pencil,
   Pentagon,
   Plus,
   Pointer,
+  WandSparkles,
   RectangleHorizontal,
   Redo2,
   Ruler,
@@ -45,21 +51,45 @@ import {
 import { formatDistance, isHex } from "../../shared/geometry";
 import type { MeasureShape } from "../../shared/protocol";
 import {
-  FLOORS,
   STAMP_DEG_STEP,
-  STAMP_IDS,
-  STAMP_NAMES,
   STAMP_SIZE_MAX,
   STAMP_SIZE_MIN,
   STAMP_SIZE_STEP,
+  isDungeonStamp,
+  isStampId,
+  naturalStampSize,
   snapDeg,
   snapSize,
 } from "../../shared/terrain";
-import type { FloorId, StampId } from "../../shared/terrain";
+import type { StampId } from "../../shared/terrain";
 import { DD_UI } from "./ddText";
-import type { DrawShape } from "../../shared/types";
+import { StampPicker } from "./StampPicker";
+import {
+  CONJURED_SPELLS,
+  FX_GROUPS,
+  FX_LOOKS,
+  SPELL_FX,
+  TOKEN_SPELLS,
+  ZONE_SPELLS,
+  castList,
+  highestLevel,
+  sizeAt,
+  spellFx,
+  tokenSpell,
+  zoneSpell,
+  type FxCast,
+} from "../../shared/spellfx";
+import { spellChipLabel } from "./spellChips";
+import { castCost, characterLabel } from "../../shared/characters";
+import { castRaise, castRounds, castingAs } from "../party";
+import { foldOf } from "./objectGroups";
+import { SCATTER_BRUSHES, SCATTER_DENSITY_LABELS, type ScatterDensity } from "../room/scatter";
+import { FloorPicker, WallPicker } from "./FloorPicker";
+import { isFloorFor, type FloorChoice } from "./floorGroups";
+import { RECENT_OBJECTS, loadRecent, recentFloorsKey, saveRecent, withRecent } from "./recentPicks";
+import type { DrawShape, DrawingItem } from "../../shared/types";
+import { canDelete } from "../../shared/permissions";
 import { buildUndo, wallsFor } from "../room/build";
-import { drawStamp, floorPattern } from "../room/buildArt";
 import {
   BUILD_MODE_LABELS,
   TOUCH_HINTS,
@@ -71,7 +101,8 @@ import {
   selectionStatus,
 } from "../room/buildInput";
 import type { BuildAction, BuildOptions as BuildOpts, ToolId } from "../room/client";
-import { ConfirmDialog, Swatches, cx, useRoom, useRoomState } from "./common";
+import { ConfirmDialog, Swatches, canFullscreen, cx, toggleFullscreen, useFullscreen, useRoom, useRoomState } from "./common";
+import { VoiceMicButton } from "./VoicePanel";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
   { id: "select", label: "Move & select", key: "V", icon: MousePointer2 },
@@ -81,6 +112,7 @@ const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?:
   { id: "build", label: "Build the map: floors, walls, doors, objects", key: "B", icon: Hammer, gm: true },
   { id: "measure", label: "Measure", key: "M", icon: Ruler },
   { id: "pointer", label: "Pointer", key: "P", icon: Pointer },
+  { id: "spell", label: "Spells: cast an effect everyone sees", key: "S", icon: WandSparkles },
 ];
 
 export const DRAW_COLORS = ["#ffffff", "#111111", "#e4572e", "#f3a712", "#e8d33f", "#5bba6f", "#4f9dde", "#b45fd6"];
@@ -124,6 +156,7 @@ export function ToolOptions() {
   if (tool === "build") return <BuildOptions />;
   if (tool === "erase") return <EraseOptions />;
   if (tool === "measure") return <MeasureHint />;
+  if (tool === "spell") return <SpellOptions />;
   if (tool === "pointer") return <div class="tool-options hint">Hold and drag to point; click to ping a spot. Everyone sees it, table display too.</div>;
   return null;
 }
@@ -182,6 +215,7 @@ function FogOptions() {
   const room = useRoom();
   const o = useRoomState((s) => s.fogOpts);
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
+  const party = useRoomState((s) => s.party);
   const [confirm, setConfirm] = useState<null | "cover" | "clear">(null);
   const set = (patch: Partial<typeof o>) => room.store.set({ fogOpts: { ...o, ...patch } });
   const reset = (cover: boolean) => {
@@ -259,6 +293,19 @@ function FogOptions() {
       >
         {o.preview ? <EyeOff size={16} /> : <Eye size={16} />} Player view
       </button>
+      {o.preview && scene?.vision?.on && scene.vision.perPlayer && (
+        <label class="look-as" title="With per-player sight: whose view to see">
+          <span>Look as</span>
+          <select aria-label="Look as" value={o.lookAs ?? ""} onChange={(e) => set({ lookAs: e.currentTarget.value || null })}>
+            <option value="">The whole party</option>
+            {(party?.characters ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <button class="btn btn-sm" onClick={() => setConfirm("cover")}>
         Cover all
       </button>
@@ -300,9 +347,6 @@ const BUILD_MODES: { id: BuildOpts["mode"]; label: string; title: string; icon: 
   },
 ];
 
-const BUILDING_FLOORS = FLOORS.filter((f) => f.walls);
-const TERRAIN_FLOORS = FLOORS.filter((f) => !f.walls);
-
 /** Whether this is a Mac, where the zoom key is ⌘. */
 const MAC = typeof navigator !== "undefined" && isMacPlatform(navigator.platform ?? "", navigator.userAgent ?? "");
 
@@ -326,37 +370,6 @@ function Slider(props: { min: number; max: number; step: number; value: number; 
       onChange={blur}
     />
   );
-}
-/** A small picture of an object, for the palette. */
-function StampIcon(props: { id: StampId }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const px = 26 * (window.devicePixelRatio || 1);
-    canvas.width = px;
-    canvas.height = px;
-    ctx.setTransform(px, 0, 0, px, px / 2, px / 2);
-    drawStamp(ctx, props.id);
-  }, [props.id]);
-  return <canvas ref={ref} class="stamp-icon" aria-hidden="true" />;
-}
-
-/** A swatch of a floor's texture. */
-function FloorIcon(props: { id: FloorId }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const px = 22 * (window.devicePixelRatio || 1);
-    canvas.width = px;
-    canvas.height = px;
-    ctx.fillStyle = floorPattern(ctx, props.id, px, 0, 0);
-    ctx.fillRect(0, 0, px, px);
-  }, [props.id]);
-  return <canvas ref={ref} class="floor-icon" aria-hidden="true" />;
 }
 
 /**
@@ -394,6 +407,11 @@ function BuildOptions() {
   const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : null));
   const live = useRoomState((s) => !!s.viewSceneId && s.viewSceneId === s.activeSceneId);
   const [confirm, setConfirm] = useState(false);
+  const [recentObjects, setRecentObjects] = useState<StampId[]>(() => loadRecent(RECENT_OBJECTS, isStampId));
+  const [recentFloors, setRecentFloors] = useState(() => ({
+    building: loadRecent(recentFloorsKey("building"), (id): id is FloorChoice => isFloorFor("building", id)),
+    terrain: loadRecent(recentFloorsKey("terrain"), (id): id is FloorChoice => isFloorFor("terrain", id)),
+  }));
   if (!scene) {
     return (
       <div class="tool-options build-options">
@@ -465,18 +483,19 @@ function BuildOptions() {
             ))}
           </div>
           <div class="floor-swatches" role="group" aria-label="Floor">
-            {(paint === "building" ? BUILDING_FLOORS : TERRAIN_FLOORS).map((f) => (
-              <button
-                key={f.id}
-                class={cx("floor-swatch", o.floor[paint] === f.id && "active")}
-                title={f.name}
-                aria-label={f.name}
-                aria-pressed={o.floor[paint] === f.id}
-                onClick={() => set({ floor: { ...o.floor, [paint]: f.id } })}
-              >
-                <FloorIcon id={f.id} />
-              </button>
-            ))}
+            <FloorPicker
+              tool={paint}
+              // While erasing, the picker shows the floor painting goes back to.
+              value={o.floor[paint] === "erase" ? (recentFloors[paint][0] ?? (paint === "building" ? "s" : "g")) : (o.floor[paint] as FloorChoice)}
+              painting={o.floor[paint] !== "erase"}
+              recent={recentFloors[paint]}
+              onPick={(id) => {
+                set({ floor: { ...o.floor, [paint]: id } });
+                const next = withRecent(recentFloors[paint], id);
+                setRecentFloors({ ...recentFloors, [paint]: next });
+                saveRecent(recentFloorsKey(paint), next);
+              }}
+            />
             <button
               class={cx("floor-swatch erase", o.floor[paint] === "erase" && "active")}
               title={
@@ -536,14 +555,20 @@ function BuildOptions() {
         </>
       )}
       {o.mode === "walls" && (
-        <div class="seg">
-          <button class={cx("seg-btn wide", o.wallMode === "add" && "active")} onClick={() => set({ wallMode: "add" })}>
-            Add
-          </button>
-          <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
-            Remove
-          </button>
-        </div>
+        <>
+          <div class="seg">
+            <button class={cx("seg-btn wide", o.wallMode === "add" && "active")} onClick={() => set({ wallMode: "add" })}>
+              Add
+            </button>
+            <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
+              Remove
+            </button>
+          </div>
+          <WallPicker
+            value={scene.wallTexture ? `t:${scene.wallTexture}` : "plain"}
+            onPick={(id) => room.changeScene(scene.id, { wallTexture: id === "plain" ? null : id.slice(2) }, {})}
+          />
+        </>
       )}
       {o.mode === "doors" && (
         <div class="seg" role="group" aria-label="Style">
@@ -579,100 +604,129 @@ function BuildOptions() {
       {o.mode === "stamps" && (
         <>
           <div class="seg">
-            <button class={cx("seg-btn wide", o.stampMode === "place" && "active")} onClick={() => set({ stampMode: "place" })}>
+            <button
+              class={cx("seg-btn wide", o.stampMode === "place" && "active")}
+              title="Place objects: click the map"
+              aria-pressed={o.stampMode === "place"}
+              onClick={() => set({ stampMode: "place" })}
+            >
               Place
             </button>
-            <button class={cx("seg-btn wide", o.stampMode === "remove" && "active")} onClick={() => set({ stampMode: "remove" })}>
-              Remove
+            <button
+              class={cx("seg-btn wide", o.stampMode === "scatter" && "active")}
+              title="Scatter: drag a brush to paint objects at random, for forests ([ and ] change its size)"
+              aria-pressed={o.stampMode === "scatter"}
+              onClick={() => set({ stampMode: "scatter" })}
+            >
+              <SprayCan size={14} /> Scatter
+            </button>
+            <button
+              class={cx("seg-btn wide", o.stampMode === "remove" && "active")}
+              title="Erase objects: click one, or drag over several (or hold Alt while you click or drag)"
+              aria-pressed={o.stampMode === "remove"}
+              onClick={() => set({ stampMode: "remove" })}
+            >
+              <Eraser size={14} /> Erase
             </button>
           </div>
-          <div class="stamp-palette" role="group" aria-label="Objects">
-            {STAMP_IDS.map((id) => (
+          <StampPicker
+            value={o.stamp}
+            placing={o.stampMode !== "remove"}
+            recent={recentObjects}
+            onPick={(id) => {
+              // A Dungeon object starts at its natural size; switching between the first sixteen
+              // keeps the size the GM set, unless the last one was a Dungeon object.
+              const stampSize = isDungeonStamp(id) ? naturalStampSize(id) : isDungeonStamp(o.stamp) ? 1 : o.stampSize;
+              set({ stamp: id, stampMode: o.stampMode === "scatter" ? "scatter" : "place", stampSize });
+              const next = withRecent(recentObjects, id);
+              setRecentObjects(next);
+              saveRecent(RECENT_OBJECTS, next);
+            }}
+          />
+          {o.stampMode === "scatter" ? (
+            <ScatterOptions o={o} set={set} />
+          ) : (
+            <>
+              <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
+                <span class="seg-label build-group-label">Size</span>
+                <button
+                  class="seg-btn"
+                  title="Smaller (Alt+wheel)"
+                  aria-label="Smaller"
+                  disabled={o.stampSize <= STAMP_SIZE_MIN}
+                  onClick={() => set({ stampSize: snapSize(o.stampSize - STAMP_SIZE_STEP) })}
+                >
+                  <Minus size={14} />
+                </button>
+                <Slider
+                  min={STAMP_SIZE_MIN}
+                  max={STAMP_SIZE_MAX}
+                  step={STAMP_SIZE_STEP}
+                  value={o.stampSize}
+                  label="Size"
+                  onInput={(v) => set({ stampSize: snapSize(v) })}
+                />
+                <button
+                  class="seg-btn"
+                  title="Bigger (Alt+wheel)"
+                  aria-label="Bigger"
+                  disabled={o.stampSize >= STAMP_SIZE_MAX}
+                  onClick={() => set({ stampSize: snapSize(o.stampSize + STAMP_SIZE_STEP) })}
+                >
+                  <Plus size={14} />
+                </button>
+                <span class="build-readout">{formatSize(o.stampSize)}</span>
+              </div>
+              <div class="seg build-turn" role="group" aria-label="Turn" title="Turn (mouse wheel; Z and the wheel: 5°)">
+                <span class="seg-label build-group-label">Turn</span>
+                <button
+                  class="seg-btn"
+                  title="Turn left 15° ([)"
+                  aria-label="Turn left 15°"
+                  onClick={() => set({ stampDeg: snapDeg(o.stampDeg - 15) })}
+                >
+                  <RotateCcw size={14} />
+                </button>
+                <Slider
+                  min={0}
+                  max={360 - STAMP_DEG_STEP}
+                  step={STAMP_DEG_STEP}
+                  value={o.stampDeg}
+                  label="Turn"
+                  onInput={(v) => set({ stampDeg: snapDeg(v) })}
+                />
+                <button
+                  class="seg-btn"
+                  title="Turn right 15° (])"
+                  aria-label="Turn right 15°"
+                  onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 15) })}
+                >
+                  <RotateCw size={14} />
+                </button>
+                <span class="build-readout">{formatDeg(o.stampDeg)}</span>
+              </div>
               <button
-                key={id}
-                class={cx("stamp-btn", o.stamp === id && o.stampMode === "place" && "active")}
-                title={STAMP_NAMES[id]}
-                aria-label={STAMP_NAMES[id]}
-                aria-pressed={o.stamp === id && o.stampMode === "place"}
-                onClick={() => set({ stamp: id, stampMode: "place" })}
+                class="seg-btn stamp-turn"
+                title="Turn 90° (right-click)"
+                aria-label="Turn 90°"
+                onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 90) })}
               >
-                <StampIcon id={id} />
+                <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
               </button>
-            ))}
-          </div>
-          <div class="seg build-size" role="group" aria-label="Size in squares" title="Size in squares (Alt+wheel)">
-            <span class="seg-label build-group-label">Size</span>
-            <button
-              class="seg-btn"
-              title="Smaller (Alt+wheel)"
-              aria-label="Smaller"
-              disabled={o.stampSize <= STAMP_SIZE_MIN}
-              onClick={() => set({ stampSize: snapSize(o.stampSize - STAMP_SIZE_STEP) })}
-            >
-              <Minus size={14} />
-            </button>
-            <Slider
-              min={STAMP_SIZE_MIN}
-              max={STAMP_SIZE_MAX}
-              step={STAMP_SIZE_STEP}
-              value={o.stampSize}
-              label="Size"
-              onInput={(v) => set({ stampSize: snapSize(v) })}
-            />
-            <button
-              class="seg-btn"
-              title="Bigger (Alt+wheel)"
-              aria-label="Bigger"
-              disabled={o.stampSize >= STAMP_SIZE_MAX}
-              onClick={() => set({ stampSize: snapSize(o.stampSize + STAMP_SIZE_STEP) })}
-            >
-              <Plus size={14} />
-            </button>
-            <span class="build-readout">{formatSize(o.stampSize)}</span>
-          </div>
-          <div class="seg build-turn" role="group" aria-label="Turn" title="Turn (mouse wheel; Z and the wheel: 5°)">
-            <span class="seg-label build-group-label">Turn</span>
-            <button
-              class="seg-btn"
-              title="Turn left 15° ([)"
-              aria-label="Turn left 15°"
-              onClick={() => set({ stampDeg: snapDeg(o.stampDeg - 15) })}
-            >
-              <RotateCcw size={14} />
-            </button>
-            <Slider
-              min={0}
-              max={360 - STAMP_DEG_STEP}
-              step={STAMP_DEG_STEP}
-              value={o.stampDeg}
-              label="Turn"
-              onInput={(v) => set({ stampDeg: snapDeg(v) })}
-            />
-            <button
-              class="seg-btn"
-              title="Turn right 15° (])"
-              aria-label="Turn right 15°"
-              onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 15) })}
-            >
-              <RotateCw size={14} />
-            </button>
-            <span class="build-readout">{formatDeg(o.stampDeg)}</span>
-          </div>
-          <button
-            class="seg-btn stamp-turn"
-            title="Turn 90° (right-click)"
-            aria-label="Turn 90°"
-            onClick={() => set({ stampDeg: snapDeg(o.stampDeg + 90) })}
-          >
-            <RotateCw size={16} style={{ transform: `rotate(${o.stampDeg}deg)` }} />
-          </button>
+              <ObjectSnap />
+            </>
+          )}
         </>
       )}
       {o.mode === "select" && (
         <SelectOptions sel={sel} clip={clip} back={backLabel(o.selectReturn)} act={(a) => room.board?.buildAction(a)} />
       )}
       <span class="hint build-touch-hint">
-        {o.mode === "stamps" && o.stampMode === "remove" ? "Tap an object to remove it." : TOUCH_HINTS[o.mode]}
+        {o.mode === "stamps" && o.stampMode === "remove"
+          ? "Tap an object, or drag over several, to erase them."
+          : o.mode === "stamps" && o.stampMode === "scatter"
+            ? "Drag to scatter objects. Two fingers move the map."
+            : TOUCH_HINTS[o.mode]}
       </span>
       {live && <span class="hint build-live">Players see this scene as you build.</span>}
       <ImportDungeondraft />
@@ -689,6 +743,82 @@ function BuildOptions() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Objects › Scatter: whether to mix the picked object's group, how big the brush is, and how
+ * close together it puts things. Objects it scatters always go anywhere, turned at random,
+ * each at its own size give or take a fifth.
+ */
+function ScatterOptions(props: { o: BuildOpts; set: (x: Partial<BuildOpts>) => void }) {
+  const { o, set } = props;
+  const sc = o.scatter;
+  const fold = foldOf(o.stamp);
+  const put = (x: Partial<BuildOpts["scatter"]>) => set({ scatter: { ...sc, ...x } });
+  return (
+    <>
+      <label
+        class="check"
+        title={
+          fold
+            ? `Mix: scatter all ${fold.ids.length} of ${fold.name}, picked at random. Untick to scatter only the one you picked.`
+            : "Only Dungeon's objects come in groups to mix. Pick one of those (Nature has trees, rocks and bushes) to mix its group."
+        }
+      >
+        <input type="checkbox" checked={!!fold && sc.mix} disabled={!fold} onChange={(e) => put({ mix: e.currentTarget.checked })} /> Mix{" "}
+        {fold ? fold.name.toLowerCase() : "its group"}
+      </label>
+      <div class="seg" role="group" aria-label="Brush size" title="Brush size in squares across ([ and ] change it)">
+        {SCATTER_BRUSHES.map((n) => (
+          <button
+            key={n}
+            class={cx("seg-btn", sc.brush === n && "active")}
+            aria-label={`${n} square brush`}
+            aria-pressed={sc.brush === n}
+            onClick={() => put({ brush: n })}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <div class="seg" role="group" aria-label="Density" title="How close together: sparse leaves gaps, dense lets treetops crowd">
+        {(Object.keys(SCATTER_DENSITY_LABELS) as ScatterDensity[]).map((d) => (
+          <button
+            key={d}
+            class={cx("seg-btn wide", sc.density === d && "active")}
+            aria-pressed={sc.density === d}
+            onClick={() => put({ density: d })}
+          >
+            {SCATTER_DENSITY_LABELS[d]}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Objects and Select: whether objects go on whole squares, or anywhere (to a sixteenth of a
+ * square), closer together than squares allow. Remembered in this browser.
+ */
+function ObjectSnap() {
+  const room = useRoom();
+  const snap = useRoomState((s) => s.objectSnap);
+  // Room settings › Never snap to the grid: off for everyone, and not this browser's to change.
+  const never = useRoomState((s) => !!s.room?.settings.freePlacement);
+  return (
+    <label
+      class="check"
+      title={
+        never
+          ? "Off in every scene: Room settings › Never snap to the grid"
+          : "Untick to place and move objects anywhere, not only on whole squares (the arrow keys then move a quarter square)"
+      }
+    >
+      <input type="checkbox" checked={snap && !never} disabled={never} onChange={(e) => room.setObjectSnap(e.currentTarget.checked)} /> Snap
+      to squares
+    </label>
   );
 }
 
@@ -757,6 +887,7 @@ function SelectOptions(props: {
           <Trash size={16} />
         </button>
       </div>
+      <ObjectSnap />
       <button class="seg-btn wide" title={`Back to ${props.back} (X)`} aria-label={`Back to ${props.back}`} onClick={() => room.toggleBuildSelect()}>
         <ArrowLeft size={16} /> <span class="seg-label">Back</span>
       </button>
@@ -869,6 +1000,196 @@ const MEASURE_TOOLS: { id: MeasureShape; label: string; icon: typeof Pencil }[] 
   { id: "beam", label: "Line (one square wide)", icon: RectangleHorizontal },
 ];
 
+/** How each kind of spell is cast, as the Spells bar says it. */
+/** Cast as a character: from their token, so a click is enough. */
+const CAST_AS_HINTS: Record<"cone" | "bolt" | "jump", string> = {
+  cone: "Click the way it goes from them.",
+  bolt: "Click the target.",
+  jump: "Click where they arrive.",
+};
+
+const CAST_HINTS: Record<FxCast, string> = {
+  burst: "Click where it goes.",
+  strike: "Click where it strikes.",
+  cone: "Drag from the caster the way it goes.",
+  bolt: "Drag from the caster to the target.",
+  jump: "Drag from where they leave to where they arrive.",
+};
+
+/** Up to this many spells on the map show in the Spells bar; more fold into one "On the map" chip. */
+const SPELLS_SHOWN = 3;
+
+/**
+ * The spells left on the scene being looked at (zones, and spells on tokens), each with an End:
+ * the GM can end any of them, a player the ones they cast. Ending is a change like any other:
+ * Undo brings it back. A few show in the bar; more fold away, newest first, into a list that
+ * scrolls, so the bar never covers the map.
+ */
+function LastingSpells() {
+  const room = useRoom();
+  const items = useRoomState((s) => s.items);
+  const sceneId = useRoomState((s) => s.viewSceneId);
+  const me = useRoomState((s) => s.me);
+  const [open, setOpen] = useState(false);
+  if (!me) return null;
+  const zones = Object.values(items)
+    .filter((i): i is DrawingItem => i.kind === "drawing" && i.sceneId === sceneId && !!i.fx && canDelete(i, me))
+    .sort((a, b) => b.z - a.z);
+  if (!zones.length) return null;
+  const chip = (z: DrawingItem) => (
+    <button
+      key={z.id}
+      class="chip spell-zone"
+      title={`End ${z.spell ?? "this spell"} (Undo brings it back)`}
+      aria-label={`End ${z.spell ?? "this spell"}`}
+      onClick={() => room.change({ delete: [z.id] })}
+    >
+      {spellChipLabel(z, items)} <X size={12} />
+    </button>
+  );
+  if (zones.length <= SPELLS_SHOWN) {
+    return (
+      <span class="spell-zones">
+        <span class="hint">On the map:</span>
+        {zones.map(chip)}
+      </span>
+    );
+  }
+  return (
+    <span class={cx("spell-zones", open && "open")}>
+      <button class="chip spell-zones-toggle" aria-expanded={open} title={open ? "Fold the list away" : "The spells on the map, to end one"} onClick={() => setOpen(!open)}>
+        On the map: {zones.length} {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && <span class="spell-zones-list">{zones.map(chip)}</span>}
+    </span>
+  );
+}
+
+/** The Spells tool's bar: which spell, and how to cast it. Everyone in the room sees it play. */
+function SpellOptions() {
+  const room = useRoom();
+  const o = useRoomState((s) => s.spellOpts);
+  // Cast as a character (picked from their card's Spells list): their spells first, cast from them.
+  useRoomState((s) => s.party);
+  const casterToken = useRoomState((s) => (s.spellOpts.caster ? s.items[s.spellOpts.caster] : undefined));
+  const as = casterToken?.kind === "token" ? room.characterOf(casterToken) : null;
+  const who = as ? characterLabel(as) : "";
+  const theirs = as ? castList(as).filter((sp) => sp.onMap && !sp.locked) : [];
+  const spell = spellFx(o.spell);
+  const zone = zoneSpell(o.spell);
+  const cast = spell ? FX_LOOKS[spell.look].cast : "burst";
+  const onToken = tokenSpell(o.spell);
+  // Cast at a higher level: bigger where the sheet says so, and its cost; the rounds a lasting spell lasts.
+  const casting = castingAs(room, o.spell);
+  const raise = castRaise(room, o.spell);
+  const own = casting?.entry?.sheet.level ?? null;
+  const top = casting?.entry?.raise && own !== null ? Math.max(own, highestLevel(castList(casting.character))) : null;
+  const rounds = zone || onToken ? castRounds(room, o.spell) : null;
+  const fxSize = sizeAt(spell?.size, spell?.perLevel, raise);
+  const zoneSize = sizeAt(zone?.size, zone?.perLevel, raise);
+  const size = fxSize ? (spell?.spread ? `${fxSize} m, ${spell.spread}°` : `${fxSize} m radius`) : "";
+  const stays = rounds ? `It lasts ${rounds} round${rounds === 1 ? "" : "s"} of initiative, or until it's ended.` : "It stays until it's ended.";
+  const hint = onToken
+    ? `Click a token to put it on; it goes where the token goes. Click the token again to end it.${rounds ? ` ${stays}` : ""}`
+    : zone?.look === "spirit-weapon"
+      ? `Click to put it on the map; drag it round by its middle with Move & select. ${stays}`
+      : zone?.width
+        ? `Click to lay it across the map (${zoneSize} m by ${zone.width} m), or drag corner to corner. ${stays}`
+        : zone
+          ? zone.shape === "circle"
+            ? `Click to leave it (${zoneSize} m radius), or drag from its middle to size it. ${stays}`
+            : `Click to leave it (${zoneSize} m square), or drag corner to corner. ${stays}`
+          : `${as && cast !== "burst" && cast !== "strike" ? CAST_AS_HINTS[cast] : CAST_HINTS[cast]}${size ? ` ${size}.` : ""} Everyone sees it.`;
+  return (
+    <div class="tool-options">
+      {as && (
+        <button
+          class="chip spell-zone"
+          title={`Spells go from ${who}'s token, and use up what they've prayed for. Click to stop casting as ${who}`}
+          aria-label={`Stop casting as ${who}`}
+          onClick={() => room.store.set({ spellOpts: { ...o, caster: null } })}
+        >
+          As {who} <X size={12} />
+        </button>
+      )}
+      <label class="field inline">
+        <span>Spell</span>
+        <select value={o.spell} onChange={(e) => room.store.set({ spellOpts: { ...o, spell: e.currentTarget.value, level: null } })}>
+          {theirs.length > 0 && (
+            <optgroup label={`${who}'s spells`}>
+              {theirs.map((sp) => (
+                <option key={sp.name} value={sp.name}>
+                  {sp.prayer ? `${sp.name} (${sp.left} left today)` : sp.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {FX_GROUPS.map((g) => (
+            <optgroup key={g.name} label={g.name}>
+              {SPELL_FX.filter((sp) => g.casts.includes(FX_LOOKS[sp.look].cast))
+                .sort((x, y) => x.name.localeCompare(y.name))
+                .map((sp) => (
+                  <option key={sp.name} value={sp.name}>
+                    {sp.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+          {(
+            [
+              ["Zones that stay", ZONE_SPELLS],
+              ["On a token", TOKEN_SPELLS],
+              ["Things that appear", CONJURED_SPELLS],
+            ] as const
+          ).map(([label, list]) => (
+            <optgroup key={label} label={label}>
+              {[...list]
+                .sort((x, y) => x.name.localeCompare(y.name))
+                .map((sp) => (
+                  <option key={sp.name} value={sp.name}>
+                    {sp.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      {casting?.entry && own !== null && top !== null && top > own && (
+        <label class="field inline" title="Cast at a higher level: it costs that level's spell points, and some spells grow">
+          <span>Level</span>
+          <select value={String(casting.level ?? own)} onChange={(e) => room.store.set({ spellOpts: { ...o, level: Number(e.currentTarget.value) } })}>
+            {Array.from({ length: top - own + 1 }, (_, i) => own + i).map((l) => (
+              <option key={l} value={String(l)}>
+                {l} ({castCost(casting.entry!.sheet.sp, own, l)} SP)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(zone || onToken) && (
+        <label class="field inline" title="How many rounds of initiative it lasts: it ends by itself when they've passed. Empty: until it's ended">
+          <span>Lasts</span>
+          <input
+            type="number"
+            class="rounds-input"
+            min={1}
+            max={999}
+            placeholder="∞"
+            value={rounds ?? ""}
+            onChange={(e) => {
+              const n = Math.round(Number(e.currentTarget.value));
+              room.store.set({ spellOpts: { ...o, lasts: { spell: o.spell, rounds: n >= 1 ? Math.min(999, n) : null } } });
+            }}
+          />
+          <span>rounds</span>
+        </label>
+      )}
+      <span class="hint">{hint}</span>
+      <LastingSpells />
+    </div>
+  );
+}
+
 function MeasureHint() {
   const room = useRoom();
   const o = useRoomState((s) => s.measureOpts);
@@ -912,10 +1233,12 @@ function MeasureHint() {
 }
 
 export function ZoomControls() {
+  const full = useFullscreen();
   const room = useRoom();
   const zoom = useRoomState((s) => s.zoom);
   return (
     <div class="zoom">
+      <VoiceMicButton />
       <button class="tool" title="Zoom out (−)" aria-label="Zoom out" onClick={() => room.board?.zoomBy(0.8)}>
         <Minus size={18} />
       </button>
@@ -928,6 +1251,11 @@ export function ZoomControls() {
       <button class="tool" title="Fit the scene (0)" aria-label="Fit the scene" onClick={() => room.board?.fit()}>
         <Maximize size={18} />
       </button>
+      {canFullscreen() && (
+        <button class="tool" title={full ? "Leave full screen" : "Full screen"} aria-label={full ? "Leave full screen" : "Full screen"} onClick={toggleFullscreen}>
+          {full ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+        </button>
+      )}
     </div>
   );
 }

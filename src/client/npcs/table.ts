@@ -41,3 +41,34 @@ export const NPC_CLASSES: readonly NpcClass[] = [
   { id: "death-knight", name: "Death Knight", group: "NPC classes", icon: "lorc_dread-skull", color: "#9b2335" },
   { id: "bog-witch", name: "Bog Witch", group: "NPC classes", icon: "lorc_cauldron", color: "#5f8f4a" },
 ];
+
+/** A player character's full-body figure (an icon), by class id or class/subclass. */
+export const PC_FIGURES: Readonly<Record<string, string>> = {
+  "fighter": "cathelineau_swordman",
+  "crusader": "cathelineau_swordwoman",
+  "samurai": "darkzaitzev_running-ninja",
+  "ranger": "lorc_bowman",
+  "cleric": "delapouite_sun-priest",
+  "war-cleric": "lorc_embrassed-energy",
+  "nature-cleric": "delapouite_sun-priest",
+  "rogue": "darkzaitzev_hooded-assassin",
+  "monk": "delapouite_high-kick",
+  "mage": "lorc_fire-silhouette",
+  "shaman": "lorc_meditation",
+};
+
+/** The figures the GM can choose for a character instead of their class's (the figures, then the poses). */
+export const PC_FIGURE_CHOICES: readonly { icon: string; name: string }[] = [
+  { icon: "cathelineau_swordman", name: "Swordsman" },
+  { icon: "cathelineau_swordwoman", name: "Swordwoman" },
+  { icon: "darkzaitzev_running-ninja", name: "Running ninja" },
+  { icon: "lorc_bowman", name: "Bowman" },
+  { icon: "delapouite_sun-priest", name: "Sun priest" },
+  { icon: "lorc_embrassed-energy", name: "Embraced energy" },
+  { icon: "darkzaitzev_hooded-assassin", name: "Hooded assassin" },
+  { icon: "delapouite_high-kick", name: "High kick" },
+  { icon: "lorc_fire-silhouette", name: "Fire silhouette" },
+  { icon: "lorc_meditation", name: "Meditation" },
+  { icon: "delapouite_fencer", name: "Fencer" },
+  { icon: "lorc_bowman-woman", name: "Bowwoman" },
+];

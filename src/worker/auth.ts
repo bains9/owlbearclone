@@ -8,6 +8,9 @@
 // guess the password offline and changing GM_PASSWORD signs those sessions out. A
 // Google session names the account, and stops working as soon as that account is
 // taken off GM_EMAILS.
+//
+// Dungeon (dungeon.parhome.ca) gets sessions of the same two kinds, signed for it alone,
+// so neither site's cookie works on the other (see dungeon.ts).
 
 const COOKIE = "tt_gm";
 const SESSION_DAYS = 30;
@@ -67,8 +70,12 @@ async function derivedKey(env: Env, label: string): Promise<CryptoKey> {
   return key;
 }
 
-const passwordLabel = (password: string) => `gm-session|${password}`;
-const GOOGLE_SESSION = "gm-session-google";
+/** Who a GM session signs in: the GM password, or one Google account on GM_EMAILS. */
+export type GmWho = { kind: "password" } | { kind: "google"; email: string };
+
+// Table's own sessions use the bare labels; another site's put its name in front.
+const passwordLabel = (password: string, site = "") => `${site}gm-session|${password}`;
+const googleLabel = (site = "") => `${site}gm-session-google`;
 
 /** Signs `payload` with the key for `label`: the signature, base64url. */
 export async function signWith(env: Env, label: string, payload: string): Promise<string> {
@@ -104,21 +111,31 @@ export async function passwordMatches(given: string, env: Env): Promise<boolean>
   return crypto.subtle.timingSafeEqual(a, b);
 }
 
-/** A session from the GM password: v1.<expiry>.<signature>. */
-export async function sessionCookie(env: Env, secure: boolean): Promise<string> {
-  if (!env.GM_PASSWORD) throw new Error("GM_PASSWORD is not set");
-  const exp = Date.now() + SESSION_DAYS * 86400_000;
-  const payload = `v1.${exp}`;
-  const sig = await signWith(env, passwordLabel(env.GM_PASSWORD), payload);
-  return setCookie(COOKIE, `${payload}.${sig}`, SESSION_DAYS * 86400, secure, "/");
+/**
+ * A session's value, good for `seconds`: v1.<expiry>.<signature> from the GM password,
+ * g1.<expiry>.<email, base64url>.<signature> from Google.
+ */
+export async function sessionValue(env: Env, who: GmWho, seconds: number, site = ""): Promise<string> {
+  const exp = Date.now() + seconds * 1000;
+  if (who.kind === "password") {
+    if (!env.GM_PASSWORD) throw new Error("GM_PASSWORD is not set");
+    const payload = `v1.${exp}`;
+    return `${payload}.${await signWith(env, passwordLabel(env.GM_PASSWORD, site), payload)}`;
+  }
+  const payload = `g1.${exp}.${b64urlText(who.email)}`;
+  return `${payload}.${await signWith(env, googleLabel(site), payload)}`;
 }
 
-/** A session from Google: g1.<expiry>.<email, base64url>.<signature>. */
+/** A session from the GM password. */
+export async function sessionCookie(env: Env, secure: boolean): Promise<string> {
+  const value = await sessionValue(env, { kind: "password" }, SESSION_DAYS * 86400);
+  return setCookie(COOKIE, value, SESSION_DAYS * 86400, secure, "/");
+}
+
+/** A session from Google. */
 export async function googleSessionCookie(env: Env, email: string, secure: boolean): Promise<string> {
-  const exp = Date.now() + SESSION_DAYS * 86400_000;
-  const payload = `g1.${exp}.${b64urlText(email)}`;
-  const sig = await signWith(env, GOOGLE_SESSION, payload);
-  return setCookie(COOKIE, `${payload}.${sig}`, SESSION_DAYS * 86400, secure, "/");
+  const value = await sessionValue(env, { kind: "google", email }, SESSION_DAYS * 86400);
+  return setCookie(COOKIE, value, SESSION_DAYS * 86400, secure, "/");
 }
 
 export function clearCookie(secure: boolean): string {
@@ -140,20 +157,31 @@ export function readCookie(request: Request, name: string): string | null {
   return value;
 }
 
-export async function isGm(request: Request, env: Env): Promise<boolean> {
-  const value = readCookie(request, COOKIE);
-  if (!value) return false;
+/** Who a session's value signs in, or null: expired, not signed for `site`, or no longer allowed. */
+export async function sessionWho(value: string | null, env: Env, site = ""): Promise<GmWho | null> {
+  if (!value) return null;
   const parts = value.split(".");
   const exp = Number(parts[1]);
-  if (!Number.isFinite(exp) || exp < Date.now()) return false;
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
   if (parts[0] === "v1" && parts.length === 3) {
-    if (!env.GM_PASSWORD) return false;
-    return verifyWith(env, passwordLabel(env.GM_PASSWORD), `v1.${parts[1]}`, parts[2]);
+    if (!env.GM_PASSWORD) return null;
+    const ok = await verifyWith(env, passwordLabel(env.GM_PASSWORD, site), `v1.${parts[1]}`, parts[2]);
+    return ok ? { kind: "password" } : null;
   }
   if (parts[0] === "g1" && parts.length === 4) {
     const email = fromB64urlText(parts[2]);
-    if (!email || !gmEmails(env).has(email)) return false;
-    return verifyWith(env, GOOGLE_SESSION, `g1.${parts[1]}.${parts[2]}`, parts[3]);
+    if (!email || !gmEmails(env).has(email)) return null;
+    const ok = await verifyWith(env, googleLabel(site), `g1.${parts[1]}.${parts[2]}`, parts[3]);
+    return ok ? { kind: "google", email } : null;
   }
-  return false;
+  return null;
+}
+
+/** The GM signed in on this browser (Table's own cookie), or null. */
+export function gmWho(request: Request, env: Env): Promise<GmWho | null> {
+  return sessionWho(readCookie(request, COOKIE), env);
+}
+
+export async function isGm(request: Request, env: Env): Promise<boolean> {
+  return (await gmWho(request, env)) !== null;
 }

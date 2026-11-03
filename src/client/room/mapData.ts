@@ -8,8 +8,7 @@ import { fileUrl } from "../api";
 import { canUnpack, unpackPng } from "../dd/pngBox";
 import { SIDECAR_FORMAT, SIDECAR_HEADER_BYTES, SidecarError, decodeSidecar, readFormat } from "../dd/sidecar";
 import type { SidecarMeta } from "../dd/sidecar";
-import { isSnowy } from "./seasonExact";
-import { ALGO_VERSION, seedFrom } from "./seasonPixels";
+import { ALGO_VERSION, isSnowy, seedFrom } from "./seasonKeys";
 import { ddKey, seasonSquare } from "./seasons";
 import type { SeasonDataSource, SeasonJob, SeasonJobData } from "./seasons";
 

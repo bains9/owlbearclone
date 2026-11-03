@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUILD_TOASTS,
   BURST_MS,
   DUPLICATE_OFFSETS,
   WheelSteps,
@@ -18,6 +19,7 @@ import { RoomClient } from "../src/client/room/client";
 import type { BuildOptions } from "../src/client/room/client";
 import { placedOf } from "../src/client/room/stampGeom";
 import { applyOps } from "../src/shared/ops";
+import { GUIDE } from "../src/client/guide";
 import { PROTOCOL_VERSION } from "../src/shared/protocol";
 import { DEFAULT_GRID } from "../src/shared/sanitize";
 import type { Scene } from "../src/shared/types";
@@ -34,6 +36,7 @@ const OPTS: BuildOptions = {
   stampSize: 1,
   stampDeg: 0,
   stampMode: "place",
+  scatter: { brush: 4, density: "medium", mix: true },
   selectReturn: null,
 };
 
@@ -286,6 +289,16 @@ describe("the controls along the bottom", () => {
     ]);
   });
 
+  it("says a drag erases with Erase picked in Objects, and that Alt erases while placing", () => {
+    expect(keys(buildHints({ ...OPTS, stampMode: "remove" }, { objects: 0, doors: 0 }, env("auto"))).slice(0, 2)).toEqual([
+      "Click an object erase",
+      "Drag erase all it passes",
+    ]);
+    for (const wheel of ["auto", "never"] as WheelPref[]) {
+      expect(keys(buildHints(OPTS, { objects: 0, doors: 0 }, env(wheel)))).toContain("Alt+click, Alt+drag erase");
+    }
+  });
+
   it("offers X in every other mode", () => {
     for (const mode of ["building", "walls", "doors", "terrain"] as const) {
       expect(keys(buildHints({ ...OPTS, mode }, { objects: 0, doors: 0 }, env("auto")))).toContain("X select");
@@ -430,11 +443,32 @@ describe("the room's undo for bursts, and X", () => {
 });
 
 describe("the protocol version", () => {
-  it("is 4, and the browser sends it", async () => {
-    expect(PROTOCOL_VERSION).toBe(4);
+  it("is 8, and the browser sends it", async () => {
+    expect(PROTOCOL_VERSION).toBe(8);
     // Node's fs, which the tests' types leave out (they check browser and Worker code).
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const src = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");
     expect(src).toContain("v: String(PROTOCOL_VERSION)");
+  });
+});
+
+describe("erasing what's built", () => {
+  const news = GUIDE.find((s) => s.id === "whats-new")!;
+  const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
+
+  it("is in What's new under placing things anywhere, with the bar's word for it", () => {
+    expect(news.parts[17].title).toBe("Erasing what you built (31 October 2026)");
+    expect(news.parts[17].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
+  });
+
+  it("is in the guide where the eraser and objects are explained", () => {
+    expect(all("drawing-and-notes")).toContain("Erase those with **Erase** in the Build tool (**B**)");
+    expect(all("building-maps")).toContain("pick **Erase** in the bar (or hold **Alt**)");
+    expect(all("building-maps")).not.toContain("pick **Remove** and click it");
+  });
+
+  it("tells the GM where the Build tool's eraser is, in the words the bars use", () => {
+    expect(BUILD_TOASTS.eraserBuilt).toContain("Erase in the Build tool (B)");
+    expect(BUILD_TOASTS.eraserBuilt).toContain("Building, Terrain or Objects");
   });
 });

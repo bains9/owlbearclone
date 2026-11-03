@@ -1,4 +1,5 @@
 import { useRef } from "preact/hooks";
+import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
 import {
   Armchair,
@@ -8,18 +9,22 @@ import {
   Copy,
   Eye,
   EyeOff,
+  FlipHorizontal2,
   Lock,
   LockOpen,
+  Magnet,
   RotateCcw,
   RotateCw,
   SendToBack,
   Swords,
   Trash,
+  X,
 } from "lucide-preact";
-import { randomId } from "../../shared/ids";
+import { initEntryFor } from "../initiative";
 import { canDelete } from "../../shared/permissions";
+import { roundsLeft } from "./spellChips";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
-import { isCompass } from "../../shared/types";
+import { isCompass, sceneSnaps } from "../../shared/types";
 import { PLAYER_COLORS } from "../identity";
 import {
   deleteSelection,
@@ -32,10 +37,39 @@ import {
 } from "../room/actions";
 import { COMPASS_DIAL_STEP, dialValue, turnBy } from "../room/compass";
 import { TOKEN_SIZES, sizeOptionLabel } from "../room/tokenSizes";
-import { CommitInput, Swatches, cx, useRoom, useRoomState } from "./common";
+import { CommitInput, Guard, Swatches, cx, useRoom, useRoomState } from "./common";
 import { DRAW_COLORS } from "./Toolbar";
 
 const RING_COLORS = ["#e4572e", "#f3a712", "#5bba6f", "#4f9dde", "#b45fd6", "#ffffff"];
+
+/**
+ * Whether tokens this device lets go of snap to the grid: Alt held, for touch screens (and
+ * desktops that keep Alt+drag for moving windows). Only where the scene snaps: otherwise
+ * there's nothing to switch.
+ */
+function SnapSwitch() {
+  const room = useRoom();
+  const on = useRoomState((s) => s.tokenSnap);
+  const scene = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId] : undefined));
+  const settings = useRoomState((s) => s.room?.settings);
+  if (!scene || !sceneSnaps(scene, settings)) return null;
+  return (
+    <button
+      class={cx("icon-btn", on && "active")}
+      title={
+        on
+          ? "Snaps to the grid when you let go (on this device). Click to place tokens exactly where you let go."
+          : "Placed exactly where you let go (on this device). Click to snap tokens to the grid again."
+      }
+      aria-label="Snap to the grid"
+      data-short="Snap"
+      aria-pressed={on}
+      onClick={() => room.setTokenSnap(!on)}
+    >
+      <Magnet size={18} />
+    </button>
+  );
+}
 
 /**
  * A token's size in squares, with the D&D sizes they stand for (a size not in the list, such as
@@ -136,7 +170,7 @@ function CompassBar(props: { t: TokenItem; gm: boolean; common: ComponentChildre
           >
             {t.locked ? <Lock size={18} /> : <LockOpen size={18} />}
           </button>
-          <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={() => duplicateSelection(room)}>
+          <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" data-short="Copy" onClick={() => duplicateSelection(room)}>
             <Copy size={18} />
           </button>
         </>
@@ -146,7 +180,68 @@ function CompassBar(props: { t: TokenItem; gm: boolean; common: ComponentChildre
   );
 }
 
+/**
+ * The spells on a token (Faerie Fire, Mage Armor...), each a chip with an End for whoever may end
+ * it (the GM, or its caster); the others are listed without one.
+ */
+function SpellsOn({ token }: { token: TokenItem }) {
+  const room = useRoom();
+  const items = useRoomState((s) => s.items);
+  const me = useRoomState((s) => s.me);
+  if (!me) return null;
+  const spells = Object.values(items).filter((i): i is DrawingItem => i.kind === "drawing" && i.on === token.id && !!i.fx);
+  if (!spells.length) return null;
+  return (
+    <span class="spell-zones">
+      {spells.map((d) =>
+        canDelete(d, me) ? (
+          <button
+            key={d.id}
+            class="chip spell-zone"
+            title={`End ${d.spell ?? "this spell"} (Undo brings it back)`}
+            aria-label={`End ${d.spell ?? "this spell"}`}
+            onClick={() => room.change({ delete: [d.id] })}
+          >
+            {d.spell ?? "Spell"}
+            {roundsLeft(d)} <X size={12} />
+          </button>
+        ) : (
+          <span key={d.id} class="chip" title="Only the GM or whoever cast it can end it">
+            {d.spell ?? "Spell"}
+            {roundsLeft(d)}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
+/**
+ * A character's card on a wider map: on the right, above the zoom buttons and the bars along the
+ * bottom, clear of the middle of the map, where the token picked most often is. (On a map as
+ * narrow as a phone's, a tablet's beside the side panel too, it sits over the selection bar:
+ * SelectionBar.)
+ */
+export function CardDock() {
+  useRoomState((s) => s.party);
+  const room = useRoom();
+  const narrow = useRoomState((s) => s.stageNarrow);
+  const t = useRoomState((s) => (s.selection.length === 1 ? s.items[s.selection[0]] : undefined));
+  const character = !narrow && t?.kind === "token" && !isCompass(t) ? room.characterOf(t) : null;
+  if (!character || t?.kind !== "token") return null;
+  return (
+    <div class="card-dock" onPointerDown={(e) => e.stopPropagation()}>
+      <Guard name="the character card" retry={(s) => s.party}>
+        <CharacterCard c={character} tokenId={t.id} />
+      </Guard>
+    </div>
+  );
+}
+
 export function SelectionBar() {
+  // A character token's card follows their sheet as it's read again.
+  useRoomState((s) => s.party);
+  const narrow = useRoomState((s) => s.stageNarrow);
   const room = useRoom();
   const selection = useRoomState((s) => s.selection);
   const items = useRoomState((s) => s.items);
@@ -164,16 +259,16 @@ export function SelectionBar() {
     <>
       {movable && (
         <>
-          <button class="icon-btn" title="Bring to front" aria-label="Bring to front" onClick={() => reorderSelection(room, "front")}>
+          <button class="icon-btn" title="Bring to front" aria-label="Bring to front" data-short="Front" onClick={() => reorderSelection(room, "front")}>
             <BringToFront size={18} />
           </button>
-          <button class="icon-btn" title="Send to back" aria-label="Send to back" onClick={() => reorderSelection(room, "back")}>
+          <button class="icon-btn" title="Send to back" aria-label="Send to back" data-short="Back" onClick={() => reorderSelection(room, "back")}>
             <SendToBack size={18} />
           </button>
         </>
       )}
       {deletable && (
-        <button class="icon-btn danger" title="Delete (Del)" aria-label="Delete" onClick={() => deleteSelection(room)}>
+        <button class="icon-btn danger" title="Delete (Del)" aria-label="Delete" data-short="Delete" onClick={() => deleteSelection(room)}>
           <Trash size={18} />
         </button>
       )}
@@ -188,7 +283,8 @@ export function SelectionBar() {
     const t = tokens[0];
     const can = room.canMoveItem(t);
     const patch = (set: Partial<TokenItem>) => room.change({ patch: [{ id: t.id, set }] });
-    return (
+    const character = room.characterOf(t);
+    const bar = (
       <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
         <CommitInput
           key={t.id}
@@ -220,12 +316,25 @@ export function SelectionBar() {
         )}
         {can && (
           <>
-            <button class="icon-btn" title="Rotate left ([)" aria-label="Rotate left" onClick={() => rotateSelection(room, -45)}>
+            <button class="icon-btn" title="Rotate left ([)" aria-label="Rotate left" data-short="Turn" onClick={() => rotateSelection(room, -45)}>
               <RotateCcw size={18} />
             </button>
-            <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" onClick={() => rotateSelection(room, 45)}>
+            <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" data-short="Turn" onClick={() => rotateSelection(room, 45)}>
               <RotateCw size={18} />
             </button>
+            {t.assetId && (
+              <button
+                class={cx("icon-btn", t.flipped && "active")}
+                title={t.flipped ? "Flipped: facing the other way (click to flip back)" : "Flip: face the other way"}
+                aria-label="Flip"
+                data-short="Flip"
+                aria-pressed={!!t.flipped}
+                onClick={() => patch({ flipped: !t.flipped })}
+              >
+                <FlipHorizontal2 size={18} />
+              </button>
+            )}
+            <SnapSwitch />
           </>
         )}
         {gm && (
@@ -234,6 +343,7 @@ export function SelectionBar() {
               class={cx("icon-btn", t.hidden && "active")}
               title={t.hidden ? "Hidden from players (H)" : "Visible to players (H)"}
               aria-label={t.hidden ? "Show to players" : "Hide from players"}
+              data-short={t.hidden ? "Hidden" : "Seen"}
               onClick={() => toggleHidden(room)}
             >
               {t.hidden ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -242,6 +352,7 @@ export function SelectionBar() {
               class={cx("icon-btn", t.locked && "active")}
               title={t.locked ? "Locked: players can't move it (L)" : "Unlocked (L)"}
               aria-label={t.locked ? "Unlock" : "Lock"}
+              data-short={t.locked ? "Locked" : "Lock"}
               onClick={() => toggleLocked(room)}
             >
               {t.locked ? <Lock size={18} /> : <LockOpen size={18} />}
@@ -253,6 +364,7 @@ export function SelectionBar() {
             class={cx("icon-btn", t.layer === "prop" && "active")}
             title={t.layer === "prop" ? "Prop: sits under characters (click to make it a character)" : "Make it a prop (sits under characters)"}
             aria-label={t.layer === "prop" ? "Make it a character" : "Make it a prop"}
+            data-short="Prop"
             aria-pressed={t.layer === "prop"}
             onClick={() => patch({ layer: t.layer === "prop" ? "character" : "prop" })}
           >
@@ -263,24 +375,61 @@ export function SelectionBar() {
           class="icon-btn"
           title="Add to initiative"
           aria-label="Add to initiative"
+          data-short="Init."
           onClick={() => {
             const init = room.state.initiative;
             if (init.entries.some((e) => e.tokenId === t.id)) {
               room.setPanel("initiative");
               return;
             }
-            room.initiativeOp({
-              op: "add",
-              entry: { id: randomId(10), name: t.label || "Token", value: 0, color: t.color, tokenId: t.id },
-            });
+            room.initiativeOp({ op: "add", entry: initEntryFor(room, t) });
             room.setPanel("initiative");
           }}
         >
           <Swords size={18} />
         </button>
         {(gm || room.state.room?.settings.playersCanAddTokens) && (
-          <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={() => duplicateSelection(room)}>
+          <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" data-short="Copy" onClick={() => duplicateSelection(room)}>
             <Copy size={18} />
+          </button>
+        )}
+        {common}
+        <SpellsOn token={t} />
+      </div>
+    );
+    // On a narrow map (a phone's) the card sits over the bar, as wide as it; a wider map's is CardDock's.
+    if (!character || !narrow) return bar;
+    return (
+      <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
+        <Guard name="the character card" retry={(s) => s.party}>
+          <CharacterCard c={character} tokenId={t.id} />
+        </Guard>
+        {bar}
+      </div>
+    );
+  }
+
+  if (drawings.length === 1 && selected.length === 1 && drawings[0].fx) {
+    const d = drawings[0];
+    return (
+      <div class="selbar" onPointerDown={(e) => e.stopPropagation()}>
+        <span class="muted small">
+          {d.spell ?? "Spell"}
+          {d.rounds ? ` · ${d.rounds} round${d.rounds === 1 ? "" : "s"} left` : ""}
+        </span>
+        {deletable && (
+          <button class="btn btn-sm" title="End the spell: take it off the map (Undo brings it back)" onClick={() => deleteSelection(room)}>
+            End spell
+          </button>
+        )}
+        {gm && (
+          <button
+            class={cx("icon-btn", d.hidden && "active")}
+            title={d.hidden ? "Only you can see this (H)" : "Players can see this (H)"}
+            aria-label={d.hidden ? "Show to players" : "Hide from players"}
+            onClick={() => toggleHidden(room)}
+          >
+            {d.hidden ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         )}
         {common}
@@ -332,16 +481,17 @@ export function SelectionBar() {
       <span class="muted small">{selected.length} selected</span>
       {tokens.length > 0 && movable && (
         <>
-          <button class="icon-btn" title="Rotate left ([)" aria-label="Rotate left" onClick={() => rotateSelection(room, -45)}>
+          <button class="icon-btn" title="Rotate left ([)" aria-label="Rotate left" data-short="Turn" onClick={() => rotateSelection(room, -45)}>
             <RotateCcw size={18} />
           </button>
-          <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" onClick={() => rotateSelection(room, 45)}>
+          <button class="icon-btn" title="Rotate right (])" aria-label="Rotate right" data-short="Turn" onClick={() => rotateSelection(room, 45)}>
             <RotateCw size={18} />
           </button>
+          <SnapSwitch />
         </>
       )}
       {tokens.length > 0 && (gm || room.state.room?.settings.playersCanAddTokens) && (
-        <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={() => duplicateSelection(room)}>
+        <button class="icon-btn" title="Duplicate (Ctrl+D)" aria-label="Duplicate" data-short="Copy" onClick={() => duplicateSelection(room)}>
           <Copy size={18} />
         </button>
       )}
