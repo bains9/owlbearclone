@@ -11,6 +11,7 @@ import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_SPEND, restGain } from "../shared/characters";
+import { PLAIN_DICE, isCharacterDice, isDiceSet } from "../shared/diceSets";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
@@ -267,6 +268,27 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     }
     // Who plays whom now, so the page shows it at once (reading the sheets again can take seconds).
     return json({ ok: true, players: await directory.characterPlayers() });
+  }
+  // A character's dice (shared/diceSets.ts): their player or the GM chooses, one character to a set.
+  // For anyone at one of the GM's tables, as above.
+  const diceMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/dice$/);
+  if (diceMatch) {
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const sheetId = diceMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const gm = await isGm(request, env);
+    if (!gm && !(await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User")))) {
+      return fail(403, "Only their player or the GM chooses a character's dice.");
+    }
+    const body = await readJson(request);
+    const dice = body?.dice ?? null;
+    if (dice !== null && !isCharacterDice(dice)) return fail(400, isDiceSet(dice) ? "Those are the GM's own dice." : "That isn't one of the dice sets.");
+    if (!(await directory.setCharacterDice(sheetId, dice === PLAIN_DICE ? null : dice))) return fail(409, "Another character has those dice.");
+    // Everyone's dice now, so the page shows it at once.
+    return json({ ok: true, dice: await directory.characterDice() });
   }
   // What a character has prayed for today, and how many casts each has left: their player or the
   // GM chooses, and casting one uses one up. For anyone at one of the GM's tables, as above.

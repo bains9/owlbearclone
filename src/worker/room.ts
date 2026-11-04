@@ -9,6 +9,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
+import { PLAIN_DICE, rollingSet, type DiceSetId } from "../shared/diceSets";
 import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
@@ -910,6 +911,7 @@ export class Room extends DurableObject<Env> {
           this.send(ws, { t: "error", message });
           return;
         }
+        const dice = await this.diceFor(conn, msg.character);
         this.postMessage({
           id: randomId(12),
           ts: Date.now(),
@@ -920,6 +922,7 @@ export class Room extends DurableObject<Env> {
           kind: "roll",
           text: rollLabel(msg.label, !!msg.initiative && roll.total > INITIATIVE_MAX),
           roll,
+          ...(dice !== PLAIN_DICE ? { dice } : {}),
           ...(msg.private ? { private: true } : {}),
         });
         if (msg.initiative) this.rollIntoInitiative(conn, msg.initiative, roll.total);
@@ -1663,6 +1666,22 @@ export class Room extends DurableObject<Env> {
   private canSeeMessage(m: ChatMessage, c: Player): boolean {
     if (!m.private || c.role === "gm") return true;
     return m.role === "player" && c.userId === m.userId;
+  }
+
+  /**
+   * The dice a roll comes in (shared/diceSets.ts): the character's whose card it's from (`sheetId`),
+   * the GM's own (the villains') from the dice tray, or the dice of the character the player's browser
+   * plays. Classic when they have none, or the Directory can't be asked.
+   */
+  private async diceFor(conn: Conn, sheetId: unknown): Promise<DiceSetId> {
+    const card = isSheetId(sheetId) ? sheetId : null;
+    if (!card && (conn.role === "gm" || conn.display)) return rollingSet(conn.role, false, null);
+    try {
+      const set = await this.env.DIRECTORY.getByName("main").diceFor(card, card ? null : conn.userId);
+      return rollingSet(conn.role, !!card, set);
+    } catch {
+      return PLAIN_DICE;
+    }
   }
 
   private postMessage(m: ChatMessage): void {

@@ -5,6 +5,7 @@
 // a character is kept.
 
 import { secureRng } from "./dice";
+import type { DiceSetId } from "./diceSets";
 import type { ChatMessage } from "./types";
 
 /** One of a character's attacks, as the sheet words it. */
@@ -64,6 +65,11 @@ export interface Character {
   picture?: string;
   /** The figure the GM chose for them (an icon of PC_FIGURE_CHOICES), when it isn't their class's. */
   figure?: string;
+  /**
+   * Their dice (shared/diceSets.ts), chosen by their player or the GM (kept by the Worker, for every
+   * room; no two characters share a set): Classic when missing.
+   */
+  dice?: DiceSetId;
   /**
    * The browsers playing them, with the name each joined under: picked by the player in the Party
    * list, or by the GM (kept by the Worker, for every room). Per-player sight sees through them.

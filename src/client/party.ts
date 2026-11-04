@@ -5,6 +5,7 @@
 
 import { KI_KEY, MAX_PRAYED, castCost, characterLabel, prayedKey, prayedOnSheet, type Character, type CharacterPlayer, type KiAbility, type RestKind } from "../shared/characters";
 import { castList, highestLevel, roundsAt, type CastSpell } from "../shared/spellfx";
+import { isCharacterDice, type DiceSetId } from "../shared/diceSets";
 import type { Point } from "../shared/geometry";
 import type { TokenItem } from "../shared/types";
 import { prepareImage } from "./api";
@@ -183,6 +184,38 @@ export async function setCharacterPlayer(room: RoomClient, c: Character, playing
   room.store.set({
     party: { ...party, characters: party.characters.map(({ players: _p, ...c }) => (players[c.id]?.length ? { ...c, players: players[c.id] } : c)) },
   });
+}
+
+/**
+ * A character's dice (shared/diceSets.ts), for every room: by their player or the GM. Shown at
+ * once from the answer; other pages see it with their next reading, within the minute.
+ */
+export async function setCharacterDice(room: RoomClient, c: Character, dice: DiceSetId): Promise<void> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/dice?room=${encodeURIComponent(room.roomId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify({ dice }),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; dice?: Record<string, string> };
+  if (!res.ok) throw new Error(data.error ?? `Their dice couldn't be saved (${res.status}).`);
+  const party = room.state.party;
+  const all = data.dice;
+  if (!party || !all) return;
+  room.store.set({
+    party: {
+      ...party,
+      characters: party.characters.map(({ dice: _d, ...x }) => {
+        const dice = all[x.id];
+        return isCharacterDice(dice) ? { ...x, dice } : x;
+      }),
+    },
+  });
+}
+
+/** Whether this page chooses a character's dice: the GM's, or a browser playing them. */
+export function mayChooseDice(room: RoomClient, c: Character): boolean {
+  return room.isGm || !!c.players?.some((p) => p.userId === room.state.me?.userId);
 }
 
 /** Whether this page chooses what a character has prayed for: the GM's, or a browser playing them. */

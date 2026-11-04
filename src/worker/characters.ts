@@ -10,6 +10,7 @@
 
 import { KI_KEY, MAX_KI, MAX_PRAYED, cleanCharacter, isSpellName, type Character, type CharacterPlayer, type CharactersReply } from "../shared/characters";
 import { isId } from "../shared/sanitize";
+import { isCharacterDice } from "../shared/diceSets";
 
 /** How long a reading of the sheets is used before they're read again. */
 const FRESH_MS = 30_000;
@@ -146,35 +147,43 @@ export interface PartyEnv {
     characterStrMatched(): Promise<Record<string, string[]>>;
     characterPlayers(): Promise<Record<string, CharacterPlayer[]>>;
     characterPrayed(): Promise<Record<string, Record<string, number>>>;
+    characterDice(): Promise<Record<string, string>>;
   };
   files: Pick<R2Bucket, "head">;
 }
 
 /**
  * The party for a room's pages: the sheets' cards, each with its own picture's version if it has
- * one, and the figure the GM chose for them, who plays them, if anyone, and what they've prayed
- * for today (asked each time, so a choice shows at once without reading the sheets again).
+ * one, and the figure the GM chose for them, who plays them, if anyone, their dice, and what
+ * they've prayed for today (asked each time, so a choice shows at once without reading the sheets again).
  */
 export async function readParty(env: PartyEnv, cache: Cache | null, fetcher: typeof fetch = fetch, now = Date.now()): Promise<CharactersReply> {
   const source = await env.directory.charactersSource();
   if (!source) return { configured: false, characters: [], readAt: now };
   const reading = await readSheets(env, source, cache, fetcher, now);
-  const [figures, matched, players, prayed] = await Promise.all([
+  const [figures, matched, players, prayed, dice] = await Promise.all([
     env.directory.characterFigures(),
     env.directory.characterStrMatched(),
     env.directory.characterPlayers(),
     env.directory.characterPrayed(),
+    env.directory.characterDice(),
   ]);
   return {
     ...reading,
-    characters: reading.characters.map(({ figure: _f, strMatched: _m, players: _p, prayed: _r, ...c }) => ({
+    characters: reading.characters.map(({ figure: _f, strMatched: _m, players: _p, prayed: _r, dice: _d, ...c }) => ({
       ...c,
       ...(figures[c.id] ? { figure: figures[c.id] } : {}),
+      ...diceOf(dice[c.id]),
       ...(matched[c.id]?.length ? { strMatched: matched[c.id] } : {}),
       ...(players[c.id]?.length ? { players: players[c.id] } : {}),
       ...dayOf(prayed[c.id]),
     })),
   };
+}
+
+/** A character's dice as the Worker keeps them, when they're a set a character may have. */
+function diceOf(kept: string | undefined): Pick<Character, "dice"> {
+  return isCharacterDice(kept) ? { dice: kept } : {};
 }
 
 /** A character's day as the Worker keeps it, for their card: what's been prayed for, and the ki left. */

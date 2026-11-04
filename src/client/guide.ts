@@ -15,8 +15,24 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 3 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Every character rolls in dice of their own, and the GM in the villains' (4 November 2026)",
+        "steps": [
+          "Each character in the **Party** has dice of their own, painted. Their rolls show in the chat in them, for everyone: rolls from their card (attacks, damage, initiative), whoever clicks, and rolls from the dice tray of the player who plays them.",
+          "To choose, open **Tokens & images** and click the die beside your character in the **Party**, under **I play** (click **I play** first if you haven't), then pick a set from the list.",
+          "The sets: Classic (plain grey, as before), Pearl (pearl paint with a purple shimmer, gold numbers), Bone, Ruby, Emerald, Sapphire, Amethyst, Copper, Frost and Night sky. No two characters share one: a set another character has shows their name in the list and can't be picked.",
+          "GM: your own rolls from the dice tray come in the villains' dice: black obsidian, glowing blood-red numbers. Only the GM rolls in them. A roll from a character's card comes in that character's dice, even when you roll it (a party character you run as an NPC, say).",
+          "GM: you choose any character's dice with the die beside them in the **Party**, next to who plays them."
+        ],
+        "notes": [
+          "The dice in your dice tray are painted in the dice you roll in: the villains' for the GM, your character's for a player.",
+          "A die that rolled its highest face gets a green ring, and a 1 a red one, so the paint stays. Classic dice turn green and red as before.",
+          "A character's dice are the same in every room. Rolls made before today stay Classic.",
+          "A browser plays one character at a time. To roll from the tray in another character's dice, click **I play** beside them; rolls from a card always come in that character's own."
+        ]
+      },
       {
         "title": "Every room measures in metres (3 November 2026)",
         "steps": [
@@ -1290,10 +1306,23 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Open **Tokens & images**.",
           "Beside a character in the **Party**, click the figure button (a standing person) and choose their figure: their class's, or any other (a bowwoman, a swordwoman, a fencer...).",
-          "Or click the picture button and choose an image of your own (a full-body picture with a see-through background looks best). To go back to their figure, click the arrow below it."
+          "Or click the picture button and choose an image of your own (a full-body picture with a see-through background looks best). To go back to their figure, click the arrow under the figure button."
         ],
         "notes": [
           "A figure or picture is used in every room, for tokens placed from then on. A token already on the map keeps its picture: delete it and place them again."
+        ]
+      },
+      {
+        "title": "A character's dice",
+        "steps": [
+          "Open **Tokens & images**.",
+          "A player: beside your character in the **Party**, click **I play** if you haven't, then the die under it. The GM: click the die beside any character, next to who plays them.",
+          "Pick a set from the list. Their next roll comes in it, in the chat for everyone."
+        ],
+        "notes": [
+          "Rolls from a character's card come in their dice, whoever rolls. Rolls from the dice tray come in the dice of the character that browser plays, and the GM's own in the villains' (black obsidian, glowing blood-red numbers), which only the GM rolls.",
+          "No two characters share a set, Classic aside. A set another character has shows their name in the list and can't be picked until they choose another.",
+          "Only a character's player and the GM change their dice. Hover over the die to see which set they have. Their dice are the same in every room."
         ]
       }
     ]
@@ -1898,7 +1927,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "The big number is the total. Next to it is the roll as the app read it, for example 1d20+5.",
-          "Below the total, each die is shown. A die that rolled its highest face is green, and a 1 is red.",
+          "Below the total, each die is shown. A die that rolled its highest face is green, and a 1 is red. Dice in a character's own set, or the GM's, keep their paint and get a green or red ring instead (see **A character's dice** in **Character sheets**).",
           "Dropped dice, and dice that weren't kept, are faded and crossed out. They don't count toward the total.",
           "Hover over a die to see which part of the roll it belongs to, for example 4d6dl1."
         ]

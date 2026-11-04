@@ -1838,8 +1838,11 @@ export class RoomClient {
     else this.submit({ t: "chat", text: t });
   }
 
-  /** initiative: the token whose initiative it is, so its total goes into the initiative list. */
-  roll(expr: string, opts: { private?: boolean; label?: string; initiative?: { tokenId: string } } = {}): void {
+  /**
+   * initiative: the token whose initiative it is, so its total goes into the initiative list.
+   * character: the sheet id of the character whose card it's from, so it comes in their dice.
+   */
+  roll(expr: string, opts: { private?: boolean; label?: string; initiative?: { tokenId: string }; character?: string } = {}): void {
     this.submit({ t: "roll", expr, ...opts });
   }
 

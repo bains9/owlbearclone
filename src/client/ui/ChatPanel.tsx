@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
 import { critOf } from "../../shared/characters";
+import { GM_DICE, diceClass, messageDice, rollingSet } from "../../shared/diceSets";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
@@ -16,6 +17,9 @@ export function ChatPanel() {
   const players = useRoomState((s) => s.players);
   const me = useRoomState((s) => s.me);
   const gm = me?.role === "gm";
+  // The dice this page rolls in from the tray: the GM's own, or those of the character it plays.
+  const played = useRoomState((s) => s.party?.characters.find((c) => c.players?.some((p) => p.userId === s.me?.userId)));
+  const myDice = gm ? GM_DICE : rollingSet("player", false, played?.dice);
   const [text, setText] = useState("");
   const [secret, setSecret] = useState(false);
   const [modifier, setModifier] = useState("");
@@ -140,12 +144,12 @@ export function ChatPanel() {
             </span>
           </div>
         )}
-        <div class="dice-row">
+        <div class={cx("dice-row", diceClass(myDice))}>
           {DICE.map((d, i) => (
             <button
               key={d}
               ref={i === 0 ? firstDie : undefined}
-              class={cx("die-btn", Boolean(pool[d]) && "picked")}
+              class={cx("die-btn", "die-pick", Boolean(pool[d]) && "picked")}
               disabled={!canAdd(pool, d)}
               onClick={() => setPool((p) => changeDie(p, d, 1))}
               title={`Pick a d${d} to roll`}
@@ -268,7 +272,7 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
         {crit === "fail" && <span class="roll-crit fail">Critical failure!</span>}
       </div>
       {!props.compact && (
-        <div class="roll-dice">
+        <div class={cx("roll-dice", diceClass(messageDice(m)))}>
           {r.terms.map((t, i) => (
             <span key={i} class="term">
               {i > 0 && <span class="op">{t.sign < 0 ? "−" : "+"}</span>}

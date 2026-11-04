@@ -2,11 +2,13 @@
 // sheet (party.ts), in the token they'll have on the map, to place with a click. The GM can choose
 // a character's figure (their class's, or any other), or give them a picture of their own instead,
 // for every room. Who plays whom is picked here too, by the player (I play them) or the GM, for
-// every room: per-player sight sees through it.
+// every room: per-player sight sees through it. So are a character's dice (shared/diceSets.ts),
+// by their player or the GM: their rolls come in them.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ImagePlus, PersonStanding, Sunrise, Undo2, UserRound, UserRoundCheck } from "lucide-preact";
-import { SCRIPT_VERSION, type Character, type CharacterPlayer, type RestKind } from "../../shared/characters";
+import { SCRIPT_VERSION, characterLabel, type Character, type CharacterPlayer, type RestKind } from "../../shared/characters";
+import { CHARACTER_DICE, PLAIN_DICE, diceClass, diceSet, type DiceSetId } from "../../shared/diceSets";
 import { classFigureOf, figureOf } from "../npcs/pcTokens";
 import { PC_FIGURE_CHOICES } from "../npcs/table";
 import {
@@ -14,8 +16,10 @@ import {
   characterPictureUrl,
   clearCharacterPicture,
   drawCharacter,
+  mayChooseDice,
   newPartyDay,
   placeCharacter,
+  setCharacterDice,
   setCharacterFigure,
   setCharacterPicture,
   setCharacterPlayer,
@@ -76,6 +80,45 @@ function PlayedBy(props: { c: Character; busy: boolean; act: (fn: () => Promise<
   );
 }
 
+/**
+ * A character's dice: a die in them, with a native list over it (like the figure's). A set another
+ * character has can't be picked: no two share one.
+ */
+function DicePick(props: { c: Character; busy: boolean; act: (fn: () => Promise<unknown>) => Promise<void> }) {
+  const room = useRoom();
+  const others = useRoomState((s) => s.party?.characters ?? []);
+  const { c, busy, act } = props;
+  const mine = c.dice ?? PLAIN_DICE;
+  const set = diceSet(mine);
+  const holder = (id: DiceSetId) => (id === PLAIN_DICE ? undefined : others.find((x) => x.id !== c.id && x.dice === id));
+  return (
+    <span class="icon-btn party-figure party-dice" title={`Their dice: ${set.name}, ${set.look} (every room)`}>
+      <span class={cx("party-die", diceClass(mine))} aria-hidden="true">
+        <span class="die">20</span>
+      </span>
+      <select
+        aria-label={`Dice for ${c.name}`}
+        disabled={busy}
+        value={mine}
+        onChange={(e) => {
+          const dice = e.currentTarget.value as DiceSetId;
+          void act(() => setCharacterDice(room, c, dice));
+        }}
+      >
+        {CHARACTER_DICE.map((s) => {
+          const other = holder(s.id);
+          return (
+            <option key={s.id} value={s.id} disabled={!!other}>
+              {s.name}: {s.look}
+              {other ? ` (${characterLabel(other)}'s)` : ""}
+            </option>
+          );
+        })}
+      </select>
+    </span>
+  );
+}
+
 function PartyRow(props: { c: Character; gm: boolean }) {
   const room = useRoom();
   const { c, gm } = props;
@@ -122,11 +165,13 @@ function PartyRow(props: { c: Character; gm: boolean }) {
           >
             {mine ? <UserRoundCheck size={16} /> : <UserRound size={16} />}
           </button>
+          {mayChooseDice(room, c) && <DicePick c={c} busy={busy} act={act} />}
         </span>
       )}
       {gm && (
-        <span class="party-gm">
+        <span class="party-gm gm">
           <PlayedBy c={c} busy={busy} act={act} />
+          <DicePick c={c} busy={busy} act={act} />
           {/* The figure: a native list over the button, so it opens the browser's own picker. */}
           <span class="icon-btn party-figure" title={`Their figure: ${nameOf(figureOf(c))} (every room)`}>
             <PersonStanding size={16} />

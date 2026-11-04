@@ -432,6 +432,7 @@ describe("the Worker's reading of the party", () => {
     matched: Record<string, string[]> = {},
     players: Record<string, { userId: string; name: string }[]> = {},
     prayed: Record<string, Record<string, number>> = {},
+    dice: Record<string, string> = {},
   ) => ({
     directory: {
       charactersSource: async () => source,
@@ -439,6 +440,7 @@ describe("the Worker's reading of the party", () => {
       characterStrMatched: async () => matched,
       characterPlayers: async () => players,
       characterPrayed: async () => prayed,
+      characterDice: async () => dice,
     },
     files: { head: async (key: string) => (pictures[key] ? { httpEtag: `"${pictures[key]}"` } : null) },
   });
@@ -649,10 +651,10 @@ describe("in Tabletop", () => {
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
-    expect(GUIDE[0].parts[20].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
-    expect(GUIDE[0].intro).toContain("The latest updates came out on 3 November 2026.");
+    expect(GUIDE[0].parts[21].title).toBe("The party's own tokens, cards and rolls, from their character sheets (28 October 2026)");
+    expect(GUIDE[0].intro).toContain("The latest updates came out on 4 November 2026.");
     const section = GUIDE.find((s) => s.id === "character-sheets")!;
-    expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)"]);
+    expect(section.parts.map((p) => p.title)).toEqual(["Place your character", "A character's card", "Initiative from the sheet", "Set up the character sheets (GM)", "A character's figure, or a picture of your own (GM)", "A character's dice"]);
     expect(await source("src/client/ui/CharacterSheetsSettings.tsx")).toContain('href="/guide#character-sheets"');
   });
 });

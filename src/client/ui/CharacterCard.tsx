@@ -270,7 +270,8 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
   const { c } = props;
   const who = characterLabel(c);
   const share = c.hp !== null && c.maxHp ? Math.max(0, Math.min(1, c.hp / c.maxHp)) : null;
-  const roll = (expr: string, label: string) => room.roll(expr, { label });
+  // In their own dice (shared/diceSets.ts), whoever rolls.
+  const roll = (expr: string, label: string) => room.roll(expr, { label, character: c.id });
   const gm = useRoomState((s) => s.me?.role === "gm");
   const ways = c.attacks.flatMap((a) => attackWays(a, { sneakRank: c.sneakRank, strBonus: c.strBonus, strMatched: c.strMatched }));
   const matchStr = (weapon: string, matched: boolean) =>
@@ -336,7 +337,7 @@ export function CharacterCard(props: { c: Character; tokenId?: string | null }) 
             title={`Roll initiative: a d10 with ${who}'s INT bonus (10 at most), into the chat and the initiative list`}
             onClick={() => {
               const initiative = props.tokenId ? { tokenId: props.tokenId } : undefined;
-              room.roll(withModifier(INITIATIVE_DIE, c.init ?? 0), { label: `${who}: initiative`, initiative });
+              room.roll(withModifier(INITIATIVE_DIE, c.init ?? 0), { label: `${who}: initiative`, initiative, character: c.id });
             }}
           >
             Initiative {signed(c.init)}

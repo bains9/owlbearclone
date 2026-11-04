@@ -1,6 +1,7 @@
 // The data model shared by the Worker, the Room Durable Object and the browser.
 // All coordinates are in "world" units: pixels of the scene's map image.
 
+import type { DiceSetId } from "./diceSets";
 import type { Stamp } from "./terrain";
 import type { SpellLook } from "./zones";
 
@@ -493,6 +494,8 @@ export interface ChatMessage {
   kind: "chat" | "roll";
   text: string;
   roll?: RollResult;
+  /** The dice set it was rolled in (shared/diceSets.ts); missing: Classic. */
+  dice?: DiceSetId;
   /** Visible only to the sender and the GM. */
   private?: boolean;
 }

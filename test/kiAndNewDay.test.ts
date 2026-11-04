@@ -45,6 +45,7 @@ describe("ki, at the Worker", () => {
       characterStrMatched: async () => ({}),
       characterPlayers: async () => ({}),
       characterPrayed: async () => ({ [SHEET]: kept }),
+      characterDice: async () => ({}),
     });
     const fetcher = vi.fn(async () => Response.json({ characters: [{ id: SHEET, name: "Hana Kiri", ki: { max: 14, abilities: [OMEN] } }] }));
     const read = (kept: Record<string, number>) => party.readParty({ directory: directory(kept), files: { head: async () => null } }, null, fetcher as unknown as typeof fetch, 1000);

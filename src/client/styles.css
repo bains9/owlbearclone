@@ -826,6 +826,11 @@ button:disabled {
   display: flex;
   flex-direction: column;
 }
+/* The GM's: two to a row, so a row isn't taller than five buttons. */
+.party-gm.gm {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+}
 /* The figure button: the list lies over it, unseen, so a click opens the browser's own picker. */
 .party-figure {
   position: relative;
@@ -2048,6 +2053,192 @@ button:disabled {
 .die.dropped {
   opacity: 0.4;
   text-decoration: line-through;
+}
+
+/* Dice sets (shared/diceSets.ts): a roll's dice in the chat, in the set it was rolled in, and the
+   dice tray's, in the set the page rolls in. Each set sets its paint, edge, numbers and sheen; a
+   sheen crosses a die once when it comes, again while the pointer is over it, and now and then on
+   the tray. Classic is the plain chips above. */
+.dice-painted :is(.die, .die-pick) {
+  position: relative;
+  isolation: isolate;
+  background: var(--d-paint);
+  border: 1px solid var(--d-edge);
+  color: var(--d-ink);
+  text-shadow: var(--d-ink-shadow);
+  font-weight: 800;
+  box-shadow:
+    inset 0 -2px 3px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.dice-painted :is(.die, .die-pick)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--d-sheen) no-repeat;
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  pointer-events: none;
+  animation: dice-sheen 1.8s ease-out both;
+}
+.dice-painted .die:hover::before {
+  animation: dice-sheen-again 1.8s ease-out infinite;
+}
+.dice-painted .die-pick::before {
+  animation: dice-sheen 6s ease-in-out infinite;
+}
+@keyframes dice-sheen {
+  0% {
+    background-position: 100% 0;
+  }
+  35%,
+  100% {
+    background-position: 0 0;
+  }
+}
+@keyframes dice-sheen-again {
+  0% {
+    background-position: 100% 0;
+  }
+  35%,
+  100% {
+    background-position: 0 0;
+  }
+}
+/* Their highest face and a 1, as rings, so the paint stays. */
+.dice-painted .die.max {
+  outline: 2px solid var(--ok);
+  outline-offset: 1px;
+}
+.dice-painted .die.min {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
+}
+/* Over the tray's own hover and picked looks (.die-btn below), which would cover the paint. */
+.dice-painted .die-pick:hover:not(:disabled) {
+  background: var(--d-paint);
+  border-color: var(--d-edge);
+  filter: brightness(1.12);
+}
+.dice-painted .die-pick.picked {
+  border-color: var(--d-edge);
+  color: var(--d-ink);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.dice-painted {
+  --d-sheen: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.4) 50%, transparent 62%);
+  --d-ink-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+/* Pearl: pearl paint with a purple shimmer, gold numbers. */
+.dice-set-pearl {
+  --d-paint:
+    radial-gradient(130% 100% at 28% 18%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(140deg, #f6f1ff 0%, #e2d2ff 26%, #fff8fc 44%, #d3bbff 62%, #f3ebff 80%, #dccaff 100%);
+  --d-edge: #c2a8f0;
+  --d-ink: #a87a00;
+  --d-ink-shadow: 0 1px 0 rgba(255, 244, 205, 0.95), 0 0 1px rgba(70, 44, 0, 0.95);
+  --d-sheen: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(176, 116, 255, 0.6) 44%,
+    rgba(255, 176, 236, 0.55) 50%,
+    rgba(140, 196, 255, 0.5) 56%,
+    transparent 70%
+  );
+}
+/* The villains' (the GM's): black obsidian, glowing blood-red numbers. */
+.dice-set-villain {
+  --d-paint: radial-gradient(circle at 32% 26%, #5a1520 0%, #22070c 52%, #070103 100%);
+  --d-edge: #7a1020;
+  --d-ink: #ff3434;
+  --d-ink-shadow: 0 0 4px rgba(255, 36, 36, 0.9), 0 0 1px #000;
+  --d-sheen: linear-gradient(115deg, transparent 38%, rgba(255, 70, 30, 0.35) 50%, transparent 62%);
+}
+.dice-set-villain :is(.die, .die-pick) {
+  animation: villain-ember 3.2s ease-in-out infinite;
+}
+@keyframes villain-ember {
+  0%,
+  100% {
+    text-shadow: 0 0 4px rgba(255, 36, 36, 0.9), 0 0 1px #000;
+  }
+  50% {
+    text-shadow: 0 0 7px rgba(255, 60, 40, 1), 0 0 2px #300;
+  }
+}
+.dice-set-bone {
+  --d-paint: linear-gradient(160deg, #fffaf0 0%, #ece2c8 60%, #d8c8a3 100%);
+  --d-edge: #b9a77f;
+  --d-ink: #1d1a14;
+  --d-ink-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+  --d-sheen: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.7) 50%, transparent 62%);
+}
+.dice-set-ruby {
+  --d-paint: radial-gradient(circle at 30% 25%, #ff6b7f 0%, #d0193a 42%, #6e0618 100%);
+  --d-edge: #8f0d24;
+  --d-ink: #ffd76a;
+  --d-ink-shadow: 0 1px 1px rgba(60, 0, 10, 0.95);
+}
+.dice-set-emerald {
+  --d-paint: radial-gradient(circle at 30% 25%, #6ef0a6 0%, #17a35a 42%, #064d2a 100%);
+  --d-edge: #0b6b3a;
+  --d-ink: #ffffff;
+  --d-ink-shadow: 0 1px 1px rgba(0, 40, 20, 0.95);
+}
+.dice-set-sapphire {
+  --d-paint: radial-gradient(circle at 30% 25%, #7fb0ff 0%, #2459d6 42%, #0a1f66 100%);
+  --d-edge: #183f9c;
+  --d-ink: #e9eef7;
+  --d-ink-shadow: 0 1px 1px rgba(0, 10, 40, 0.95);
+}
+.dice-set-amethyst {
+  --d-paint: radial-gradient(circle at 30% 25%, #d2a6ff 0%, #8a3fe0 42%, #3b0f78 100%);
+  --d-edge: #5b23a8;
+  --d-ink: #ffffff;
+  --d-ink-shadow: 0 1px 1px rgba(30, 0, 60, 0.95);
+}
+.dice-set-copper {
+  --d-paint: linear-gradient(135deg, #ffd0a1 0%, #d27a3e 30%, #f3b07a 52%, #a3501f 76%, #e39a5f 100%);
+  --d-edge: #8a4419;
+  --d-ink: #2a1204;
+  --d-ink-shadow: 0 1px 0 rgba(255, 222, 186, 0.7);
+}
+.dice-set-frost {
+  --d-paint: linear-gradient(160deg, #f4fcff 0%, #c4ebfb 50%, #94d2ef 100%);
+  --d-edge: #7cc0e2;
+  --d-ink: #0b3354;
+  --d-ink-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  --d-sheen: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.8) 50%, transparent 62%);
+}
+.dice-set-galaxy {
+  --d-paint:
+    radial-gradient(circle at 22% 30%, #fff 0, #fff 0.7px, transparent 1.3px),
+    radial-gradient(circle at 70% 22%, #fff 0, #fff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 46% 76%, #dfe8ff 0, #dfe8ff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 82% 64%, #fff 0, #fff 0.5px, transparent 1.1px),
+    radial-gradient(circle at 30% 30%, #4a3a9c 0%, #1b1550 50%, #070720 100%);
+  --d-edge: #2e2a6e;
+  --d-ink: #ffffff;
+  --d-ink-shadow: 0 0 3px rgba(150, 170, 255, 0.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-painted :is(.die, .die-pick),
+  .dice-painted :is(.die, .die-pick)::before {
+    animation: none;
+  }
+}
+/* A character's dice in the Party list (PartySection.tsx). */
+.party-die {
+  display: inline-flex;
+}
+.party-die .die {
+  min-width: 22px;
+  height: 22px;
+  font-size: 11px;
 }
 
 .dice-tray {

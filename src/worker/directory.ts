@@ -54,6 +54,8 @@ export class Directory extends DurableObject<Env> {
       // The spells a character has prayed for (or memorised) today, and how many casts each has left.
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_prayed (sheet_id TEXT NOT NULL, spell TEXT NOT NULL, left INTEGER NOT NULL, PRIMARY KEY (sheet_id, spell))`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS blobs (name TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL)`);
+      // Each character's dice (shared/diceSets.ts): one character to a set; none kept is Classic.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS character_dice (sheet_id TEXT PRIMARY KEY, dice TEXT NOT NULL UNIQUE)`);
     });
   }
 
@@ -125,6 +127,34 @@ export class Directory extends DurableObject<Env> {
   setCharacterFigure(sheetId: string, figure: string | null): void {
     this.sql.exec(`DELETE FROM character_figures WHERE sheet_id = ?`, sheetId);
     if (figure) this.sql.exec(`INSERT INTO character_figures (sheet_id, figure) VALUES (?, ?)`, sheetId, figure);
+  }
+
+  /** Each character's dice set, by sheet id (worker/characters.ts); a character with none is missing. */
+  characterDice(): Record<string, string> {
+    const rows = this.sql.exec<{ sheet_id: string; dice: string }>(`SELECT sheet_id, dice FROM character_dice`).toArray();
+    return Object.fromEntries(rows.map((r) => [r.sheet_id, r.dice]));
+  }
+
+  /**
+   * A character's dice for every room; null goes back to Classic. False, and nothing changed, when
+   * another character has that set.
+   */
+  setCharacterDice(sheetId: string, dice: string | null): boolean {
+    if (dice && this.sql.exec(`SELECT 1 FROM character_dice WHERE dice = ? AND sheet_id != ?`, dice, sheetId).toArray().length) return false;
+    this.sql.exec(`DELETE FROM character_dice WHERE sheet_id = ?`, sheetId);
+    if (dice) this.sql.exec(`INSERT INTO character_dice (sheet_id, dice) VALUES (?, ?)`, sheetId, dice);
+    return true;
+  }
+
+  /**
+   * The dice a roll is made in: the character's it's for (`sheetId`), or else the one this browser
+   * (`userId`) plays; null when that's nobody, or they have none.
+   */
+  diceFor(sheetId: string | null, userId: string | null): string | null {
+    const sheet =
+      sheetId ?? (userId ? (this.sql.exec<{ sheet_id: string }>(`SELECT sheet_id FROM character_players WHERE user_id = ?`, userId).toArray()[0]?.sheet_id ?? null) : null);
+    if (!sheet) return null;
+    return this.sql.exec<{ dice: string }>(`SELECT dice FROM character_dice WHERE sheet_id = ?`, sheet).toArray()[0]?.dice ?? null;
   }
 
   /** The browsers playing each character, by sheet id, longest-standing first (worker/characters.ts). */

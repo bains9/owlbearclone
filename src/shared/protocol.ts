@@ -93,8 +93,12 @@ export type ClientAction =
   | { t: "room.goto"; to: string }
   | { t: "initiative.op"; op: InitOp }
   | { t: "chat"; text: string }
-  /** initiative: the token whose initiative this is; its total goes into the initiative list (in, or its number changed). */
-  | { t: "roll"; expr: string; private?: boolean; label?: string; initiative?: { tokenId: string } }
+  /**
+   * initiative: the token whose initiative this is; its total goes into the initiative list (in, or
+   * its number changed). character: the sheet id of the character whose card it's rolled from, so
+   * it comes in their dice.
+   */
+  | { t: "roll"; expr: string; private?: boolean; label?: string; initiative?: { tokenId: string }; character?: string }
   | { t: "profile"; name: string; color: string }
   /**
    * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
