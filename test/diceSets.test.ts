@@ -58,6 +58,10 @@ describe("the sets", () => {
     expect(pearl).toMatch(/--d-ink: #a87a00;/);
     expect(pearl).toMatch(/rgba\(176, 116, 255, 0\.6\)/);
     expect(css).toMatch(/\.dice-set-villain \{\r?\n {2}--d-paint: radial-gradient\(circle at 32% 26%, #5a1520/);
+    // The villains' numbers outlined in white to read at a glance (Par, 4 November), the glow pulsing round it.
+    const white = "1px 0 0 #fff, -1px 0 0 #fff, 0 1px 0 #fff, 0 -1px 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff";
+    const villain = css.slice(css.indexOf(".dice-set-villain {"), css.indexOf(".dice-set-bone {"));
+    expect(villain.split(white)).toHaveLength(4);
     // Still marked: the highest face and a 1, as rings.
     expect(css).toMatch(/\.dice-painted \.die\.max \{\r?\n {2}outline: 2px solid var\(--ok\);/);
     // Moving paint only for those who don't mind it.
