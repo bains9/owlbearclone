@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 3 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Everyone's dice in their own colour (4 November 2026)",
+        "steps": [
+          "Dice in the chat now take the colour of whoever rolled them: the colour beside their name, round each die and tinting it, so whose roll it is shows at a glance.",
+          "The highest and lowest rolls still stand out, in green and red.",
+          "To change your colour, open **Chat & dice** and click the pen after the names at the top (**Change your name or colour**)."
+        ],
+        "notes": [
+          "Malspar's dice are pearl with gold numbers: they shimmer, and tumble in as the roll arrives. They're the developer's own, for looks only, and roll like anyone's.",
+          "On a device set to reduce motion, the pearl dice keep still."
+        ]
+      },
       {
         "title": "Combat rest from a character's card (3 November 2026)",
         "steps": [

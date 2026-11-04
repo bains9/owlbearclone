@@ -600,22 +600,22 @@ describe("the guide", () => {
 
   it("has metres undefined in What's new, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons and the NPCs, keeping the entries before it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[35]).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news[36]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news[37]).toBe("NPC tokens by race and class (4 October 2026, later)");
-    expect(news[38]).toBe("Measure in metres (4 October 2026)");
+    expect(news[36]).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news[37]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news[38]).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(news[39]).toBe("Measure in metres (4 October 2026)");
     expect(news).toContain("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("Pointing on the table display (29 September 2026, later)");
   });
 
   it("says first in What's new that every room measures in metres now, and how a GM gets feet back", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[1].title).toBe("Every room measures in metres (3 November 2026)");
-    const entry = [...news.parts[1].steps, ...news.parts[1].notes].join("\n");
+    expect(news.parts[2].title).toBe("Every room measures in metres (3 November 2026)");
+    const entry = [...news.parts[2].steps, ...news.parts[2].notes].join("\n");
     expect(entry).toContain("5 ft became 1.5 m");
     expect(entry).toContain("**Measure in metres (1.5 m a square)**");
     expect(entry).toContain("**Switch them too**");
-    expect(news.intro).toContain("3 November 2026");
+    expect(news.intro).toContain("4 November 2026");
     expect(text("Measure in metres")).toContain("were switched to metres on 3 November 2026");
   });
 

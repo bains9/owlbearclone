@@ -7,6 +7,7 @@ import { ProfileDialog } from "./RoomPage";
 import { VoiceSection } from "./VoicePanel";
 import { canAdd, canDouble, changeDie, doubled, poolExpr, poolSize } from "./dicePool";
 import type { Pool } from "./dicePool";
+import { PEARL_FRESH_MS, isPearlRoll } from "./diceLook";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
 
@@ -246,12 +247,17 @@ function dieClass(t: Extract<RollTerm, { kind: "dice" }>, v: number, dropped: bo
 
 export function RollView(props: { message: ChatMessage; compact?: boolean }) {
   const m = props.message;
+  const party = useRoomState((s) => s.party);
   const r = m.roll;
   if (!r) return null;
   // A character's roll to hit (CharacterCard): a natural 20 or 2 on the two d10, by the group's handbook.
   const crit = critOf(m);
+  // The dice in the roller's colour; Malspar's pearl (diceLook.ts), tumbling in while the roll is new.
+  const pearl = isPearlRoll(m, party);
+  const fresh = pearl && Date.now() - m.ts < PEARL_FRESH_MS;
+  let n = 0;
   return (
-    <div class={cx("roll", props.compact && "compact")}>
+    <div class={cx("roll", props.compact && "compact", pearl && "pearl", fresh && "fresh")} style={{ "--die-color": m.color } as Record<string, string>}>
       {props.compact && (
         <span class="msg-name" style={{ color: m.color }}>
           {m.name}
@@ -277,7 +283,7 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
                 <span class="num">{t.value}</span>
               ) : (
                 t.rolls.map((d, j) => (
-                  <span key={j} class={dieClass(t, d.v, d.dropped)} title={t.notation}>
+                  <span key={j} class={dieClass(t, d.v, d.dropped)} title={t.notation} style={fresh ? { animationDelay: `${n++ * 70}ms` } : undefined}>
                     {t.sides === "F" ? (d.v > 0 ? "+" : d.v < 0 ? "−" : "0") : d.v}
                   </span>
                 ))
