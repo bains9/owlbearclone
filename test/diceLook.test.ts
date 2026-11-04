@@ -27,9 +27,9 @@ describe("a roll's look", () => {
     expect(css).toContain(".roll-dice:not(.dice-painted) .die:not(.max):not(.min) {\n  background: color-mix(in srgb, var(--die-color, transparent) 24%, var(--panel-3));");
     expect(css).toContain(".roll.fresh .dice-painted .die {\n  animation: dice-tumble");
     expect(css).toContain(".roll.pearl .roll-total {");
-    // Still for a device set to reduce motion, the villains' ember too.
+    // Still for a device set to reduce motion.
     const still = css.slice(css.indexOf("@keyframes dice-tumble"));
-    expect(still).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n {2}\.roll\.fresh \.dice-painted \.die,\n {2}\.roll\.fresh \.dice-set-villain \.die \{\n {4}animation: none;/);
+    expect(still).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n {2}\.roll\.fresh \.dice-painted \.die \{\n {4}animation: none;/);
   });
 
   it("is in What's new, with how to change your colour", () => {

@@ -1718,17 +1718,20 @@ export class Room extends DurableObject<Env> {
 
   /**
    * The dice a roll comes in (shared/diceSets.ts): the character's whose card it's from (`sheetId`),
-   * the GM's own (the villains') from the dice tray, or the dice of the character the player's browser
-   * plays. Classic when they have none, or the Directory can't be asked.
+   * the villains' set the GM picked for their own from the dice tray, or the dice of the character
+   * the player's browser plays. Classic when they have none (the GM's: Obsidian and bone), or the
+   * Directory can't be asked.
    */
   private async diceFor(conn: Conn, sheetId: unknown): Promise<DiceSetId> {
     const card = isSheetId(sheetId) ? sheetId : null;
-    if (!card && (conn.role === "gm" || conn.display)) return rollingSet(conn.role, false, null);
+    if (!card && conn.display) return PLAIN_DICE;
+    const gmTray = !card && conn.role === "gm";
     try {
-      const set = await this.env.DIRECTORY.getByName("main").diceFor(card, card ? null : conn.userId);
+      const directory = this.env.DIRECTORY.getByName("main");
+      const set = gmTray ? await directory.gmDice() : await directory.diceFor(card, card ? null : conn.userId);
       return rollingSet(conn.role, !!card, set);
     } catch {
-      return PLAIN_DICE;
+      return rollingSet(conn.role, !!card, null);
     }
   }
 

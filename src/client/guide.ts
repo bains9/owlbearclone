@@ -38,7 +38,7 @@ export const GUIDE: GuideSection[] = [
           "Each character in the **Party** has dice of their own, painted. Their rolls show in the chat in them, for everyone: rolls from their card (attacks, damage, initiative), whoever clicks, and rolls from the dice tray of the player who plays them.",
           "To choose, open **Tokens & images** and click the die beside your character in the **Party**, under **I play** (click **I play** first if you haven't), then pick a set from the list.",
           "The sets: Classic (plain grey, as before), Pearl (pearl paint with a purple shimmer, gold numbers), Bone, Ruby, Emerald, Sapphire, Amethyst, Copper, Frost and Night sky. No two characters share one: a set another character has shows their name in the list and can't be picked.",
-          "GM: your own rolls from the dice tray come in the villains' dice: black obsidian, glowing blood-red numbers. Only the GM rolls in them. A roll from a character's card comes in that character's dice, even when you roll it (a party character you run as an NPC, say).",
+          "GM: your own rolls from the dice tray come in the villains' dice, which only the GM rolls: **Obsidian and bone** (black, bone-white numbers, a blood-red glow), **Blood and bone** (deep red, bone-white numbers) or **Hellfire** (black, fire-gold numbers, an ember glow). Pick yours with the die at the end of your dice tray, beside **Hidden**: it's the same on every device and in every room. Their numbers are plain and solid, to read at a glance. A roll from a character's card comes in that character's dice, even when you roll it (a party character you run as an NPC, say).",
           "GM: you choose any character's dice with the die beside them in the **Party**, next to who plays them."
         ],
         "notes": [
@@ -1350,7 +1350,7 @@ export const GUIDE: GuideSection[] = [
           "Pick a set from the list. Their next roll comes in it, in the chat for everyone."
         ],
         "notes": [
-          "Rolls from a character's card come in their dice, whoever rolls. Rolls from the dice tray come in the dice of the character that browser plays, and the GM's own in the villains' (black obsidian, glowing blood-red numbers), which only the GM rolls.",
+          "Rolls from a character's card come in their dice, whoever rolls. Rolls from the dice tray come in the dice of the character that browser plays, and the GM's own in the villains' set the GM picks (Obsidian and bone, Blood and bone or Hellfire), which only the GM rolls.",
           "No two characters share a set, Classic aside. A set another character has shows their name in the list and can't be picked until they choose another.",
           "Only a character's player and the GM change their dice. Hover over the die to see which set they have. Their dice are the same in every room."
         ]
@@ -1911,6 +1911,7 @@ export const GUIDE: GuideSection[] = [
           "To put the picked dice back without rolling, click the X beside **Roll** (**Put the picked dice back**).",
           "The bonus is added once to the whole roll, and to **Advantage** and **Disadvantage**, which roll at once. It isn't added to rolls you type.",
           "Hover over **Roll** to see exactly what it will roll, for example \"Roll 2d6+1d8+5\".",
+          "GM: the die at the end of the row with **Hidden** picks the villains' dice your rolls come in: **Obsidian and bone**, **Blood and bone** or **Hellfire**, for every room and device.",
           "The box takes a whole number of up to four digits, with or without a + or - in front. If you type anything else, the app ignores it and rolls with no bonus.",
           "The bonus stays in the box while the **Chat & dice** panel is open. If you close the panel or open a different panel, the box empties, so type your bonus again next time. Any dice you've picked are put back too."
         ]

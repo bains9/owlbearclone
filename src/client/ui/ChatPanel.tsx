@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
 import { critOf } from "../../shared/characters";
-import { GM_DICE, diceClass, rollingSet } from "../../shared/diceSets";
+import { GM_DICE, GM_SETS, diceClass, diceSet, rollingSet, type DiceSetId } from "../../shared/diceSets";
+import { loadGmDice, setGmDice } from "../gmDice";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
@@ -18,9 +19,13 @@ export function ChatPanel() {
   const players = useRoomState((s) => s.players);
   const me = useRoomState((s) => s.me);
   const gm = me?.role === "gm";
-  // The dice this page rolls in from the tray: the GM's own, or those of the character it plays.
+  // The dice this page rolls in from the tray: the villains' set the GM picked, or those of the character it plays.
   const played = useRoomState((s) => s.party?.characters.find((c) => c.players?.some((p) => p.userId === s.me?.userId)));
-  const myDice = gm ? GM_DICE : rollingSet("player", false, played?.dice);
+  const gmDice = useRoomState((s) => s.gmDice);
+  useEffect(() => {
+    if (gm && room.state.gmDice === null) void loadGmDice(room).catch(() => undefined);
+  }, [gm, room]);
+  const myDice = gm ? (gmDice ?? GM_DICE) : rollingSet("player", false, played?.dice);
   const [text, setText] = useState("");
   const [secret, setSecret] = useState(false);
   const [modifier, setModifier] = useState("");
@@ -182,6 +187,21 @@ export function ChatPanel() {
             <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.currentTarget.checked)} />
             <EyeOff size={14} /> {gm ? "Hidden" : "To GM"}
           </label>
+          {gm && (
+            // The GM's dice: a die in them, with a native list over it (as a character's in the Party list).
+            <span class="icon-btn party-figure gm-dice-pick" title={`Your dice: ${diceSet(myDice).name}, ${diceSet(myDice).look} (every room)`}>
+              <span class={cx("party-die", diceClass(myDice))} aria-hidden="true">
+                <span class="die">20</span>
+              </span>
+              <select aria-label="Your dice (the villains')" value={myDice} onChange={(e) => void setGmDice(room, e.currentTarget.value as DiceSetId)}>
+                {GM_SETS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}: {s.look}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
         </div>
       </div>
 

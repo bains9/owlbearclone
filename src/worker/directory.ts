@@ -220,6 +220,18 @@ export class Directory extends DurableObject<Env> {
     return was;
   }
 
+  /** The villains' dice the GM picked for their own rolls (shared/diceSets.ts), or null before they pick. */
+  gmDice(): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'gm_dice'`).toArray()[0]?.value ?? null;
+  }
+
+  setGmDice(dice: string): void {
+    this.sql.exec(
+      `INSERT INTO blobs (name, value, version) VALUES ('gm_dice', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`,
+      dice,
+    );
+  }
+
   /** Each character's dice set, by sheet id (worker/characters.ts); a character with none is missing. */
   characterDice(): Record<string, string> {
     const rows = this.sql.exec<{ sheet_id: string; dice: string }>(`SELECT sheet_id, dice FROM character_dice`).toArray();

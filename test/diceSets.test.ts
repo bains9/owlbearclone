@@ -7,7 +7,7 @@ import { GUIDE } from "../src/client/guide";
 import { mayChooseDice, setCharacterDice } from "../src/client/party";
 import { RoomClient } from "../src/client/room/client";
 import { cleanCharacter, type CharactersReply } from "../src/shared/characters";
-import { CHARACTER_DICE, DICE_SETS, DICE_SET_IDS, GM_DICE, PLAIN_DICE, diceClass, isCharacterDice, messageDice, rollingSet } from "../src/shared/diceSets";
+import { CHARACTER_DICE, DICE_SETS, DICE_SET_IDS, GM_DICE, GM_SETS, PLAIN_DICE, diceClass, isCharacterDice, isGmDice, messageDice, rollingSet } from "../src/shared/diceSets";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
 import type { Player } from "../src/shared/types";
 
@@ -19,9 +19,15 @@ const SHEET = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd";
 const OTHER = "1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210zyxw";
 
 describe("the sets", () => {
-  it("are Classic and nine more for characters, and the villains' for the GM alone", () => {
+  it("are Classic and nine more for characters, and the villains' three for the GM alone", () => {
     expect(DICE_SETS.map((s) => s.id)).toEqual([...DICE_SET_IDS]);
     expect(CHARACTER_DICE.map((s) => s.id)).not.toContain("villain");
+    expect(GM_SETS.map((s) => [s.id, s.name])).toEqual([
+      ["villain", "Obsidian and bone"],
+      ["blood", "Blood and bone"],
+      ["hellfire", "Hellfire"],
+    ]);
+    expect([isGmDice("hellfire"), isGmDice("pearl"), isGmDice("glitter")]).toEqual([true, false, false]);
     expect(CHARACTER_DICE).toHaveLength(10);
     expect(DICE_SETS.find((s) => s.id === "pearl")?.look).toBe("pearl paint with a purple shimmer, gold numbers");
     expect([isCharacterDice("pearl"), isCharacterDice("villain"), isCharacterDice("glitter"), isCharacterDice(7)]).toEqual([true, false, false, false]);
@@ -29,7 +35,9 @@ describe("the sets", () => {
 
   it("roll in the character's for a card, the villains' for the GM's tray, Classic otherwise", () => {
     // The GM's own rolls, from the tray, whatever they'd send.
+    // The GM's own rolls, from the tray: the villains' set they picked, Obsidian and bone until they do.
     expect(rollingSet("gm", false, null)).toBe(GM_DICE);
+    expect(rollingSet("gm", false, "hellfire")).toBe("hellfire");
     expect(rollingSet("gm", false, "pearl")).toBe("villain");
     // From a character's card, the character's, whoever rolls; Classic when they have none.
     expect(rollingSet("gm", true, "pearl")).toBe("pearl");
@@ -57,11 +65,15 @@ describe("the sets", () => {
     const pearl = css.slice(css.indexOf(".dice-set-pearl {"), css.indexOf("}", css.indexOf("--d-sheen", css.indexOf(".dice-set-pearl {"))));
     expect(pearl).toMatch(/--d-ink: #a87a00;/);
     expect(pearl).toMatch(/rgba\(176, 116, 255, 0\.6\)/);
-    expect(css).toMatch(/\.dice-set-villain \{\r?\n {2}--d-paint: radial-gradient\(circle at 32% 26%, #5a1520/);
-    // The villains' numbers outlined in white to read at a glance (Par, 4 November), the glow pulsing round it.
-    const white = "1px 0 0 #fff, -1px 0 0 #fff, 0 1px 0 #fff, 0 -1px 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff";
-    const villain = css.slice(css.indexOf(".dice-set-villain {"), css.indexOf(".dice-set-bone {"));
-    expect(villain.split(white)).toHaveLength(4);
+    // The villains' sets read at a glance on Vern's screen (Par, 4 November: the white outline "not
+    // readable"): plain, solid numbers, a hard shadow at most; the menace in the die's edge and glow.
+    const villains = css.slice(css.indexOf(".dice-set-villain {"), css.indexOf(".dice-set-bone {")).replace(/\r\n/g, "\n");
+    expect(villains).toMatch(/\.dice-set-villain \{\n {2}--d-paint: radial-gradient\(circle at 32% 26%, #34262a[^}]*--d-ink: #f4ead6;\n {2}--d-ink-shadow: 0 1px 0 #000;\n {2}--d-glow: 0 0 6px rgba\(220, 20, 30, 0\.75\);/);
+    expect(villains).toMatch(/\.dice-set-blood \{[^}]*--d-ink: #fff3df;/);
+    expect(villains).toMatch(/\.dice-set-hellfire \{[^}]*--d-ink: #ffc43d;\n {2}--d-ink-shadow: 0 1px 0 #000;/);
+    expect(villains).not.toContain("#fff, -1px");
+    expect(css).not.toContain("villain-ember");
+    expect(css).toContain("    var(--d-glow, 0 0 0 transparent);");
     // Still marked: the highest face and a 1, as rings.
     expect(css).toMatch(/\.dice-painted \.die\.max \{\r?\n {2}outline: 2px solid var\(--ok\);/);
     // Moving paint only for those who don't mind it.
@@ -203,13 +215,17 @@ function sock(conn: Conn): Sock {
   return s;
 }
 
-/** A Room as in initiativeAuto.test.ts, asking a Directory that answers `diceFor` with `answer`. */
-function room(socks: Sock[], diceFor: (sheetId: string | null, userId: string | null) => Promise<string | null>): RoomInside {
+/** A Room as in initiativeAuto.test.ts, asking a Directory whose `diceFor` and `gmDice` are given. */
+function room(
+  socks: Sock[],
+  diceFor: (sheetId: string | null, userId: string | null) => Promise<string | null>,
+  gmDice: () => Promise<string | null> = async () => null,
+): RoomInside {
   const r = Object.create(RoomClass.prototype) as RoomInside;
   Object.assign(r, {
     sql: { exec: () => ({ toArray: () => [] }) },
     ctx: { storage: { transactionSync: (f: () => void) => f() }, getWebSockets: () => socks },
-    env: { DIRECTORY: { getByName: () => ({ diceFor }) } },
+    env: { DIRECTORY: { getByName: () => ({ diceFor, gmDice }) } },
     info: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
     activeSceneId: "scene1",
     scenes: new Map([["scene1", { id: "scene1", name: "s", order: 0, mapAssetId: null, width: 100, height: 100, background: "#000000", grid: { ...DEFAULT_GRID }, fogCover: false, createdAt: 0 }]]),
@@ -224,12 +240,24 @@ const playerConn = (): Conn => ({ connId: "alicec", userId: "alice1abcdef", name
 const lastRoll = (s: Sock) => s.sent.filter((x) => x.t === "chat").at(-1)?.message;
 
 describe("a roll in the Room", () => {
-  it("comes in the villains' dice from the GM's tray, without asking the Directory", async () => {
+  it("comes in the villains' set the GM picked from the GM's tray, Obsidian and bone until they pick", async () => {
     const gm = sock(gmConn());
     const asked = vi.fn(async (): Promise<string | null> => "pearl");
-    await room([gm], asked).handle(gm, gm.conn, { t: "roll", expr: "1d20" }, 1);
-    expect(lastRoll(gm)?.dice).toBe("villain");
+    const picked = vi.fn(async (): Promise<string | null> => "hellfire");
+    const r = room([gm], asked, picked);
+    await r.handle(gm, gm.conn, { t: "roll", expr: "1d20" }, 1);
+    expect(lastRoll(gm)?.dice).toBe("hellfire");
     expect(asked).not.toHaveBeenCalled();
+    picked.mockResolvedValueOnce(null);
+    await r.handle(gm, gm.conn, { t: "roll", expr: "1d20" }, 2);
+    expect(lastRoll(gm)?.dice).toBe("villain");
+    // Never a character's set, and still the villains' when the Directory can't be asked.
+    picked.mockResolvedValueOnce("pearl");
+    await r.handle(gm, gm.conn, { t: "roll", expr: "1d20" }, 3);
+    expect(lastRoll(gm)?.dice).toBe("villain");
+    picked.mockRejectedValueOnce(new Error("down"));
+    await r.handle(gm, gm.conn, { t: "roll", expr: "1d20" }, 4);
+    expect(lastRoll(gm)?.dice).toBe("villain");
   });
 
   it("in a character's dice from their card, whoever rolls (the GM rolling for an NPC of the party too)", async () => {
@@ -318,7 +346,10 @@ describe("choosing a character's dice", () => {
     const chat = await source("src/client/ui/ChatPanel.tsx");
     // Each roll's dice in its set (diceLook.ts; diceLook.test.ts has the rest).
     expect(chat).toContain(`<div class={cx("roll-dice", look.dice)}>`);
-    expect(chat).toContain("const myDice = gm ? GM_DICE : rollingSet(\"player\", false, played?.dice);");
+    expect(chat).toContain("const myDice = gm ? (gmDice ?? GM_DICE) : rollingSet(\"player\", false, played?.dice);");
+    // The GM's pick: the die beside Hidden, a list of the villains' sets over it.
+    expect(chat).toContain(`<select aria-label="Your dice (the villains')" value={myDice} onChange={(e) => void setGmDice(room, e.currentTarget.value as DiceSetId)}>`);
+    expect(chat).toContain("{GM_SETS.map((s) => (");
     expect(chat).toContain(`<div class={cx("dice-row", diceClass(myDice))}>`);
   });
 
@@ -342,7 +373,8 @@ describe("the guide", () => {
     const top = news.parts[1];
     expect(top.title).toBe("Every character rolls in dice of their own, and the GM in the villains' (4 November 2026)");
     expect(top.steps.join(" ")).toContain("pearl paint with a purple shimmer, gold numbers");
-    expect(top.steps.join(" ")).toContain("black obsidian, glowing blood-red numbers");
+    expect(top.steps.join(" ")).toContain("**Obsidian and bone** (black, bone-white numbers, a blood-red glow), **Blood and bone** (deep red, bone-white numbers) or **Hellfire**");
+    expect(top.steps.join(" ")).toContain("Pick yours with the die at the end of your dice tray, beside **Hidden**: it's the same on every device and in every room.");
     const sheets = GUIDE.find((s) => s.id === "character-sheets")!;
     expect(sheets.parts.at(-1)!.title).toBe("A character's dice");
   });

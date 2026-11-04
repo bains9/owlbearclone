@@ -11,7 +11,7 @@ import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
 import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, healOnSheet, isWeaponName, keepHp, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
 import { MAX_HEAL, MAX_SPEND, characterLabel, magicRestDice, restGain } from "../shared/characters";
-import { PLAIN_DICE, isCharacterDice, isDiceSet } from "../shared/diceSets";
+import { GM_DICE, PLAIN_DICE, isCharacterDice, isDiceSet, isGmDice } from "../shared/diceSets";
 import { rollDice, secureRng } from "../shared/dice";
 import { castList, highestLevel } from "../shared/spellfx";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
@@ -295,6 +295,20 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     if (!(await directory.setCharacterDice(sheetId, dice === PLAIN_DICE ? null : dice))) return fail(409, "Another character has those dice.");
     // Everyone's dice now, so the page shows it at once.
     return json({ ok: true, dice: await directory.characterDice() });
+  }
+  // The villains' dice the GM picked for their own rolls (shared/diceSets.ts), for every room.
+  if (pathname === "/api/gm-dice") {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") {
+      const dice = await directory.gmDice();
+      return json({ dice: isGmDice(dice) ? dice : GM_DICE });
+    }
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const dice = (await readJson(request))?.dice;
+    if (!isGmDice(dice)) return fail(400, "That isn't one of the villains' dice.");
+    await directory.setGmDice(dice);
+    return json({ dice });
   }
   // What a character has prayed for today, and how many casts each has left: their player or the
   // GM chooses, and casting one uses one up. For anyone at one of the GM's tables, as above.

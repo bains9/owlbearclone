@@ -4,6 +4,7 @@
 
 import type { Character, CharactersReply } from "../../shared/characters";
 import type { LibraryEntry } from "../../shared/library";
+import type { DiceSetId } from "../../shared/diceSets";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
@@ -268,6 +269,8 @@ export interface RoomState {
   party: CharactersReply | null;
   /** GM: their own monsters and NPCs, for every room (library.ts), or null before they're read. */
   library: LibraryEntry[] | null;
+  /** GM: the villains' dice they picked for their own rolls (gmDice.ts), or null before it's read. */
+  gmDice: DiceSetId | null;
   /**
    * What the party, and each of its characters, has explored of each scene with lighting on, by
    * exploreSlot (shared/explore.ts); replaced, never changed in place.
@@ -577,6 +580,7 @@ export class RoomClient {
       uploading: 0,
       party: null,
       library: null,
+      gmDice: null,
       explored: {},
     });
   }
