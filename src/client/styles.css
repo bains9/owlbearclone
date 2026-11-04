@@ -1997,6 +1997,23 @@ button:disabled {
 .roll.compact .roll-total {
   font-size: 20px;
 }
+/* The total outlined as Roll20 outlines a roll (diceLook.ts totalOutline): green for a die's highest
+   face (or a critical hit), red for a 1 (or a critical failure), blue for both. */
+.roll-total.outlined {
+  padding: 0 7px;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  line-height: 1.2;
+}
+.roll-total.outlined.hit {
+  border-color: var(--ok);
+}
+.roll-total.outlined.fail {
+  border-color: var(--danger);
+}
+.roll-total.outlined.both {
+  border-color: #4f9dde;
+}
 .roll-expr {
   color: var(--muted);
   font-size: 13px;
@@ -2061,10 +2078,10 @@ button:disabled {
   text-decoration: line-through;
 }
 /* Classic dice in their roller's colour (diceLook.ts): the colour beside their name, round each and tinting it. */
-.roll-dice:not(.dice-painted) .die {
+.roll-dice:not(.dice-painted) .die:not(.die-shaped) {
   border: 2px solid var(--die-color, transparent);
 }
-.roll-dice:not(.dice-painted) .die:not(.max):not(.min) {
+.roll-dice:not(.dice-painted) .die:not(.die-shaped):not(.max):not(.min) {
   background: color-mix(in srgb, var(--die-color, transparent) 24%, var(--panel-3));
 }
 /* A new roll's painted dice tumble in, one after another (diceLook.ts); Pearl's total is gold. */
@@ -2101,7 +2118,7 @@ button:disabled {
    dice tray's, in the set the page rolls in. Each set sets its paint, edge, numbers and sheen; a
    sheen crosses a die once when it comes, again while the pointer is over it, and now and then on
    the tray. Classic is the plain chips above. */
-.dice-painted :is(.die, .die-pick) {
+.dice-painted :is(.die:not(.die-shaped), .die-pick) {
   position: relative;
   isolation: isolate;
   background: var(--d-paint);
@@ -2152,11 +2169,11 @@ button:disabled {
   }
 }
 /* Their highest face and a 1, as rings, so the paint stays. */
-.dice-painted .die.max {
+.dice-painted .die:not(.die-shaped).max {
   outline: 2px solid var(--ok);
   outline-offset: 1px;
 }
-.dice-painted .die.min {
+.dice-painted .die:not(.die-shaped).min {
   outline: 2px solid var(--danger);
   outline-offset: 1px;
 }
@@ -2279,6 +2296,132 @@ button:disabled {
     animation: none;
   }
 }
+/* Dice shaped as they are (diceLook.ts dieShape): a d4 a triangle, a d6 a square, a d8 a diamond,
+   a d10 a kite, a d12 a pentagon, a d20 a gem, a d2 a coin. The paint is clipped to the outline
+   (the roller's colour for Classic, the set's for painted dice), the outline is drawn over it,
+   green or red for the highest face and a 1, and the number sits where it would. */
+.die.die-shaped,
+.die.die-shaped.max,
+.die.die-shaped.min {
+  position: relative;
+  isolation: isolate;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+.die.die-shaped.wide {
+  width: 40px;
+  min-width: 40px;
+}
+.dice-painted .die.die-shaped {
+  font-weight: 800;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)) drop-shadow(var(--d-glow, 0 0 0 transparent));
+}
+.die-shaped .die-body {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--die-clip);
+  background: color-mix(in srgb, var(--die-color, transparent) 26%, var(--panel-3));
+}
+.dice-painted .die-shaped .die-body {
+  background: var(--d-paint);
+}
+.dice-painted .die.die-shaped::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--die-clip);
+  background: var(--d-sheen) no-repeat;
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  pointer-events: none;
+  animation: dice-sheen 1.8s ease-out both;
+}
+.die-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.die-edge {
+  fill: none;
+  stroke: var(--die-color, var(--border));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.dice-painted .die-edge {
+  stroke: var(--d-edge);
+}
+.die-shaped.max .die-edge {
+  stroke: var(--ok);
+  stroke-width: 2.5;
+}
+.die-shaped.min .die-edge {
+  stroke: var(--danger);
+  stroke-width: 2.5;
+}
+.die-facet {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.22;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.die-num {
+  position: absolute;
+  left: 50%;
+  top: var(--num-y, 50%);
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.die-shaped.wide .die-num {
+  font-size: 11px;
+}
+.die-shaped.dropped .die-num {
+  text-decoration: line-through;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-painted .die.die-shaped::before {
+    animation: none;
+  }
+}
+
+/* The dice thrown on the map in 3D (dice3d.ts, DiceThrow.tsx): over it, under the bars, never in the
+   way of a click; they show at once and fade a moment after they land. */
+.dice-throw {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+}
+.dice-throw.showing {
+  opacity: 1;
+}
+.dice-throw.showing.fading {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.dice-throw canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* A character's dice in the Party list (PartySection.tsx). */
 .party-die {
   display: inline-flex;

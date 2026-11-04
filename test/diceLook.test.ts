@@ -21,10 +21,12 @@ describe("a roll's look", () => {
     const view = read("src/client/ui/ChatPanel.tsx");
     expect(view).toContain('<div class={cx("roll", props.compact && "compact", look.box)} style={{ "--die-color": m.color } as Record<string, string>}>');
     expect(view).toContain('<div class={cx("roll-dice", look.dice)}>');
-    expect(view).toContain("style={look.fresh ? { animationDelay: `${n++ * 70}ms` } : undefined}");
+    expect(view).toContain("delay={look.fresh ? `${n++ * 70}ms` : undefined}");
     const css = read("src/client/styles.css");
-    expect(css).toContain(".roll-dice:not(.dice-painted) .die {\n  border: 2px solid var(--die-color, transparent);");
-    expect(css).toContain(".roll-dice:not(.dice-painted) .die:not(.max):not(.min) {\n  background: color-mix(in srgb, var(--die-color, transparent) 24%, var(--panel-3));");
+    expect(css).toContain(".roll-dice:not(.dice-painted) .die:not(.die-shaped) {\n  border: 2px solid var(--die-color, transparent);");
+    expect(css).toContain(".roll-dice:not(.dice-painted) .die:not(.die-shaped):not(.max):not(.min) {\n  background: color-mix(in srgb, var(--die-color, transparent) 24%, var(--panel-3));");
+    // A shaped Classic die: its paint the roller's colour, its outline too.
+    expect(css).toContain(".die-shaped .die-body {\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  clip-path: var(--die-clip);\n  background: color-mix(in srgb, var(--die-color, transparent) 26%, var(--panel-3));");
     expect(css).toContain(".roll.fresh .dice-painted .die {\n  animation: dice-tumble");
     expect(css).toContain(".roll.pearl .roll-total {");
     // Still for a device set to reduce motion.
@@ -34,7 +36,7 @@ describe("a roll's look", () => {
 
   it("is in What's new, with how to change your colour", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    const entry = [...news.parts[1].steps, ...news.parts[1].notes].join("\n");
+    const entry = [...news.parts[2].steps, ...news.parts[2].notes].join("\n");
     for (const words of ["**Chat & dice**", "**Change your name or colour**", "green and red", "Pearl", "tumble in", "reduce motion"]) expect(entry).toContain(words);
     expect(read("src/client/ui/ChatPanel.tsx")).toContain('title="Change your name or colour"');
   });

@@ -993,6 +993,7 @@ export class RoomClient {
         const messages = [...s.messages, msg.message].slice(-MAX_MESSAGES);
         const away = s.panel !== "chat";
         this.store.set({ messages, unread: away ? s.unread + 1 : 0 });
+        if (msg.message.kind === "roll") for (const fn of this.rollWatchers) fn(msg.message);
         if (away && msg.message.kind === "roll") {
           this.pushToast({ kind: "roll", text: "", message: msg.message }, 6000);
         } else if (away) {
@@ -1952,6 +1953,16 @@ export class RoomClient {
 
   get profileInfo(): Profile {
     return this.profile;
+  }
+
+  /** Who's told of each roll as it comes in (not those from before the page joined): the dice thrown on the map. */
+  private rollWatchers = new Set<(m: ChatMessage) => void>();
+
+  onRoll(fn: (m: ChatMessage) => void): () => void {
+    this.rollWatchers.add(fn);
+    return () => {
+      this.rollWatchers.delete(fn);
+    };
   }
 
   async upload(files: File[], kind: "map" | "token"): Promise<Asset[]> {

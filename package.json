@@ -14,6 +14,7 @@
     "smoke:layout": "node scripts/layout-smoke.mjs"
   },
   "dependencies": {
+    "@3d-dice/dice-box-threejs": "^0.0.12",
     "konva": "^10.7.0",
     "lucide-preact": "^1.48.0",
     "preact": "^10.29.8"

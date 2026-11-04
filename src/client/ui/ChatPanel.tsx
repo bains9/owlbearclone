@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
 import { critOf } from "../../shared/characters";
@@ -9,7 +10,7 @@ import { ProfileDialog } from "./RoomPage";
 import { VoiceSection } from "./VoicePanel";
 import { canAdd, canDouble, changeDie, doubled, poolExpr, poolSize } from "./dicePool";
 import type { Pool } from "./dicePool";
-import { rollLook } from "./diceLook";
+import { dieShape, rollLook, totalOutline } from "./diceLook";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
 
@@ -269,6 +270,40 @@ function dieClass(t: Extract<RollTerm, { kind: "dice" }>, v: number, dropped: bo
   return "die";
 }
 
+/**
+ * One die of a roll, shaped as it is (diceLook.ts dieShape): its paint clipped to the outline, the
+ * outline drawn over it (green or red for the highest face and a 1), the number where it sits. A die
+ * with no shape of its own (a d7, say) is a rounded chip.
+ */
+function DieView(props: { sides: number | "F"; cls: string; title: string; delay?: string; children: ComponentChildren }) {
+  const shape = dieShape(props.sides);
+  if (!shape) {
+    return (
+      <span class={props.cls} title={props.title} style={props.delay ? { animationDelay: props.delay } : undefined}>
+        {props.children}
+      </span>
+    );
+  }
+  const style: Record<string, string> = { "--die-clip": shape.clip, "--num-y": `${shape.numY}%` };
+  if (props.delay) style.animationDelay = props.delay;
+  return (
+    <span class={cx(props.cls, "die-shaped", `die-${shape.key}`, shape.wide && "wide")} title={props.title} style={style}>
+      <span class="die-body" />
+      <svg class="die-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {shape.points ? <polygon class="die-edge" points={shape.points} /> : <circle class="die-edge" cx="50" cy="50" r="46" />}
+        {shape.facets && <polyline class="die-facet" points={shape.facets} />}
+      </svg>
+      <span class="die-num">{props.children}</span>
+    </span>
+  );
+}
+
+const OUTLINE_WORDS = {
+  hit: "A die rolled its highest face",
+  fail: "A die rolled a 1",
+  both: "A die rolled its highest face, and one a 1",
+} as const;
+
 export function RollView(props: { message: ChatMessage; compact?: boolean }) {
   const m = props.message;
   const r = m.roll;
@@ -277,6 +312,8 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
   const crit = critOf(m);
   // In the set it was rolled in, painted dice tumbling in while it's new; Classic in the roller's colour (diceLook.ts).
   const look = rollLook(m);
+  // The total outlined as Roll20 outlines a roll: green, red, or blue for both.
+  const outline = totalOutline(r, crit);
   let n = 0;
   return (
     <div class={cx("roll", props.compact && "compact", look.box)} style={{ "--die-color": m.color } as Record<string, string>}>
@@ -287,7 +324,9 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
         </span>
       )}
       <div class="roll-main">
-        <span class="roll-total">{r.total}</span>
+        <span class={cx("roll-total", outline && `outlined ${outline}`)} title={outline ? OUTLINE_WORDS[outline] : undefined}>
+          {r.total}
+        </span>
         <span class="roll-expr">
           {m.text ? `${m.text} · ` : ""}
           {r.expr}
@@ -305,9 +344,9 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
                 <span class="num">{t.value}</span>
               ) : (
                 t.rolls.map((d, j) => (
-                  <span key={j} class={dieClass(t, d.v, d.dropped)} title={t.notation} style={look.fresh ? { animationDelay: `${n++ * 70}ms` } : undefined}>
+                  <DieView key={j} sides={t.sides} cls={dieClass(t, d.v, d.dropped)} title={t.notation} delay={look.fresh ? `${n++ * 70}ms` : undefined}>
                     {t.sides === "F" ? (d.v > 0 ? "+" : d.v < 0 ? "−" : "0") : d.v}
-                  </span>
+                  </DieView>
                 ))
               )}
             </span>

@@ -75,7 +75,9 @@ describe("the sets", () => {
     expect(css).not.toContain("villain-ember");
     expect(css).toContain("    var(--d-glow, 0 0 0 transparent);");
     // Still marked: the highest face and a 1, as rings.
-    expect(css).toMatch(/\.dice-painted \.die\.max \{\r?\n {2}outline: 2px solid var\(--ok\);/);
+    expect(css).toMatch(/\.dice-painted \.die:not\(\.die-shaped\)\.max \{\r?\n {2}outline: 2px solid var\(--ok\);/);
+    // A shaped one: its outline green.
+    expect(css).toMatch(/\.die-shaped\.max \.die-edge \{\r?\n {2}stroke: var\(--ok\);/);
     // Moving paint only for those who don't mind it.
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\r?\n {2}\.dice-painted :is\(\.die, \.die-pick\),/);
   });
@@ -370,7 +372,7 @@ describe("the guide", () => {
   it("leads What's new with them", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.intro).toContain("The latest updates came out on 4 November 2026.");
-    const top = news.parts[1];
+    const top = news.parts[2];
     expect(top.title).toBe("Every character rolls in dice of their own, and the GM in the villains' (4 November 2026)");
     expect(top.steps.join(" ")).toContain("pearl paint with a purple shimmer, gold numbers");
     expect(top.steps.join(" ")).toContain("**Obsidian and bone** (black, bone-white numbers, a blood-red glow), **Blood and bone** (deep red, bone-white numbers) or **Hellfire**");

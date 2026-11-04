@@ -41,6 +41,8 @@ import { MapLoading } from "./MapLoading";
 import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
+import { DiceThrow } from "./DiceThrow";
+import { loadDice3d, saveDice3d } from "../dice3d";
 import { voiceLink } from "../room/voiceLink";
 import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
@@ -268,6 +270,9 @@ function RoomShell() {
           <BoardView />
           <Guard name="the weather" retry={(s) => s.calendarVersion}>
             <WeatherFx />
+          </Guard>
+          <Guard name="the dice thrown on the map">
+            <DiceThrow />
           </Guard>
           <Guard name="the toolbar" retry={(s) => s.tool}>
             <Toolbar />
@@ -847,6 +852,7 @@ function NoteForm(props: { at: NonNullable<RoomState["textPrompt"]> }) {
 
 export function ProfileDialog(props: { onClose: () => void }) {
   const room = useRoom();
+  const [dice3d, setDice3d] = useState(loadDice3d);
   const seasonsOff = useRoomState((s) => s.seasonsOff);
   const gm = useRoomState((s) => s.me?.role === "gm");
   const wheelTurns = useRoomState((s) => s.wheelTurns);
@@ -871,6 +877,18 @@ export function ProfileDialog(props: { onClose: () => void }) {
         <p class="small muted">
           Untick it if maps are slow to appear on this device: you'll see them as drawn. Everyone else still sees the season.
         </p>
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={dice3d}
+            onChange={(e) => {
+              saveDice3d(e.currentTarget.checked);
+              setDice3d(e.currentTarget.checked);
+            }}
+          />
+          Throw the dice on the map (3D)
+        </label>
+        <p class="small muted">Untick it if rolls make this device slow: they still show in the chat. Everyone else still sees them thrown.</p>
         {gm && (
           <>
             <label class="field">

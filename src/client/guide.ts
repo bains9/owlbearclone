@@ -18,6 +18,20 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Dice as they are: shaped in the chat, and thrown across the map (4 November 2026)",
+        "steps": [
+          "Every die in the chat has its own shape now: a d4 is a triangle, a d6 a square, a d8 a diamond, a d10 a kite, a d12 a pentagon and a d20 a gem, painted in the set it was rolled in. The highest face is edged in green, a 1 in red, and the total is outlined as on Roll20: green when a die rolled its highest face, red for a 1, blue for both. A roll to hit goes by the handbook: green for a critical hit, red for a critical failure.",
+          "When anyone rolls, the dice are thrown across the map in 3D, in that roll's set, and land on the result. The server rolls first, so the dice only act it out. As on Roll20, they stay where they land until you click the map or someone rolls again.",
+          "Everyone who sees a roll sees it thrown: one sent **To GM** only for the roller and the GM, and the GM's **Hidden** rolls only for the GM."
+        ],
+        "notes": [
+          "If rolls make a device slow, untick **Throw the dice on the map (3D)** under **Change your name or colour** in **Chat & dice**: rolls still show in the chat. Each device has its own setting; one set to reduce motion starts with it off.",
+          "A d10 that rolls 10 shows 0 on the thrown die, as real d10s do; the chat says 10. A d100 is thrown as two dice, tens and units: 00 and 0 make 100.",
+          "Up to 30 dice are thrown for one roll; the chat shows them all. A new roll takes the place of the last one's dice.",
+          "The first roll after a page opens takes a moment longer while the dice load."
+        ]
+      },
+      {
         "title": "GM: your own monsters and NPCs, in every room (4 November 2026)",
         "steps": [
           "Move the token pictures you've uploaded into **Monsters** or **NPCs**: in **Tokens & images** › **Tokens**, click **Select**, click the pictures (or **Pick all**), then **Move to Monsters** or **Move to NPCs**. For one picture, use the folder button on it.",
@@ -1975,7 +1989,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "The big number is the total. Next to it is the roll as the app read it, for example 1d20+5.",
-          "Below the total, each die is shown. A die that rolled its highest face is green, and a 1 is red. Dice in a character's own set, or the GM's, keep their paint and get a green or red ring instead (see **A character's dice** in **Character sheets**).",
+          "Below the total, each die is shown in its shape (a d4 a triangle, a d6 a square, a d8 a diamond, a d10 a kite, a d12 a pentagon, a d20 a gem). A die that rolled its highest face is edged in green, and a 1 in red. Dice in a character's own set, or the GM's, keep their paint and get a green or red ring instead (see **A character's dice** in **Character sheets**).",
           "Dropped dice, and dice that weren't kept, are faded and crossed out. They don't count toward the total.",
           "Hover over a die to see which part of the roll it belongs to, for example 4d6dl1."
         ]
@@ -2007,6 +2021,19 @@ export const GUIDE: GuideSection[] = [
           "Everyone's player list updates straight away.",
           "This browser remembers your new name and colour for next time.",
           "Messages you've already sent keep your old name, and initiative entries keep the colour they had when they were added."
+        ]
+      },
+      {
+        "title": "Dice thrown on the map",
+        "steps": [
+          "Roll as usual. The dice are thrown across the map in 3D, in the roll's dice set, and land on what the server rolled.",
+          "To stop them on this device, open **Chat & dice**, click **Change your name or colour** and untick **Throw the dice on the map (3D)**."
+        ],
+        "notes": [
+          "Everyone who sees a roll sees it thrown: a private roll only for the roller and the GM, a hidden one only for the GM.",
+          "They stay where they land until you click the map or someone rolls again (at most half a minute, for a screen nobody touches), then fade. They're never in the way of a click.",
+          "A thrown d10 shows 0 for a 10, as real d10s do; a d100 is two dice, tens and units. Up to 30 dice are thrown for one roll.",
+          "A device set to reduce motion starts with them off."
         ]
       }
     ]
