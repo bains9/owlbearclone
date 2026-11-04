@@ -4,6 +4,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
 import { MAX_PRAYED_SPELLS } from "../shared/characters";
+import { MAX_LIBRARY, MAX_LIBRARY_BYTES, isShelf, type LibraryEntry, type Shelf } from "../shared/library";
 
 const FAILURE_WINDOW_MS = 15 * 60_000;
 /** Wrong passwords allowed per address (an IPv6 /64 counts as one address) per window. */
@@ -19,6 +20,30 @@ const GLOBAL_KEY = "*";
 const TRUSTED_MS = 90 * 86400_000;
 /** Who plays whom is kept for this many browsers, the latest to pick (anyone with a room link can pick). */
 const MAX_CHARACTER_PLAYERS = 60;
+
+type LibraryRow = {
+  id: string;
+  shelf: string;
+  name: string;
+  mime: string;
+  width: number;
+  height: number;
+  bytes: number;
+  created_at: number;
+};
+
+function libraryEntryOf(r: LibraryRow): LibraryEntry {
+  return {
+    id: r.id,
+    shelf: isShelf(r.shelf) ? r.shelf : "monster",
+    name: r.name,
+    mime: r.mime,
+    width: r.width,
+    height: r.height,
+    bytes: r.bytes,
+    createdAt: r.created_at,
+  };
+}
 
 function b64url(bytes: Uint8Array): string {
   let s = "";
@@ -56,6 +81,17 @@ export class Directory extends DurableObject<Env> {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS blobs (name TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL)`);
       // Each character's dice (shared/diceSets.ts): one character to a set; none kept is Classic.
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_dice (sheet_id TEXT PRIMARY KEY, dice TEXT NOT NULL UNIQUE)`);
+      // The GM's own monsters and NPCs, for every room (shared/library.ts); their pictures are in R2.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS library (
+        id TEXT PRIMARY KEY,
+        shelf TEXT NOT NULL,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        bytes INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      )`);
     });
   }
 
@@ -127,6 +163,61 @@ export class Directory extends DurableObject<Env> {
   setCharacterFigure(sheetId: string, figure: string | null): void {
     this.sql.exec(`DELETE FROM character_figures WHERE sheet_id = ?`, sheetId);
     if (figure) this.sql.exec(`INSERT INTO character_figures (sheet_id, figure) VALUES (?, ?)`, sheetId, figure);
+  }
+
+  /** The GM's own monsters and NPCs (shared/library.ts), newest first. */
+  libraryList(): LibraryEntry[] {
+    return this.sql.exec<LibraryRow>(`SELECT * FROM library ORDER BY created_at DESC, id`).toArray().map(libraryEntryOf);
+  }
+
+  libraryEntry(id: string): LibraryEntry | null {
+    const row = this.sql.exec<LibraryRow>(`SELECT * FROM library WHERE id = ?`, id).toArray()[0];
+    return row ? libraryEntryOf(row) : null;
+  }
+
+  /** Why the library can't take `count` more pictures of `bytes` in all, or null if it can. */
+  libraryRefusal(count: number, bytes: number): string | null {
+    const have = this.sql.exec<{ n: number; b: number | null }>(`SELECT COUNT(*) AS n, SUM(bytes) AS b FROM library`).one();
+    if (have.n + count > MAX_LIBRARY || (have.b ?? 0) + bytes > MAX_LIBRARY_BYTES) {
+      return "Your monsters and NPCs are as many as the library holds. Remove some first.";
+    }
+    return null;
+  }
+
+  /** Files pictures (already in R2) in the library: all, or none and the refusal when they don't fit. */
+  addLibraryEntries(entries: LibraryEntry[]): string | null {
+    const refusal = this.libraryRefusal(entries.length, entries.reduce((n, e) => n + e.bytes, 0));
+    if (refusal) return refusal;
+    for (const e of entries) {
+      this.sql.exec(
+        `INSERT INTO library (id, shelf, name, mime, width, height, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        e.id,
+        e.shelf,
+        e.name,
+        e.mime,
+        e.width,
+        e.height,
+        e.bytes,
+        e.createdAt,
+      );
+    }
+    return null;
+  }
+
+  /** Renames an entry, or moves it to the other shelf: the entry now, or null if it isn't there. */
+  updateLibraryEntry(id: string, change: { name?: string; shelf?: Shelf }): LibraryEntry | null {
+    const was = this.libraryEntry(id);
+    if (!was) return null;
+    const next = { ...was, ...(change.name ? { name: change.name } : {}), ...(change.shelf ? { shelf: change.shelf } : {}) };
+    this.sql.exec(`UPDATE library SET name = ?, shelf = ? WHERE id = ?`, next.name, next.shelf, id);
+    return next;
+  }
+
+  /** Takes an entry out of the library: what it was, or null if it wasn't there. */
+  removeLibraryEntry(id: string): LibraryEntry | null {
+    const was = this.libraryEntry(id);
+    if (was) this.sql.exec(`DELETE FROM library WHERE id = ?`, id);
+    return was;
   }
 
   /** Each character's dice set, by sheet id (worker/characters.ts); a character with none is missing. */

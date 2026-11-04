@@ -3007,6 +3007,56 @@ button:disabled {
 .library-head h3 {
   margin: 0;
 }
+.library-buttons {
+  display: inline-flex;
+  gap: 6px;
+}
+/* GM, in Tokens: picking pictures to move to Monsters or NPCs (LibraryPanel.tsx). */
+.pick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.asset.picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.pick-mark {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  pointer-events: none;
+}
+/* The GM's own monsters or NPCs, above the built-in ones (LibraryShelf.tsx). */
+.shelf {
+  margin-top: 8px;
+}
+.shelf-head {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.shelf-empty {
+  margin: 6px 0 0;
+}
+.shelf-filter {
+  width: 100%;
+  margin-top: 8px;
+}
+.asset.busy {
+  opacity: 0.55;
+  cursor: progress;
+}
 .monsters {
   margin-top: 8px;
 }

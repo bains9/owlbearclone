@@ -15,6 +15,7 @@ import { PLAIN_DICE, isCharacterDice, isDiceSet } from "../shared/diceSets";
 import { rollDice, secureRng } from "../shared/dice";
 import { castList, highestLevel } from "../shared/spellfx";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
+import { libraryRoute } from "./libraryRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -209,6 +210,9 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   // The campaign's calendar (calendarRoutes.ts): the GM changes it, brings it in from Fantasy Calendar, or takes it away.
   const calendar = await calendarRoute(request, env, pathname, method);
   if (calendar) return calendar;
+  // The GM's own monsters and NPCs, for every room (libraryRoutes.ts), and putting one in a room.
+  const library = await libraryRoute(request, env, pathname, method);
+  if (library) return library;
 
   if (pathname === "/api/characters/source") {
     if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");

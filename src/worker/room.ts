@@ -488,6 +488,30 @@ export class Room extends DurableObject<Env> {
     return null;
   }
 
+  /** The room's token pictures among `ids` (the GM filing them in the library). */
+  tokenAssets(ids: string[]): Asset[] {
+    return ids.map((id) => this.assets.get(id)).filter((a): a is Asset => a?.kind === "token");
+  }
+
+  /** This room's copy of a library entry, if it has one (the oldest, should two pages make one at once). */
+  libraryCopy(entryId: string): Asset | null {
+    let found: Asset | null = null;
+    for (const a of this.assets.values()) if (a.library === entryId && (!found || a.createdAt < found.createdAt)) found = a;
+    return found;
+  }
+
+  /** Marks the room's pictures as copies of library entries (filed by the GM): they leave Tokens for Monsters or NPCs. */
+  linkLibrary(links: { assetId: string; entryId: string }[]): void {
+    for (const { assetId, entryId } of links) {
+      const a = this.assets.get(assetId);
+      if (!a) continue;
+      const next = { ...a, library: entryId };
+      this.saveAsset(next);
+      this.assets.set(next.id, next);
+      this.broadcastAsset(next);
+    }
+  }
+
   addAsset(asset: Asset, role: Role): void {
     if (!this.info) throw new Error("Room not found");
     // Checked again here: uploads racing each other both passed the first check.

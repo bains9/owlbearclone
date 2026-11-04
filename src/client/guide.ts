@@ -18,6 +18,21 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: your own monsters and NPCs, in every room (4 November 2026)",
+        "steps": [
+          "Move the token pictures you've uploaded into **Monsters** or **NPCs**: in **Tokens & images** › **Tokens**, click **Select**, click the pictures (or **Pick all**), then **Move to Monsters** or **Move to NPCs**. For one picture, use the folder button on it.",
+          "They're listed at the top of the **Monsters** or **NPCs** tab, under **Your monsters** or **Your NPCs**, in every room, not just the one you uploaded them in.",
+          "To add new ones, click **Upload** in the **Monsters** or **NPCs** tab: they go straight there.",
+          "Click one to put it in the middle of your view, or drag it onto the map. It's named after its picture (Goblin, then Goblin 2), joins the initiative list like your other creatures, and **Add hidden** works as for the built-in ones."
+        ],
+        "notes": [
+          "The pictures you move leave this room's **Tokens** tab; tokens of them already on maps stay as they are.",
+          "The first time you place one in another room, it takes a moment while its picture is copied there; after that it's at once.",
+          "On each one: rename it, move it to the other tab (the two arrows), or take it out (the bin), for every room. Tokens of it on maps stay.",
+          "Players don't see these lists. They see the tokens you place, as always."
+        ]
+      },
+      {
         "title": "Every character rolls in dice of their own, and the GM in the villains' (4 November 2026)",
         "steps": [
           "Each character in the **Party** has dice of their own, painted. Their rolls show in the chat in them, for everyone: rolls from their card (attacks, damage, initiative), whoever clicks, and rolls from the dice tray of the player who plays them.",
@@ -1450,6 +1465,23 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "They get numbered names, as duplicates do: the first is \"Goblin\", the next \"Goblin 2\", then \"Goblin 3\", always one higher than the highest number already on the scene.",
           "Monsters on other scenes don't count, so each scene starts again at \"Goblin\"."
+        ]
+      },
+      {
+        "title": "Your own monsters and NPCs, in every room",
+        "steps": [
+          "Open **Tokens & images** › **Tokens**, click **Select**, and click the pictures you want (they get a tick), or **Pick all**.",
+          "Click **Move to Monsters** or **Move to NPCs**. They leave **Tokens** and show at the top of that tab, under **Your monsters** or **Your NPCs**, in every one of your rooms.",
+          "Or upload straight there: click **Upload** in the **Monsters** or **NPCs** tab.",
+          "Click one to place it in the middle of your view, or drag it onto the map."
+        ],
+        "notes": [
+          "One picture at a time: the folder button on it in **Tokens** (hover over it on a computer) has **Monsters** and **NPCs**.",
+          "A placed one is named after its picture, numbered when the scene has one already, joins the initiative list like the GM's other creatures, and follows **Add hidden**.",
+          "Over 8 of them, a box finds one by name.",
+          "On each one: **Rename**, **Move to NPCs** (or **Monsters**, the two arrows), and **Take out of the library** (the bin). Taking one out takes it out of every room's list; tokens of it on maps stay, and a room that used it gets its picture back in **Tokens**.",
+          "The first time one goes on a map in a room, its picture is copied into that room (it takes a moment); after that it's placed at once. Players see its tokens as they do any other picture's.",
+          "The library holds up to 1,500 pictures."
         ]
       },
       {

@@ -3,6 +3,7 @@
 // reconciles them with what the server confirms, and keeps an undo history.
 
 import type { Character, CharactersReply } from "../../shared/characters";
+import type { LibraryEntry } from "../../shared/library";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
@@ -265,6 +266,8 @@ export interface RoomState {
   uploading: number;
   /** The party from their character sheets (refreshParty), or null before the first reading. */
   party: CharactersReply | null;
+  /** GM: their own monsters and NPCs, for every room (library.ts), or null before they're read. */
+  library: LibraryEntry[] | null;
   /**
    * What the party, and each of its characters, has explored of each scene with lighting on, by
    * exploreSlot (shared/explore.ts); replaced, never changed in place.
@@ -573,6 +576,7 @@ export class RoomClient {
       toasts: [],
       uploading: 0,
       party: null,
+      library: null,
       explored: {},
     });
   }

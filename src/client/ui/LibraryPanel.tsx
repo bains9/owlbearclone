@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { Compass, Pencil, Trash, Upload } from "lucide-preact";
+import { Check, Compass, FolderInput, Pencil, Trash, Upload } from "lucide-preact";
+import { isFiled, shelfName, type Shelf } from "../../shared/library";
 import type { Asset } from "../../shared/types";
 import { fileUrl } from "../api";
+import { fileInLibrary, loadLibrary, uploadToLibrary } from "../library";
 import { cleanUpSidecars } from "../dd/attach";
 import { PLAYER_COLORS } from "../identity";
 import { touchedSidecars } from "../importScenes";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
+import { LibraryShelf } from "./LibraryShelf";
 import { MonstersSection } from "./MonstersSection";
 import { NpcsSection } from "./NpcsSection";
 import { PartySection } from "./PartySection";
@@ -22,16 +25,33 @@ export function LibraryPanel() {
   const uploading = useRoomState((s) => s.uploading);
   const items = useRoomState((s) => s.items);
   const scenes = useRoomState((s) => s.scenes);
-  // The GM's Monsters and NPCs tabs list ready-made tokens rather than uploads.
+  // The GM's own monsters and NPCs, for every room (library.ts): read when the panel opens.
+  const library = useRoomState((s) => s.library);
+  useEffect(() => {
+    if (gm && room.state.library === null) void loadLibrary(room).catch(() => undefined);
+  }, [gm, room]);
+  // The GM's Monsters and NPCs tabs list their own pictures, then ready-made tokens.
   const [tab, setTab] = useState<"map" | "token" | "monsters" | "npcs">("token");
   const readyMade = tab === "monsters" || tab === "npcs";
+  const shelf: Shelf | null = tab === "monsters" ? "monster" : tab === "npcs" ? "npc" : null;
+  // GM, in Tokens: the pictures picked to move to Monsters or NPCs together (null: not picking).
+  const [picked, setPicked] = useState<Set<string> | null>(null);
+  const showTab = (t: typeof tab) => {
+    setTab(t);
+    setPicked(null);
+  };
+  const move = (ids: string[], to: Shelf) => {
+    setPicked(null);
+    void fileInLibrary(room, ids, to);
+  };
   const [label, setLabel] = useState("");
   const [renaming, setRenaming] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<Asset | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Tokens leaves out the pictures filed under Monsters or NPCs.
   const list = Object.values(assets)
-    .filter((a) => a.kind === tab)
+    .filter((a) => a.kind === tab && !(tab === "token" && isFiled(a, library)))
     .sort((a, b) => b.createdAt - a.createdAt);
 
   const usage = (a: Asset) => {
@@ -96,27 +116,41 @@ export function LibraryPanel() {
       <div class="library-head">
         {gm ? (
           <div class="seg">
-            <button class={cx("seg-btn wide", tab === "token" && "active")} onClick={() => setTab("token")}>
+            <button class={cx("seg-btn wide", tab === "token" && "active")} onClick={() => showTab("token")}>
               Tokens
             </button>
-            <button class={cx("seg-btn wide", tab === "monsters" && "active")} onClick={() => setTab("monsters")}>
+            <button class={cx("seg-btn wide", tab === "monsters" && "active")} onClick={() => showTab("monsters")}>
               Monsters
             </button>
-            <button class={cx("seg-btn wide", tab === "npcs" && "active")} onClick={() => setTab("npcs")}>
+            <button class={cx("seg-btn wide", tab === "npcs" && "active")} onClick={() => showTab("npcs")}>
               NPCs
             </button>
-            <button class={cx("seg-btn wide", tab === "map" && "active")} onClick={() => setTab("map")}>
+            <button class={cx("seg-btn wide", tab === "map" && "active")} onClick={() => showTab("map")}>
               Maps
             </button>
           </div>
         ) : (
           <h3>Your images</h3>
         )}
-        {!readyMade && (
-          <button class="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
+        <span class="library-buttons">
+          {gm && tab === "token" && list.length > 0 && (
+            <button
+              class={cx("btn btn-sm", picked && "active")}
+              title="Pick pictures to move to Monsters or NPCs, for every room"
+              onClick={() => setPicked(picked ? null : new Set())}
+            >
+              <Check size={14} /> {picked ? "Done" : "Select"}
+            </button>
+          )}
+          <button
+            class="btn btn-sm"
+            title={shelf ? `Upload pictures straight into ${shelfName(shelf)}, for every room` : undefined}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading > 0}
+          >
             <Upload size={14} /> {uploading ? `Uploading ${uploading}…` : "Upload"}
           </button>
-        )}
+        </span>
         <input
           ref={fileRef}
           type="file"
@@ -126,7 +160,9 @@ export function LibraryPanel() {
           onChange={(e) => {
             const files = [...(e.currentTarget.files ?? [])];
             e.currentTarget.value = "";
-            if (files.length && !readyMade) void room.upload(files, tab);
+            if (!files.length) return;
+            if (shelf) void uploadToLibrary(room, files, shelf);
+            else if (!readyMade) void room.upload(files, tab);
           }}
         />
       </div>
@@ -135,10 +171,30 @@ export function LibraryPanel() {
       )}
       {tab === "map" && <p class="small muted">Use maps from the Scenes panel.</p>}
 
+      {picked && (
+        <div class="pick-bar" role="group" aria-label="Move the picked pictures">
+          <span class="small">{picked.size} picked</span>
+          <button class="btn btn-sm" onClick={() => setPicked(picked.size === list.length ? new Set() : new Set(list.map((a) => a.id)))}>
+            {picked.size === list.length ? "Pick none" : "Pick all"}
+          </button>
+          <button class="btn btn-sm btn-primary" disabled={!picked.size} onClick={() => move([...picked], "monster")}>
+            Move to Monsters
+          </button>
+          <button class="btn btn-sm btn-primary" disabled={!picked.size} onClick={() => move([...picked], "npc")}>
+            Move to NPCs
+          </button>
+        </div>
+      )}
       {tab === "monsters" ? (
-        <MonstersSection />
+        <>
+          <LibraryShelf shelf="monster" />
+          <MonstersSection />
+        </>
       ) : tab === "npcs" ? (
-        <NpcsSection />
+        <>
+          <LibraryShelf shelf="npc" />
+          <NpcsSection />
+        </>
       ) : list.length === 0 ? (
         <p class="muted small">Nothing uploaded yet.</p>
       ) : (
@@ -146,21 +202,50 @@ export function LibraryPanel() {
           {list.map((a) => (
             <div key={a.id} class="asset-wrap">
               <button
-                class="asset"
-                title={tab === "token" ? `${a.name}: click to place` : a.name}
-                draggable={tab === "token"}
+                class={cx("asset", picked?.has(a.id) && "picked")}
+                title={picked ? `${a.name}: click to pick` : tab === "token" ? `${a.name}: click to place` : a.name}
+                aria-pressed={picked ? picked.has(a.id) : undefined}
+                draggable={tab === "token" && !picked}
                 onDragStart={(e) => {
                   e.dataTransfer?.setData("application/x-tabletop-asset", a.id);
                   if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
                 }}
                 onClick={() => {
-                  if (tab === "token") room.addToken({ assetId: a.id, label: label.trim() });
+                  if (picked) {
+                    const next = new Set(picked);
+                    if (!next.delete(a.id)) next.add(a.id);
+                    setPicked(next);
+                  } else if (tab === "token") room.addToken({ assetId: a.id, label: label.trim() });
                 }}
               >
                 <img src={fileUrl(room.roomId, a.id)} alt={a.name} loading="lazy" draggable={false} />
                 <span class="asset-name">{a.name}</span>
               </button>
+              {picked?.has(a.id) && (
+                <span class="pick-mark" aria-hidden="true">
+                  <Check size={14} />
+                </span>
+              )}
               <div class="asset-actions">
+                {gm && tab === "token" && !picked && (
+                  // Moving one: a native list over the button, as the Party's figure picker.
+                  <span class="icon-btn party-figure" title="Move to Monsters or NPCs, for every room">
+                    <FolderInput size={14} />
+                    <select
+                      aria-label={`Move ${a.name} to Monsters or NPCs`}
+                      value=""
+                      onChange={(e) => {
+                        const to = e.currentTarget.value;
+                        e.currentTarget.value = "";
+                        if (to === "monster" || to === "npc") move([a.id], to);
+                      }}
+                    >
+                      <option value="">Move to…</option>
+                      <option value="monster">Monsters (every room)</option>
+                      <option value="npc">NPCs (every room)</option>
+                    </select>
+                  </span>
+                )}
                 <button class="icon-btn" title="Rename" aria-label="Rename" onClick={() => setRenaming(a)}>
                   <Pencil size={14} />
                 </button>

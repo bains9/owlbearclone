@@ -339,7 +339,7 @@ describe("the guide", () => {
   it("leads What's new with them", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.intro).toContain("The latest updates came out on 4 November 2026.");
-    const top = news.parts[0];
+    const top = news.parts[1];
     expect(top.title).toBe("Every character rolls in dice of their own, and the GM in the villains' (4 November 2026)");
     expect(top.steps.join(" ")).toContain("pearl paint with a purple shimmer, gold numbers");
     expect(top.steps.join(" ")).toContain("black obsidian, glowing blood-red numbers");

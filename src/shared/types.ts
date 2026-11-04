@@ -235,6 +235,11 @@ export interface Asset {
   /** userId of the uploader. */
   owner: string;
   createdAt: number;
+  /**
+   * The GM's library entry (shared/library.ts) this picture is the room's copy of: listed under
+   * Monsters or NPCs, for every room, rather than in this room's Tokens.
+   */
+  library?: string;
 }
 
 interface ItemBase {

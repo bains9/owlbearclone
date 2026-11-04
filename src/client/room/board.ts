@@ -116,7 +116,8 @@ import type { SceneDataState } from "./mapData";
 import { seedFrom } from "./seasonKeys";
 import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
-import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
+import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
+import { LIBRARY_DRAG_TYPE, placeFromLibrary, readLibraryDrag } from "../library";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -5399,6 +5400,7 @@ export class Board implements BoardApi {
       types.includes("application/x-tabletop-asset") ||
       types.includes(MONSTER_DRAG_TYPE) ||
       types.includes(NPC_DRAG_TYPE) ||
+      types.includes(LIBRARY_DRAG_TYPE) ||
       types.includes("Files")
     ) {
       e.preventDefault();
@@ -5432,6 +5434,12 @@ export class Board implements BoardApi {
     const npc = readNpcDrag(e.dataTransfer?.getData(NPC_DRAG_TYPE));
     if (npc) {
       void placeNpc(this.room, npc.raceId, npc.classId, world, npc.hidden, free);
+      return;
+    }
+    // One of the GM's own monsters or NPCs (library.ts), likewise.
+    const own = readLibraryDrag(e.dataTransfer?.getData(LIBRARY_DRAG_TYPE));
+    if (own) {
+      void placeFromLibrary(this.room, own.id, world, own.hidden, free);
       return;
     }
     void this.takeFiles([...(e.dataTransfer?.files ?? [])], world, free);
