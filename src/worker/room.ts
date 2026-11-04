@@ -9,7 +9,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
-import { PLAIN_DICE, rollingSet, type DiceSetId } from "../shared/diceSets";
+import { PLAIN_DICE, isCharacterDice, rollingSet, type DiceSetId } from "../shared/diceSets";
 import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
@@ -52,6 +52,7 @@ import type {
   MutableFields,
   Player,
   Role,
+  RollResult,
   RoomInfo,
   Scene,
 } from "../shared/types";
@@ -495,6 +496,29 @@ export class Room extends DurableObject<Env> {
     this.saveAsset(asset);
     this.assets.set(asset.id, asset);
     this.broadcastAsset(asset);
+  }
+
+  /**
+   * A combat rest taken from a character's card (index.ts rolled its dice and added the roll to
+   * their sheet): the roll in the chat as the player who took it, a line saying their HP now, and
+   * every page told to read the party again, so their HP bar shows it. The roll comes in their dice.
+   */
+  combatRested(userId: string, roll: RollResult, label: string, line: string, dice?: string): void {
+    if (!this.info) throw new Error("Room not found");
+    let who: Conn | null = null;
+    for (const ws of this.ctx.getWebSockets()) {
+      const c = ws.deserializeAttachment() as Conn | null;
+      if (c && c.userId === userId && !c.display) {
+        who = c;
+        break;
+      }
+    }
+    const from = { userId, name: who?.name ?? "Player", color: who?.color ?? "#888888", role: who?.role ?? ("player" as Role) };
+    const ts = Date.now();
+    this.postMessage({ id: randomId(12), ts, ...from, kind: "roll", text: rollLabel(label, false), roll, ...(isCharacterDice(dice) ? { dice } : {}) });
+    const text = cleanText(line, LIMITS.chat);
+    if (text) this.postMessage({ id: randomId(12), ts, ...from, kind: "chat", text });
+    this.broadcast({ t: "party" });
   }
 
   /**

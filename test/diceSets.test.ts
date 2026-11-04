@@ -312,7 +312,8 @@ describe("choosing a character's dice", () => {
     expect(card).toContain("room.roll(expr, { label, character: c.id })");
     expect(card).toContain("{ label: `${who}: initiative`, initiative, character: c.id }");
     const chat = await source("src/client/ui/ChatPanel.tsx");
-    expect(chat).toContain(`<div class={cx("roll-dice", diceClass(messageDice(m)))}>`);
+    // Each roll's dice in its set (diceLook.ts; diceLook.test.ts has the rest).
+    expect(chat).toContain(`<div class={cx("roll-dice", look.dice)}>`);
     expect(chat).toContain("const myDice = gm ? GM_DICE : rollingSet(\"player\", false, played?.dice);");
     expect(chat).toContain(`<div class={cx("dice-row", diceClass(myDice))}>`);
   });
@@ -324,6 +325,9 @@ describe("choosing a character's dice", () => {
     expect(route).toContain(`if (!gm && !(await playsCharacter(directory, sheetId, request.headers.get("X-Tabletop-User")))) {`);
     expect(route).toContain(`isDiceSet(dice) ? "Those are the GM's own dice."`);
     expect(route).toContain('return fail(409, "Another character has those dice.")');
+    // A combat rest from their card comes in their dice too.
+    expect(worker).toContain("line, who.dice);");
+    expect(await source("src/worker/room.ts")).toContain('text: rollLabel(label, false), roll, ...(isCharacterDice(dice) ? { dice } : {}) });');
   });
 });
 

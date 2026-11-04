@@ -55,6 +55,19 @@ export interface Character {
   /** How their spell points come back (the handbook's rule): the caster class's level, their CON bonus, and its spell stat's bonus. Null for no caster. */
   rest?: SpellRest | null;
   /**
+   * The dice of their combat rest, as Table rolls them ("1d3+1d2"): what the sheet's "Combat rest
+   * (after a fight)" works out from their class and F-level. Missing from scripts before version
+   * 10, and for a sheet with no class yet.
+   */
+  combatRest?: string;
+  /** Their body points, from the sheet: a combat rest gives back fatigue only, never these (version 10 on). */
+  bodyPoints?: number;
+  /**
+   * Whether they may rest magical damage instead (version 10 on): the Combat rest of one of their
+   * classes on the sheet's Ref Classes tab gives spellcasters the choice (the handbook's p90).
+   */
+  magicRest?: boolean;
+  /**
    * The ranged weapons (by the sheet's name for them) the GM marked as matched to their strength,
    * which add their STR bonus to damage like a melee weapon (kept by the Worker, for every room).
    */
@@ -146,7 +159,7 @@ export interface CharacterPlayer {
  * The newest version of the GM's character sheets script (scripts/character-sheets.gs, its VERSION):
  * the GM is told when theirs is older.
  */
-export const SCRIPT_VERSION = 9;
+export const SCRIPT_VERSION = 10;
 
 export interface CharactersReply {
   /** Whether the GM has set up the character sheets (Room settings › Character sheets). */
@@ -207,6 +220,8 @@ export function cleanCharacter(raw: unknown): Character | null {
     })
     .filter((a) => a.weapon);
   const ki = cleanKi(r.ki);
+  const combatRest = combatRestDice(r.combatRest);
+  const bodyPoints = num(r.bodyPoints);
   const count = (v: unknown) => {
     const n = num(v);
     return n === null ? 0 : Math.max(0, Math.min(99, Math.round(n)));
@@ -263,6 +278,9 @@ export function cleanCharacter(raw: unknown): Character | null {
     ...(spells ? { spells } : {}),
     ...(ki ? { ki } : {}),
     ...(prayedToday ? { prayedToday } : {}),
+    ...(combatRest ? { combatRest } : {}),
+    ...(r.magicRest === true ? { magicRest: true } : {}),
+    ...(bodyPoints !== null && bodyPoints >= 0 && bodyPoints <= 99 ? { bodyPoints: Math.round(bodyPoints) } : {}),
   };
 }
 
@@ -408,6 +426,57 @@ export function restGain(c: Pick<Character, "rest">, kind: RestKind): number | n
   const gain = kind === "long" ? 3 * r.level + r.con + r.primary : 3 * (r.level + r.con + r.primary);
   return Math.max(0, gain);
 }
+
+/**
+ * A combat rest's dice from the sheet's "Combat rest (after a fight)" ("d3 + d2 · F-level 4",
+ * "d4 + d5", "d3 + 1", "d2"), as Table rolls them ("1d3+1d2"); null when it isn't dice.
+ */
+export function combatRestDice(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const dice = (v.split("·")[0] ?? "").replace(/\s+/g, "").toLowerCase();
+  if (dice.length > 40 || !dice.includes("d") || !/^(\d{0,2}d\d{1,2}|\d{1,2})(\+(\d{0,2}d\d{1,2}|\d{1,2}))*$/.test(dice)) return null;
+  // A d1 (a level-1 Samurai's "d4 + d1") is always 1.
+  return dice.replace(/(^|\+)d/g, (_, before: string) => `${before}1d`).replace(/(^|\+)1d1(?=\+|$)/g, (_, before: string) => `${before}1`);
+}
+
+/**
+ * A spellcaster's combat rest after magical damage (the handbook's p90, for a class whose Combat
+ * rest on the sheet's Ref Classes says so): d3 + d(the highest spell level they cast) instead of
+ * their usual one, when at least half the damage was magical. Not both after one fight. Null when
+ * their class doesn't give the choice, or they cast nothing above a cantrip (`highest` is
+ * spellfx.ts highestLevel of their castList).
+ */
+export function magicRestDice(c: Pick<Character, "magicRest">, highest: number): string | null {
+  if (!c.magicRest || !(highest >= 1)) return null;
+  const n = Math.min(9, Math.floor(highest));
+  return n === 1 ? "1d3+1" : `1d3+1d${n}`;
+}
+
+/** A combat rest's dice as the sheet words them: "d3 + d2". */
+export function combatRestText(dice: string): string {
+  return dice.replace(/(^|\+)1d/g, "$1d").replace(/\+/g, " + ");
+}
+
+/**
+ * The most HP a combat rest can bring a character back to: it gives back fatigue only (the
+ * handbook's "Regaining lost hit points"), so body points they've lost stay lost. Null when the
+ * sheet doesn't say their HP.
+ */
+export function combatRestCap(c: Pick<Character, "hp" | "maxHp" | "bodyPoints">): number | null {
+  if (c.hp === null || c.maxHp === null) return null;
+  const bp = c.bodyPoints;
+  if (bp === undefined || bp > c.maxHp) return c.maxHp;
+  return Math.min(c.hp, bp) + (c.maxHp - bp);
+}
+
+/** Whether a combat rest would give a character anything back: they have lost fatigue to regain. */
+export function fatigueToRegain(c: Pick<Character, "hp" | "maxHp" | "bodyPoints">): boolean {
+  const cap = combatRestCap(c);
+  return cap !== null && c.hp !== null && c.hp < cap;
+}
+
+/** The most HP one combat rest can give back, as the script takes it. */
+export const MAX_HEAL = 100;
 
 /** The die rolled for initiative, by the group's handbook: one d10, with the sheet's initiative bonus (its INT bonus) added. */
 export const INITIATIVE_DIE = "1d10";

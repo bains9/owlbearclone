@@ -184,6 +184,8 @@ export type ServerMsg =
   | { t: "problems"; problems: Problem[] }
   /** The campaign's calendar changed: read it again (its version, to skip one already read). */
   | { t: "calendar"; version: number }
+  /** A character's sheet was just changed from Table (a combat rest): read the party again. */
+  | { t: "party" }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

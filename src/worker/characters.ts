@@ -140,6 +140,33 @@ export async function restOnSheet(source: string, key: string, sheetId: string, 
   return typeof body.sp === "number" && Number.isFinite(body.sp) ? { sp: body.sp } : { error: "The character sheets' script didn't say how many spell points they have." };
 }
 
+/**
+ * A combat rest taken in Table: its roll added to a character's Current HP on their sheet, through
+ * the GM's script (version 10 on), up only as far as fatigue goes. Their HP before and now, or why not.
+ */
+export async function healOnSheet(source: string, key: string, sheetId: string, gain: number, fetcher: typeof fetch = fetch): Promise<{ hp: number; was: number } | { error: string }> {
+  let res: Response;
+  try {
+    res = await fetcher(source, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, id: sheetId, heal: gain }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(SCRIPT_MS),
+    });
+  } catch {
+    return { error: "The character sheets didn't answer in time, so the HP wasn't added. Change it on the sheet." };
+  }
+  const body = (await res.json().catch(() => null)) as { hp?: unknown; was?: unknown; error?: unknown } | null;
+  // A script before version 10 takes it for a spend of nothing, and says it isn't a number.
+  if (!res.ok || !body || (typeof body.error === "string" && /number of spell points/.test(body.error))) {
+    return { error: "The character sheets' script can't add HP yet: the GM needs to update it (Help › Set up the character sheets)." };
+  }
+  if (typeof body.error === "string") return { error: `The HP wasn't added: ${body.error.slice(0, 200)}` };
+  const hp = body.hp, was = body.was;
+  return typeof hp === "number" && Number.isFinite(hp) && typeof was === "number" && Number.isFinite(was) ? { hp, was } : { error: "The character sheets' script didn't say what their HP is now." };
+}
+
 export interface PartyEnv {
   directory: {
     charactersSource(): Promise<string | null>;
@@ -255,6 +282,20 @@ async function keptReading(cache: Cache | null, key: Request): Promise<Character
 
 async function keep(cache: Cache | null, key: Request, reply: CharactersReply): Promise<void> {
   await cache?.put(key, new Response(JSON.stringify(reply), { headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${KEEP_S}` } }));
+}
+
+/**
+ * A character's HP just changed on their sheet from Table (a combat rest), put into the kept
+ * reading, which counts as just read: the pages told to read the party again then all get it from
+ * there, rather than each asking the sheets at once.
+ */
+export async function keepHp(env: Pick<PartyEnv, "directory">, cache: Cache | null, sheetId: string, hp: number, now = Date.now()): Promise<void> {
+  const source = await env.directory.charactersSource();
+  if (!source || !cache) return;
+  const key = await cacheKey(source);
+  const kept = await keptReading(cache, key);
+  if (!kept?.characters.some((c) => c.id === sheetId)) return;
+  await keep(cache, key, { ...kept, readAt: Math.max(kept.readAt, now), characters: kept.characters.map((c) => (c.id === sheetId ? { ...c, hp } : c)) });
 }
 
 /**

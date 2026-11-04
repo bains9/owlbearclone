@@ -9,9 +9,11 @@ import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanText, isId } from "../shared/sanitize";
 import type { Asset, Role } from "../shared/types";
 import { clearCookie, isGm, passwordMatches, sessionCookie, signWith, verifyWith } from "./auth";
-import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, isWeaponName, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
-import { MAX_SPEND, restGain } from "../shared/characters";
+import { FIGURE_ICON, MAX_PICTURE_BYTES, SCRIPT_URL, castOnSheet, forgetParty, healOnSheet, isWeaponName, keepHp, pictureKey, playsCharacter, prayedChange, readParty, restOnSheet, spendOnSheet } from "./characters";
+import { MAX_HEAL, MAX_SPEND, characterLabel, magicRestDice, restGain } from "../shared/characters";
 import { PLAIN_DICE, isCharacterDice, isDiceSet } from "../shared/diceSets";
+import { rollDice, secureRng } from "../shared/dice";
+import { castList, highestLevel } from "../shared/spellfx";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
@@ -371,6 +373,47 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     if ("error" in done) return fail(502, done.error);
     await forgetParty({ directory }, caches.default);
     return json({ ok: true, sp: done.sp });
+  }
+  // A combat rest from a character's card (their player or the GM, at one of the GM's tables): the
+  // combat rest dice their sheet works out for their class are rolled here (or, with kind
+  // "magical", a spellcaster's d3 + d(highest spell level) after magical damage, for a class that
+  // gives the choice), the roll is added to their Current HP through the GM's script (which stops
+  // at what fatigue gives back), and the roll and their HP now go into that room's chat as the
+  // player who took it.
+  const combatMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/combat-rest$/);
+  if (combatMatch) {
+    if (method !== "POST") return fail(405, "Method not allowed.");
+    const sheetId = combatMatch[1];
+    const directory = env.DIRECTORY.getByName("main");
+    const roomId = url.searchParams.get("room") ?? "";
+    const known = new RegExp(`^${ROOM_ID}$`).test(roomId) && (await directory.listRooms()).some((r) => r.id === roomId);
+    if (!known) return fail(404, "Not found.");
+    const userId = request.headers.get("X-Tabletop-User");
+    if (!isId(userId)) return fail(400, "That isn't one of the players.");
+    const theirs = await playsCharacter(directory, sheetId, userId);
+    if (!theirs && !(await isGm(request, env))) return fail(403, "Only their player or the GM can take their combat rest.");
+    const source = await directory.charactersSource();
+    if (!source) return fail(409, "The character sheets aren't set up.");
+    const who = (await readParty({ directory, files: env.FILES }, caches.default)).characters.find((c) => c.id === sheetId);
+    if (!who) return fail(404, "They aren't in the party's character sheets.");
+    const magical = (await readJson(request))?.kind === "magical";
+    const dice = magical ? magicRestDice(who, highestLevel(castList(who))) : who.combatRest;
+    if (!dice) {
+      if (magical) return fail(409, `${characterLabel(who)} can't rest magical damage: their class doesn't give the choice, or they cast no spell above a cantrip.`);
+      return fail(409, "Their sheet doesn't say their combat rest dice: the GM needs to update the sheets' script (Help › Set up the character sheets).");
+    }
+    const roll = rollDice(dice, secureRng);
+    const done = await healOnSheet(source, await directory.charactersKey(), sheetId, Math.max(1, Math.min(MAX_HEAL, roll.total)));
+    if ("error" in done) return fail(502, done.error);
+    await keepHp({ directory }, caches.default, sheetId, done.hp);
+    const name = characterLabel(who);
+    const line = done.hp > done.was ? `${name}: +${done.hp - done.was} HP on their sheet (${done.was} → ${done.hp}).` : `${name}: no fatigue to get back, so their HP stays ${done.hp}.`;
+    try {
+      await env.ROOMS.getByName(roomId).combatRested(userId, roll, `${name}: combat rest${magical ? " (magical damage)" : ""}`, line, who.dice);
+    } catch {
+      // The sheet has it; the page that asked says so.
+    }
+    return json({ ok: true, hp: done.hp, was: done.was, total: roll.total });
   }
   const pictureMatch = pathname.match(/^\/api\/characters\/([A-Za-z0-9_-]{20,80})\/picture$/);
   if (pictureMatch) {

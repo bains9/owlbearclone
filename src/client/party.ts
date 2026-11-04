@@ -368,6 +368,27 @@ export async function restSpellPoints(room: RoomClient, c: Character, kind: Rest
   return Math.max(0, data.sp - (c.sp ?? data.sp));
 }
 
+/**
+ * Their player or the GM: a combat rest after a fight. The Worker rolls the combat rest dice their
+ * sheet works out for their class (or, `magical`, a spellcaster's after magical damage) into the
+ * chat and adds the roll to their Current HP on the sheet, up to what fatigue gives back. Shown
+ * here at once (other pages are told to read the party again). Their HP before and now.
+ */
+export async function takeCombatRest(room: RoomClient, c: Character, magical = false): Promise<{ hp: number; was: number }> {
+  const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/combat-rest?room=${encodeURIComponent(room.roomId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tabletop-User": room.profileInfo.uid },
+    body: JSON.stringify(magical ? { kind: "magical" } : {}),
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; hp?: number; was?: number };
+  if (!res.ok || typeof data.hp !== "number" || typeof data.was !== "number") throw new Error(data.error ?? `${characterLabel(c)}'s combat rest didn't work (${res.status}).`);
+  const hp = data.hp;
+  const party = room.state.party;
+  if (party) room.store.set({ party: { ...party, characters: party.characters.map((x) => (x.id === c.id ? { ...x, hp } : x)) } });
+  return { hp, was: data.was };
+}
+
 /** Takes spell points off a character's sheet (their player or the GM): how many they have now. Fails with the reason, if the Worker gave one. */
 async function spendOnSheet(room: RoomClient, c: Character, spend: number): Promise<number> {
   const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}/spend?room=${encodeURIComponent(room.roomId)}`, {

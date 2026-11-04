@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Dices, EyeOff, Send, UserPen, X } from "lucide-preact";
 import { critOf } from "../../shared/characters";
-import { GM_DICE, diceClass, messageDice, rollingSet } from "../../shared/diceSets";
+import { GM_DICE, diceClass, rollingSet } from "../../shared/diceSets";
 import type { ChatMessage, RollTerm } from "../../shared/types";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
 import { VoiceSection } from "./VoicePanel";
 import { canAdd, canDouble, changeDie, doubled, poolExpr, poolSize } from "./dicePool";
 import type { Pool } from "./dicePool";
+import { rollLook } from "./diceLook";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
 
@@ -254,8 +255,11 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
   if (!r) return null;
   // A character's roll to hit (CharacterCard): a natural 20 or 2 on the two d10, by the group's handbook.
   const crit = critOf(m);
+  // In the set it was rolled in, painted dice tumbling in while it's new; Classic in the roller's colour (diceLook.ts).
+  const look = rollLook(m);
+  let n = 0;
   return (
-    <div class={cx("roll", props.compact && "compact")}>
+    <div class={cx("roll", props.compact && "compact", look.box)} style={{ "--die-color": m.color } as Record<string, string>}>
       {props.compact && (
         <span class="msg-name" style={{ color: m.color }}>
           {m.name}
@@ -272,7 +276,7 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
         {crit === "fail" && <span class="roll-crit fail">Critical failure!</span>}
       </div>
       {!props.compact && (
-        <div class={cx("roll-dice", diceClass(messageDice(m)))}>
+        <div class={cx("roll-dice", look.dice)}>
           {r.terms.map((t, i) => (
             <span key={i} class="term">
               {i > 0 && <span class="op">{t.sign < 0 ? "−" : "+"}</span>}
@@ -281,7 +285,7 @@ export function RollView(props: { message: ChatMessage; compact?: boolean }) {
                 <span class="num">{t.value}</span>
               ) : (
                 t.rolls.map((d, j) => (
-                  <span key={j} class={dieClass(t, d.v, d.dropped)} title={t.notation}>
+                  <span key={j} class={dieClass(t, d.v, d.dropped)} title={t.notation} style={look.fresh ? { animationDelay: `${n++ * 70}ms` } : undefined}>
                     {t.sides === "F" ? (d.v > 0 ? "+" : d.v < 0 ? "−" : "0") : d.v}
                   </span>
                 ))

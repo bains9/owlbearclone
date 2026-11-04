@@ -28,9 +28,24 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The dice in your dice tray are painted in the dice you roll in: the villains' for the GM, your character's for a player.",
-          "A die that rolled its highest face gets a green ring, and a 1 a red one, so the paint stays. Classic dice turn green and red as before.",
+          "A die that rolled its highest face gets a green ring, and a 1 a red one, so the paint stays. Classic dice are framed and tinted in the colour of whoever rolled them (the one beside their name), and turn green and red as before.",
           "A character's dice are the same in every room. Rolls made before today stay Classic.",
-          "A browser plays one character at a time. To roll from the tray in another character's dice, click **I play** beside them; rolls from a card always come in that character's own."
+          "A browser plays one character at a time. To roll from the tray in another character's dice, click **I play** beside them; rolls from a card always come in that character's own.",
+          "A new roll's painted dice tumble in, and they shimmer now and then; Pearl rolls show their total in gold. On a device set to reduce motion they keep still.",
+          "To change your colour, for Classic dice, open **Chat & dice** and click the pen after the names at the top (**Change your name or colour**)."
+        ]
+      },
+      {
+        "title": "Combat rest from a character's card (3 November 2026)",
+        "steps": [
+          "After a fight, select a character's token and click **Combat rest** on their card. The dice their sheet works out for their class are rolled into the chat, and the roll is added to their **Current HP** on their sheet.",
+          "The dice follow the class, as the sheet's Ref Classes has them from the handbook (p90): Fighters, Crusaders, Rangers and War Clerics d3 + d(half their F-level, at most d5); a Samurai d4 + d(their level); a Rogue d3 + d(a third of their F-level, at most d3); everyone else d2. A character with two classes rests by the better one, as the sheet does.",
+          "A spellcaster whose class gives the choice (a Mage or a Shaman, as the sheet has it now) also gets **Magical damage**: after a fight where at least half the damage was magical, d3 + d(the highest spell level they cast) instead. Not both after one fight.",
+          "A combat rest gives back fatigue only: body points they've lost stay lost, so their HP stops short of their maximum until those heal. The button shows only while there's fatigue to get back."
+        ],
+        "notes": [
+          "Only the character's player and the GM see the buttons. Everyone sees the roll in the chat, a line with their HP before and after, and their HP bar change.",
+          "GM: this needs the sheets' script's new version (10). See **Set up the character sheets (GM)**. Until it's updated, the card has no Combat rest button."
         ]
       },
       {
@@ -1295,8 +1310,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The script reads only the sheets in that folder, and only what the cards show. Nothing has to be shared with anyone.",
-          "The one thing it changes: a character's **Current spell points**, when they cast a spell from their card. Only that cell, never below 0, and never if the sheet works it out with a formula. Tabletop sends a key with each change, which the script keeps the first time (TABLE_KEY in its properties); after that it takes changes from that Tabletop only.",
-          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**, and version 7 says which it is, so the party in **Tokens & images** tells you when a newer one is out. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
+          "What it changes: a character's **Current spell points**, when they cast a spell from their card (never below 0) or after a rest; a prayed spell's **Cast**; and their **Current HP** after a **Combat rest** from their card (version 10 on), never past what fatigue gives back. Never a cell the sheet works out with a formula. Tabletop sends a key with each change, which the script keeps the first time (TABLE_KEY in its properties); after that it takes changes from that Tabletop only.",
+          "A new version of the script (from 31 October 2026) reads each sheet's Spells tab and takes spell points off, for the **Spells** on casters' cards; its version 6 also reads a Samurai's ki and puts spell points back to full for **New day for the party**, version 7 says which it is, so the party in **Tokens & images** tells you when a newer one is out, and version 10 (3 November 2026) reads each character's combat rest and adds a **Combat rest** to their HP. To update yours, paste the new script over the old one, then **Deploy** › **Manage deployments** › edit › **New version**: its address stays the same.",
           "A new character: make a copy of a sheet in the folder. They show up within a minute or two.",
           "It's set once for all your rooms: the party (their names, players, cards and HP) shows in every room, to everyone in it. A card's link to a sheet opens it only for those the sheet is shared with in Google."
         ]

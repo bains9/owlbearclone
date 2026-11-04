@@ -1039,6 +1039,10 @@ export class RoomClient {
         if (msg.version !== this.state.calendarVersion) void this.refreshCalendar();
         return;
 
+      case "party":
+        void this.refreshParty();
+        return;
+
       case "outdated":
         // A newer Tabletop is running. A table display (nothing to lose, and nobody at it
         // to click anything) reloads itself; anyone else gets a reload button.
