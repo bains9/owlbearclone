@@ -10,7 +10,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { PLAIN_DICE, isCharacterDice, rollingSet, type DiceSetId } from "../shared/diceSets";
-import { VAULT_LIMITS, isVaultPath, type Handout } from "../shared/vault";
+import { VAULT_LIMITS, parseNoteRef, type Handout } from "../shared/vault";
 import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
@@ -1048,10 +1048,12 @@ export class Room extends DurableObject<Env> {
       case "token.note": {
         if (!gm) return this.deny(ws);
         const { id, note } = msg as { id?: unknown; note?: unknown };
-        if (typeof id !== "string" || !isId(id) || !(note === null || isVaultPath(note))) return;
+        // A note named with its vault ("Eastport|Factions/Red Tide.md"), or null to unlink.
+        const ref = note === null ? null : parseNoteRef(note);
+        if (typeof id !== "string" || !isId(id) || (note !== null && !ref)) return;
         const next = { ...this.tokenNotes };
-        if (note === null) delete next[id];
-        else if (Object.keys(next).length < VAULT_LIMITS.tokenNotes || next[id]) next[id] = note;
+        if (!ref) delete next[id];
+        else if (Object.keys(next).length < VAULT_LIMITS.tokenNotes || next[id]) next[id] = note as string;
         this.tokenNotes = next;
         this.setMeta("token_notes", next);
         this.broadcast({ t: "tokenNotes", notes: next }, (c) => c.role === "gm" && !c.display);

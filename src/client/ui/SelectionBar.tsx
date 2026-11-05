@@ -1,3 +1,4 @@
+import { noteTitle, parseNoteRef } from "../../shared/vault";
 import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
@@ -497,7 +498,8 @@ export function SelectionBar() {
 function TokenNoteButton(props: { id: string }) {
   const room = useRoom();
   const note = useRoomState((s) => s.tokenNotes[props.id]);
-  const title = note ? note.split("/").pop()!.replace(/\.md$/i, "") : null;
+  const at = parseNoteRef(note);
+  const title = at ? noteTitle(at.path) : null;
   return (
     <button
       class={cx("icon-btn", !!note && "active")}

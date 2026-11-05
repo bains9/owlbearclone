@@ -20,7 +20,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "GM: your Obsidian notes in Table, and handouts for the players (4 November 2026)",
         "steps": [
-          "Click **Campaign notes** in the top bar (the open book), then **Choose your vault's folder** and pick the folder Obsidian opens as your vault. Your notes and their pictures come in, on Windows, a Mac or Ubuntu.",
+          "Click **Campaign notes** in the top bar (the open book), then **Choose your vault's folder** and pick the folder Obsidian opens as your vault, or the folder holding all your vaults to bring them all in. Your notes and their pictures come in, on Windows, a Mac or Ubuntu.",
           "Find a note in its folders or with **Find in your notes**, and read it as Obsidian shows it: links to other notes open them, and its pictures, callouts and properties show.",
           "Click **Show to players** to give the players the note as a handout, or highlight part of it first to show only that part. Your properties, your **%% comments %%** and your own callouts (`> [!secret]`, `> [!gm]`) stay hidden.",
           "To link a token to a note, select the token, open the note and click **Link to** with the token's name. After that, the book button on the token's bar opens its note."
@@ -28,6 +28,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Only you see your notes, and the players never see their names. They see only the handouts you show them, in **Handouts** in the top bar, which opens for them when you show one.",
           "When your notes change, click **Update** and pick the folder again: notes you've taken out of the vault go from Table too, and pictures that haven't changed aren't sent again.",
+          "Keep several vaults? Each comes in under its folder's name and stays separate: the **Vault** menu at the top shows one of them or all (each room remembers which), and a note's links open notes in its own vault.",
           "Your notes are the same in every room. Handouts and token links belong to the room they're made in.",
           "If your vault is in Google Drive, Table can bring it in from there instead: see **Keep it in step with Google Drive** in **Campaign notes and handouts**."
         ]
@@ -1664,17 +1665,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "Bring your Obsidian vault into Table to read your notes during a game, show the players a note (or part of one) as a handout, and link notes to tokens. Only you see your notes.",
     "parts": [
       {
-        "title": "Bring in your vault",
+        "title": "Bring in your vaults",
         "steps": [
           "Click **Campaign notes** in the top bar (the open book).",
-          "Click **Choose your vault's folder** and pick the folder Obsidian opens as your vault.",
+          "Click **Choose your vault's folder** and pick the folder Obsidian opens as your vault. To bring in several at once, pick the folder holding them all.",
           "Wait while your notes, then their pictures, come in: the panel says how it's going."
         ],
         "notes": [
           "It works the same on Windows, a Mac and Ubuntu, in Chrome, Edge or Firefox. Your vault stays where it is; Table keeps a copy.",
           "Obsidian's own settings (its .obsidian folder) and its bin don't come in. Pictures do (PNG, JPEG, GIF and WebP, up to 15 MB each); other files are left out.",
-          "When your notes change, click **Update** and pick the folder again. Notes taken out of the vault go from Table too, and pictures that haven't changed aren't sent again.",
-          "**Take your notes out of Table**, at the bottom of the list, removes them and their pictures from Table; your vault itself isn't touched."
+          "Each vault comes in under its folder's name and is kept apart from the others. A folder is taken as a vault when Obsidian's own .obsidian folder, or notes, are at its top; otherwise each folder in it is a vault. With several, the **Vault** menu at the top of the panel shows one or all; each room remembers which.",
+          "When your notes change, click **Update** and pick the folder again (the vault's, or the one holding them all): only the vaults in it are brought in again. Notes taken out of a vault go from Table too, and pictures that haven't changed aren't sent again.",
+          "**Take a vault out of Table**, at the bottom of the list, removes one vault (or all of them) and its pictures from Table; your vaults themselves aren't touched."
         ]
       },
       {
@@ -1719,7 +1721,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "In **Campaign notes**, click **Or use Google Drive** (or **Use Google Drive** under your notes), then **Copy the script**.",
           "At script.google.com, in the Google account whose Drive has your vault, make a new project and paste the script in.",
-          "In **Project Settings**, add a script property called FOLDER_ID: your vault folder's id, the last part of its address in Drive.",
+          "In **Project Settings**, add a script property called FOLDER_ID: the id (the last part of its address in Drive) of your vault's folder, or of the folder holding all your vaults.",
           "Click **Deploy** › **New deployment** › **Web app**, with Execute as **Me** and Who has access **Anyone**, and let it read your Drive when Google asks.",
           "Paste the web app's address (it ends /exec) into Table and click **Save**, then **Sync from Google Drive**."
         ],

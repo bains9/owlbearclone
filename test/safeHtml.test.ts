@@ -37,7 +37,7 @@ describe("cleaning HTML", () => {
 
   it("a whole note, rendered then cleaned, never carries a handler or a script", () => {
     const body = `# Temple\n<span style="color:red" onmouseover="x()">Hilda</span>\n<script>steal()</script>\n[[Missing]] and [click](javascript:alert(1))`;
-    const out = safeHtml(renderNote(body, "Temple.md", { notes: [{ path: "Temple.md", title: "Temple", size: 1 }], files: [] }));
+    const out = safeHtml(renderNote(body, "Temple.md", { notes: [{ vault: "E", path: "Temple.md", title: "Temple", size: 1 }], files: [] }));
     expect(out).not.toMatch(/onmouseover|<script|javascript:/i);
     expect(out).toContain(`<span style="color: red">Hilda</span>`);
   });

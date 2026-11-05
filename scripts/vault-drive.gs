@@ -1,18 +1,21 @@
-// Table's link to the GM's Obsidian vault in Google Drive (Campaign notes › Google Drive).
+// Table's link to the GM's Obsidian vaults in Google Drive (Campaign notes › Google Drive).
 //
-// 1. At script.google.com, make a new project (in the Google account whose Drive has the vault)
+// 1. At script.google.com, make a new project (in the Google account whose Drive has the vaults)
 //    and paste this in.
-// 2. Project Settings › Script properties: add FOLDER_ID, the vault folder's id (the last part of
-//    its address in Drive).
+// 2. Project Settings › Script properties: add FOLDER_ID, the id (the last part of its address in
+//    Drive) of your vault's folder, or of the folder holding all your vaults.
 // 3. Deploy › New deployment › Web app: Execute as Me, Who has access Anyone. Allow it to read
 //    your Drive when Google asks.
 // 4. Copy the web app's address (it ends /exec) into Campaign notes in Table.
 //
 // It only reads. Table sends a key with every request: the script keeps the first one it's sent
 // (TABLE_KEY) and answers only that Table. It hands over only notes (.md) and pictures inside the
-// vault folder, found by their path in it, and never Obsidian's own folders (those starting ".").
+// vaults, found by their path in them, and never Obsidian's own folders (those starting ".").
+//
+// A vault is a folder with Obsidian's .obsidian folder, or notes, at its top. When FOLDER_ID's folder
+// is one, that's the vault; otherwise each folder in it is a vault, named by the folder.
 
-var VERSION = 1;
+var VERSION = 2;
 
 function doGet(e) {
   return answer(handle((e && e.parameter) || {}));
@@ -38,16 +41,28 @@ function handle(p) {
   }
   if (p.key !== key) return { error: "This script answers another Table. To move it to this one, delete TABLE_KEY in the script's properties." };
   var folderId = props.getProperty("FOLDER_ID");
-  if (!folderId) return { error: "Set the script property FOLDER_ID to your vault folder's id." };
-  var root = DriveApp.getFolderById(folderId);
-  if (p.list) return list(root);
-  if (p.notes) {
-    var notes = [];
-    for (var i = 0; i < p.notes.length && i < 100; i++) {
-      var f = find(root, p.notes[i], /\.md$/i);
-      if (f) notes.push({ path: p.notes[i], body: f.getBlob().getDataAsString("UTF-8") });
+  if (!folderId) return { error: "Set the script property FOLDER_ID to your vault's folder id (or the folder holding your vaults)." };
+  var vaults = vaultsOf(DriveApp.getFolderById(folderId));
+  if (p.list) {
+    var out = [];
+    for (var v = 0; v < vaults.length; v++) {
+      var notes = [];
+      var files = [];
+      walk(vaults[v].folder, "", notes, files);
+      out.push({ name: vaults[v].name, notes: notes, files: files });
     }
-    return { notes: notes };
+    return { version: VERSION, vaults: out };
+  }
+  var root = null;
+  for (var i = 0; i < vaults.length; i++) if (vaults[i].name === p.vault) root = vaults[i].folder;
+  if (!root) return { error: "That vault isn't in the folder the script reads." };
+  if (p.notes) {
+    var got = [];
+    for (var n = 0; n < p.notes.length && n < 100; n++) {
+      var f = find(root, p.notes[n], /\.md$/i);
+      if (f) got.push({ path: p.notes[n], body: f.getBlob().getDataAsString("UTF-8") });
+    }
+    return { notes: got };
   }
   if (p.file) {
     var pic = find(root, p.file, /\.(png|jpe?g|gif|webp)$/i);
@@ -57,12 +72,26 @@ function handle(p) {
   return { error: "Table didn't ask for anything." };
 }
 
-/** Every note and picture in the vault, with when each last changed. */
-function list(root) {
-  var notes = [];
-  var files = [];
-  walk(root, "", notes, files);
-  return { version: VERSION, notes: notes, files: files };
+/** The vaults in FOLDER_ID's folder: itself, if it's one; else each folder in it. */
+function vaultsOf(root) {
+  if (isVault(root)) return [{ name: root.getName(), folder: root }];
+  var out = [];
+  var it = root.getFolders();
+  while (it.hasNext()) {
+    var f = it.next();
+    var name = f.getName();
+    if (name.charAt(0) === "." || name.indexOf("|") >= 0) continue;
+    out.push({ name: name, folder: f });
+  }
+  return out;
+}
+
+/** Whether a folder is a vault: Obsidian's folder, or notes, at its top. */
+function isVault(folder) {
+  if (folder.getFoldersByName(".obsidian").hasNext()) return true;
+  var it = folder.getFiles();
+  while (it.hasNext()) if (/\.md$/i.test(it.next().getName())) return true;
+  return false;
 }
 
 function walk(folder, prefix, notes, files) {
@@ -78,12 +107,13 @@ function walk(folder, prefix, notes, files) {
   var sub = folder.getFolders();
   while (sub.hasNext()) {
     var s = sub.next();
-    if (s.getName().charAt(0) === ".") continue;
-    walk(s, prefix + s.getName() + "/", notes, files);
+    var sname = s.getName();
+    if (sname.charAt(0) === ".") continue;
+    walk(s, prefix + sname + "/", notes, files);
   }
 }
 
-/** A file by its path inside the vault folder, of the kind asked for; null if there's none. */
+/** A file by its path inside a vault's folder, of the kind asked for; null if there's none. */
 function find(root, path, kind) {
   if (typeof path !== "string" || !kind.test(path)) return null;
   var parts = path.split("/");

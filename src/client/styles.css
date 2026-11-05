@@ -4635,3 +4635,23 @@ kbd {
   flex: 1;
   min-width: 0;
 }
+/* Several vaults (NotesPanel.tsx): which one the list shows, each as a folder, taking one out. */
+.notes-vaults {
+  margin-bottom: 6px;
+}
+.notes-vaults select {
+  flex: 1;
+  min-width: 0;
+}
+.note-tree summary.vault-name {
+  font-size: 14px;
+  color: var(--accent);
+}
+.notes-clear {
+  gap: 6px;
+  margin-top: 6px;
+}
+.notes-clear select {
+  flex: 1;
+  min-width: 0;
+}

@@ -7,6 +7,9 @@ import { MAX_PRAYED_SPELLS } from "../shared/characters";
 import { MAX_LIBRARY, MAX_LIBRARY_BYTES, isShelf, type LibraryEntry, type Shelf } from "../shared/library";
 import { VAULT_LIMITS, noteTitle, type VaultFileInfo, type VaultIndex, type VaultSearchHit } from "../shared/vault";
 
+/** Where the one vault brought in before there were several went (Directory.moveOneVault). */
+export const LEGACY_VAULT = "First vault";
+
 const FAILURE_WINDOW_MS = 15 * 60_000;
 /** Wrong passwords allowed per address (an IPv6 /64 counts as one address) per window. */
 const MAX_FAILURES = 10;
@@ -93,12 +96,13 @@ export class Directory extends DurableObject<Env> {
         bytes INTEGER NOT NULL,
         created_at INTEGER NOT NULL
       )`);
-      // The GM's campaign notes (shared/vault.ts): each note's text, and each picture's checksum
-      // (its copy is in R2), with the import that brought it.
-      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_notes (path TEXT PRIMARY KEY, body TEXT NOT NULL, import TEXT NOT NULL)`);
-      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_files (path TEXT PRIMARY KEY, hash TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, import TEXT NOT NULL)`);
-      // Pictures fetched from Google Drive: when each had last changed there, and its checksum.
-      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_drive (path TEXT PRIMARY KEY, modified INTEGER NOT NULL, hash TEXT NOT NULL)`);
+      // The GM's campaign notes (shared/vault.ts), by vault: each note's text, and each picture's
+      // checksum (its copy is in R2), with the import that brought it; and the pictures fetched from
+      // Google Drive, with when each had last changed there.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vnotes (vault TEXT NOT NULL, path TEXT NOT NULL, body TEXT NOT NULL, import TEXT NOT NULL, PRIMARY KEY (vault, path))`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vfiles (vault TEXT NOT NULL, path TEXT NOT NULL, hash TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, import TEXT NOT NULL, PRIMARY KEY (vault, path))`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vdrive (vault TEXT NOT NULL, path TEXT NOT NULL, modified INTEGER NOT NULL, hash TEXT NOT NULL, PRIMARY KEY (vault, path))`);
+      this.moveOneVault();
     });
   }
 
@@ -239,74 +243,128 @@ export class Directory extends DurableObject<Env> {
     );
   }
 
-  /** The campaign notes' list (no texts), the pictures, and when the vault was last brought in. */
+  /**
+   * Before there were several vaults (4 November 2026, an hour), the one vault brought in was kept
+   * without a name: it moves to LEGACY_VAULT, and the first vault brought in after that shares most
+   * of its notes takes its place (vaultFinish).
+   */
+  private moveOneVault(): void {
+    const old = this.sql.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'vault_notes'`).toArray().length;
+    if (!old) return;
+    const notes = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vault_notes`).one().n;
+    if (notes) {
+      this.sql.exec(`INSERT OR IGNORE INTO vnotes (vault, path, body, import) SELECT ?, path, body, import FROM vault_notes`, LEGACY_VAULT);
+      this.sql.exec(`INSERT OR IGNORE INTO vfiles (vault, path, hash, mime, bytes, import) SELECT ?, path, hash, mime, bytes, import FROM vault_files`, LEGACY_VAULT);
+      const at = this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'vault_at'`).toArray()[0]?.value;
+      if (at) this.setBlob(`vault_at:${LEGACY_VAULT}`, at);
+      this.setBlob("vault_legacy", LEGACY_VAULT);
+    }
+    this.sql.exec(`DROP TABLE IF EXISTS vault_notes`);
+    this.sql.exec(`DROP TABLE IF EXISTS vault_files`);
+    this.sql.exec(`DROP TABLE IF EXISTS vault_drive`);
+    this.sql.exec(`DELETE FROM blobs WHERE name IN ('vault_at', 'vault_import')`);
+  }
+
+  private setBlob(name: string, value: string): void {
+    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES (?, ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`, name, value);
+  }
+
+  private blob(name: string): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = ?`, name).toArray()[0]?.value ?? null;
+  }
+
+  /** Every vault (its name, when it was brought in, its notes), the notes (no texts) and the pictures. */
   vaultIndex(): VaultIndex {
     const notes = this.sql
-      .exec<{ path: string; size: number }>(`SELECT path, length(body) AS size FROM vault_notes ORDER BY path COLLATE NOCASE`)
+      .exec<{ vault: string; path: string; size: number }>(`SELECT vault, path, length(body) AS size FROM vnotes ORDER BY vault COLLATE NOCASE, path COLLATE NOCASE`)
       .toArray()
-      .map((r) => ({ path: r.path, title: noteTitle(r.path), size: r.size }));
-    const files = this.sql.exec<{ path: string; hash: string; mime: string; bytes: number }>(`SELECT path, hash, mime, bytes FROM vault_files ORDER BY path`).toArray();
-    const at = this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'vault_at'`).toArray()[0]?.value;
-    return { notes, files: files.map((r) => ({ ...r })), importedAt: at ? Number(at) : null };
+      .map((r) => ({ vault: r.vault, path: r.path, title: noteTitle(r.path), size: r.size }));
+    const files = this.sql
+      .exec<{ vault: string; path: string; hash: string; mime: string; bytes: number }>(`SELECT vault, path, hash, mime, bytes FROM vfiles ORDER BY vault, path`)
+      .toArray()
+      .map((r) => ({ ...r }));
+    const names = [...new Set(notes.map((n) => n.vault))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const vaults = names.map((name) => {
+      const at = this.blob(`vault_at:${name}`);
+      return { name, importedAt: at ? Number(at) : null, notes: notes.filter((n) => n.vault === name).length };
+    });
+    return { vaults, notes, files };
   }
 
-  vaultNote(path: string): string | null {
-    return this.sql.exec<{ body: string }>(`SELECT body FROM vault_notes WHERE path = ?`, path).toArray()[0]?.body ?? null;
+  vaultNote(vault: string, path: string): string | null {
+    return this.sql.exec<{ body: string }>(`SELECT body FROM vnotes WHERE vault = ? AND path = ?`, vault, path).toArray()[0]?.body ?? null;
   }
 
-  /** Notes whose title or text holds `q` (any case), with a snippet around it; at most 60. */
-  vaultSearch(q: string): VaultSearchHit[] {
+  /** Notes whose title or text holds `q` (any case), in one vault or all, with a snippet around it; at most 60. */
+  vaultSearch(q: string, vault: string | null): VaultSearchHit[] {
     const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const rows = this.sql
-      .exec<{ path: string; body: string }>(`SELECT path, body FROM vault_notes WHERE path LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' ORDER BY path COLLATE NOCASE LIMIT 60`, like, like)
+      .exec<{ vault: string; path: string; body: string }>(
+        `SELECT vault, path, body FROM vnotes WHERE (? IS NULL OR vault = ?) AND (path LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\') ORDER BY vault COLLATE NOCASE, path COLLATE NOCASE LIMIT 60`,
+        vault,
+        vault,
+        like,
+        like,
+      )
       .toArray();
     const low = q.toLowerCase();
     return rows.map((r) => {
       const at = r.body.toLowerCase().indexOf(low);
       const snippet = at < 0 ? r.body.slice(0, 140) : r.body.slice(Math.max(0, at - 60), at + q.length + 80);
-      return { path: r.path, title: noteTitle(r.path), snippet: snippet.replace(/\s+/g, " ").trim() };
+      return { vault: r.vault, path: r.path, title: noteTitle(r.path), snippet: snippet.replace(/\s+/g, " ").trim() };
     });
   }
 
-  /** Starts bringing the vault in: its id, which every batch carries. */
-  vaultStart(): string {
+  /** Starts bringing a vault in: its id, which every batch carries; null when there are as many vaults as Table keeps. */
+  vaultStart(vault: string): string | null {
+    const known = this.sql.exec(`SELECT 1 FROM vnotes WHERE vault = ? LIMIT 1`, vault).toArray().length;
+    const count = this.sql.exec<{ n: number }>(`SELECT COUNT(DISTINCT vault) AS n FROM vnotes`).one().n;
+    if (!known && count >= VAULT_LIMITS.vaults) return null;
     const id = b64url(crypto.getRandomValues(new Uint8Array(12)));
-    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('vault_import', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`, id);
+    this.setBlob(`vault_import:${vault}`, id);
     return id;
   }
 
-  private vaultImporting(id: string): boolean {
-    return this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'vault_import'`).toArray()[0]?.value === id;
+  private vaultImporting(vault: string, id: string): boolean {
+    return this.blob(`vault_import:${vault}`) === id;
   }
 
-  /** A batch of notes for the import `id`; the refusal, and nothing kept, when it's not the one going or the vault is full. */
-  vaultPutNotes(id: string, notes: { path: string; body: string }[]): string | null {
-    if (!this.vaultImporting(id)) return "That bringing-in has been overtaken by another. Start again.";
-    const have = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vault_notes WHERE import = ?`, id).one().n;
+  /** A batch of notes for vault `vault`'s import `id`; the refusal, and nothing kept, when it's not the one going or the vault is full. */
+  vaultPutNotes(vault: string, id: string, notes: { path: string; body: string }[]): string | null {
+    if (!this.vaultImporting(vault, id)) return "That bringing-in has been overtaken by another. Start again.";
+    const have = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vnotes WHERE vault = ? AND import = ?`, vault, id).one().n;
     if (have + notes.length > VAULT_LIMITS.notes) return `A vault can bring in up to ${VAULT_LIMITS.notes} notes.`;
     for (const n of notes) {
-      this.sql.exec(`INSERT INTO vault_notes (path, body, import) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET body = excluded.body, import = excluded.import`, n.path, n.body, id);
+      this.sql.exec(
+        `INSERT INTO vnotes (vault, path, body, import) VALUES (?, ?, ?, ?) ON CONFLICT(vault, path) DO UPDATE SET body = excluded.body, import = excluded.import`,
+        vault,
+        n.path,
+        n.body,
+        id,
+      );
     }
     return null;
   }
 
-  /** Of these pictures' checksums, the ones whose copy is already kept (from any import). */
+  /** Of these pictures' checksums, the ones whose copy is already kept (from any vault). */
   vaultKnownHashes(hashes: string[]): string[] {
     const known: string[] = [];
-    for (const h of hashes) if (this.sql.exec(`SELECT 1 FROM vault_files WHERE hash = ? LIMIT 1`, h).toArray().length) known.push(h);
+    for (const h of hashes) if (this.sql.exec(`SELECT 1 FROM vfiles WHERE hash = ? LIMIT 1`, h).toArray().length) known.push(h);
     return known;
   }
 
-  /** Pictures for the import `id` whose copy is kept; the refusal when it's not the one going or there are too many. */
-  vaultPutFiles(id: string, files: VaultFileInfo[]): string | null {
-    if (!this.vaultImporting(id)) return "That bringing-in has been overtaken by another. Start again.";
-    const have = this.sql.exec<{ n: number; b: number | null }>(`SELECT COUNT(*) AS n, SUM(bytes) AS b FROM vault_files WHERE import = ?`, id).one();
-    if (have.n + files.length > VAULT_LIMITS.files || (have.b ?? 0) + files.reduce((n, x) => n + x.bytes, 0) > VAULT_LIMITS.fileTotal) {
-      return "That's more pictures than Table keeps for a vault.";
+  /** Pictures for vault `vault`'s import `id` whose copy is kept; the refusal when it's not the one going or there are too many. */
+  vaultPutFiles(vault: string, id: string, files: VaultFileInfo[]): string | null {
+    if (!this.vaultImporting(vault, id)) return "That bringing-in has been overtaken by another. Start again.";
+    const mine = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vfiles WHERE vault = ? AND import = ?`, vault, id).one().n;
+    const all = this.sql.exec<{ b: number | null }>(`SELECT SUM(bytes) AS b FROM vfiles`).one().b ?? 0;
+    if (mine + files.length > VAULT_LIMITS.files || all + files.reduce((n, x) => n + x.bytes, 0) > VAULT_LIMITS.fileTotal) {
+      return "That's more pictures than Table keeps for your vaults.";
     }
     for (const x of files) {
       this.sql.exec(
-        `INSERT INTO vault_files (path, hash, mime, bytes, import) VALUES (?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET hash = excluded.hash, mime = excluded.mime, bytes = excluded.bytes, import = excluded.import`,
+        `INSERT INTO vfiles (vault, path, hash, mime, bytes, import) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(vault, path) DO UPDATE SET hash = excluded.hash, mime = excluded.mime, bytes = excluded.bytes, import = excluded.import`,
+        vault,
         x.path,
         x.hash,
         x.mime,
@@ -317,23 +375,59 @@ export class Directory extends DurableObject<Env> {
     return null;
   }
 
+  private hashesInUse(): Set<string> {
+    return new Set(this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vfiles`).toArray().map((r) => r.hash));
+  }
+
   /**
-   * Finishes the import `id`: notes and pictures it didn't bring are gone (they've left the vault).
-   * The checksums no picture uses any more, for their copies to go too; null when it's not the one going.
+   * Finishes vault `vault`'s import `id`: its notes and pictures the import didn't bring are gone
+   * (they've left the vault). The vault brought in before there were several gives way to this one
+   * when this one has most of its notes. The checksums no picture uses any more, for their copies to
+   * go too; null when it's not the one going.
    */
-  vaultFinish(id: string): { notes: number; files: number; unused: string[] } | null {
-    if (!this.vaultImporting(id)) return null;
-    const before = new Set(this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash));
-    this.sql.exec(`DELETE FROM vault_notes WHERE import != ?`, id);
-    this.sql.exec(`DELETE FROM vault_files WHERE import != ?`, id);
-    const after = new Set(this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash));
-    this.sql.exec(`DELETE FROM blobs WHERE name = 'vault_import'`);
-    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('vault_at', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`, String(Date.now()));
+  vaultFinish(vault: string, id: string): { notes: number; files: number; unused: string[] } | null {
+    if (!this.vaultImporting(vault, id)) return null;
+    const before = this.hashesInUse();
+    this.sql.exec(`DELETE FROM vnotes WHERE vault = ? AND import != ?`, vault, id);
+    this.sql.exec(`DELETE FROM vfiles WHERE vault = ? AND import != ?`, vault, id);
+    const legacy = this.blob("vault_legacy");
+    if (legacy && legacy !== vault) {
+      const old = this.sql.exec<{ path: string }>(`SELECT path FROM vnotes WHERE vault = ?`, legacy).toArray();
+      const shared = old.filter((o) => this.sql.exec(`SELECT 1 FROM vnotes WHERE vault = ? AND path = ?`, vault, o.path).toArray().length).length;
+      if (!old.length || shared * 2 >= old.length) {
+        this.dropVault(legacy);
+        this.sql.exec(`DELETE FROM blobs WHERE name = 'vault_legacy'`);
+      }
+    }
+    this.sql.exec(`DELETE FROM blobs WHERE name = ?`, `vault_import:${vault}`);
+    this.setBlob(`vault_at:${vault}`, String(Date.now()));
+    const after = this.hashesInUse();
     return {
-      notes: this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vault_notes`).one().n,
-      files: after.size,
+      notes: this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vnotes WHERE vault = ?`, vault).one().n,
+      files: this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vfiles WHERE vault = ?`, vault).one().n,
       unused: [...before].filter((h) => !after.has(h)),
     };
+  }
+
+  private dropVault(vault: string): void {
+    this.sql.exec(`DELETE FROM vnotes WHERE vault = ?`, vault);
+    this.sql.exec(`DELETE FROM vfiles WHERE vault = ?`, vault);
+    this.sql.exec(`DELETE FROM vdrive WHERE vault = ?`, vault);
+    this.sql.exec(`DELETE FROM blobs WHERE name IN (?, ?)`, `vault_at:${vault}`, `vault_import:${vault}`);
+  }
+
+  /** Takes a vault (or with null, every vault) out of Table: the checksums no picture uses any more, for their copies to go. */
+  vaultClear(vault: string | null): string[] {
+    const before = this.hashesInUse();
+    if (vault) this.dropVault(vault);
+    else {
+      this.sql.exec(`DELETE FROM vnotes`);
+      this.sql.exec(`DELETE FROM vfiles`);
+      this.sql.exec(`DELETE FROM vdrive`);
+      this.sql.exec(`DELETE FROM blobs WHERE name LIKE 'vault\\_%' ESCAPE '\\'`);
+    }
+    const after = this.hashesInUse();
+    return [...before].filter((h) => !after.has(h));
   }
 
   /** The GM's vault script in Google Drive (scripts/vault-drive.gs): its address, or null. */
@@ -356,24 +450,20 @@ export class Directory extends DurableObject<Env> {
   }
 
   /** A picture's checksum if it was fetched from Drive unchanged since (`modified`) and its copy is still kept; else null. */
-  vaultDriveHash(path: string, modified: number): string | null {
-    const row = this.sql.exec<{ hash: string }>(`SELECT hash FROM vault_drive WHERE path = ? AND modified = ?`, path, modified).toArray()[0];
+  vaultDriveHash(vault: string, path: string, modified: number): string | null {
+    const row = this.sql.exec<{ hash: string }>(`SELECT hash FROM vdrive WHERE vault = ? AND path = ? AND modified = ?`, vault, path, modified).toArray()[0];
     if (!row) return null;
-    return this.sql.exec(`SELECT 1 FROM vault_files WHERE hash = ? LIMIT 1`, row.hash).toArray().length ? row.hash : null;
+    return this.sql.exec(`SELECT 1 FROM vfiles WHERE hash = ? LIMIT 1`, row.hash).toArray().length ? row.hash : null;
   }
 
-  vaultDriveRemember(path: string, modified: number, hash: string): void {
-    this.sql.exec(`INSERT INTO vault_drive (path, modified, hash) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET modified = excluded.modified, hash = excluded.hash`, path, modified, hash);
-  }
-
-  /** Takes the whole vault out of Table: the checksums of the pictures, for their copies to go. */
-  vaultClear(): string[] {
-    const hashes = this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash);
-    this.sql.exec(`DELETE FROM vault_notes`);
-    this.sql.exec(`DELETE FROM vault_files`);
-    this.sql.exec(`DELETE FROM vault_drive`);
-    this.sql.exec(`DELETE FROM blobs WHERE name IN ('vault_import', 'vault_at')`);
-    return hashes;
+  vaultDriveRemember(vault: string, path: string, modified: number, hash: string): void {
+    this.sql.exec(
+      `INSERT INTO vdrive (vault, path, modified, hash) VALUES (?, ?, ?, ?) ON CONFLICT(vault, path) DO UPDATE SET modified = excluded.modified, hash = excluded.hash`,
+      vault,
+      path,
+      modified,
+      hash,
+    );
   }
 
   /** Each character's dice set, by sheet id (worker/characters.ts); a character with none is missing. */
