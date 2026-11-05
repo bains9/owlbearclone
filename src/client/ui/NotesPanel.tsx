@@ -87,25 +87,29 @@ function DriveSetup(props: { source: string | null; saved: (source: string | nul
   );
 }
 
-function FolderView(props: { folder: Folder; open: (ref: string) => void }) {
-  const { folder, open } = props;
+/** A vault's folders and notes; the note open (active) marked, as Obsidian marks it in its list. */
+function FolderView(props: { folder: Folder; open: (ref: string) => void; active: string | null }) {
+  const { folder, open, active } = props;
   return (
     <ul class="note-tree">
       {folder.folders.map((f) => (
         <li key={f.path}>
           <details>
             <summary>{f.name}</summary>
-            <FolderView folder={f} open={open} />
+            <FolderView folder={f} open={open} active={active} />
           </details>
         </li>
       ))}
-      {folder.notes.map((n) => (
-        <li key={n.path}>
-          <button class="link-btn note-link" onClick={() => open(noteRef(n.vault, n.path))}>
-            {n.title}
-          </button>
-        </li>
-      ))}
+      {folder.notes.map((n) => {
+        const ref = noteRef(n.vault, n.path);
+        return (
+          <li key={n.path}>
+            <button class={cx("link-btn note-link", ref === active && "active")} aria-current={ref === active ? "page" : undefined} onClick={() => open(ref)}>
+              {n.title}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -116,7 +120,7 @@ function vaultPart(index: VaultIndex, vault: string): Pick<VaultIndex, "notes" |
 }
 
 /** One note, as Obsidian's reading view shows it, with Show to players and the token link. */
-function NoteView(props: { noteRef: string; back: (() => void) | null; open: (ref: string, heading?: string) => void; heading: string | null; many: boolean }) {
+function NoteView(props: { noteRef: string; back: (() => void) | null; open: (ref: string, heading?: string) => void; heading: string | null; many: boolean; wide: boolean }) {
   const room = useRoom();
   const index = useRoomState((s) => s.vault);
   const selection = useRoomState((s) => s.selection);
@@ -172,9 +176,12 @@ function NoteView(props: { noteRef: string; back: (() => void) | null; open: (re
   return (
     <div class="note-view">
       <div class="note-head">
-        <button class="icon-btn" title={props.back ? "Back" : "All your notes"} aria-label={props.back ? "Back" : "All your notes"} onClick={() => (props.back ? props.back() : room.openNote(null))}>
-          <ArrowLeft size={16} />
-        </button>
+        {/* Reading wide, the list is always beside the note: the arrow is only for Back. */}
+        {(props.back || !props.wide) && (
+          <button class="icon-btn" title={props.back ? "Back" : "All your notes"} aria-label={props.back ? "Back" : "All your notes"} onClick={() => (props.back ? props.back() : room.openNote(null))}>
+            <ArrowLeft size={16} />
+          </button>
+        )}
         <div class="note-name">
           <h3>{title}</h3>
           <span class="small muted">{where}</span>
@@ -223,7 +230,9 @@ function NoteView(props: { noteRef: string; back: (() => void) | null; open: (re
 /** "1 note", "3 notes". */
 const howMany = (k: number, word: string) => `${k} ${word}${k === 1 ? "" : "s"}`;
 
-export function NotesPanel() {
+/** wide: reading wide (notesWide.tsx), the list down the left and the note beside it. */
+export function NotesPanel(props: { wide?: boolean }) {
+  const wide = !!props.wide;
   const room = useRoom();
   const vault = useRoomState((s) => s.vault);
   const open = useRoomState((s) => s.noteOpen);
@@ -292,6 +301,14 @@ export function NotesPanel() {
     () => (vault ? (showing ? [showing] : names).map((name) => ({ name, tree: noteTree(vault.notes.filter((n) => n.vault === name)) })) : []),
     [vault, showing],
   );
+  // Reading wide, the open note shows in the list, its folders opened, as in Obsidian's.
+  const side = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const link = side.current?.querySelector<HTMLElement>(".note-link.active");
+    if (!link) return;
+    for (let d = link.closest("details"); d; d = d.parentElement?.closest("details") ?? null) d.open = true;
+    link.scrollIntoView({ block: "nearest" });
+  }, [open, wide, trees]);
 
   const openNote = (ref: string, h?: string) => {
     if (open && open !== ref) history.current.push(open);
@@ -367,9 +384,8 @@ export function NotesPanel() {
   }
   const last = Math.max(0, ...vault.vaults.filter((v) => !showing || v.name === showing).map((v) => v.importedAt ?? 0));
   const count = showing ? vault.notes.filter((n) => n.vault === showing).length : vault.notes.length;
-  return (
-    <div class="panel-body notes-panel">
-      {picker}
+  const head = (
+    <>
       {many && (
         <label class="field inline small notes-vaults">
           <span>Vault</span>
@@ -402,9 +418,9 @@ export function NotesPanel() {
         {last ? `, brought in ${new Date(last).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}` : ""}
       </p>
       {busy && <p class="small notes-busy">{busy}</p>}
-      {open ? (
-        <NoteView key={open} noteRef={open} back={back} open={openNote} heading={heading} many={many} />
-      ) : hits ? (
+    </>
+  );
+  const list = hits ? (
         <ul class="note-hits">
           {hits.length === 0 && <li class="small muted">Nothing found.</li>}
           {hits.map((h) => (
@@ -418,20 +434,21 @@ export function NotesPanel() {
           ))}
         </ul>
       ) : trees.length === 1 ? (
-        <FolderView folder={trees[0].tree} open={(r) => openNote(r)} />
+        <FolderView folder={trees[0].tree} open={(r) => openNote(r)} active={open} />
       ) : (
         <ul class="note-tree">
           {trees.map((t) => (
             <li key={t.name}>
               <details>
                 <summary class="vault-name">{t.name}</summary>
-                <FolderView folder={t.tree} open={(r) => openNote(r)} />
+                <FolderView folder={t.tree} open={(r) => openNote(r)} active={open} />
               </details>
             </li>
           ))}
         </ul>
-      )}
-      {!open && (
+      );
+  const foot = (
+    <>
         <p class="small muted notes-out">
           <button class="link-btn" onClick={() => setDriveOpen(!driveOpen)}>
             {drive ? "Google Drive is linked" : "Use Google Drive"}
@@ -441,8 +458,7 @@ export function NotesPanel() {
             Take a vault out of Table
           </button>
         </p>
-      )}
-      {!open && clearPick && (
+      {clearPick && (
         <div class="row notes-clear">
           <select value={clearPick} onChange={(e) => setClearPick(e.currentTarget.value)} aria-label="Which vault to take out">
             {names.map((n) => (
@@ -457,8 +473,10 @@ export function NotesPanel() {
           </button>
         </div>
       )}
-      {!open && driveOpen && drive !== undefined && <DriveSetup source={drive} saved={setDrive} />}
-      {clearing !== undefined && (
+      {driveOpen && drive !== undefined && <DriveSetup source={drive} saved={setDrive} />}
+    </>
+  );
+  const confirm = clearing !== undefined && (
         <ConfirmDialog
           title={clearing ? `Take ${clearing} out of Table?` : "Take all your vaults out of Table?"}
           message={`${clearing ? "Its notes and pictures leave" : "Your notes and their pictures leave"} Table (your vaults themselves aren't touched). Handouts already shown stay.`}
@@ -470,7 +488,40 @@ export function NotesPanel() {
           }}
           onClose={() => setClearing(undefined)}
         />
+      );
+  const note = open ? <NoteView key={open} noteRef={open} back={back} open={openNote} heading={heading} many={many} wide={wide} /> : null;
+  if (wide) {
+    return (
+      <div class="panel-body notes-panel notes-wide">
+        {picker}
+        <div class="notes-side" ref={side}>
+          {head}
+          {list}
+          {foot}
+        </div>
+        <div class="notes-main">
+          {note ?? (
+            <div class="notes-pick">
+              <BookOpen size={32} />
+              <p class="muted">Pick a note from the list, or find one.</p>
+            </div>
+          )}
+        </div>
+        {confirm}
+      </div>
+    );
+  }
+  return (
+    <div class="panel-body notes-panel">
+      {picker}
+      {head}
+      {note ?? (
+        <>
+          {list}
+          {foot}
+        </>
       )}
+      {confirm}
     </div>
   );
 }

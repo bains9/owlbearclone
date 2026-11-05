@@ -22,6 +22,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click **Campaign notes** in the top bar (the open book), then **Choose your vault's folder** and pick the folder Obsidian opens as your vault, or the folder holding all your vaults to bring them all in. Your notes and their pictures come in, on Windows, a Mac or Ubuntu.",
           "Find a note in its folders or with **Find in your notes**, and read it as Obsidian shows it: links to other notes open them, and its pictures, callouts and properties show.",
+          "Click **Read wide** at the top of the panel to read as in Obsidian, across most of the screen: your notes' list down the left, the note beside it, and the map still in play beside them. Drag the panel's edge to make it wider or narrower; **Side panel** puts it back.",
           "Click **Show to players** to give the players the note as a handout, or highlight part of it first to show only that part. Your properties, your **%% comments %%** and your own callouts (`> [!secret]`, `> [!gm]`) stay hidden.",
           "To link a token to a note, select the token, open the note and click **Link to** with the token's name. After that, the book button on the token's bar opens its note."
         ],
@@ -1683,12 +1684,14 @@ export const GUIDE: GuideSection[] = [
         "title": "Find and read a note",
         "steps": [
           "Open a folder in the list and click a note, or type in **Find in your notes** to search their names and words.",
-          "Click a link in a note to open the note it points to. The arrow at the top goes back."
+          "Click a link in a note to open the note it points to. The arrow at the top goes back.",
+          "To read as in Obsidian, click **Read wide** at the top of the panel: it opens out across most of the screen, with your notes' list down the left and the note you open beside it."
         ],
         "notes": [
           "A note shows as Obsidian's reading view does: headings, lists, tables, **bold** and *italics*, ==highlights==, callouts, its pictures (`![[picture.png]]`, with a width like `![[picture.png|300]]`), and its properties as a small table at the top.",
           "Your **%% comments %%** never show. Coloured words written as HTML (a `span` with a colour) keep their colour; anything else in HTML that isn't plain formatting is left out.",
-          "A link to a note that isn't in the vault shows in grey."
+          "A link to a note that isn't in the vault shows in grey.",
+          "Reading wide, the map keeps the rest of the screen and still works: select a token to link it, or click its book button to open its note. Drag the panel's left edge to make it wider or narrower (double-click the edge for the usual width), and click **Side panel** to put it back. Each device remembers which you like; on a screen narrower than a laptop's, the notes stay in the side panel."
         ]
       },
       {

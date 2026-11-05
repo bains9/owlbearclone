@@ -4655,3 +4655,101 @@ kbd {
   flex: 1;
   min-width: 0;
 }
+/* Campaign notes read wide (notesWide.tsx): the panel across most of the screen, the map beside it;
+   the vaults' list down its left and the note beside that, at a width made for reading, as Obsidian has them. */
+.panel-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel.panel-wide {
+  position: relative;
+  max-width: calc(100% - 320px);
+}
+.panel-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  z-index: 5;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.panel-edge:hover,
+.panel-edge:focus-visible {
+  outline: none;
+  background: var(--accent);
+  opacity: 0.5;
+}
+.notes-wide {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+.notes-side {
+  flex: none;
+  width: 300px;
+  overflow-y: auto;
+  padding: 10px 14px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.notes-side > .note-tree {
+  padding-left: 0;
+}
+.notes-side .note-tree summary,
+.notes-side .note-link {
+  font-size: 14px;
+}
+.notes-side .note-tree summary.vault-name {
+  font-size: 15px;
+}
+.note-link.active {
+  margin-left: -6px;
+  padding-left: 6px;
+  border-radius: 4px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.notes-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 40px 48px;
+}
+.notes-main .note-view {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+/* Its folders above, small; its name below, as Obsidian heads a note. */
+.notes-main .note-name {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+}
+.notes-main .note-name h3 {
+  margin: 0;
+  font-size: 28px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+}
+.notes-main .note-body {
+  font-size: 16px;
+  line-height: 1.65;
+}
+.notes-main .note-body .note-props {
+  font-size: 13px;
+}
+.notes-pick {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--muted);
+}

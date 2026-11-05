@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, MessageSquare, Monitor, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
+import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, Maximize2, MessageSquare, Minimize2, Monitor, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
 import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
@@ -25,6 +25,7 @@ import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
 import { DiceThrow } from "./DiceThrow";
 import { HandoutsPanel } from "./HandoutsPanel";
 import { NotesPanel } from "./NotesPanel";
+import { WideEdge, useNotesWide } from "./notesWide";
 import { loadDice3d, saveDice3d } from "../dice3d";
 import { voiceLink } from "../room/voiceLink";
 import { navigate, noteArrival, takeArrival } from "../nav";
@@ -597,6 +598,10 @@ function SidePanel(props: { panel: PanelId }) {
   const room = useRoom();
   const gm = useRoomState((s) => s.me?.role === "gm");
   const title = PANELS.find((p) => p.id === props.panel)?.label ?? "";
+  // Campaign notes, read wide (notesWide.tsx): across most of the screen, the map beside them.
+  const notes = useNotesWide();
+  const isNotes = props.panel === "notes" && gm;
+  const wide = isNotes && notes.wide;
   let body = null;
   if (props.panel === "chat") body = <ChatPanel />;
   else if (props.panel === "library") body = <LibraryPanel />;
@@ -604,15 +609,28 @@ function SidePanel(props: { panel: PanelId }) {
   else if (props.panel === "calendar") body = <CalendarPanel />;
   else if (props.panel === "scenes" && gm) body = <ScenesPanel />;
   else if (props.panel === "settings" && gm) body = <SettingsPanel />;
-  else if (props.panel === "notes" && gm) body = <NotesPanel />;
+  else if (isNotes) body = <NotesPanel wide={wide} />;
   else if (props.panel === "handouts") body = <HandoutsPanel />;
   return (
-    <aside class="panel" aria-label={title}>
+    <aside class={cx("panel", wide && "panel-wide")} style={wide ? { width: `${notes.width}px` } : undefined} aria-label={title}>
+      {wide && <WideEdge notes={notes} />}
       <div class="panel-head">
         <h2>{title}</h2>
-        <button class="icon-btn" onClick={() => room.setPanel(null)} aria-label="Close panel" title="Close">
-          <X size={18} />
-        </button>
+        <div class="panel-head-tools">
+          {isNotes && notes.can && (
+            <button
+              class="btn btn-sm"
+              aria-pressed={wide}
+              title={wide ? "Back to the side panel" : "Read wide: your notes across most of the screen, as in Obsidian, the map beside them"}
+              onClick={() => notes.setWide(!wide)}
+            >
+              {wide ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {wide ? "Side panel" : "Read wide"}
+            </button>
+          )}
+          <button class="icon-btn" onClick={() => room.setPanel(null)} aria-label="Close panel" title="Close">
+            <X size={18} />
+          </button>
+        </div>
       </div>
       {body}
     </aside>
