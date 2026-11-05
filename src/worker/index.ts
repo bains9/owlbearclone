@@ -16,6 +16,7 @@ import { rollDice, secureRng } from "../shared/dice";
 import { castList, highestLevel } from "../shared/spellfx";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { libraryRoute } from "./libraryRoutes";
+import { vaultRoute } from "./vaultRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
@@ -213,6 +214,9 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   // The GM's own monsters and NPCs, for every room (libraryRoutes.ts), and putting one in a room.
   const library = await libraryRoute(request, env, pathname, method);
   if (library) return library;
+  // The GM's campaign notes, their Obsidian vault (vaultRoutes.ts).
+  const vault = await vaultRoute(request, env, url, method);
+  if (vault) return vault;
 
   if (pathname === "/api/characters/source") {
     if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");

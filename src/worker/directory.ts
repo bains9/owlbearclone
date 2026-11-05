@@ -5,6 +5,7 @@ import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
 import { MAX_PRAYED_SPELLS } from "../shared/characters";
 import { MAX_LIBRARY, MAX_LIBRARY_BYTES, isShelf, type LibraryEntry, type Shelf } from "../shared/library";
+import { VAULT_LIMITS, noteTitle, type VaultFileInfo, type VaultIndex, type VaultSearchHit } from "../shared/vault";
 
 const FAILURE_WINDOW_MS = 15 * 60_000;
 /** Wrong passwords allowed per address (an IPv6 /64 counts as one address) per window. */
@@ -92,6 +93,12 @@ export class Directory extends DurableObject<Env> {
         bytes INTEGER NOT NULL,
         created_at INTEGER NOT NULL
       )`);
+      // The GM's campaign notes (shared/vault.ts): each note's text, and each picture's checksum
+      // (its copy is in R2), with the import that brought it.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_notes (path TEXT PRIMARY KEY, body TEXT NOT NULL, import TEXT NOT NULL)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_files (path TEXT PRIMARY KEY, hash TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, import TEXT NOT NULL)`);
+      // Pictures fetched from Google Drive: when each had last changed there, and its checksum.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS vault_drive (path TEXT PRIMARY KEY, modified INTEGER NOT NULL, hash TEXT NOT NULL)`);
     });
   }
 
@@ -230,6 +237,143 @@ export class Directory extends DurableObject<Env> {
       `INSERT INTO blobs (name, value, version) VALUES ('gm_dice', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`,
       dice,
     );
+  }
+
+  /** The campaign notes' list (no texts), the pictures, and when the vault was last brought in. */
+  vaultIndex(): VaultIndex {
+    const notes = this.sql
+      .exec<{ path: string; size: number }>(`SELECT path, length(body) AS size FROM vault_notes ORDER BY path COLLATE NOCASE`)
+      .toArray()
+      .map((r) => ({ path: r.path, title: noteTitle(r.path), size: r.size }));
+    const files = this.sql.exec<{ path: string; hash: string; mime: string; bytes: number }>(`SELECT path, hash, mime, bytes FROM vault_files ORDER BY path`).toArray();
+    const at = this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'vault_at'`).toArray()[0]?.value;
+    return { notes, files: files.map((r) => ({ ...r })), importedAt: at ? Number(at) : null };
+  }
+
+  vaultNote(path: string): string | null {
+    return this.sql.exec<{ body: string }>(`SELECT body FROM vault_notes WHERE path = ?`, path).toArray()[0]?.body ?? null;
+  }
+
+  /** Notes whose title or text holds `q` (any case), with a snippet around it; at most 60. */
+  vaultSearch(q: string): VaultSearchHit[] {
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = this.sql
+      .exec<{ path: string; body: string }>(`SELECT path, body FROM vault_notes WHERE path LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' ORDER BY path COLLATE NOCASE LIMIT 60`, like, like)
+      .toArray();
+    const low = q.toLowerCase();
+    return rows.map((r) => {
+      const at = r.body.toLowerCase().indexOf(low);
+      const snippet = at < 0 ? r.body.slice(0, 140) : r.body.slice(Math.max(0, at - 60), at + q.length + 80);
+      return { path: r.path, title: noteTitle(r.path), snippet: snippet.replace(/\s+/g, " ").trim() };
+    });
+  }
+
+  /** Starts bringing the vault in: its id, which every batch carries. */
+  vaultStart(): string {
+    const id = b64url(crypto.getRandomValues(new Uint8Array(12)));
+    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('vault_import', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`, id);
+    return id;
+  }
+
+  private vaultImporting(id: string): boolean {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM blobs WHERE name = 'vault_import'`).toArray()[0]?.value === id;
+  }
+
+  /** A batch of notes for the import `id`; the refusal, and nothing kept, when it's not the one going or the vault is full. */
+  vaultPutNotes(id: string, notes: { path: string; body: string }[]): string | null {
+    if (!this.vaultImporting(id)) return "That bringing-in has been overtaken by another. Start again.";
+    const have = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vault_notes WHERE import = ?`, id).one().n;
+    if (have + notes.length > VAULT_LIMITS.notes) return `A vault can bring in up to ${VAULT_LIMITS.notes} notes.`;
+    for (const n of notes) {
+      this.sql.exec(`INSERT INTO vault_notes (path, body, import) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET body = excluded.body, import = excluded.import`, n.path, n.body, id);
+    }
+    return null;
+  }
+
+  /** Of these pictures' checksums, the ones whose copy is already kept (from any import). */
+  vaultKnownHashes(hashes: string[]): string[] {
+    const known: string[] = [];
+    for (const h of hashes) if (this.sql.exec(`SELECT 1 FROM vault_files WHERE hash = ? LIMIT 1`, h).toArray().length) known.push(h);
+    return known;
+  }
+
+  /** Pictures for the import `id` whose copy is kept; the refusal when it's not the one going or there are too many. */
+  vaultPutFiles(id: string, files: VaultFileInfo[]): string | null {
+    if (!this.vaultImporting(id)) return "That bringing-in has been overtaken by another. Start again.";
+    const have = this.sql.exec<{ n: number; b: number | null }>(`SELECT COUNT(*) AS n, SUM(bytes) AS b FROM vault_files WHERE import = ?`, id).one();
+    if (have.n + files.length > VAULT_LIMITS.files || (have.b ?? 0) + files.reduce((n, x) => n + x.bytes, 0) > VAULT_LIMITS.fileTotal) {
+      return "That's more pictures than Table keeps for a vault.";
+    }
+    for (const x of files) {
+      this.sql.exec(
+        `INSERT INTO vault_files (path, hash, mime, bytes, import) VALUES (?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET hash = excluded.hash, mime = excluded.mime, bytes = excluded.bytes, import = excluded.import`,
+        x.path,
+        x.hash,
+        x.mime,
+        x.bytes,
+        id,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Finishes the import `id`: notes and pictures it didn't bring are gone (they've left the vault).
+   * The checksums no picture uses any more, for their copies to go too; null when it's not the one going.
+   */
+  vaultFinish(id: string): { notes: number; files: number; unused: string[] } | null {
+    if (!this.vaultImporting(id)) return null;
+    const before = new Set(this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash));
+    this.sql.exec(`DELETE FROM vault_notes WHERE import != ?`, id);
+    this.sql.exec(`DELETE FROM vault_files WHERE import != ?`, id);
+    const after = new Set(this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash));
+    this.sql.exec(`DELETE FROM blobs WHERE name = 'vault_import'`);
+    this.sql.exec(`INSERT INTO blobs (name, value, version) VALUES ('vault_at', ?, 1) ON CONFLICT(name) DO UPDATE SET value = excluded.value, version = version + 1`, String(Date.now()));
+    return {
+      notes: this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM vault_notes`).one().n,
+      files: after.size,
+      unused: [...before].filter((h) => !after.has(h)),
+    };
+  }
+
+  /** The GM's vault script in Google Drive (scripts/vault-drive.gs): its address, or null. */
+  vaultDriveSource(): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'vault_drive_source'`).toArray()[0]?.value ?? null;
+  }
+
+  setVaultDriveSource(source: string | null): void {
+    this.sql.exec(`DELETE FROM secrets WHERE name = 'vault_drive_source'`);
+    if (source) this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('vault_drive_source', ?)`, source);
+  }
+
+  /** The key Table sends the vault script (it keeps the first it's sent). Made once. */
+  vaultDriveKey(): string {
+    const row = this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'vault_drive_key'`).toArray()[0];
+    if (row) return row.value;
+    const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('vault_drive_key', ?)`, value);
+    return value;
+  }
+
+  /** A picture's checksum if it was fetched from Drive unchanged since (`modified`) and its copy is still kept; else null. */
+  vaultDriveHash(path: string, modified: number): string | null {
+    const row = this.sql.exec<{ hash: string }>(`SELECT hash FROM vault_drive WHERE path = ? AND modified = ?`, path, modified).toArray()[0];
+    if (!row) return null;
+    return this.sql.exec(`SELECT 1 FROM vault_files WHERE hash = ? LIMIT 1`, row.hash).toArray().length ? row.hash : null;
+  }
+
+  vaultDriveRemember(path: string, modified: number, hash: string): void {
+    this.sql.exec(`INSERT INTO vault_drive (path, modified, hash) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET modified = excluded.modified, hash = excluded.hash`, path, modified, hash);
+  }
+
+  /** Takes the whole vault out of Table: the checksums of the pictures, for their copies to go. */
+  vaultClear(): string[] {
+    const hashes = this.sql.exec<{ hash: string }>(`SELECT DISTINCT hash FROM vault_files`).toArray().map((r) => r.hash);
+    this.sql.exec(`DELETE FROM vault_notes`);
+    this.sql.exec(`DELETE FROM vault_files`);
+    this.sql.exec(`DELETE FROM vault_drive`);
+    this.sql.exec(`DELETE FROM blobs WHERE name IN ('vault_import', 'vault_at')`);
+    return hashes;
   }
 
   /** Each character's dice set, by sheet id (worker/characters.ts); a character with none is missing. */

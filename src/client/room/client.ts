@@ -5,6 +5,7 @@
 import type { Character, CharactersReply } from "../../shared/characters";
 import type { LibraryEntry } from "../../shared/library";
 import type { DiceSetId } from "../../shared/diceSets";
+import type { Handout, VaultIndex } from "../../shared/vault";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
 import type { NewDayUndo } from "../party";
@@ -63,7 +64,7 @@ export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" |
 
 /** Tools only the GM has. */
 export const GM_TOOLS: ToolId[] = ["fog", "build"];
-export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings";
+export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings" | "notes" | "handouts";
 export type Status = "connecting" | "open" | "reconnecting" | "notfound" | "deleted";
 
 export interface DrawOptions {
@@ -271,6 +272,14 @@ export interface RoomState {
   library: LibraryEntry[] | null;
   /** GM: the villains' dice they picked for their own rolls (gmDice.ts), or null before it's read. */
   gmDice: DiceSetId | null;
+  /** GM: their campaign notes' list (vault.ts), or null before it's read. */
+  vault: VaultIndex | null;
+  /** GM: the campaign note open in Campaign notes (its path), or null for the list. */
+  noteOpen: string | null;
+  /** The handouts the GM has shown here, newest first. */
+  handouts: Handout[];
+  /** GM: tokens linked to campaign notes, token id to note path. */
+  tokenNotes: Record<string, string>;
   /**
    * What the party, and each of its characters, has explored of each scene with lighting on, by
    * exploreSlot (shared/explore.ts); replaced, never changed in place.
@@ -581,6 +590,10 @@ export class RoomClient {
       party: null,
       library: null,
       gmDice: null,
+      vault: null,
+      noteOpen: null,
+      handouts: [],
+      tokenNotes: {},
       explored: {},
     });
   }
@@ -892,6 +905,8 @@ export class RoomClient {
           assets: toMap(msg.assets),
           messages: msg.messages,
           initiative: msg.initiative,
+          handouts: msg.handouts ?? [],
+          tokenNotes: msg.tokenNotes ?? {},
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
@@ -1042,6 +1057,21 @@ export class RoomClient {
 
       case "problems":
         this.store.set({ problems: msg.problems });
+        return;
+
+      case "handouts": {
+        this.store.set({ handouts: msg.handouts });
+        const shown = msg.shown ? msg.handouts.find((h) => h.id === msg.shown) : undefined;
+        // A player sees a new handout at once (unless they've a panel open), and hears of it either way.
+        if (shown && s.me?.role !== "gm") {
+          this.toast(`The GM showed you a handout: ${shown.title}`);
+          if (!this.state.panel) this.setPanel("handouts");
+        }
+        return;
+      }
+
+      case "tokenNotes":
+        this.store.set({ tokenNotes: msg.notes });
         return;
 
       case "calendar":
@@ -1953,6 +1983,27 @@ export class RoomClient {
 
   get profileInfo(): Profile {
     return this.profile;
+  }
+
+  /** GM: shows the players a handout: a campaign note, or part of one, as (cleaned) HTML. */
+  showHandout(title: string, html: string): void {
+    this.submit({ t: "handout.show", title, html });
+  }
+
+  /** GM: takes a handout back. */
+  removeHandout(id: string): void {
+    this.submit({ t: "handout.remove", id });
+  }
+
+  /** GM: links a token to a campaign note, or with null, unlinks it. */
+  setTokenNote(id: string, note: string | null): void {
+    this.submit({ t: "token.note", id, note });
+  }
+
+  /** GM: opens Campaign notes, at a note (or the list). */
+  openNote(path: string | null): void {
+    this.store.set({ noteOpen: path });
+    this.setPanel("notes");
   }
 
   /** Who's told of each roll as it comes in (not those from before the page joined): the dice thrown on the map. */

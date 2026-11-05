@@ -18,6 +18,21 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: your Obsidian notes in Table, and handouts for the players (4 November 2026)",
+        "steps": [
+          "Click **Campaign notes** in the top bar (the open book), then **Choose your vault's folder** and pick the folder Obsidian opens as your vault. Your notes and their pictures come in, on Windows, a Mac or Ubuntu.",
+          "Find a note in its folders or with **Find in your notes**, and read it as Obsidian shows it: links to other notes open them, and its pictures, callouts and properties show.",
+          "Click **Show to players** to give the players the note as a handout, or highlight part of it first to show only that part. Your properties, your **%% comments %%** and your own callouts (`> [!secret]`, `> [!gm]`) stay hidden.",
+          "To link a token to a note, select the token, open the note and click **Link to** with the token's name. After that, the book button on the token's bar opens its note."
+        ],
+        "notes": [
+          "Only you see your notes, and the players never see their names. They see only the handouts you show them, in **Handouts** in the top bar, which opens for them when you show one.",
+          "When your notes change, click **Update** and pick the folder again: notes you've taken out of the vault go from Table too, and pictures that haven't changed aren't sent again.",
+          "Your notes are the same in every room. Handouts and token links belong to the room they're made in.",
+          "If your vault is in Google Drive, Table can bring it in from there instead: see **Keep it in step with Google Drive** in **Campaign notes and handouts**."
+        ]
+      },
+      {
         "title": "Dice as they are: shaped in the chat, and thrown across the map (4 November 2026)",
         "steps": [
           "Every die in the chat has its own shape now: a d4 is a triangle, a d6 a square, a d8 a diamond, a d10 a kite, a d12 a pentagon and a d20 a gem, painted in the set it was rolled in. The highest face is edged in green, a 1 in red, and the total is outlined as on Roll20: green when a die rolled its highest face, red for a 1, blue for both. A roll to hit goes by the handbook: green for a critical hit, red for a critical failure.",
@@ -1638,6 +1653,81 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "It only clears the scene you're looking at.",
           "**Undo** brings the drawings back."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "campaign-notes",
+    "title": "Campaign notes and handouts (GM)",
+    "audience": "gm",
+    "intro": "Bring your Obsidian vault into Table to read your notes during a game, show the players a note (or part of one) as a handout, and link notes to tokens. Only you see your notes.",
+    "parts": [
+      {
+        "title": "Bring in your vault",
+        "steps": [
+          "Click **Campaign notes** in the top bar (the open book).",
+          "Click **Choose your vault's folder** and pick the folder Obsidian opens as your vault.",
+          "Wait while your notes, then their pictures, come in: the panel says how it's going."
+        ],
+        "notes": [
+          "It works the same on Windows, a Mac and Ubuntu, in Chrome, Edge or Firefox. Your vault stays where it is; Table keeps a copy.",
+          "Obsidian's own settings (its .obsidian folder) and its bin don't come in. Pictures do (PNG, JPEG, GIF and WebP, up to 15 MB each); other files are left out.",
+          "When your notes change, click **Update** and pick the folder again. Notes taken out of the vault go from Table too, and pictures that haven't changed aren't sent again.",
+          "**Take your notes out of Table**, at the bottom of the list, removes them and their pictures from Table; your vault itself isn't touched."
+        ]
+      },
+      {
+        "title": "Find and read a note",
+        "steps": [
+          "Open a folder in the list and click a note, or type in **Find in your notes** to search their names and words.",
+          "Click a link in a note to open the note it points to. The arrow at the top goes back."
+        ],
+        "notes": [
+          "A note shows as Obsidian's reading view does: headings, lists, tables, **bold** and *italics*, ==highlights==, callouts, its pictures (`![[picture.png]]`, with a width like `![[picture.png|300]]`), and its properties as a small table at the top.",
+          "Your **%% comments %%** never show. Coloured words written as HTML (a `span` with a colour) keep their colour; anything else in HTML that isn't plain formatting is left out.",
+          "A link to a note that isn't in the vault shows in grey."
+        ]
+      },
+      {
+        "title": "Show the players a handout",
+        "steps": [
+          "Open the note.",
+          "To show only part of it, highlight that part. To show it all, highlight nothing.",
+          "Click **Show to players**."
+        ],
+        "notes": [
+          "The players get it in **Handouts** in the top bar, which opens for them by itself unless they've a panel open, and a message says so.",
+          "A whole note leaves out its properties and your own callouts: those typed secret, gm, dm, spoiler or hidden (`> [!secret]`). Your comments never go. Links to your notes are only words for the players.",
+          "Handouts belong to the room. To take one back, click the X on it in **Handouts**."
+        ]
+      },
+      {
+        "title": "Link a token to a note",
+        "steps": [
+          "Select the token on the map.",
+          "Open its note in **Campaign notes** and click **Link to** with the token's name.",
+          "From then on, click the book button on the token's bar to open its note."
+        ],
+        "notes": [
+          "Players don't see which token has a note, or the note's name.",
+          "Click **Unlink** on the note, with the token selected, to undo it. A token without a note: the book button opens your notes, to pick one."
+        ]
+      },
+      {
+        "title": "Keep it in step with Google Drive",
+        "steps": [
+          "In **Campaign notes**, click **Or use Google Drive** (or **Use Google Drive** under your notes), then **Copy the script**.",
+          "At script.google.com, in the Google account whose Drive has your vault, make a new project and paste the script in.",
+          "In **Project Settings**, add a script property called FOLDER_ID: your vault folder's id, the last part of its address in Drive.",
+          "Click **Deploy** › **New deployment** › **Web app**, with Execute as **Me** and Who has access **Anyone**, and let it read your Drive when Google asks.",
+          "Paste the web app's address (it ends /exec) into Table and click **Save**, then **Sync from Google Drive**."
+        ],
+        "notes": [
+          "After that, **Sync** brings your vault in again from Drive, and opening **Campaign notes** syncs by itself when it's been more than 15 minutes. Pictures that haven't changed in Drive aren't fetched again.",
+          "The script only reads, hands over only the notes and pictures in your vault folder, and answers only this Table: it keeps the first key Table sends it.",
+          "Your vault has to be in Google Drive for this. On Windows or a Mac, Google's Drive app keeps a folder in step; on Ubuntu, use a tool such as rclone or Insync, or pick your vault's folder instead (**Update**).",
+          "**Unlink Google Drive** forgets the script's address; your notes stay in Table until you bring them in again or take them out."
         ]
       }
     ]

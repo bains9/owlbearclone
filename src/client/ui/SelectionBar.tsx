@@ -1,25 +1,7 @@
 import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
-import {
-  Armchair,
-  Compass,
-  Pencil,
-  BringToFront,
-  Copy,
-  Eye,
-  EyeOff,
-  FlipHorizontal2,
-  Lock,
-  LockOpen,
-  Magnet,
-  RotateCcw,
-  RotateCw,
-  SendToBack,
-  Swords,
-  Trash,
-  X,
-} from "lucide-preact";
+import { Armchair, BookOpen, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
 import { initEntryFor } from "../initiative";
 import { canDelete } from "../../shared/permissions";
 import { roundsLeft } from "./spellChips";
@@ -357,6 +339,7 @@ export function SelectionBar() {
             >
               {t.locked ? <Lock size={18} /> : <LockOpen size={18} />}
             </button>
+            <TokenNoteButton id={t.id} />
           </>
         )}
         {can && (
@@ -507,5 +490,23 @@ export function SelectionBar() {
       )}
       {common}
     </div>
+  );
+}
+
+/** GM: a token's campaign note (Campaign notes): opens it, or with none linked, opens the notes to link one. */
+function TokenNoteButton(props: { id: string }) {
+  const room = useRoom();
+  const note = useRoomState((s) => s.tokenNotes[props.id]);
+  const title = note ? note.split("/").pop()!.replace(/\.md$/i, "") : null;
+  return (
+    <button
+      class={cx("icon-btn", !!note && "active")}
+      title={title ? `Its campaign note: ${title}` : "Link a campaign note: open one in Campaign notes and click Link to"}
+      aria-label={title ? `Open ${title}` : "Link a campaign note"}
+      data-short="Note"
+      onClick={() => room.openNote(note ?? null)}
+    >
+      <BookOpen size={18} />
+    </button>
   );
 }

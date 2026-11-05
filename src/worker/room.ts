@@ -10,6 +10,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { PLAIN_DICE, isCharacterDice, rollingSet, type DiceSetId } from "../shared/diceSets";
+import { VAULT_LIMITS, isVaultPath, type Handout } from "../shared/vault";
 import { MAX_EXPLORE_BATCH, MAX_EXPLORE_MAPS, addExplored, bitsToText, exploreGrid, exploreSlot, isSceneSlot, keyCells, textToBits } from "../shared/explore";
 import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
@@ -67,6 +68,18 @@ interface Conn extends Player {
   v?: number;
   /** Already told to reload for something it's too old to show. */
   warned?: boolean;
+}
+
+/** A room's handouts, newest first: as many as fit (the oldest go first). */
+export function keepHandouts(list: Handout[]): Handout[] {
+  const out: Handout[] = [];
+  let bytes = 0;
+  for (const h of list.slice(0, VAULT_LIMITS.handouts)) {
+    bytes += h.html.length + h.title.length + 64;
+    if (bytes > VAULT_LIMITS.handoutsBytes) break;
+    out.push(h);
+  }
+  return out;
 }
 
 /** The player as others see them. */
@@ -207,6 +220,10 @@ export class Room extends DurableObject<Env> {
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
   /** What failed on people's devices, newest first, for the GM (shared/problems.ts). */
   private problems: Problem[] = [];
+  /** The handouts the GM has shown here, newest first (shared/vault.ts). */
+  private handouts: Handout[] = [];
+  /** GM only: tokens linked to campaign notes, token id to note path. */
+  private tokenNotes: Record<string, string> = {};
   /** How many problems each connection has told of lately (by connId). */
   private problemCounts = new Map<string, { n: number; since: number }>();
   /**
@@ -344,6 +361,8 @@ export class Room extends DurableObject<Env> {
     this.activeSceneId = meta.has("active") ? (JSON.parse(meta.get("active")!) as string | null) : null;
     if (meta.has("initiative")) this.initiative = JSON.parse(meta.get("initiative")!) as Initiative;
     this.problems = meta.has("problems") ? (JSON.parse(meta.get("problems")!) as Problem[]) : [];
+    this.handouts = meta.has("handouts") ? (JSON.parse(meta.get("handouts")!) as Handout[]) : [];
+    this.tokenNotes = meta.has("token_notes") ? (JSON.parse(meta.get("token_notes")!) as Record<string, string>) : {};
     this.scenes.clear();
     for (const r of this.sql.exec<{ data: string }>(`SELECT data FROM scenes`)) {
       const s = JSON.parse(r.data) as Scene;
@@ -1002,6 +1021,40 @@ export class Room extends DurableObject<Env> {
         if (conn.display) return;
         const version = (msg as { version?: unknown }).version;
         this.broadcast({ t: "calendar", version: typeof version === "number" && Number.isFinite(version) ? version : 0 });
+        return;
+      }
+
+      case "handout.show": {
+        if (!gm) return this.deny(ws);
+        const html = typeof msg.html === "string" ? msg.html.slice(0, VAULT_LIMITS.handoutBytes) : "";
+        if (!html.trim()) return;
+        const shown: Handout = { id: randomId(10), title: cleanText(msg.title, VAULT_LIMITS.title) || "Handout", html, at: Date.now() };
+        this.handouts = keepHandouts([shown, ...this.handouts]);
+        this.setMeta("handouts", this.handouts);
+        this.broadcast({ t: "handouts", handouts: this.handouts, shown: shown.id });
+        return;
+      }
+
+      case "handout.remove": {
+        if (!gm) return this.deny(ws);
+        const id = (msg as { id?: unknown }).id;
+        if (!this.handouts.some((h) => h.id === id)) return;
+        this.handouts = this.handouts.filter((h) => h.id !== id);
+        this.setMeta("handouts", this.handouts);
+        this.broadcast({ t: "handouts", handouts: this.handouts });
+        return;
+      }
+
+      case "token.note": {
+        if (!gm) return this.deny(ws);
+        const { id, note } = msg as { id?: unknown; note?: unknown };
+        if (typeof id !== "string" || !isId(id) || !(note === null || isVaultPath(note))) return;
+        const next = { ...this.tokenNotes };
+        if (note === null) delete next[id];
+        else if (Object.keys(next).length < VAULT_LIMITS.tokenNotes || next[id]) next[id] = note;
+        this.tokenNotes = next;
+        this.setMeta("token_notes", next);
+        this.broadcast({ t: "tokenNotes", notes: next }, (c) => c.role === "gm" && !c.display);
         return;
       }
 
@@ -1694,6 +1747,8 @@ export class Room extends DurableObject<Env> {
       players: this.players(),
       lastSeq: this.lastSeq(conn),
       build: BUILD_ID,
+      handouts: this.handouts,
+      ...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes } : {}),
     };
   }
 

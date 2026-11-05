@@ -1,24 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import {
-  CalendarDays,
-  Castle,
-  CircleQuestionMark,
-  Ellipsis,
-  CornerUpLeft,
-  EyeOff,
-  House,
-  Images,
-  Layers,
-  Link,
-  MessageSquare,
-  Monitor,
-  RotateCw,
-  Settings,
-  Swords,
-  TriangleAlert,
-  WifiOff,
-  X,
-} from "lucide-preact";
+import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, MessageSquare, Monitor, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
 import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
@@ -42,6 +23,8 @@ import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
 import { DiceThrow } from "./DiceThrow";
+import { HandoutsPanel } from "./HandoutsPanel";
+import { NotesPanel } from "./NotesPanel";
 import { loadDice3d, saveDice3d } from "../dice3d";
 import { voiceLink } from "../room/voiceLink";
 import { navigate, noteArrival, takeArrival } from "../nav";
@@ -367,11 +350,14 @@ export function BoardView() {
   );
 }
 
-const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boolean }[] = [
+/** handouts: for players, only once the GM has shown them something. */
+const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boolean; handouts?: boolean }[] = [
   { id: "chat", label: "Chat & dice", icon: MessageSquare },
   { id: "library", label: "Tokens & images", icon: Images },
   { id: "initiative", label: "Initiative", icon: Swords },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "notes", label: "Campaign notes", icon: BookOpen, gm: true },
+  { id: "handouts", label: "Handouts", icon: ScrollText, handouts: true },
   { id: "scenes", label: "Scenes", icon: Layers, gm: true },
   { id: "settings", label: "Room settings", icon: Settings, gm: true },
 ];
@@ -380,6 +366,7 @@ function TopBar() {
   const room = useRoom();
   const name = useRoomState((s) => s.room?.name ?? "");
   const gm = useRoomState((s) => s.me?.role === "gm");
+  const hasHandouts = useRoomState((s) => s.handouts.length > 0);
   const sceneName = useRoomState((s) => (s.viewSceneId ? (s.scenes[s.viewSceneId]?.name ?? "") : ""));
   const panel = useRoomState((s) => s.panel);
   const unread = useRoomState((s) => s.unread);
@@ -453,7 +440,7 @@ function TopBar() {
         onHelp={() => setHelp(true)}
       />
       <div class="topbar-sep" />
-      {PANELS.filter((p) => !p.gm || gm).map((p) => (
+      {PANELS.filter((p) => (!p.gm || gm) && (!p.handouts || gm || hasHandouts)).map((p) => (
         <button
           key={p.id}
           class={cx("icon-btn", panel === p.id && "active")}
@@ -617,6 +604,8 @@ function SidePanel(props: { panel: PanelId }) {
   else if (props.panel === "calendar") body = <CalendarPanel />;
   else if (props.panel === "scenes" && gm) body = <ScenesPanel />;
   else if (props.panel === "settings" && gm) body = <SettingsPanel />;
+  else if (props.panel === "notes" && gm) body = <NotesPanel />;
+  else if (props.panel === "handouts") body = <HandoutsPanel />;
   return (
     <aside class="panel" aria-label={title}>
       <div class="panel-head">

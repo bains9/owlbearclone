@@ -2,6 +2,7 @@
 
 import type { TemplateShape } from "./geometry";
 import type { InitOp } from "./initiative";
+import type { Handout } from "./vault";
 import type { Problem } from "./problems";
 import type { FxLook } from "./spellfx";
 import type {
@@ -100,6 +101,12 @@ export type ClientAction =
    */
   | { t: "roll"; expr: string; private?: boolean; label?: string; initiative?: { tokenId: string }; character?: string }
   | { t: "profile"; name: string; color: string }
+  /** GM only: shows the players a handout (a campaign note, or part of one, as HTML). */
+  | { t: "handout.show"; title: string; html: string }
+  /** GM only: takes a handout back. */
+  | { t: "handout.remove"; id: string }
+  /** GM only: links a token to a campaign note (its path in the vault), or with null, unlinks it. */
+  | { t: "token.note"; id: string; note: string | null }
   /**
    * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
    * with `who` (a sheet id), what that character has just seen, with per-player sight. With
@@ -147,7 +154,15 @@ export type ServerMsg =
        * exploreSlot: the grid's key and its bits as text, and those seen in colour (`lit`) when kept.
        */
       explored?: Record<string, { key: string; bits: string; lit?: string }>;
+      /** The handouts the GM has shown the players here, newest first. */
+      handouts?: Handout[];
+      /** GM only: the tokens linked to campaign notes, token id to note path. */
+      tokenNotes?: Record<string, string>;
     }
+  /** The room's handouts, newest first; `shown`: the one just shown. */
+  | { t: "handouts"; handouts: Handout[]; shown?: string }
+  /** GM only: the tokens linked to campaign notes. */
+  | { t: "tokenNotes"; notes: Record<string, string> }
   /**
    * Cells the party (or with `who`, that character) has just explored of a scene (each sent once),
    * and with `lit`, those just seen in colour; with bits (and litBits), all it's explored of it (to
