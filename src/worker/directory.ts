@@ -393,7 +393,14 @@ export class Directory extends DurableObject<Env> {
     const legacy = this.blob("vault_legacy");
     if (legacy && legacy !== vault) {
       const old = this.sql.exec<{ path: string }>(`SELECT path FROM vnotes WHERE vault = ?`, legacy).toArray();
-      const shared = old.filter((o) => this.sql.exec(`SELECT 1 FROM vnotes WHERE vault = ? AND path = ?`, vault, o.path).toArray().length).length;
+      // A note it had is in this vault at the same place, or in one of its folders: it may have been
+      // brought in from a folder inside the vault (Vern's was his Smugglers folder alone).
+      const here = new Set<string>();
+      for (const { path } of this.sql.exec<{ path: string }>(`SELECT path FROM vnotes WHERE vault = ?`, vault)) {
+        const parts = path.split("/");
+        for (let i = 0; i < parts.length; i++) here.add(parts.slice(i).join("/"));
+      }
+      const shared = old.filter((o) => here.has(o.path)).length;
       if (!old.length || shared * 2 >= old.length) {
         this.dropVault(legacy);
         this.sql.exec(`DELETE FROM blobs WHERE name = 'vault_legacy'`);

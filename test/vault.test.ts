@@ -230,6 +230,30 @@ describe("the Directory's vaults", () => {
     expect(d.vaultFinish("Eastport", real)?.unused).toEqual([]);
     expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport", "K'dir Khan"]);
   });
+
+  it("First vault gives way too when it was one folder of the real vault, brought in alone", async () => {
+    const d = await directory((db) => {
+      db.exec("CREATE TABLE vault_notes (path TEXT PRIMARY KEY, body TEXT NOT NULL, import TEXT NOT NULL)");
+      db.exec("CREATE TABLE vault_files (path TEXT PRIMARY KEY, hash TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, import TEXT NOT NULL)");
+      for (const p of ["Boyce's Hold.md", "Boyce's Raiders.md", "Dinosaur.md"]) db.prepare("INSERT INTO vault_notes VALUES (?, ?, ?)").all(p, "#", "old");
+      db.prepare("INSERT INTO blobs VALUES (?, ?, ?)").all("vault_at", "1793839317633", 1);
+    });
+    // Another vault with one of its names, by chance, in a folder: not enough.
+    const other = d.vaultStart("K'dir Khan")!;
+    d.vaultPutNotes("K'dir Khan", other, [{ path: "Beasts/Dinosaur.md", body: "x" }, { path: "Topside.md", body: "x" }]);
+    d.vaultFinish("K'dir Khan", other);
+    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["First vault", "K'dir Khan"]);
+    // The whole vault, the folder among the rest.
+    const real = d.vaultStart("Campaign")!;
+    d.vaultPutNotes("Campaign", real, [
+      { path: "Smugglers/Boyce's Hold.md", body: "#" },
+      { path: "Smugglers/Boyce's Raiders.md", body: "#" },
+      { path: "Smugglers/Dinosaur.md", body: "#" },
+      { path: "Oracle gone/Temple.md", body: "#" },
+    ]);
+    d.vaultFinish("Campaign", real);
+    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Campaign", "K'dir Khan"]);
+  });
 });
 
 // ---------------------------------------------------------------- the Worker's routes
