@@ -2,7 +2,7 @@
 // over a WebSocket, applies the user's own changes immediately (optimistically),
 // reconciles them with what the server confirms, and keeps an undo history.
 
-import type { TokenStats } from "../../shared/tokenStats";
+import { creatureKey, freshCopy, type TokenStats } from "../../shared/tokenStats";
 import type { Character, CharactersReply } from "../../shared/characters";
 import type { LibraryEntry } from "../../shared/library";
 import type { DiceSetId } from "../../shared/diceSets";
@@ -285,6 +285,8 @@ export interface RoomState {
   tokenStats: Record<string, TokenStats>;
   /** GM: the token whose stats are being filled in. */
   statsEditing: string | null;
+  /** GM: what each kind of creature starts with, in every room, or null before it's read. */
+  creatureStats: Record<string, TokenStats> | null;
   /**
    * What the party, and each of its characters, has explored of each scene with lighting on, by
    * exploreSlot (shared/explore.ts); replaced, never changed in place.
@@ -601,6 +603,7 @@ export class RoomClient {
       tokenNotes: {},
       tokenStats: {},
       statsEditing: null,
+      creatureStats: null,
       explored: {},
     });
   }
@@ -892,6 +895,7 @@ export class RoomClient {
         const scenes = toMap(msg.scenes);
         const items = toMap(msg.items);
         const gm = msg.you.role === "gm";
+        if (gm) void this.refreshCreatureStats();
         const view =
           gm && s.viewSceneId && scenes[s.viewSceneId] ? s.viewSceneId : (msg.activeSceneId ?? msg.scenes[0]?.id ?? null);
         this.pending.clear();
@@ -1697,6 +1701,9 @@ export class RoomClient {
       rings: [],
     };
     this.change({ upsert: [token] });
+    // A kind of creature with saved stats starts with them, unhurt (before it rolls initiative, which uses them).
+    const saved = this.isGm && !token.character ? this.savedStatsFor(token.assetId) : null;
+    if (saved) this.setTokenStats(token.id, freshCopy(saved));
     this.store.set({ selection: [token.id], tool: "select" });
     creaturesJoin(this, [token]);
     return token;
@@ -2023,6 +2030,35 @@ export class RoomClient {
     else delete next[id];
     this.store.set({ tokenStats: next });
     this.submit({ t: "token.stats", id, stats });
+  }
+
+  /** GM: the stats new tokens of this picture start with, if any. */
+  savedStatsFor(assetId: string | null | undefined): TokenStats | null {
+    const asset = assetId ? this.state.assets[assetId] : undefined;
+    const key = asset ? creatureKey(asset) : null;
+    return (key && this.state.creatureStats?.[key]) || null;
+  }
+
+  private async refreshCreatureStats(): Promise<void> {
+    try {
+      const res = await fetch("/api/creature-stats", { credentials: "same-origin" });
+      if (res.ok) this.store.set({ creatureStats: (await res.json()) as Record<string, TokenStats> });
+    } catch {
+      // Tried again when the page next connects. New creatures start without stats until then.
+    }
+  }
+
+  /** GM: what every new creature of this kind starts with, in every room (null forgets it). */
+  saveCreatureStats(key: string, stats: TokenStats | null): void {
+    const next = { ...this.state.creatureStats };
+    if (stats) next[key] = freshCopy(stats);
+    else delete next[key];
+    this.store.set({ creatureStats: next });
+    void fetch("/api/creature-stats", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, stats }) })
+      .then(async (res) => {
+        if (!res.ok) this.toast(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "Those stats couldn't be saved for next time.", "error");
+      })
+      .catch(() => this.toast("Those stats couldn't be saved for next time. Check the connection.", "error"));
   }
 
   /** GM: opens Campaign notes, at a note (or the list). */

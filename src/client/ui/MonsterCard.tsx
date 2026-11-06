@@ -5,7 +5,7 @@
 import { useState } from "preact/hooks";
 import { ChevronDown, ChevronUp, Dices, EyeOff, Pencil, Plus, X } from "lucide-preact";
 import { INITIATIVE_DIE, TO_HIT_DIE, attackLabel, withModifier } from "../../shared/characters";
-import { attackDamage, changedHp, draftOf, isBlank, statsFromDraft, type StatsDraft, type TokenStats } from "../../shared/tokenStats";
+import { attackDamage, changedHp, creatureKey, creatureName, draftOf, isBlank, statsFromDraft, type StatsDraft, type TokenStats } from "../../shared/tokenStats";
 import type { TokenItem } from "../../shared/types";
 import { critPending, useCardFolded } from "./CharacterCard";
 import { cx, useRoom, useRoomState } from "./common";
@@ -39,7 +39,15 @@ function useWho(t: TokenItem): string {
 function StatsForm(props: { token: TokenItem; who: string; stats: TokenStats | undefined }) {
   const room = useRoom();
   const { token: t, stats } = props;
-  const [draft, setDraft] = useState<StatsDraft>(() => draftOf(stats));
+  const asset = useRoomState((s) => (t.assetId ? s.assets[t.assetId] : undefined));
+  const saves = useRoomState((s) => s.creatureStats);
+  const kind = asset ? creatureKey(asset) : null;
+  const saved = kind ? saves?.[kind] : undefined;
+  // A token without stats starts from what its kind has saved. The first stats for a kind are saved for
+  // it unless the box is unticked. After that, changing a token changes that token (a boss among its
+  // goblins): only ticking the box changes what its kind has, and only Forget takes it away.
+  const [draft, setDraft] = useState<StatsDraft>(() => draftOf(stats ?? saved));
+  const [remember, setRemember] = useState(() => !saved);
   const [problem, setProblem] = useState<string | null>(null);
   const close = () => room.store.set({ statsEditing: null });
   const set = (part: Partial<StatsDraft>) => setDraft({ ...draft, ...part });
@@ -51,7 +59,9 @@ function StatsForm(props: { token: TokenItem; who: string; stats: TokenStats | u
       setProblem(made.error);
       return;
     }
-    room.setTokenStats(t.id, isBlank(made.stats) ? null : made.stats);
+    const blank = isBlank(made.stats);
+    room.setTokenStats(t.id, blank ? null : made.stats);
+    if (kind && !blank && remember) room.saveCreatureStats(kind, made.stats);
     close();
   };
   return (
@@ -99,6 +109,25 @@ function StatsForm(props: { token: TokenItem; who: string; stats: TokenStats | u
       <button type="button" class="link-btn small" onClick={() => set({ attacks: [...draft.attacks, { name: "", toHit: "", damage: "" }] })}>
         <Plus size={12} /> Add an attack
       </button>
+      {kind && asset && (
+        <label class="monster-remember small" title="They start unhurt, in any room. Tokens already on the map keep what they have.">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.currentTarget.checked)} />
+          {saved ? `Make these what every new ${creatureName(asset)} starts with` : `Every new ${creatureName(asset)} starts with these, in every room`}
+        </label>
+      )}
+      {kind && asset && saved && (
+        <button
+          type="button"
+          class="link-btn small monster-forget"
+          title={`New ${creatureName(asset)}s will start with no stats. Tokens already on the map keep theirs.`}
+          onClick={() => {
+            room.saveCreatureStats(kind, null);
+            setRemember(false);
+          }}
+        >
+          Forget what every new {creatureName(asset)} starts with
+        </button>
+      )}
       {problem && <p class="error-text small">{problem}</p>}
       <div class="monster-form-actions">
         <button class="btn btn-sm btn-primary">Save</button>

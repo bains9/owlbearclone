@@ -4,6 +4,7 @@
 // roll as characters' do, by the group's handbook: two d10 to hit (TO_HIT_DIE), both tens a critical
 // hit, both ones a critical failure.
 import { damageDice, damageRoll, withModifier } from "./characters";
+import type { Asset } from "./types";
 
 export interface MonsterAttack {
   name: string;
@@ -139,6 +140,28 @@ export function changedHp(s: Pick<TokenStats, "hp" | "maxHp">, change: number): 
   const next = s.hp + change;
   if (change > 0) return Math.min(next, Math.max(s.hp, s.maxHp));
   return Math.max(STATS_LIMITS.hpLow, next);
+}
+
+/** How many kinds of creature can have saved stats, and how long a kind's key can be. */
+export const SAVED_LIMITS = { kinds: 2000, key: 120 };
+
+/**
+ * The kind of creature a token's picture makes it, for stats that every new one starts with (in any
+ * room): the GM's own library entry, or the picture's name, which is the same for a built-in monster
+ * or NPC in every room. Null for anything that isn't a token's picture.
+ */
+export function creatureKey(a: Pick<Asset, "kind" | "name" | "library">): string | null {
+  if (a.kind !== "token") return null;
+  return (a.library ? `lib:${a.library}` : `pic:${a.name}`).slice(0, SAVED_LIMITS.key);
+}
+
+/** The kind of creature's name, for saying so: "Goblin", from a picture called "Monster: Goblin". */
+export function creatureName(a: Pick<Asset, "name">): string {
+  return a.name.replace(/^(Monster|NPC): /, "");
+}
+
+export function isCreatureKey(v: unknown): v is string {
+  return typeof v === "string" && v.length > 4 && v.length <= SAVED_LIMITS.key && /^(lib|pic):/.test(v);
 }
 
 /** A duplicate is a new creature of the same kind: unhurt. */

@@ -7,9 +7,9 @@ import { initEntryFor } from "../src/client/initiative";
 import { RoomClient } from "../src/client/room/client";
 import { duplicateSelection } from "../src/client/room/actions";
 import { TO_HIT_DIE, attackLabel, critOf, withModifier } from "../src/shared/characters";
-import { attackDamage, changedHp, damageText, draftOf, freshCopy, isBlank, parseDamage, sanitizeTokenStats, statsFromDraft, type TokenStats } from "../src/shared/tokenStats";
+import { SAVED_LIMITS, attackDamage, changedHp, creatureKey, creatureName, damageText, draftOf, freshCopy, isBlank, isCreatureKey, parseDamage, sanitizeTokenStats, statsFromDraft, type TokenStats } from "../src/shared/tokenStats";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
-import type { ChatMessage, Scene, TokenItem } from "../src/shared/types";
+import type { Asset, ChatMessage, Scene, TokenItem } from "../src/shared/types";
 
 vi.mock("cloudflare:workers", () => ({
   DurableObject: class {
@@ -366,12 +366,188 @@ describe("the GM's page", () => {
   });
 });
 
+describe("what a kind of creature starts with", () => {
+  const ASSET = { id: "pic000000001", name: "Monster: Goblin", kind: "token", width: 1, height: 1, mime: "image/png", bytes: 1, owner: GM_OWNER, createdAt: 1 } as Asset;
+
+  it("goes by the picture: the same built-in monster in any room, and the GM's own by its entry", () => {
+    expect(creatureKey(ASSET)).toBe("pic:Monster: Goblin");
+    const again: Asset = { ...ASSET, id: "another00001" };
+    expect(creatureKey(again)).toBe("pic:Monster: Goblin");
+    expect(creatureKey({ ...ASSET, library: "AbCdEfGhIjKlMnOp", name: "Renamed since" })).toBe("lib:AbCdEfGhIjKlMnOp");
+    expect(creatureKey({ ...ASSET, kind: "map" })).toBeNull();
+    expect(creatureKey({ ...ASSET, name: "x".repeat(500) })!.length).toBe(120);
+    expect(creatureName(ASSET)).toBe("Goblin");
+    expect(creatureName({ name: "NPC: Elf Wizard" })).toBe("Elf Wizard");
+    expect(creatureName({ name: "Boyce" })).toBe("Boyce");
+    expect([isCreatureKey("pic:Monster: Goblin"), isCreatureKey("lib:Abc"), isCreatureKey("nope"), isCreatureKey("pic:"), isCreatureKey(3), isCreatureKey(`pic:${"x".repeat(200)}`)]).toEqual([true, true, false, false, false, false]);
+  });
+
+  describe("kept by the Directory", () => {
+    interface DirectoryInside {
+      creatureStatsAll(): Record<string, TokenStats>;
+      setCreatureStats(key: string, stats: TokenStats | null): boolean;
+    }
+    async function directory() {
+      const { Directory } = (await import(/* @vite-ignore */ "../src/worker/" + "directory")) as { Directory: new (c: unknown, e: unknown) => DirectoryInside };
+      return new Directory({ storage: { sql: sqlStore(), transactionSync: (f: () => unknown) => f() }, blockConcurrencyWhile: (f: () => unknown) => f() }, {});
+    }
+    async function route(d: DirectoryInside, method: string, body?: unknown, gm = true) {
+      vi.resetModules();
+      vi.doMock("../src/worker/auth", () => ({ isGm: async () => gm }));
+      const { libraryRoute } = (await import(/* @vite-ignore */ "../src/worker/" + "libraryRoutes")) as { libraryRoute(r: Request, e: unknown, p: string, m: string): Promise<Response | null> };
+      const res = await libraryRoute(new Request("https://t.test/api/creature-stats", { method, body: body === undefined ? undefined : JSON.stringify(body) }), { DIRECTORY: { getByName: () => d } }, "/api/creature-stats", method);
+      return { status: res!.status, data: (await res!.json()) as Record<string, unknown> };
+    }
+    afterEach(() => vi.doUnmock("../src/worker/auth"));
+
+    it("saves them unhurt, changes them, and forgets them", async () => {
+      const d = await directory();
+      expect(d.setCreatureStats("pic:Monster: Goblin", GOBLIN)).toBe(true);
+      expect(d.creatureStatsAll()).toEqual({ "pic:Monster: Goblin": { ...GOBLIN, hp: 12 } });
+      d.setCreatureStats("pic:Monster: Goblin", { ...GOBLIN, ac: "7" });
+      expect(d.creatureStatsAll()["pic:Monster: Goblin"].ac).toBe("7");
+      d.setCreatureStats("pic:Monster: Goblin", null);
+      expect(d.creatureStatsAll()).toEqual({});
+    });
+
+    it("are the GM's alone, and only real stats for a real kind", async () => {
+      const d = await directory();
+      d.setCreatureStats("pic:Monster: Goblin", GOBLIN);
+      for (const [method, body] of [["GET", undefined], ["PUT", { key: "pic:Monster: Orc", stats: GOBLIN }]] as const) expect((await route(d, method, body, false)).status).toBe(401);
+      expect(Object.keys(d.creatureStatsAll())).toEqual(["pic:Monster: Goblin"]);
+      expect((await route(d, "GET")).data).toEqual({ "pic:Monster: Goblin": { ...GOBLIN, hp: 12 } });
+      expect((await route(d, "PUT", { key: "nope", stats: GOBLIN })).status).toBe(400);
+      expect((await route(d, "PUT", { key: "pic:X", stats: { hp: "lots" } })).status).toBe(400);
+      expect((await route(d, "PUT", { key: "pic:Monster: Orc", stats: GOBLIN })).status).toBe(200);
+      expect(Object.keys(d.creatureStatsAll()).sort()).toEqual(["pic:Monster: Goblin", "pic:Monster: Orc"]);
+      expect((await route(d, "PUT", { key: "pic:Monster: Orc", stats: null })).status).toBe(200);
+      expect(Object.keys(d.creatureStatsAll())).toEqual(["pic:Monster: Goblin"]);
+    });
+
+    it("has room for only so many kinds, but a known one can always change", async () => {
+      const d = await directory();
+      for (let i = 0; i < SAVED_LIMITS.kinds; i++) d.setCreatureStats(`pic:${i}`, GOBLIN);
+      expect(d.setCreatureStats("pic:one more", GOBLIN)).toBe(false);
+      expect(d.setCreatureStats("pic:0", { ...GOBLIN, ac: "9" })).toBe(true);
+    }, 30_000);
+
+    it("come back with the monsters and NPCs from a backup", async () => {
+      const d = (await directory()) as DirectoryInside & { backupSnapshot(): Promise<{ gz: Uint8Array }> };
+      d.setCreatureStats("pic:Monster: Goblin", GOBLIN);
+      const { gz } = await d.backupSnapshot();
+      d.setCreatureStats("pic:Monster: Goblin", null);
+      await (d as unknown as { restoreParts(g: Uint8Array, p: string[]): Promise<void>; ctx: unknown }).restoreParts(gz, ["library"]);
+      expect(d.creatureStatsAll()["pic:Monster: Goblin"].ac).toBe(GOBLIN.ac);
+    });
+  });
+
+  describe("on the GM's page", () => {
+    const scene = { id: "scene1", name: "S", order: 0, mapAssetId: null, width: 2100, height: 1400, background: "#000", grid: { ...DEFAULT_GRID }, fogCover: false, createdAt: 1 } as unknown as Scene;
+    let room: RoomClient;
+    let sent: { t: string; id?: string; stats?: TokenStats }[];
+    let puts: unknown[];
+
+    function page(role: "gm" | "player") {
+      vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined });
+      puts = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (init?.method === "PUT") puts.push(JSON.parse(String(init.body)));
+          return Response.json({});
+        }),
+      );
+      room = new RoomClient("AbCdEf123456", { uid: "gmuid0000001", name: "GM", color: "#ff0000" });
+      sent = [];
+      (room as unknown as { submit(m: never): void }).submit = (m: never) => void sent.push(m);
+      room.store.set({
+        me: { connId: "c", userId: role === "gm" ? GM_OWNER : "player000000001", name: "x", color: "#ff0000", role } as never,
+        room: { id: "AbCdEf123456", name: "R", createdAt: 0, settings: { ...DEFAULT_SETTINGS, playersCanAddTokens: true } },
+        scenes: { scene1: scene },
+        viewSceneId: "scene1",
+        activeSceneId: "scene1",
+        assets: { pic000000001: ASSET },
+        creatureStats: { "pic:Monster: Goblin": { ...GOBLIN, hp: 12, init: 99 } },
+      });
+    }
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it("a new one starts with them, unhurt, and rolls initiative with its bonus", () => {
+      page("gm");
+      const t = room.addToken({ assetId: "pic000000001", label: "Goblin" })!;
+      expect(room.state.tokenStats[t.id]).toEqual({ ...GOBLIN, hp: 12, init: 99 });
+      expect(sent.map((m) => m.t).filter((n) => n === "token.stats")).toHaveLength(1);
+      // A second is its own.
+      const again = room.addToken({ assetId: "pic000000001", label: "Goblin 2" })!;
+      room.setTokenStats(again.id, { ...room.state.tokenStats[again.id], hp: 1 });
+      expect(room.state.tokenStats[t.id].hp).toBe(12);
+    });
+
+    it("the token's stats go after the token, so the server knows it", () => {
+      page("gm");
+      const order: string[] = [];
+      const change = room.change.bind(room);
+      room.change = ((...a: Parameters<typeof change>) => {
+        order.push("token");
+        change(...a);
+      }) as never;
+      (room as unknown as { submit(m: { t: string }): void }).submit = (m: { t: string }) => void order.push(m.t);
+      room.addToken({ assetId: "pic000000001", label: "Goblin" });
+      expect(order.indexOf("token")).toBeLessThan(order.indexOf("token.stats"));
+    });
+
+    it("nothing for another picture, a plain token, a character or before they're read", () => {
+      page("gm");
+      room.store.set({ assets: { ...room.state.assets, other0000001: { ...ASSET, id: "other0000001", name: "Monster: Orc" } } });
+      for (const opts of [{ assetId: "other0000001" }, {}, { assetId: "pic000000001", character: "sheet1234567890abcdef" }]) {
+        const t = room.addToken(opts)!;
+        expect(room.state.tokenStats[t.id]).toBeUndefined();
+      }
+      room.store.set({ creatureStats: null });
+      const t = room.addToken({ assetId: "pic000000001" })!;
+      expect(room.state.tokenStats[t.id]).toBeUndefined();
+    });
+
+    it("a player's token never gets them, even if the page somehow held some", () => {
+      page("player");
+      const t = room.addToken({ assetId: "pic000000001" })!;
+      expect(t).toBeTruthy();
+      expect(room.state.tokenStats[t.id]).toBeUndefined();
+      expect(sent.filter((m) => m.t === "token.stats")).toEqual([]);
+    });
+
+    it("saves them unhurt on the page at once, tells the server, and forgets them", () => {
+      page("gm");
+      room.saveCreatureStats("pic:Monster: Orc", { ...GOBLIN, hp: 1 });
+      expect(room.state.creatureStats!["pic:Monster: Orc"].hp).toBe(12);
+      expect(puts).toEqual([{ key: "pic:Monster: Orc", stats: { ...GOBLIN, hp: 1 } }]);
+      room.saveCreatureStats("pic:Monster: Orc", null);
+      expect(room.state.creatureStats!["pic:Monster: Orc"]).toBeUndefined();
+      expect(puts.at(-1)).toEqual({ key: "pic:Monster: Orc", stats: null });
+    });
+
+    it("the form starts a token without stats from what its kind has; only asking changes what its kind has", async () => {
+      const card = await source("src/client/ui/MonsterCard.tsx");
+      expect(card).toContain("useState<StatsDraft>(() => draftOf(stats ?? saved))");
+      // Ticked only when its kind has nothing yet, so a boss among goblins can't change every goblin by accident.
+      expect(card).toContain("useState(() => !saved)");
+      // Saved only with the box ticked, and nothing about the box forgets: that's its own button.
+      expect(card).toContain("if (kind && !blank && remember) room.saveCreatureStats(kind, made.stats);\n    close();");
+      expect(card.match(/saveCreatureStats\(kind, null\)/g)).toHaveLength(1);
+      expect(card).toContain("Forget what every new {creatureName(asset)} starts with");
+    });
+  });
+});
+
 describe("the guide", () => {
   it("says how, in What's new and in Monsters", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts[0];
     expect(news.title).toBe("GM: monsters with HP, AC and attacks that roll two d10 (6 November 2026)");
     const part = GUIDE.find((s) => s.id === "monsters")!.parts.find((p) => p.title === "Give a monster stats and attacks")!;
     const text = [...part.steps, ...part.notes].join("\n");
-    for (const words of ["**Give it stats**", "**Max HP**", "two d10", "**Crit**", "**Damage**", "**Heal**", "**Hidden**", "**Ctrl+D**", "Only you see", "never sent"]) expect(text).toContain(words);
+    for (const words of ["**Give it stats**", "**Max HP**", "two d10", "**Crit**", "**Damage**", "**Heal**", "**Hidden**", "**Ctrl+D**", "Only you see", "never sent", "**Every new Goblin starts with these**", "in every room", "Untick it if this one's a one-off", "changes only that token", "**Make these what every new Goblin starts with**", "**Forget what every new Goblin starts with**"]) expect(text).toContain(words);
   });
 });

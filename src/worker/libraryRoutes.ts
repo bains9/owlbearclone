@@ -2,6 +2,7 @@
 // into it, filing a room's uploads in it, renaming one or moving it to the other shelf, taking one
 // out, its picture, and putting one in a room (the room gets its own copy of the picture, once).
 // All the GM's, but the picture: like a room's pictures, it's for anyone with its address.
+import { SAVED_LIMITS, isCreatureKey, sanitizeTokenStats } from "../shared/tokenStats";
 import { randomId } from "../shared/ids";
 import { LIBRARY_ID, MAX_FILE_AT_ONCE, isShelf, libraryKey, type LibraryEntry } from "../shared/library";
 import { GM_OWNER, LIMITS, cleanText } from "../shared/sanitize";
@@ -42,6 +43,19 @@ const FILE = new RegExp(`^/api/library/(${ID})/file$`);
 
 /** The response for a library route, or null when the path isn't one. */
 export async function libraryRoute(request: Request, env: Env, pathname: string, method: string): Promise<Response | null> {
+  // What each kind of creature starts with, in every room: the GM's alone.
+  if (pathname === "/api/creature-stats") {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    const directory = env.DIRECTORY.getByName("main");
+    if (method === "GET") return json(await directory.creatureStatsAll());
+    if (method !== "PUT") return fail(405, "Method not allowed.");
+    const body = await readJson(request);
+    if (!isCreatureKey(body?.key)) return fail(400, "That isn't a kind of creature.");
+    const stats = body.stats === null ? null : sanitizeTokenStats(body.stats);
+    if (body.stats !== null && !stats) return fail(400, "Those aren't stats.");
+    if (!(await directory.setCreatureStats(body.key, stats))) return fail(409, `Table keeps stats for at most ${SAVED_LIMITS.kinds} kinds of creature.`);
+    return json({ key: body.key });
+  }
   const file = pathname.match(FILE);
   if (file) {
     if (method !== "GET" && method !== "HEAD") return fail(405, "Method not allowed.");

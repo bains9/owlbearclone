@@ -22,7 +22,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Select a monster or NPC and click **Give it stats** on its bar (the heart). Fill in its HP, AC, initiative and attacks.",
           "Its card then shows when it's selected: roll an attack's two d10 to hit and its damage with a click, and type an amount to **Damage** or **Heal** it.",
-          "**Ctrl+D** copies it with its stats, unhurt, so a group of goblins only takes filling in once."
+          "Fill in a goblin once: every new goblin starts with those stats, unhurt, in every room. **Ctrl+D** copies one with its stats too."
         ],
         "notes": [
           "Only you see its stats, and its HP bar on the map. Players' browsers are never sent them.",
@@ -1536,7 +1536,10 @@ export const GUIDE: GuideSection[] = [
           "Attacks roll as characters' do: two d10 with its bonus. Both tens is a natural 20, a critical hit: the chat says so, and its damage button turns into **Crit**, which adds the most its dice can roll. Both ones is a natural 2, a critical failure.",
           "Only you see a monster's stats and HP: they're never sent to players' browsers or table displays. Its HP bar on the map is only on your screen.",
           "Its rolls go in the chat for everyone, in your dice. Tick **Hidden** on its card for only you to see them; each device remembers.",
-          "Press **Ctrl+D** to copy a monster with its stats, unhurt, so you only fill them in once for a group. Each stat is for that one token: placing the same monster from the list again starts with none.",
+          "The first time you fill in a kind of creature, **Every new Goblin starts with these** is ticked (it names the creature), so each new one starts with these stats, unhurt, in every room, however you place it. Untick it if this one's a one-off, like a named NPC using a common picture.",
+          "After that, changing a token changes only that token, such as one boss among its goblins. To change what every new one starts with, tick **Make these what every new Goblin starts with**. **Forget what every new Goblin starts with** takes them away.",
+          "Tokens already on the map keep what they have. One without stats picks up the saved ones when you click **Give it stats**: just click **Save**. A plain coloured token has no picture to go by, so it isn't remembered.",
+          "Press **Ctrl+D** to copy a monster with its own stats, unhurt, even if they differ from what its kind starts with.",
           "**Initiative** on its card rolls into the list with its bonus, and so does it joining the list any other way.",
           "Stats are in your nightly backups to Google Drive, but not in a room's **Download backup** file."
         ]

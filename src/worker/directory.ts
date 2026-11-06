@@ -1,6 +1,7 @@
 // The single Directory object: the GM's room list, login throttling, and the
 // random secret that GM session cookies are signed with.
 
+import { SAVED_LIMITS, freshCopy, type TokenStats } from "../shared/tokenStats";
 import type { TablePart } from "../shared/backups";
 import { openJson, sealJson } from "./seal";
 import { pack, readTables, unpack, writeRows, type Packed, type Snapshot } from "./snapshot";
@@ -68,7 +69,7 @@ export const NOT_BACKED_UP: ReadonlySet<string> = new Set(["secrets", "login_fai
 /** What each part of the table is, for putting one back from a backup. (Rooms go back one at a time; the rooms table only lists them.) */
 export const PART_TABLES: Record<TablePart, { tables: string[]; blob?: (name: string) => boolean }> = {
   calendar: { tables: [], blob: (name) => name === "calendar" },
-  library: { tables: ["library"] },
+  library: { tables: ["library", "creature_stats"] },
   notes: { tables: ["vnotes", "vfiles", "vdrive"], blob: (name) => name.startsWith("vault_") },
   characters: {
     tables: ["character_figures", "character_str_matched", "character_players", "character_prayed", "character_dice"],
@@ -109,6 +110,8 @@ export class Directory extends DurableObject<Env> {
       // Each character's dice (shared/diceSets.ts): one character to a set; none kept is Classic.
       this.sql.exec(`CREATE TABLE IF NOT EXISTS character_dice (sheet_id TEXT PRIMARY KEY, dice TEXT NOT NULL UNIQUE)`);
       // The GM's own monsters and NPCs, for every room (shared/library.ts); their pictures are in R2.
+      // What each kind of creature starts with, in every room (shared/tokenStats.ts).
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS creature_stats (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
       this.sql.exec(`CREATE TABLE IF NOT EXISTS library (
         id TEXT PRIMARY KEY,
         shelf TEXT NOT NULL,
@@ -200,6 +203,26 @@ export class Directory extends DurableObject<Env> {
   }
 
   /** The GM's own monsters and NPCs (shared/library.ts), newest first. */
+  /** The stats each kind of creature starts with, by its key (creatureKey). */
+  creatureStatsAll(): Record<string, TokenStats> {
+    const out: Record<string, TokenStats> = {};
+    for (const r of this.sql.exec<{ id: string; data: string }>(`SELECT id, data FROM creature_stats`)) out[r.id] = JSON.parse(r.data) as TokenStats;
+    return out;
+  }
+
+  /** Saves what a kind of creature starts with (null forgets it): unhurt. False when there's no room for another kind. */
+  setCreatureStats(key: string, stats: TokenStats | null): boolean {
+    if (!stats) {
+      this.sql.exec(`DELETE FROM creature_stats WHERE id = ?`, key);
+      return true;
+    }
+    const known = this.sql.exec(`SELECT 1 FROM creature_stats WHERE id = ?`, key).toArray().length > 0;
+    const count = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM creature_stats`).one().n;
+    if (!known && count >= SAVED_LIMITS.kinds) return false;
+    this.sql.exec(`INSERT OR REPLACE INTO creature_stats (id, data) VALUES (?, ?)`, key, JSON.stringify(freshCopy(stats)));
+    return true;
+  }
+
   libraryList(): LibraryEntry[] {
     return this.sql.exec<LibraryRow>(`SELECT * FROM library ORDER BY created_at DESC, id`).toArray().map(libraryEntryOf);
   }
