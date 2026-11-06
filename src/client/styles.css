@@ -4839,7 +4839,7 @@ kbd {
 }
 .monster-fields {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 1.7fr) minmax(0, 0.8fr);
   gap: 6px;
   margin: 6px 0 10px;
 }
