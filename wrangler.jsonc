@@ -27,16 +27,26 @@
       // random key sessions are signed with.
       { "name": "DIRECTORY", "class_name": "Directory" },
       // One object in total: the table's voice chat, shared by every room.
-      { "name": "VOICE", "class_name": "VoiceHub" }
+      { "name": "VOICE", "class_name": "VoiceHub" },
+      // One object in total: the nightly backup into the GM's Google Drive, a little at a time.
+      { "name": "BACKUP_JOB", "class_name": "BackupJob" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Room", "Directory"] },
-    { "tag": "v2", "new_sqlite_classes": ["VoiceHub"] }
+    { "tag": "v2", "new_sqlite_classes": ["VoiceHub"] },
+    { "tag": "v3", "new_sqlite_classes": ["BackupJob"] }
   ],
 
   // Uploaded map and token images. Keys are rooms/<roomId>/<assetId>.
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "tabletop-files" }],
+  // DUNGEON_MAPS is Dungeon's maps, in its own bucket: only for backing them up and putting them back.
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "tabletop-files" },
+    { "binding": "DUNGEON_MAPS", "bucket_name": "dungeon-maps" }
+  ],
+
+  // The nightly backup into the GM's Google Drive (backupJob.ts): 3:30 AM Atlantic in winter, 4:30 in summer.
+  "triggers": { "crons": ["30 7 * * *"] },
 
   // Where a signed-in GM is sent back to after Dungeon's sign-in hop (src/worker/dungeon.ts).
   "vars": { "DUNGEON_URL": "https://dungeon.parhome.ca" },

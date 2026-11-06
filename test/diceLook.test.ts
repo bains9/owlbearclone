@@ -36,7 +36,7 @@ describe("a roll's look", () => {
 
   it("is in What's new, with how to change your colour", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    const entry = [...news.parts[3].steps, ...news.parts[3].notes].join("\n");
+    const entry = [...news.parts[4].steps, ...news.parts[4].notes].join("\n");
     for (const words of ["**Chat & dice**", "**Change your name or colour**", "green and red", "Pearl", "tumble in", "reduce motion"]) expect(entry).toContain(words);
     expect(read("src/client/ui/ChatPanel.tsx")).toContain('title="Change your name or colour"');
   });

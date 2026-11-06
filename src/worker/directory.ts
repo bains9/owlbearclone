@@ -1,6 +1,8 @@
 // The single Directory object: the GM's room list, login throttling, and the
 // random secret that GM session cookies are signed with.
 
+import type { TablePart } from "../shared/backups";
+import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
 import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
 import { MAX_PRAYED_SPELLS } from "../shared/characters";
@@ -54,6 +56,26 @@ function b64url(bytes: Uint8Array): string {
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
+
+/**
+ * Never in a backup: the sign-in key and the keys and addresses of the GM's scripts, which are safer
+ * made again than kept in a file; and who's tried signing in lately. All of it comes back by itself
+ * or by pasting a script's address in again.
+ */
+export const NOT_BACKED_UP: ReadonlySet<string> = new Set(["secrets", "login_failures", "trusted_logins", "spent_hops"]);
+
+/** What each part of the table is, for putting one back from a backup. (Rooms go back one at a time; the rooms table only lists them.) */
+export const PART_TABLES: Record<TablePart, { tables: string[]; blob?: (name: string) => boolean }> = {
+  calendar: { tables: [], blob: (name) => name === "calendar" },
+  library: { tables: ["library"] },
+  notes: { tables: ["vnotes", "vfiles", "vdrive"], blob: (name) => name.startsWith("vault_") },
+  characters: {
+    tables: ["character_figures", "character_str_matched", "character_players", "character_prayed", "character_dice"],
+    blob: (name) => name === "gm_dice",
+  },
+  // Only files.
+  dungeon: { tables: [] },
+};
 
 export class Directory extends DurableObject<Env> {
   private sql: SqlStorage;
@@ -435,6 +457,50 @@ export class Directory extends DurableObject<Env> {
     }
     const after = this.hashesInUse();
     return [...before].filter((h) => !after.has(h));
+  }
+
+  /** The table as it is now, for the backups in Google Drive (backupJob.ts). */
+  backupSnapshot(): Promise<Packed> {
+    return pack(readTables(this.sql, NOT_BACKED_UP));
+  }
+
+  /** Puts these parts of the table back as a backup held them. What's there now of them goes. */
+  async restoreParts(gz: Uint8Array<ArrayBuffer>, parts: TablePart[]): Promise<void> {
+    const { tables } = await unpack(gz);
+    this.ctx.storage.transactionSync(() => {
+      for (const part of parts) {
+        const { tables: names, blob } = PART_TABLES[part];
+        for (const name of names) {
+          this.sql.exec(`DELETE FROM "${name}"`);
+          writeRows(this.sql, name, tables[name] ?? []);
+        }
+        if (blob) {
+          for (const row of this.sql.exec<{ name: string }>(`SELECT name FROM blobs`).toArray()) {
+            if (blob(row.name)) this.sql.exec(`DELETE FROM blobs WHERE name = ?`, row.name);
+          }
+          writeRows(this.sql, "blobs", (tables.blobs ?? []).filter((row) => blob(String(row.name))));
+        }
+      }
+    });
+  }
+
+  /** The backup script in the GM's Google Drive (scripts/table-backup.gs): its address, or null. */
+  backupDriveSource(): string | null {
+    return this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'backup_drive_source'`).toArray()[0]?.value ?? null;
+  }
+
+  setBackupDriveSource(source: string | null): void {
+    this.sql.exec(`DELETE FROM secrets WHERE name = 'backup_drive_source'`);
+    if (source) this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('backup_drive_source', ?)`, source);
+  }
+
+  /** The key Table sends the backup script (it keeps the first it's sent). Made once. */
+  backupDriveKey(): string {
+    const row = this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'backup_drive_key'`).toArray()[0];
+    if (row) return row.value;
+    const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('backup_drive_key', ?)`, value);
+    return value;
   }
 
   /** The GM's vault script in Google Drive (scripts/vault-drive.gs): its address, or null. */

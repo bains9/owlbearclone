@@ -15,8 +15,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 4 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 6 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "GM: everything backed up to Google Drive, every night (6 November 2026)",
+        "steps": [
+          "**Backups** on your start page sends a copy of everything to a folder in Google Drive each night: every room, picture and map, the calendar, your monsters and NPCs, your campaign notes, and Dungeon's maps. Only what's new is sent, and nothing is kept on Cloudflare.",
+          "One GM sets it up, once, in their own Google account: make a folder, click **Copy the script**, paste it in at script.google.com, deploy it, and paste its address back. The steps are right there.",
+          "To get something back, click **Put something back** and open a backup. A deleted room comes back at its old link; one that's still there comes back as a copy beside it."
+        ],
+        "notes": [
+          "**Backups** says when the last one was, and warns you in orange if a night's been missed.",
+          "See **Backups in Google Drive** for what's in a backup, and how to rebuild Table from one."
+        ]
+      },
       {
         "title": "GM: your Obsidian notes in Table, and handouts for the players (4 November 2026)",
         "steps": [
@@ -3750,6 +3762,88 @@ export const GUIDE: GuideSection[] = [
           "The display always shows the scene's season, if it has one, even on a computer where seasons are turned off (see **Seasons: snow, autumn leaves, blossom and drought**).",
           "The mouse pointer on the display hides itself after a few seconds. You can still drag and scroll on the display to move it yourself.",
           "While you use the Build tool, the display stays where it is rather than following you."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "backups",
+    "title": "Backups in Google Drive (GM)",
+    "audience": "gm",
+    "intro": "Table sends a copy of everything to a folder in a GM's Google Drive every night, and only what's new since the night before. They're kept in Drive alone: nothing is kept on Cloudflare but a note of how it's going.",
+    "parts": [
+      {
+        "title": "Set them up",
+        "steps": [
+          "Sign in as the GM. **Backups** is on your start page, below your rooms. One GM sets it up, in their own Google account; every GM then sees how it's going and can put things back.",
+          "In Google Drive, make a folder for the backups. Its id is the last part of its address.",
+          "Click **Copy the script**. At script.google.com, in that same Google account, make a new project and paste it in.",
+          "In **Project Settings**, add a script property called FOLDER_ID: your folder's id.",
+          "Click **Deploy** › **New deployment** › **Web app**, with Execute as **Me** and Who has access **Anyone**, and let it use your Drive when Google asks.",
+          "Paste the web app's address (it ends /exec) into **Backups** and click **Save**. Click **Back up now** for the first one, or leave it for tonight."
+        ],
+        "notes": [
+          "The first backup sends everything, so it can take a while, and it's fine to close the page: it carries on by itself. If Google says no for now, it tries again later, and the next night picks up where it stopped.",
+          "The script answers only this Table: it keeps the first key Table sends it. It works only inside your folder, and can only list, add and read: it never deletes or changes anything in Drive."
+        ]
+      },
+      {
+        "title": "What's in a backup",
+        "steps": [
+          "Every room: its scenes, tokens, drawings, fog, what's been explored, chat and rolls, handouts, initiative and settings.",
+          "Every picture and map in Table, and Dungeon's maps.",
+          "The calendar, your own monsters and NPCs, your campaign notes, and characters' figures and dice and who plays them."
+        ],
+        "notes": [
+          "Character sheets aren't in it: they're in Google Sheets, which keeps its own history (**File** › **Version history**).",
+          "Sign-in keys and the addresses of your scripts aren't in it either. They're safer made again: on a new Table you sign in as usual and paste the addresses in again.",
+          "Your campaign notes are in it, so they're in the Google account you back up to: anyone who can open that folder can read them. The files are compressed, not locked."
+        ]
+      },
+      {
+        "title": "Know it's working",
+        "steps": [
+          "**Backups** on your start page says when the last one was and what it held, with a green tick.",
+          "If a night's been missed, or something wouldn't go, it says so there in orange, and why.",
+          "Click **Back up now** before anything you're nervous about."
+        ],
+        "notes": [
+          "Backups run at about 3:30 in the morning, Atlantic time (4:30 in summer).",
+          "Nothing is ever deleted from Drive, so each backup stays until you delete it. What's the same from night to night is kept only once, so they take little room. To make room by hand, delete old lists in the nights folder; leave the snapshots and files folders alone, because other nights use what's in them."
+        ]
+      },
+      {
+        "title": "Put a room back",
+        "steps": [
+          "On your start page, in **Backups**, click **Put something back** and open a backup.",
+          "Click **Put it back** beside the room.",
+          "A room you've deleted comes back at its old link. A room that's still there isn't touched: the backup comes back beside it as a copy, with the backup's date in its name."
+        ],
+        "notes": [
+          "With a copy, you can look it over and carry on in whichever you like. **Move everyone to another room** in **Room settings** takes the players across."
+        ]
+      },
+      {
+        "title": "Put the rest of the table back",
+        "steps": [
+          "Open a backup under **Put something back**, and tick what you want under **The rest of the table**: the calendar, your monsters and NPCs, campaign notes, characters' figures and dice, or Dungeon's maps.",
+          "Click **Put these back** and confirm."
+        ],
+        "notes": [
+          "What's there of those now goes, for every room. So a backup of how things are now is taken first, and you can undo it by putting that one back. Anyone with a room open should reload it."
+        ]
+      },
+      {
+        "title": "If Table has lost everything",
+        "steps": [
+          "Sign in as the GM on the new Table.",
+          "In your backup script's **Project Settings**, delete the script property TABLE_KEY, so it answers the new Table.",
+          "Paste the script's address into **Backups** and click **Save**.",
+          "Click **Put something back**, open the newest backup, and put back the rest of the table, then each room. Rooms come back at their old links."
+        ],
+        "notes": [
+          "All this needs is your Drive folder and the script: nothing from the old Table.",
+          "Set your character sheets and vault scripts up again the same way: delete TABLE_KEY in each and paste its address back in."
         ]
       }
     ]

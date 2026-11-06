@@ -14,6 +14,7 @@ import { MAX_HEAL, MAX_SPEND, characterLabel, magicRestDice, restGain } from "..
 import { GM_DICE, PLAIN_DICE, isCharacterDice, isDiceSet, isGmDice } from "../shared/diceSets";
 import { rollDice, secureRng } from "../shared/dice";
 import { castList, highestLevel } from "../shared/spellfx";
+import { backupRoute } from "./backupRoutes";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { libraryRoute } from "./libraryRoutes";
 import { vaultRoute } from "./vaultRoutes";
@@ -23,6 +24,7 @@ import { fileKey } from "./room";
 import { staticFile } from "./staticFiles";
 import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
+export { BackupJob } from "./backupJob";
 export { Directory } from "./directory";
 export { DungeonGate } from "./dungeonGate";
 export { Room } from "./room";
@@ -108,6 +110,11 @@ function loginKey(request: Request): string {
 }
 
 export default {
+  // Each night: the backup, into the GM's Google Drive (backupJob.ts). It does nothing until that's set up.
+  async scheduled(_controller, env): Promise<void> {
+    await env.BACKUP_JOB.getByName("main").begin("nightly");
+  },
+
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
     if (url.protocol === "http:" && !isLocal(url)) {
@@ -214,6 +221,9 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   // The GM's own monsters and NPCs, for every room (libraryRoutes.ts), and putting one in a room.
   const library = await libraryRoute(request, env, pathname, method);
   if (library) return library;
+  // Backups in the GM's Google Drive (backupRoutes.ts).
+  const backups = await backupRoute(request, env, url, method);
+  if (backups) return backups;
   // The GM's campaign notes, their Obsidian vault (vaultRoutes.ts).
   const vault = await vaultRoute(request, env, url, method);
   if (vault) return vault;

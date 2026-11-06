@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20260925.1 2026-09-01
 interface __BaseEnv_Env {
 	FILES: R2Bucket;
+	DUNGEON_MAPS: R2Bucket;
 	ASSETS: Fetcher;
 	DUNGEON_URL: "https://dungeon.parhome.ca";
 	GM_PASSWORD: string;
@@ -13,6 +14,7 @@ interface __BaseEnv_Env {
 	ROOMS: DurableObjectNamespace<import("./src/worker/index").Room>;
 	DIRECTORY: DurableObjectNamespace<import("./src/worker/index").Directory>;
 	VOICE: DurableObjectNamespace<import("./src/worker/index").VoiceHub>;
+	BACKUP_JOB: DurableObjectNamespace<import("./src/worker/index").BackupJob>;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

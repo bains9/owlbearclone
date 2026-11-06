@@ -7,6 +7,7 @@
 // every change is validated and permission-checked here, and the sender always
 // gets back either the accepted change or a correction.
 
+import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
 import { DurableObject } from "cloudflare:workers";
 import { DiceError, rollDice, secureRng } from "../shared/dice";
 import { PLAIN_DICE, isCharacterDice, rollingSet, type DiceSetId } from "../shared/diceSets";
@@ -174,6 +175,9 @@ const TOMBSTONE_MS = 30 * 86400_000;
 /** How long the server remembers a browser tab's last seq, and for how many tabs at most. */
 const SESSION_KEEP_MS = 7 * 86400_000;
 const MAX_SESSIONS = 2000;
+
+/** Who was connected a moment ago isn't worth keeping: everything else in a room is backed up. */
+const ROOM_NOT_BACKED_UP: ReadonlySet<string> = new Set(["sessions"]);
 
 export function fileKey(roomId: string, assetId: string): string {
   return `rooms/${roomId}/${assetId}`;
@@ -479,6 +483,32 @@ export class Room extends DurableObject<Env> {
 
   exists(): boolean {
     return this.info !== null;
+  }
+
+  /** The room as it is now, for the backups in Google Drive (backupJob.ts); null when there's no room here. */
+  async backupSnapshot(): Promise<(Packed & { scenes: number; items: number }) | null> {
+    if (!this.info) return null;
+    const snapshot = readTables(this.sql, ROOM_NOT_BACKED_UP);
+    return { ...(await pack(snapshot)), scenes: this.scenes.size, items: this.items.size };
+  }
+
+  /** Makes this empty room what a backup held, as `id` and called `name`. Never over a room in use. */
+  async restoreSnapshot(id: string, name: string, gz: Uint8Array<ArrayBuffer>): Promise<RoomInfo> {
+    const { tables } = await unpack(gz);
+    if (this.info) throw new Error("Room already exists");
+    const saved = tables.meta?.find((row) => row.k === "info");
+    if (typeof saved?.v !== "string") throw new Error("There's no room in that backup.");
+    this.migrate();
+    const info: RoomInfo = { ...(JSON.parse(saved.v) as RoomInfo), id, name };
+    this.ctx.storage.transactionSync(() => {
+      for (const table of Object.keys(tables)) {
+        if (!ROOM_NOT_BACKED_UP.has(table)) writeRows(this.sql, table, tables[table]);
+      }
+      this.setMeta("info", info);
+    });
+    this.load();
+    this.toMetres();
+    return this.info!;
   }
 
   /** Whether this upload may go ahead: null if so, otherwise the reason it can't. */

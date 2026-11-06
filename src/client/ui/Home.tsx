@@ -4,6 +4,7 @@ import type { RoomSummary } from "../../shared/types";
 import { api, roomUrl } from "../api";
 import { DUNGEON_URL, continueToDungeon, dungeonNext, openDungeon } from "../dungeonLink";
 import { ConfirmDialog, copyText, timeAgo } from "./common";
+import { BackupsCard } from "./BackupsCard";
 import { Logo } from "./Logo";
 
 export function Home() {
@@ -292,6 +293,8 @@ function GmHome(props: { onSignedOut: () => void }) {
           )}
         </div>
       </div>
+
+        <BackupsCard onRoomsChanged={() => void load()} />
       {deleting && (
         <ConfirmDialog
           title="Delete room?"
