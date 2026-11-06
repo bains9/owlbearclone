@@ -10,5 +10,7 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     environment: "node",
     silent: verbose ? false : "passed-only",
+    // Some tests analyse whole maps: on a busy computer they pass 5 seconds, and failed deploys at random.
+    testTimeout: 20_000,
   },
 });

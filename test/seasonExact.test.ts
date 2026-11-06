@@ -911,7 +911,7 @@ function waterfall(): { sc: SeasonSidecar; vern: Picture | null } {
   return { sc: extractSidecar(map, "0", rect, p, SPRITE_SIZES, { levels: [], picSize: [vern.w, vern.h] }).sidecar, vern };
 }
 
-describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, from Vern's 1.2 export through the extractor (DD_VERN)", { timeout: 30_000 }, () => {
+describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, from Vern's 1.2 export through the extractor (DD_VERN)", () => {
   // The app's analysis size for this picture: 20 px a square (3600 x 2520 at 72 px a square).
   const w = 1000, h = 700;
   const N = w * h;
