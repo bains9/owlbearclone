@@ -662,6 +662,11 @@ describe("the backup script", () => {
     expect(code).not.toMatch(/setTrashed|removeFile|\.remove\(|\.setContent\(/);
   });
 
+  it("the card is under the rooms, in the start page's column", async () => {
+    const home = await source("src/client/ui/Home.tsx");
+    expect(home).toMatch(/<BackupsCard [^\n]*\/>\n      <\/div>\n/);
+  });
+
   it("the page offers it to copy, and it's in the repo with nothing private in it", async () => {
     const code = await source("scripts/table-backup.gs");
     expect(code).not.toMatch(/AKfycb|FOLDER_ID\s*=\s*"/);

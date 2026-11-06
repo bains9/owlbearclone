@@ -292,9 +292,9 @@ function GmHome(props: { onSignedOut: () => void }) {
             </ul>
           )}
         </div>
-      </div>
 
         <BackupsCard onRoomsChanged={() => void load()} />
+      </div>
       {deleting && (
         <ConfirmDialog
           title="Delete room?"
