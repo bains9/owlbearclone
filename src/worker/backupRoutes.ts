@@ -10,6 +10,7 @@ import {
   nightFromName,
   nightName,
   partFiles,
+  sealedName,
   snapshotName,
   type BackupBucket,
   type BackupFile,
@@ -22,6 +23,7 @@ import { LIMITS } from "../shared/sanitize";
 import { isGm } from "./auth";
 import { askScript, readFromDrive } from "./backupJob";
 import { SCRIPT_URL } from "./characters";
+import { openBytes } from "./seal";
 
 const HSTS = "max-age=31536000; includeSubDomains";
 const MAX_JSON_BYTES = 16 * 1024;
@@ -142,6 +144,29 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
     );
     return json({ id, at: manifest.at, reason: manifest.reason, complete: manifest.complete, missing: manifest.missing, files: manifest.files.length, rooms });
   }
+  // Whether what's encrypted in this backup opens here, trying a few of its pictures against what's live. Changes nothing.
+  if (sub === "/check" && method === "GET") {
+    if (!manifest.table) return fail(409, "That backup didn't get as far as the table's own things.");
+    try {
+      const notesKey = await directory.backupNotesKey();
+      const notes = await directory.notesInBackup(await readFromDrive(source, key, "snapshots", snapshotName(manifest.table.snapshot), manifest.table.bytes));
+      let picturesOpened = 0;
+      let picturesSame = 0;
+      const pictures = manifest.files.filter((f) => f.sealed);
+      for (const file of pictures.slice(0, 3)) {
+        const opened = await readFromDrive(source, key, "files", sealedName(file.etag), 0)
+          .then((sealed) => openBytes(notesKey, sealed))
+          .catch(() => null);
+        if (!opened) continue;
+        picturesOpened++;
+        const live = await env.FILES.get(file.key);
+        if (live && sameBytes(opened, new Uint8Array(await live.arrayBuffer()))) picturesSame++;
+      }
+      return json({ ...notes, sealedPictures: pictures.length, picturesTried: Math.min(3, pictures.length), picturesOpened, picturesSame });
+    } catch (err) {
+      return fail(502, (err as Error).message);
+    }
+  }
   if (method !== "POST") return fail(405, "Method not allowed.");
   const body = await readJson(request);
 
@@ -152,15 +177,17 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
     const here = await env.ROOMS.getByName(room.id).exists();
     const into = here ? randomId(12) : room.id;
     const name = here ? `${room.name.slice(0, LIMITS.name - 18)} (from ${id.slice(0, 10)})` : room.name;
+    let linksLost = false;
     try {
       const gz = await readFromDrive(source, key, "snapshots", snapshotName(room.snapshot), room.bytes);
-      const info = await env.ROOMS.getByName(into).restoreSnapshot(into, name, gz);
+      const back = await env.ROOMS.getByName(into).restoreSnapshot(into, name, gz, await directory.backupNotesKey());
+      linksLost = back.linksLost;
       await directory.removeRoom(into);
-      await directory.addRoom(into, name, info.createdAt);
+      await directory.addRoom(into, name, back.info.createdAt);
     } catch (err) {
       return fail(502, (err as Error).message);
     }
-    return json({ room: into, name, sameLink: !here, files: manifest.files.filter((f) => f.key.startsWith(`rooms/${room.id}/`)).length });
+    return json({ room: into, name, sameLink: !here, linksLost, files: manifest.files.filter((f) => f.key.startsWith(`rooms/${room.id}/`)).length });
   }
 
   // Parts of the table back: what's there of them now goes, so a backup from just now must exist.
@@ -198,7 +225,8 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
       const bucket = bucketOf(env, file.bucket);
       if ((await bucket.head(to))?.etag === file.etag) continue;
       try {
-        const bytes = await readFromDrive(source, key, "files", file.etag, file.size);
+        // A note's picture is encrypted in Drive: one that opens here is the picture, or this throws and it's missing.
+        const bytes = file.sealed ? await openBytes(await directory.backupNotesKey(), await readFromDrive(source, key, "files", sealedName(file.etag), 0)) : await readFromDrive(source, key, "files", file.etag, file.size);
         await bucket.put(to, bytes, {
           ...(file.type ? { httpMetadata: { contentType: file.type } } : {}),
           ...(file.meta ? { customMetadata: file.meta } : {}),
@@ -214,6 +242,10 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
   }
 
   return fail(404, "Not found.");
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 function filesOfParts(manifest: BackupManifest, parts: TablePart[]): BackupFile[] {

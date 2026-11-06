@@ -96,7 +96,7 @@ function Night(props: { night: BackupSummary | { id: string }; onChanged: () => 
       const back = await backups.restoreRoom(id, room.id);
       const { missing } = await backups.filesBack(id, { room: room.id, into: back.room }, (n, total) => setBusy(`Putting ${room.name}'s pictures back, ${n} of ${total}…`));
       setDone(
-        `${back.sameLink ? `${back.name} is back, at its old link.` : `It's beside the room that's there now, as ${back.name}.`}${missing ? ` ${missing} of its pictures couldn't be read.` : ""}`,
+        `${back.sameLink ? `${back.name} is back, at its old link.` : `It's beside the room that's there now, as ${back.name}.`}${missing ? ` ${missing} of its pictures couldn't be read.` : ""}${back.linksLost ? " Its tokens' links to campaign notes were encrypted by a Table that's gone, so link them again." : ""}`,
       );
       props.onChanged();
       setDetail(await backups.night(id));
@@ -304,7 +304,7 @@ export function BackupsCard(props: { onRoomsChanged: () => void }) {
       {status.error && !running && <p class="small backup-warn">{status.error}</p>}
       {error && <p class="error-text small">{error}</p>}
       <p class="small muted">
-        <Cloud size={12} /> In Google Drive, every night.{" "}
+        <Cloud size={12} /> In Google Drive, every night, with campaign notes encrypted.{" "}
         <button class="link-btn" onClick={() => setSetup(!setup)}>
           Change where
         </button>

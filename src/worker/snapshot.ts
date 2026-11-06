@@ -8,6 +8,8 @@ export interface Snapshot {
   format: "table-snapshot";
   version: 1;
   tables: Record<string, Record<string, unknown>[]>;
+  /** What's encrypted, kept out of the tables above (seal.ts): the campaign notes, and a room's links to them. */
+  sealed?: string;
 }
 
 export interface Packed {

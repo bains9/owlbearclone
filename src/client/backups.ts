@@ -38,7 +38,7 @@ export const backups = {
   run: (reason: BackupReason) => call<{ started: boolean; why?: string }>("/api/backups/run", "POST", { reason }),
   nights: () => call<(BackupSummary | { id: string })[]>("/api/backups/nights"),
   night: (id: string) => call<BackupNight>(`/api/backups/night/${id}`),
-  restoreRoom: (id: string, room: string) => call<{ room: string; name: string; sameLink: boolean; files: number }>(`/api/backups/night/${id}/room`, "POST", { room }),
+  restoreRoom: (id: string, room: string) => call<{ room: string; name: string; sameLink: boolean; linksLost: boolean; files: number }>(`/api/backups/night/${id}/room`, "POST", { room }),
   restoreParts: (id: string, parts: TablePart[]) => call<{ parts: TablePart[]; files: number }>(`/api/backups/night/${id}/table`, "POST", { parts }),
   /** Every file of a room or some parts back from Drive, a few at a time; how many couldn't be read. */
   async filesBack(id: string, what: { room: string; into: string } | { parts: TablePart[] }, progress: (n: number, total: number) => void): Promise<{ missing: number }> {

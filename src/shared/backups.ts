@@ -44,6 +44,8 @@ export interface BackupFile {
   size: number;
   type?: string;
   meta?: Record<string, string>;
+  /** Encrypted in Drive, under sealedName: a campaign note's picture. */
+  sealed?: boolean;
 }
 
 export interface BackupRoom {
@@ -107,6 +109,16 @@ export function snapshotName(sha: string): string {
 
 export function nightName(id: string): string {
   return `${id}.json`;
+}
+
+/** What an encrypted file's called in Drive: never the name a plain copy from an older backup may have. */
+export function sealedName(etag: string): string {
+  return `${etag}.sealed`;
+}
+
+/** A campaign note's picture, which is encrypted in the backups like the note itself. */
+export function isNotePicture(bucket: BackupBucket, key: string): boolean {
+  return bucket === "tabletop-files" && key.startsWith("vault/");
 }
 
 export function backupId(at: number): string {

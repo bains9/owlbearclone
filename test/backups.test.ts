@@ -330,7 +330,7 @@ describe("a backup", () => {
     expect(text).not.toContain("VAULTSECRET");
     expect(text).not.toContain(key);
     expect(tables.secrets).toBeUndefined();
-    expect(text).toContain("She informs for the Red Tide.");
+    expect(text).not.toContain("Red Tide");
     expect(text).toContain("Barovian");
     const roomFile = drive.folders.get("snapshots")!.get(`${m.rooms[0].snapshot}.json.gz`)!;
     const inRoom = await t.unpack(roomFile.bytes);
@@ -487,7 +487,7 @@ describe("putting a room back", () => {
     const before = await t.call("GET", "/api/backups/night/2026-11-06T07-30Z");
     expect(before.data.rooms).toEqual([{ id: roomId, name: "Curse of Strahd", scenes: 1, items: 0, files: 1, here: false }]);
     const back = await t.call("POST", "/api/backups/night/2026-11-06T07-30Z/room", { room: roomId });
-    expect(back.data).toEqual({ room: roomId, name: "Curse of Strahd", sameLink: true, files: 1 });
+    expect(back.data).toEqual({ room: roomId, name: "Curse of Strahd", sameLink: true, linksLost: false, files: 1 });
     expect(await t.filesBack("2026-11-06T07-30Z", { room: roomId, into: roomId })).toEqual({ total: 1, missing: 0 });
     expect([...t.FILES.objects.get(`rooms/${roomId}/assetmap00001`)!.bytes]).toEqual([1, 2, 3, 4, 5]);
     expect(t.FILES.objects.get(`rooms/${roomId}/assetmap00001`)!.type).toBe("image/png");
@@ -610,15 +610,209 @@ describe("a Table that's lost everything", () => {
     expect(back.data.sameLink).toBe(true);
     expect((await lost.filesBack("2026-11-06T07-30Z", { room: roomId, into: roomId })).missing).toBe(0);
     await lost.backUp("before a restore");
-    const parts = ["calendar", "library", "notes", "characters", "dungeon"];
+    // The campaign notes are encrypted with a key that was in the old Table: asked for, nothing's put back, and it says why.
+    const withNotes = await lost.call("POST", "/api/backups/night/2026-11-06T07-30Z/table", { parts: ["calendar", "notes"] });
+    expect(withNotes.status).toBe(502);
+    expect(withNotes.data.error).toMatch(/encrypted with a key this Table doesn't have.*bring your notes in again from Obsidian/);
+    const dir = lost.directory as unknown as { calendar(): { json: string } | null; vaultNote(v: string, p: string): string | null; libraryList(): unknown[] };
+    expect(dir.calendar()).toBeNull();
+    const parts = ["calendar", "library", "characters", "dungeon"];
     expect((await lost.call("POST", "/api/backups/night/2026-11-06T07-30Z/table", { parts })).status).toBe(200);
     expect((await lost.filesBack("2026-11-06T07-30Z", { parts })).missing).toBe(0);
-    const dir = lost.directory as unknown as { calendar(): { json: string }; vaultNote(v: string, p: string): string | null; libraryList(): unknown[] };
-    expect(dir.calendar().json).toContain("Barovian");
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
+    expect(dir.calendar()!.json).toContain("Barovian");
+    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toBeNull();
     expect(dir.libraryList()).toHaveLength(1);
     expect(lost.DUNGEON_MAPS.objects.has("maps/keep.json")).toBe(true);
     expect((lost.room(roomId) as unknown as { assets: Map<string, unknown> }).assets.size).toBe(1);
+  });
+});
+
+describe("the GM's campaign notes, encrypted", () => {
+  const PICTURE = new TextEncoder().encode("PICTURE-OF-THE-SECRET-VILLAIN");
+  const HASH = "a".repeat(64);
+  const AT = Date.UTC(2026, 10, 6, 7, 30);
+  const ID = "2026-11-06T07-30Z";
+  const key = (x: Table) => (x.directory as unknown as { backupNotesKey(): string }).backupNotesKey();
+  const dirOf = (x: Table) =>
+    x.directory as unknown as {
+      vaultStart(v: string): string;
+      vaultPutNotes(v: string, i: string, n: { path: string; body: string }[]): unknown;
+      vaultPutFiles(v: string, i: string, f: unknown[]): unknown;
+      vaultFinish(v: string, i: string): unknown;
+      vaultClear(v: string | null): string[];
+      vaultNote(v: string, p: string): string | null;
+      vaultIndex(): { vaults: { name: string }[]; files: { path: string }[] };
+      restoreParts(g: Uint8Array, p: string[]): Promise<void>;
+      removeRoom(id: string): void;
+    };
+
+  /** A vault with a note, a picture and a token linked to the note. */
+  async function secrets(x: Table, roomId: string) {
+    const dir = dirOf(x);
+    const v = dir.vaultStart("Eastport");
+    dir.vaultPutNotes("Eastport", v, [{ path: "NPCs/Hilda.md", body: "# Hilda\nShe informs for the Red Tide." }]);
+    await x.FILES.put(`vault/${HASH}`, PICTURE, { httpMetadata: { contentType: "image/png" } });
+    dir.vaultPutFiles("Eastport", v, [{ path: "Attachments/hilda.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
+    dir.vaultFinish("Eastport", v);
+    const room = x.room(roomId) as unknown as { setMeta(k: string, v: unknown): void; tokenNotes: Record<string, string> };
+    room.setMeta("token_notes", { token1: "Eastport|NPCs/Hilda.md" });
+    room.tokenNotes = { token1: "Eastport|NPCs/Hilda.md" };
+  }
+
+  /** Everything in the Drive folder, as anyone who can open it could read it. */
+  async function everythingInDrive(x: Table) {
+    const out: string[] = [];
+    for (const [, folder] of drive.folders) {
+      for (const [name, file] of folder) {
+        out.push(name);
+        out.push(name.endsWith(".json.gz") ? JSON.stringify(await x.unpack(file.bytes)) : new TextDecoder("latin1").decode(file.bytes));
+      }
+    }
+    return out.join("\n");
+  }
+
+  it("nothing of them can be read in Drive: not their words, names, pictures, or tokens' links", async () => {
+    const { roomId } = await played(t);
+    await secrets(t, roomId);
+    await t.backUp("nightly", AT);
+    expect(t.night(ID).complete).toBe(true);
+    const all = await everythingInDrive(t);
+    // It does read what isn't encrypted.
+    for (const plain of ["Barovian", "Curse of Strahd", "Goblin"]) expect(all).toContain(plain);
+    for (const secret of ["Red Tide", "Hilda", "hilda", "Eastport", "NPCs/", "Attachments", "token1", "PICTURE-OF-THE-SECRET-VILLAIN"]) expect(all).not.toContain(secret);
+    expect(all).not.toContain(key(t));
+    // The picture is listed as encrypted, and isn't a picture in Drive.
+    const entry = t.night(ID).files.find((f) => f.key === `vault/${HASH}`)!;
+    expect(entry.sealed).toBe(true);
+    const inDrive = drive.folders.get("files")!;
+    expect(inDrive.has(entry.etag)).toBe(false);
+    expect(inDrive.get(`${entry.etag}.sealed`)!.mime).toBe("application/octet-stream");
+    // Only the note's picture: others go as they are.
+    expect(t.night(ID).files.filter((f) => f.sealed)).toHaveLength(1);
+  });
+
+  it("unchanged, they aren't sent again the next night, and changed, each night keeps its own", async () => {
+    const { roomId } = await played(t);
+    await secrets(t, roomId);
+    await t.backUp("nightly", AT);
+    const snapshots = drive.folders.get("snapshots")!.size;
+    const files = drive.folders.get("files")!.size;
+    await t.backUp("nightly", AT + 86_400_000);
+    expect(drive.folders.get("snapshots")!.size).toBe(snapshots);
+    expect(drive.folders.get("files")!.size).toBe(files);
+    expect((await t.status()).last?.sent).toBe(0);
+    // A note changes: a new table snapshot only.
+    const dir = dirOf(t);
+    const v = dir.vaultStart("Eastport");
+    dir.vaultPutNotes("Eastport", v, [{ path: "NPCs/Hilda.md", body: "# Hilda\nExposed, and fled." }]);
+    dir.vaultPutFiles("Eastport", v, [{ path: "Attachments/hilda.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
+    dir.vaultFinish("Eastport", v);
+    await t.backUp("nightly", AT + 2 * 86_400_000);
+    expect(drive.folders.get("snapshots")!.size).toBe(snapshots + 1);
+    // The first night's still has the note as it was then.
+    await t.backUp("before a restore");
+    await t.call("POST", `/api/backups/night/${ID}/table`, { parts: ["notes"] });
+    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
+  });
+
+  it("come back whole on this Table: words, names, pictures and tokens' links", async () => {
+    const { roomId } = await played(t);
+    await secrets(t, roomId);
+    await t.backUp("nightly", AT);
+    const dir = dirOf(t);
+    dir.vaultClear(null);
+    await t.FILES.delete(`vault/${HASH}`);
+    await (t.room(roomId) as unknown as { destroy(id: string): Promise<void> }).destroy(roomId);
+    dir.removeRoom(roomId);
+    await t.backUp("before a restore");
+    expect((await t.call("POST", `/api/backups/night/${ID}/table`, { parts: ["notes"] })).status).toBe(200);
+    expect(await t.filesBack(ID, { parts: ["notes"] })).toEqual({ total: 1, missing: 0 });
+    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
+    expect(dir.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport"]);
+    expect(dir.vaultIndex().files.map((f) => f.path)).toEqual(["Attachments/hilda.png"]);
+    const picture = t.FILES.objects.get(`vault/${HASH}`)!;
+    expect(new TextDecoder().decode(picture.bytes)).toBe("PICTURE-OF-THE-SECRET-VILLAIN");
+    expect(picture.type).toBe("image/png");
+    const back = await t.call("POST", `/api/backups/night/${ID}/room`, { room: roomId });
+    expect(back.data.linksLost).toBe(false);
+    expect((t.room(roomId) as unknown as { tokenNotes: Record<string, string> }).tokenNotes).toEqual({ token1: "Eastport|NPCs/Hilda.md" });
+  });
+
+  it("can be checked without changing anything", async () => {
+    const { roomId } = await played(t);
+    await secrets(t, roomId);
+    await t.backUp("nightly", AT);
+    const check = await t.call("GET", `/api/backups/night/${ID}/check`);
+    expect(check.data).toEqual({ encrypted: true, opens: true, notes: 1, pictures: 1, sealedPictures: 1, picturesTried: 1, picturesOpened: 1, picturesSame: 1 });
+  });
+
+  it("a Table without the key gets the room back but its links, and can say what it can't open", async () => {
+    const { roomId } = await played(t);
+    await secrets(t, roomId);
+    await t.backUp("nightly", AT);
+    const other = await table(drive);
+    drive.props.delete("TABLE_KEY");
+    expect((await other.call("PUT", "/api/backups/drive", { source: SCRIPT })).status).toBe(200);
+    expect(key(other)).not.toBe(key(t));
+    expect((await other.call("GET", `/api/backups/night/${ID}/check`)).data).toMatchObject({ encrypted: true, opens: false, notes: 0, picturesOpened: 0 });
+    const back = await other.call("POST", `/api/backups/night/${ID}/room`, { room: roomId });
+    expect(back.status).toBe(200);
+    expect(back.data.linksLost).toBe(true);
+    const room = other.room(roomId) as unknown as { tokenNotes: Record<string, string>; assets: Map<string, unknown> };
+    expect(room.tokenNotes).toEqual({});
+    expect(room.assets.size).toBe(1);
+    // A note's picture can't be opened: counted as missing, never stored as it is in Drive.
+    await other.backUp("before a restore");
+    expect(await other.filesBack(ID, { parts: ["notes"] })).toEqual({ total: 1, missing: 1 });
+    expect(other.FILES.objects.has(`vault/${HASH}`)).toBe(false);
+  });
+
+  it("backups from before they were encrypted still come back, and a plain copy in Drive doesn't stop the encrypted one", async () => {
+    const { roomId } = await played(t);
+    const dir = dirOf(t);
+    const { pack } = (await import(/* @vite-ignore */ "../src/worker/" + "snapshot")) as { pack(s: unknown): Promise<{ gz: Uint8Array }> };
+    const old = await pack({
+      format: "table-snapshot",
+      version: 1,
+      tables: { vnotes: [{ vault: "Old", path: "Plain.md", body: "# From before", import: "x" }], vfiles: [], vdrive: [], blobs: [{ name: "vault_at:Old", value: "1", version: 1 }] },
+    });
+    await dir.restoreParts(old.gz, ["notes"]);
+    expect(dir.vaultNote("Old", "Plain.md")).toBe("# From before");
+    // The picture went in plain on an older backup: under its checksum, which isn't the encrypted one's name.
+    await secrets(t, roomId);
+    const etag = t.FILES.objects.get(`vault/${HASH}`)!.etag;
+    const scriptKey = (t.directory as unknown as { backupDriveKey(): string }).backupDriveKey();
+    expect(drive.ask({ key: scriptKey, kind: "files", name: etag, mime: "image/png", data: toBase64(PICTURE) })).toMatchObject({ bytes: PICTURE.length });
+    await t.backUp("nightly", AT);
+    expect(t.night(ID).complete).toBe(true);
+    const entry = t.night(ID).files.find((x) => x.key === `vault/${HASH}`)!;
+    expect(entry.sealed).toBe(true);
+    // The encrypted one went, under its own name. The plain one's still there until someone deletes it: the script can't.
+    const sent = drive.folders.get("files")!;
+    expect(new TextDecoder("latin1").decode(sent.get(`${etag}.sealed`)!.bytes)).not.toContain("PICTURE-OF-THE-SECRET-VILLAIN");
+    expect(new TextDecoder().decode(sent.get(etag)!.bytes)).toBe("PICTURE-OF-THE-SECRET-VILLAIN");
+  });
+
+  it("seals so only the key opens it, and any change to it is noticed", async () => {
+    const { sealBytes, openBytes, sealJson, openJson } = (await import(/* @vite-ignore */ "../src/worker/" + "seal")) as {
+      sealBytes(k: string, b: Uint8Array): Promise<Uint8Array>;
+      openBytes(k: string, b: Uint8Array): Promise<Uint8Array>;
+      sealJson(k: string, v: unknown): Promise<string>;
+      openJson(k: string, s: string): Promise<unknown>;
+    };
+    const words = new TextEncoder().encode("the vicar did it");
+    const sealed = await sealBytes("key-one", words);
+    expect(new TextDecoder("latin1").decode(sealed)).not.toContain("vicar");
+    expect(new TextDecoder().decode(await openBytes("key-one", sealed))).toBe("the vicar did it");
+    await expect(openBytes("key-two", sealed)).rejects.toThrow();
+    const changed = sealed.slice();
+    changed[changed.length - 1] ^= 1;
+    await expect(openBytes("key-one", changed)).rejects.toThrow();
+    // The same words the same way each night; other words, or another key, not.
+    expect([...(await sealBytes("key-one", words))]).toEqual([...sealed]);
+    expect([...(await sealBytes("key-two", words))]).not.toEqual([...sealed]);
+    expect([...(await sealBytes("key-one", new TextEncoder().encode("the vicar did not")))].slice(0, 12)).not.toEqual([...sealed].slice(0, 12));
+    expect(await openJson("key-one", await sealJson("key-one", { a: [1, "two"] }))).toEqual({ a: [1, "two"] });
   });
 });
 
@@ -730,7 +924,7 @@ describe("the guide", () => {
     const section = GUIDE.find((s) => s.id === "backups")!;
     expect(section.audience).toBe("gm");
     const text = [section.intro, ...section.parts.flatMap((p) => [...p.steps, ...p.notes])].join("\n");
-    for (const words of ["**Copy the script**", "FOLDER_ID", "Anyone", "**Back up now**", "**Put it back**", "TABLE_KEY", "nothing is kept on Cloudflare", "never deletes"]) expect(text).toContain(words);
+    for (const words of ["**Copy the script**", "FOLDER_ID", "Anyone", "**Back up now**", "**Put it back**", "TABLE_KEY", "nothing is kept on Cloudflare", "never deletes", "encrypted before they leave Table", "never goes to Drive", "Bring them in again from Obsidian", "isn't encrypted"]) expect(text).toContain(words);
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts[0];
     expect(news.title).toBe("GM: everything backed up to Google Drive, every night (6 November 2026)");
   });

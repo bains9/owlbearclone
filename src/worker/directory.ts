@@ -2,7 +2,8 @@
 // random secret that GM session cookies are signed with.
 
 import type { TablePart } from "../shared/backups";
-import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
+import { openJson, sealJson } from "./seal";
+import { pack, readTables, unpack, writeRows, type Packed, type Snapshot } from "./snapshot";
 import { DurableObject } from "cloudflare:workers";
 import type { RoomSummary } from "../shared/types";
 import { MAX_PRAYED_SPELLS } from "../shared/characters";
@@ -459,14 +460,57 @@ export class Directory extends DurableObject<Env> {
     return [...before].filter((h) => !after.has(h));
   }
 
-  /** The table as it is now, for the backups in Google Drive (backupJob.ts). */
-  backupSnapshot(): Promise<Packed> {
-    return pack(readTables(this.sql, NOT_BACKED_UP));
+  /** The table as it is now, for the backups in Google Drive (backupJob.ts): the campaign notes encrypted. */
+  async backupSnapshot(): Promise<Packed> {
+    const snapshot = readTables(this.sql, NOT_BACKED_UP);
+    const { tables: names, blob } = PART_TABLES.notes;
+    const notes: Snapshot["tables"] = {};
+    for (const name of names) {
+      notes[name] = snapshot.tables[name] ?? [];
+      delete snapshot.tables[name];
+    }
+    const blobs = snapshot.tables.blobs ?? [];
+    notes.blobs = blobs.filter((row) => blob!(String(row.name)));
+    snapshot.tables.blobs = blobs.filter((row) => !blob!(String(row.name)));
+    snapshot.sealed = await sealJson(this.backupNotesKey(), notes);
+    return pack(snapshot);
+  }
+
+  /** The key the campaign notes are encrypted with in the backups (seal.ts). Made once; never leaves this Table. */
+  backupNotesKey(): string {
+    const row = this.sql.exec<{ value: string }>(`SELECT value FROM secrets WHERE name = 'backup_notes_key'`).toArray()[0];
+    if (row) return row.value;
+    const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    this.sql.exec(`INSERT INTO secrets (name, value) VALUES ('backup_notes_key', ?)`, value);
+    return value;
+  }
+
+  /** What a backup holds of the campaign notes, if this Table can open them. Changes nothing. */
+  async notesInBackup(gz: Uint8Array<ArrayBuffer>): Promise<{ encrypted: boolean; opens: boolean; notes: number; pictures: number }> {
+    const snapshot = await unpack(gz);
+    if (!snapshot.sealed) return { encrypted: false, opens: true, notes: snapshot.tables.vnotes?.length ?? 0, pictures: snapshot.tables.vfiles?.length ?? 0 };
+    try {
+      const notes = await openJson<Snapshot["tables"]>(this.backupNotesKey(), snapshot.sealed);
+      return { encrypted: true, opens: true, notes: notes.vnotes?.length ?? 0, pictures: notes.vfiles?.length ?? 0 };
+    } catch {
+      return { encrypted: true, opens: false, notes: 0, pictures: 0 };
+    }
   }
 
   /** Puts these parts of the table back as a backup held them. What's there now of them goes. */
   async restoreParts(gz: Uint8Array<ArrayBuffer>, parts: TablePart[]): Promise<void> {
-    const { tables } = await unpack(gz);
+    const snapshot = await unpack(gz);
+    let { tables } = snapshot;
+    // Encrypted notes open here, or nothing's put back. Backups from before they were encrypted have them in the tables.
+    if (parts.includes("notes") && snapshot.sealed) {
+      let notes: Snapshot["tables"];
+      try {
+        notes = await openJson<Snapshot["tables"]>(this.backupNotesKey(), snapshot.sealed);
+      } catch {
+        throw new Error("The campaign notes in this backup are encrypted with a key this Table doesn't have, so nothing's been put back. Untick them, and bring your notes in again from Obsidian.");
+      }
+      tables = { ...tables, ...notes, blobs: [...(tables.blobs ?? []), ...(notes.blobs ?? [])] };
+    }
     this.ctx.storage.transactionSync(() => {
       for (const part of parts) {
         const { tables: names, blob } = PART_TABLES[part];

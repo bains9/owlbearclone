@@ -4,13 +4,16 @@
 // saying no for now) and carry on: what's already in Drive is never sent again. Only reads what it
 // backs up: the worst it can do to the table is nothing.
 import { DurableObject } from "cloudflare:workers";
+import { sealBytes } from "./seal";
 import { BUILD_ID } from "../shared/build";
 import {
   backupId,
   fromBase64,
+  isNotePicture,
   nightName,
   partNames,
   PART_BYTES,
+  sealedName,
   snapshotName,
   toBase64,
   type BackupBucket,
@@ -100,6 +103,8 @@ interface Run {
 
 export class BackupJob extends DurableObject<Env> {
   private sql: SqlStorage;
+  /** The key the campaign notes are encrypted with (seal.ts), read at each step. */
+  private notesKey = "";
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -202,6 +207,7 @@ export class BackupJob extends DurableObject<Env> {
       return;
     }
     const key = await directory.backupDriveKey();
+    this.notesKey = await directory.backupNotesKey();
     // Getting somewhere: a file done, not one left out.
     const before = `${run.stage}|${run.roomAt}|${run.bucket}|${run.seen}`;
     try {
@@ -249,7 +255,7 @@ export class BackupJob extends DurableObject<Env> {
       run.stage = "rooms";
     } else if (run.stage === "rooms") {
       for (const room of run.rooms.slice(run.roomAt, run.roomAt + ROOMS_PER_STEP)) {
-        const packed = await this.env.ROOMS.getByName(room.id).backupSnapshot();
+        const packed = await this.env.ROOMS.getByName(room.id).backupSnapshot(this.notesKey);
         if (packed) {
           await this.sendSnapshot(run, source, key, packed);
           const entry: BackupRoom = { ...room, snapshot: packed.sha, bytes: packed.bytes, scenes: packed.scenes, items: packed.items };
@@ -300,7 +306,10 @@ export class BackupJob extends DurableObject<Env> {
     const file: BackupFile = { bucket: bucket.name, key: object.key, etag: object.etag, size: object.size };
     if (object.httpMetadata?.contentType) file.type = object.httpMetadata.contentType;
     if (object.customMetadata && Object.keys(object.customMetadata).length) file.meta = object.customMetadata;
-    const names = partNames(object.etag, object.size);
+    // A note's picture goes encrypted (it's never over the size that needs parts).
+    const sealed = isNotePicture(bucket.name, object.key);
+    if (sealed) file.sealed = true;
+    const names = sealed ? [sealedName(object.etag)] : partNames(object.etag, object.size);
     let sends = 0;
     for (let i = 0; i < names.length; i++) {
       if (this.sql.exec(`SELECT 1 FROM have WHERE name = ?`, names[i]).toArray().length) continue;
@@ -309,7 +318,8 @@ export class BackupJob extends DurableObject<Env> {
       // Gone since it was listed: not part of tonight.
       if (!got) return sends;
       const bytes = new Uint8Array(await got.arrayBuffer());
-      await this.sendOne(run, source, key, "files", names[i], file.type ?? "application/octet-stream", bytes, names.length === 1 && !object.etag.includes("-") ? object.etag : null);
+      if (sealed) await this.sendOne(run, source, key, "files", names[i], "application/octet-stream", await sealBytes(this.notesKey, bytes), null);
+      else await this.sendOne(run, source, key, "files", names[i], file.type ?? "application/octet-stream", bytes, names.length === 1 && !object.etag.includes("-") ? object.etag : null);
       sends++;
     }
     this.sql.exec(`INSERT OR REPLACE INTO run_files (bucket, key, data) VALUES (?, ?, ?)`, bucket.name, object.key, JSON.stringify(file));

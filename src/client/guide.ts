@@ -25,7 +25,7 @@ export const GUIDE: GuideSection[] = [
           "To get something back, click **Put something back** and open a backup. A deleted room comes back at its old link; one that's still there comes back as a copy beside it."
         ],
         "notes": [
-          "**Backups** says when the last one was, and warns you in orange if a night's been missed.",
+          "**Backups** says when the last one was, and warns you in orange if a night's been missed. Your campaign notes are encrypted in the backups.",
           "See **Backups in Google Drive** for what's in a backup, and how to rebuild Table from one."
         ]
       },
@@ -3797,7 +3797,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Character sheets aren't in it: they're in Google Sheets, which keeps its own history (**File** › **Version history**).",
           "Sign-in keys and the addresses of your scripts aren't in it either. They're safer made again: on a new Table you sign in as usual and paste the addresses in again.",
-          "Your campaign notes are in it, so they're in the Google account you back up to: anyone who can open that folder can read them. The files are compressed, not locked."
+          "Your campaign notes are encrypted before they leave Table: their words, their names, their pictures and your tokens' links to them. Anyone who can open the folder can't read them. The key stays in Table and never goes to Drive. Everything else in a backup isn't encrypted: anyone who can open the folder could read the rooms (hidden tokens and secret map notes among them) and the calendar, and see the maps."
         ]
       },
       {
@@ -3839,10 +3839,10 @@ export const GUIDE: GuideSection[] = [
           "Sign in as the GM on the new Table.",
           "In your backup script's **Project Settings**, delete the script property TABLE_KEY, so it answers the new Table.",
           "Paste the script's address into **Backups** and click **Save**.",
-          "Click **Put something back**, open the newest backup, and put back the rest of the table, then each room. Rooms come back at their old links."
+          "Click **Put something back**, open the newest backup, and put back the rest of the table but **Campaign notes**, then each room. Rooms come back at their old links."
         ],
         "notes": [
-          "All this needs is your Drive folder and the script: nothing from the old Table.",
+          "All this needs is your Drive folder and the script, except your campaign notes: they're encrypted with a key that was in the old Table, so they can't be opened. Bring them in again from Obsidian, and link your tokens to them again.",
           "Set your character sheets and vault scripts up again the same way: delete TABLE_KEY in each and paste its address back in."
         ]
       }
