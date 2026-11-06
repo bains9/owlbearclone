@@ -334,8 +334,8 @@ describe("on the GM's page", () => {
 describe("the guide", () => {
   it("leads What's new with it, and the Monsters section explains it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[3].title).toBe("GM: your own monsters and NPCs, in every room (4 November 2026)");
-    const top = [...news.parts[3].steps, ...news.parts[3].notes].join("\n");
+    expect(news.parts[4].title).toBe("GM: your own monsters and NPCs, in every room (4 November 2026)");
+    const top = [...news.parts[4].steps, ...news.parts[4].notes].join("\n");
     for (const words of ["**Select**", "**Move to Monsters**", "**Move to NPCs**", "every room", "**Upload**", "**Add hidden**"]) expect(top).toContain(words);
     const monsters = GUIDE.find((s) => s.id === "monsters")!;
     const titles = monsters.parts.map((p) => p.title);

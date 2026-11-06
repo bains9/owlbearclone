@@ -4817,3 +4817,56 @@ kbd {
   gap: 3px;
   margin-bottom: 6px;
 }
+/* A monster's card and its stats form (MonsterCard.tsx), on a character card's bones. */
+.monster-card .character-stats {
+  align-items: center;
+}
+.monster-hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  cursor: pointer;
+}
+.monster-hp-change {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+.monster-hp-change input {
+  width: 64px;
+  min-width: 0;
+}
+.monster-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.monster-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.monster-fields input,
+.monster-attack-row input {
+  width: 100%;
+  min-width: 0;
+}
+.monster-attack-head,
+.monster-attack-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px 72px 26px;
+  gap: 6px;
+  align-items: center;
+}
+.monster-attack-row {
+  margin-bottom: 4px;
+}
+.monster-form-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

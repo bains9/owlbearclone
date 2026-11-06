@@ -557,6 +557,7 @@ export class Board implements BoardApi {
   private renderedPreview = false;
   private renderedExplored: RoomState["explored"] | null = null;
   private renderedParty: RoomState["party"] = null;
+  private renderedStats: RoomState["tokenStats"] | null = null;
   private renderedLookAs: string | null = null;
   /** The calendar the dark was last made with (the moons light a night). */
   private renderedCalendar: Calendar | null = null;
@@ -1026,6 +1027,12 @@ export class Board implements BoardApi {
       if (scene?.vision?.on) this.redrawSight();
     }
 
+    // A monster's HP changed: its bar's drawn with the tokens.
+    if (s.tokenStats !== this.renderedStats) {
+      this.renderedStats = s.tokenStats;
+      this.itemsDirty = true;
+    }
+
     if (force || this.itemsDirty || s.items !== this.renderedItems || s.selection !== this.renderedSelection) {
       this.itemsDirty = false;
       this.syncItems(s, scene, force, gm && !preview);
@@ -1295,7 +1302,10 @@ export class Board implements BoardApi {
   /** A token's HP as its character sheet last gave it ("34/49"), or "" (no sheet, no HP read, or a compass). */
   private hpOf(t: TokenItem): string {
     const c = t.character && !isCompass(t) ? this.room.characterOf(t) : null;
-    return c && c.hp !== null && c.maxHp ? `${c.hp}/${c.maxHp}` : "";
+    if (c) return c.hp !== null && c.maxHp ? `${c.hp}/${c.maxHp}` : "";
+    // A monster's, for the GM: a player's page is never sent them.
+    const stats = this.room.state.tokenStats[t.id];
+    return stats?.maxHp ? `${stats.hp}/${stats.maxHp}` : "";
   }
 
   private buildToken(n: TokenNode, t: TokenItem, selected: boolean, cell: number, gmView: boolean): void {

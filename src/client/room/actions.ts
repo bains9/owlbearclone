@@ -1,6 +1,7 @@
 // Actions on the current selection, shared by the keyboard shortcuts and the
 // selection bar.
 
+import { freshCopy } from "../../shared/tokenStats";
 import { stepByCells, type Point } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
 import { canDelete } from "../../shared/permissions";
@@ -85,6 +86,11 @@ export function duplicateSelection(room: RoomClient): void {
     };
   });
   room.change({ upsert: copies });
+  // A copy of a monster has its stats too, unhurt (before it rolls initiative, which uses them).
+  copies.forEach((copy, i) => {
+    const stats = s.tokenStats[tokens[i].id];
+    if (stats && room.isGm) room.setTokenStats(copy.id, freshCopy(stats));
+  });
   room.select(copies.map((c) => c.id));
   creaturesJoin(room, copies);
 }

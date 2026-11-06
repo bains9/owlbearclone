@@ -2,8 +2,9 @@ import { noteTitle, parseNoteRef } from "../../shared/vault";
 import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
-import { Armchair, BookOpen, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
-import { initEntryFor } from "../initiative";
+import { Armchair, BookOpen, HeartPulse, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
+import { initEntryFor, isCreature } from "../initiative";
+import { MonsterCard } from "./MonsterCard";
 import { canDelete } from "../../shared/permissions";
 import { roundsLeft } from "./spellChips";
 import type { DrawingItem, Item, TokenItem } from "../../shared/types";
@@ -205,12 +206,30 @@ function SpellsOn({ token }: { token: TokenItem }) {
  * narrow as a phone's, a tablet's beside the side panel too, it sits over the selection bar:
  * SelectionBar.)
  */
+/** GM: the token whose card to show, a creature with stats or having them filled in. */
+function useMonsterCard(t: Item | undefined): TokenItem | null {
+  const gm = useRoomState((s) => s.me?.role === "gm");
+  const has = useRoomState((s) => !!t && !!s.tokenStats[t.id]);
+  const editing = useRoomState((s) => !!t && s.statsEditing === t.id);
+  return gm && t?.kind === "token" && isCreature(t) && (has || editing) ? t : null;
+}
+
 export function CardDock() {
   useRoomState((s) => s.party);
   const room = useRoom();
   const narrow = useRoomState((s) => s.stageNarrow);
   const t = useRoomState((s) => (s.selection.length === 1 ? s.items[s.selection[0]] : undefined));
   const character = !narrow && t?.kind === "token" && !isCompass(t) ? room.characterOf(t) : null;
+  const monster = useMonsterCard(t);
+  if (monster && !narrow) {
+    return (
+      <div class="card-dock" onPointerDown={(e) => e.stopPropagation()}>
+        <Guard name="the monster's card" retry={(s) => s.tokenStats}>
+          <MonsterCard token={monster} />
+        </Guard>
+      </div>
+    );
+  }
   if (!character || t?.kind !== "token") return null;
   return (
     <div class="card-dock" onPointerDown={(e) => e.stopPropagation()}>
@@ -231,6 +250,7 @@ export function SelectionBar() {
   const me = useRoomState((s) => s.me);
   const gm = me?.role === "gm";
   const selected = selection.map((id) => items[id]).filter((i): i is Item => i !== undefined);
+  const monster = useMonsterCard(selected.length === 1 ? selected[0] : undefined);
   if (!selected.length || !me) return null;
 
   const tokens = selected.filter((i): i is TokenItem => i.kind === "token");
@@ -341,6 +361,7 @@ export function SelectionBar() {
               {t.locked ? <Lock size={18} /> : <LockOpen size={18} />}
             </button>
             <TokenNoteButton id={t.id} />
+            {isCreature(t) && <StatsButton id={t.id} />}
           </>
         )}
         {can && (
@@ -382,6 +403,16 @@ export function SelectionBar() {
       </div>
     );
     // On a narrow map (a phone's) the card sits over the bar, as wide as it; a wider map's is CardDock's.
+    if (monster && narrow) {
+      return (
+        <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
+          <Guard name="the monster's card" retry={(s) => s.tokenStats}>
+            <MonsterCard token={monster} />
+          </Guard>
+          {bar}
+        </div>
+      );
+    }
     if (!character || !narrow) return bar;
     return (
       <div class="selbar-stack" onPointerDown={(e) => e.stopPropagation()}>
@@ -495,6 +526,24 @@ export function SelectionBar() {
 }
 
 /** GM: a token's campaign note (Campaign notes): opens it, or with none linked, opens the notes to link one. */
+/** GM: a creature's stats, entered by hand: opens the form, or closes it. */
+function StatsButton(props: { id: string }) {
+  const room = useRoom();
+  const has = useRoomState((s) => !!s.tokenStats[props.id]);
+  const editing = useRoomState((s) => s.statsEditing === props.id);
+  return (
+    <button
+      class={cx("icon-btn", (has || editing) && "active")}
+      title={has ? "Change its stats: HP, AC, initiative and attacks" : "Give it stats: HP, AC, initiative and attacks"}
+      aria-label={has ? "Change its stats" : "Give it stats"}
+      data-short="Stats"
+      onClick={() => room.store.set({ statsEditing: editing ? null : props.id })}
+    >
+      <HeartPulse size={18} />
+    </button>
+  );
+}
+
 function TokenNoteButton(props: { id: string }) {
   const room = useRoom();
   const note = useRoomState((s) => s.tokenNotes[props.id]);

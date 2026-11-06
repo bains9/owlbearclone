@@ -7,6 +7,7 @@
 // every change is validated and permission-checked here, and the sender always
 // gets back either the accepted change or a correction.
 
+import { sanitizeTokenStats, type TokenStats } from "../shared/tokenStats";
 import { openJson, sealJson } from "./seal";
 import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
 import { DurableObject } from "cloudflare:workers";
@@ -229,6 +230,8 @@ export class Room extends DurableObject<Env> {
   private handouts: Handout[] = [];
   /** GM only: tokens linked to campaign notes, token id to note path. */
   private tokenNotes: Record<string, string> = {};
+  /** GM only: monsters' and NPCs' stats (tokenStats.ts). In a table of their own, so they can't go out with a token. */
+  private tokenStats = new Map<string, TokenStats>();
   /** How many problems each connection has told of lately (by connId). */
   private problemCounts = new Map<string, { n: number; since: number }>();
   /**
@@ -270,6 +273,7 @@ export class Room extends DurableObject<Env> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (seq INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, owner TEXT NOT NULL, at INTEGER NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL, at INTEGER NOT NULL)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS token_stats (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
     // What the party, and each of its characters, has explored of each scene with lighting on
     // (shared/explore.ts): the grid's key and its bits, and those seen in colour (`lit`; null: all
     // of them). `who` is "" for the party's, else the character's sheet id.
@@ -390,6 +394,12 @@ export class Room extends DurableObject<Env> {
     this.tombstones.clear();
     for (const r of this.sql.exec<{ id: string; owner: string }>(`SELECT id, owner FROM tombstones`)) {
       this.tombstones.set(r.id, r.owner);
+    }
+    // A deleted token's stay while Undo can still bring it back.
+    this.tokenStats.clear();
+    for (const r of this.sql.exec<{ id: string; data: string }>(`SELECT id, data FROM token_stats`).toArray()) {
+      if (this.items.has(r.id) || this.tombstones.has(r.id)) this.tokenStats.set(r.id, JSON.parse(r.data) as TokenStats);
+      else this.sql.exec(`DELETE FROM token_stats WHERE id = ?`, r.id);
     }
     this.assets.clear();
     for (const r of this.sql.exec<{ data: string }>(`SELECT data FROM assets`)) {
@@ -1105,6 +1115,25 @@ export class Room extends DurableObject<Env> {
         return;
       }
 
+      case "token.stats": {
+        if (!gm) return this.deny(ws);
+        const { id, stats } = msg as { id?: unknown; stats?: unknown };
+        const token = typeof id === "string" ? this.items.get(id) : undefined;
+        // A character's come from their sheet; a compass isn't a creature.
+        if (typeof id !== "string" || token?.kind !== "token" || token.character || isCompass(token)) return;
+        const clean = stats === null ? null : sanitizeTokenStats(stats);
+        if (stats !== null && !clean) return;
+        if (clean) {
+          this.tokenStats.set(id, clean);
+          this.sql.exec(`INSERT OR REPLACE INTO token_stats (id, data) VALUES (?, ?)`, id, JSON.stringify(clean));
+        } else {
+          this.tokenStats.delete(id);
+          this.sql.exec(`DELETE FROM token_stats WHERE id = ?`, id);
+        }
+        this.broadcast({ t: "tokenStats", id, stats: clean }, (c) => c.role === "gm" && !c.display);
+        return;
+      }
+
       case "problems.clear":
         if (!gm) return this.deny(ws);
         this.problems = [];
@@ -1795,7 +1824,7 @@ export class Room extends DurableObject<Env> {
       lastSeq: this.lastSeq(conn),
       build: BUILD_ID,
       handouts: this.handouts,
-      ...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes } : {}),
+      ...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes, tokenStats: Object.fromEntries(this.tokenStats) } : {}),
     };
   }
 

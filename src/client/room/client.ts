@@ -2,6 +2,7 @@
 // over a WebSocket, applies the user's own changes immediately (optimistically),
 // reconciles them with what the server confirms, and keeps an undo history.
 
+import type { TokenStats } from "../../shared/tokenStats";
 import type { Character, CharactersReply } from "../../shared/characters";
 import type { LibraryEntry } from "../../shared/library";
 import type { DiceSetId } from "../../shared/diceSets";
@@ -280,6 +281,10 @@ export interface RoomState {
   handouts: Handout[];
   /** GM: tokens linked to campaign notes, token id to note path. */
   tokenNotes: Record<string, string>;
+  /** GM: monsters' and NPCs' stats, entered by hand, token id to stats (shared/tokenStats.ts). */
+  tokenStats: Record<string, TokenStats>;
+  /** GM: the token whose stats are being filled in. */
+  statsEditing: string | null;
   /**
    * What the party, and each of its characters, has explored of each scene with lighting on, by
    * exploreSlot (shared/explore.ts); replaced, never changed in place.
@@ -594,6 +599,8 @@ export class RoomClient {
       noteOpen: null,
       handouts: [],
       tokenNotes: {},
+      tokenStats: {},
+      statsEditing: null,
       explored: {},
     });
   }
@@ -907,6 +914,7 @@ export class RoomClient {
           initiative: msg.initiative,
           handouts: msg.handouts ?? [],
           tokenNotes: msg.tokenNotes ?? {},
+          tokenStats: msg.tokenStats ?? {},
           players: msg.players,
           selection: s.selection.filter((id) => items[id]),
           tool: !gm && GM_TOOLS.includes(s.tool) ? "select" : s.tool,
@@ -1073,6 +1081,14 @@ export class RoomClient {
       case "tokenNotes":
         this.store.set({ tokenNotes: msg.notes });
         return;
+
+      case "tokenStats": {
+        const next = { ...this.state.tokenStats };
+        if (msg.stats) next[msg.id] = msg.stats;
+        else delete next[msg.id];
+        this.store.set({ tokenStats: next });
+        return;
+      }
 
       case "calendar":
         if (msg.version !== this.state.calendarVersion) void this.refreshCalendar();
@@ -1998,6 +2014,15 @@ export class RoomClient {
   /** GM: links a token to a campaign note, or with null, unlinks it. */
   setTokenNote(id: string, note: string | null): void {
     this.submit({ t: "token.note", id, note });
+  }
+
+  /** GM: a monster's or NPC's stats (null takes them off). Shown at once; the server tells any other GM. */
+  setTokenStats(id: string, stats: TokenStats | null): void {
+    const next = { ...this.state.tokenStats };
+    if (stats) next[id] = stats;
+    else delete next[id];
+    this.store.set({ tokenStats: next });
+    this.submit({ t: "token.stats", id, stats });
   }
 
   /** GM: opens Campaign notes, at a note (or the list). */

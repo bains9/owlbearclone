@@ -18,6 +18,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 6 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: monsters with HP, AC and attacks that roll two d10 (6 November 2026)",
+        "steps": [
+          "Select a monster or NPC and click **Give it stats** on its bar (the heart). Fill in its HP, AC, initiative and attacks.",
+          "Its card then shows when it's selected: roll an attack's two d10 to hit and its damage with a click, and type an amount to **Damage** or **Heal** it.",
+          "**Ctrl+D** copies it with its stats, unhurt, so a group of goblins only takes filling in once."
+        ],
+        "notes": [
+          "Only you see its stats, and its HP bar on the map. Players' browsers are never sent them.",
+          "A natural 20 is a critical hit and a natural 2 a critical failure, as for characters. Tick **Hidden** on its card to keep its rolls to yourself.",
+          "See **Give a monster stats and attacks** in **Monsters**."
+        ]
+      },
+      {
         "title": "GM: everything backed up to Google Drive, every night (6 November 2026)",
         "steps": [
           "**Backups** on your start page sends a copy of everything to a folder in Google Drive each night: every room, picture and map, the calendar, your monsters and NPCs, your campaign notes, and Dungeon's maps. Only what's new is sent, and nothing is kept on Cloudflare.",
@@ -1508,6 +1521,24 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "They get numbered names, as duplicates do: the first is \"Goblin\", the next \"Goblin 2\", then \"Goblin 3\", always one higher than the highest number already on the scene.",
           "Monsters on other scenes don't count, so each scene starts again at \"Goblin\"."
+        ]
+      },
+      {
+        "title": "Give a monster stats and attacks",
+        "steps": [
+          "Select the monster or NPC on the map and click **Give it stats** on its bar (the heart).",
+          "Fill in its **Max HP**, **AC** and **Initiative**. Leave **HP now** empty and it starts at full.",
+          "For each attack, give its name, its **To hit** bonus and its **Damage**, like 1d8+1, then click **Save**.",
+          "Its card now shows whenever it's selected. Click an attack's first button to roll to hit, and its second to roll damage.",
+          "To hurt or heal it, type the amount on its card and click **Damage** or **Heal**. The pencil on its card changes its stats."
+        ],
+        "notes": [
+          "Attacks roll as characters' do: two d10 with its bonus. Both tens is a natural 20, a critical hit: the chat says so, and its damage button turns into **Crit**, which adds the most its dice can roll. Both ones is a natural 2, a critical failure.",
+          "Only you see a monster's stats and HP: they're never sent to players' browsers or table displays. Its HP bar on the map is only on your screen.",
+          "Its rolls go in the chat for everyone, in your dice. Tick **Hidden** on its card for only you to see them; each device remembers.",
+          "Press **Ctrl+D** to copy a monster with its stats, unhurt, so you only fill them in once for a group. Each stat is for that one token: placing the same monster from the list again starts with none.",
+          "**Initiative** on its card rolls into the list with its bonus, and so does it joining the list any other way.",
+          "Stats are in your nightly backups to Google Drive, but not in a room's **Download backup** file."
         ]
       },
       {

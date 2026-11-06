@@ -36,7 +36,7 @@ describe("the panel", () => {
 
 describe("the guide", () => {
   it("says how to read wide, in What's new and in Campaign notes", () => {
-    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[1];
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[2];
     expect(news.steps.join("\n")).toContain("Click **Read wide** at the top of the panel to read as in Obsidian");
     const read = GUIDE.find((s) => s.id === "campaign-notes")!.parts.find((p) => p.title === "Find and read a note")!;
     const text = [...read.steps, ...read.notes].join("\n");

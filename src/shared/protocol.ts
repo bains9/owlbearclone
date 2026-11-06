@@ -1,5 +1,6 @@
 // WebSocket messages between the browser and the Room Durable Object.
 
+import type { TokenStats } from "./tokenStats";
 import type { TemplateShape } from "./geometry";
 import type { InitOp } from "./initiative";
 import type { Handout } from "./vault";
@@ -107,6 +108,7 @@ export type ClientAction =
   | { t: "handout.remove"; id: string }
   /** GM only: links a token to a campaign note (its path in the vault), or with null, unlinks it. */
   | { t: "token.note"; id: string; note: string | null }
+  | { t: "token.stats"; id: string; stats: TokenStats | null }
   /**
    * Cells of a scene's explore grid (shared/explore.ts, `key` its grid) the party has just seen;
    * with `who` (a sheet id), what that character has just seen, with per-player sight. With
@@ -158,11 +160,14 @@ export type ServerMsg =
       handouts?: Handout[];
       /** GM only: the tokens linked to campaign notes, token id to note path. */
       tokenNotes?: Record<string, string>;
+      /** GM only: monsters' and NPCs' stats, entered by hand (tokenStats.ts), token id to stats. */
+      tokenStats?: Record<string, TokenStats>;
     }
   /** The room's handouts, newest first; `shown`: the one just shown. */
   | { t: "handouts"; handouts: Handout[]; shown?: string }
   /** GM only: the tokens linked to campaign notes. */
   | { t: "tokenNotes"; notes: Record<string, string> }
+  | { t: "tokenStats"; id: string; stats: TokenStats | null }
   /**
    * Cells the party (or with `who`, that character) has just explored of a scene (each sent once),
    * and with `lit`, those just seen in colour; with bits (and litBits), all it's explored of it (to

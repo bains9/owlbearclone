@@ -40,7 +40,7 @@ import { NARROW, cx, useRoom, useRoomState } from "./common";
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
 /** Whether your last roll with an attack was a critical hit to hit, its damage not rolled yet. */
-function critPending(messages: readonly ChatMessage[], userId: string | undefined, who: string, weapon: string): boolean {
+export function critPending(messages: readonly ChatMessage[], userId: string | undefined, who: string, weapon: string): boolean {
   const hit = attackLabel(who, weapon, "to hit");
   const damage = DAMAGE_ROLLS.map((kind) => attackLabel(who, weapon, kind));
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -248,7 +248,7 @@ function CardKi(props: { c: Character }) {
 const CARD_FOLDED = "tabletop-card-folded";
 
 /** Whether this device shows character cards folded: as last chosen here, else folded on a phone. */
-function useCardFolded(): [boolean, (folded: boolean) => void] {
+export function useCardFolded(): [boolean, (folded: boolean) => void] {
   const [folded, setFolded] = useState(() => {
     try {
       const kept = localStorage.getItem(CARD_FOLDED);

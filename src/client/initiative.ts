@@ -18,7 +18,7 @@ export function initEntryFor(room: RoomClient, t: TokenItem): InitEntry {
   return {
     id: randomId(10),
     name: t.label || "Token",
-    value: initiativeRoll(room.characterOf(t)),
+    value: initiativeRoll(room.characterOf(t) ?? room.state.tokenStats[t.id] ?? null),
     color: t.color,
     tokenId: t.id,
     ...(room.isGm && isCreature(t) ? { hidden: true } : {}),
