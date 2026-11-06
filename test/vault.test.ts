@@ -438,7 +438,7 @@ describe("handouts and token links in a room", () => {
 
   it("sends the token links only in the GM's hello", async () => {
     const roomTs = await source("src/worker/room.ts");
-    expect(roomTs).toContain('...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes } : {}),');
+    expect(roomTs).toContain('...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes, tokenStats: Object.fromEntries(this.tokenStats) } : {}),');
     expect(roomTs).toContain('this.broadcast({ t: "tokenNotes", notes: next }, (c) => c.role === "gm" && !c.display);');
   });
 });

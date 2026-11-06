@@ -106,6 +106,7 @@ function room(items: Item[], socks: Sock[]): RoomInside {
     initiative: { entries: [], turn: 0, round: 1 },
     displayView: null,
     sessionSeqs: new Map(),
+    tokenStats: new Map(),
   });
   for (const i of items) {
     const n = JSON.stringify(i).length;

@@ -647,7 +647,7 @@ describe("in Tabletop", () => {
     );
     expect(bar).toContain("entry: initEntryFor(room, t)");
     expect(await source("src/client/ui/InitiativePanel.tsx")).toContain("entry: initEntryFor(room, t)");
-    expect(await source("src/client/initiative.ts")).toContain("value: initiativeRoll(room.characterOf(t))");
+    expect(await source("src/client/initiative.ts")).toContain("value: initiativeRoll(room.characterOf(t) ?? room.state.tokenStats[t.id] ?? null)");
   });
 
   it("is in What's new and has a section of its own, which Room settings links to", async () => {
