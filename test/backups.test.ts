@@ -743,7 +743,25 @@ describe("the GM's campaign notes, encrypted", () => {
     await secrets(t, roomId);
     await t.backUp("nightly", AT);
     const check = await t.call("GET", `/api/backups/night/${ID}/check`);
-    expect(check.data).toEqual({ encrypted: true, opens: true, notes: 1, pictures: 1, sealedPictures: 1, picturesTried: 1, picturesOpened: 1, picturesSame: 1 });
+    const etag = t.FILES.objects.get(`vault/${HASH}`)!.etag;
+    expect(check.data).toEqual({
+      encrypted: true,
+      opens: true,
+      notes: 1,
+      pictures: 1,
+      sealedPictures: 1,
+      picturesTried: 1,
+      picturesOpened: 1,
+      picturesSame: 1,
+      plainCopies: [etag],
+      usedByRoomsToo: 0,
+      tableSnapshot: `${t.night(ID).table!.snapshot}.json.gz`,
+    });
+    // A room using the same picture needs its plain copy: it isn't one to remove.
+    await t.FILES.put(`rooms/${roomId}/assetsame0001`, PICTURE);
+    await t.backUp("nightly", AT + 60_000);
+    const again = await t.call("GET", "/api/backups/night/2026-11-06T07-31Z/check");
+    expect(again.data).toMatchObject({ plainCopies: [], usedByRoomsToo: 1 });
   });
 
   it("a Table without the key gets the room back but its links, and can say what it can't open", async () => {

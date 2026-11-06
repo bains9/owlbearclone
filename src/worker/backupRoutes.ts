@@ -162,7 +162,10 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
         const live = await env.FILES.get(file.key);
         if (live && sameBytes(opened, new Uint8Array(await live.arrayBuffer()))) picturesSame++;
       }
-      return json({ ...notes, sealedPictures: pictures.length, picturesTried: Math.min(3, pictures.length), picturesOpened, picturesSame });
+      // A plain copy of a note's picture, from a backup made before they were encrypted, goes by its checksum.
+      // One a room uses too stays: the room's backups need it, and its pictures aren't encrypted.
+      const plainCopies = pictures.filter((p) => !manifest.files.some((f) => !f.sealed && f.etag === p.etag)).map((p) => p.etag);
+      return json({ ...notes, sealedPictures: pictures.length, picturesTried: Math.min(3, pictures.length), picturesOpened, picturesSame, plainCopies, usedByRoomsToo: pictures.length - plainCopies.length, tableSnapshot: snapshotName(manifest.table.snapshot) });
     } catch (err) {
       return fail(502, (err as Error).message);
     }
