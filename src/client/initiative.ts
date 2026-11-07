@@ -4,7 +4,7 @@
 
 import { initiativeRoll } from "../shared/characters";
 import { randomId } from "../shared/ids";
-import type { InitEntry, TokenItem } from "../shared/types";
+import type { InitEntry, Item, TokenItem } from "../shared/types";
 import { isCompass } from "../shared/types";
 import type { RoomClient } from "./room/client";
 
@@ -23,6 +23,21 @@ export function initEntryFor(room: RoomClient, t: TokenItem): InitEntry {
     tokenId: t.id,
     ...(room.isGm && isCreature(t) ? { hidden: true } : {}),
   };
+}
+
+/** Where an entry's token is, for the GM finding it from the list. */
+export type EntryPlace = { at: "here"; token: TokenItem } | { at: "scene"; sceneName: string } | { at: "gone" };
+
+export function placeOfEntry(
+  entry: Pick<InitEntry, "tokenId">,
+  items: Record<string, Item | undefined>,
+  scenes: Record<string, { name: string } | undefined>,
+  viewSceneId: string | null,
+): EntryPlace {
+  const token = entry.tokenId ? items[entry.tokenId] : undefined;
+  if (!token || token.kind !== "token") return { at: "gone" };
+  if (token.sceneId === viewSceneId) return { at: "here", token };
+  return { at: "scene", sceneName: scenes[token.sceneId]?.name ?? "another scene" };
 }
 
 export const AUTO_KEY = "tabletop-initiative-auto";

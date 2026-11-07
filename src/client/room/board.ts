@@ -140,6 +140,8 @@ const TRAIL_MS = 900;
 const POINTER_HOLD_MS = 200;
 /** How long a ping (a click with the pointer) pulses. */
 const PING_MS = 3500;
+/** Rings on a token the GM has found from the initiative list. */
+const SPOTLIGHT_COLOR = "#ffd23f";
 /**
  * Spells that move (drifting fog, a flyer's bob) are drawn again at most this often: about 30 times
  * a second, half a screen's rate, and half the work for a tablet.
@@ -904,6 +906,24 @@ export class Board implements BoardApi {
   centerOn(p: Point): void {
     const s = this.cam.scale;
     this.setCam(this.stage.width() / 2 - p.x * s, this.stage.height() / 2 - p.y * s, s);
+  }
+
+  /**
+   * The GM finding a token from the initiative list: rings pulsing on it, on this screen alone, as
+   * nothing is sent. The map moves only if it's out of view, and not even then for a hidden token while
+   * a table display follows this view, which would lead the table straight to it. False when it stayed put.
+   */
+  spotlight(t: TokenItem): boolean {
+    const scale = this.cam.scale;
+    const x = t.x * scale + this.cam.x;
+    const y = t.y * scale + this.cam.y;
+    const edge = 40;
+    const inView = x >= edge && x <= this.stage.width() - edge && y >= edge && y <= this.stage.height() - edge;
+    const followed = this.steering && this.room.state.players.some((p) => p.display);
+    const stays = !inView && t.hidden && followed;
+    if (!inView && !stays) this.centerOn(t);
+    this.addPing("spotlight", SPOTLIGHT_COLOR, t);
+    return !stays;
   }
 
   // ---------------------------------------------------------------- rendering

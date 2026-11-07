@@ -311,6 +311,8 @@ export type BuildAction =
 export interface BoardApi {
   viewCenter(): Point;
   centerOn(p: Point): void;
+  /** Lights up a token on this screen alone; false when it stayed out of view on purpose. */
+  spotlight(t: TokenItem): boolean;
   fit(): void;
   zoomBy(factor: number): void;
   /** Build › Select: does what a button in its bars does. */

@@ -18,6 +18,17 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 6 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: find a creature from the initiative list (6 November 2026)",
+        "steps": [
+          "In **Initiative**, click the coloured dot at the left of a creature's row.",
+          "Rings pulse on its token on your map, and it's selected, so its card shows. If it's out of view, your map moves to it. If it's already in view, your map stays where it is."
+        ],
+        "notes": [
+          "Only you see it. Nothing goes to the players or a table display, so a rogue hiding in the bushes stays hidden.",
+          "See **Find a creature on the map** in **Initiative**."
+        ]
+      },
+      {
         "title": "Your table's background sound: a tavern, a storm, war drums (6 November 2026)",
         "steps": [
           "GM: click **Sound** in the top bar (the musical note). There are 21 to choose from: places, the outdoors, weather and moods.",
@@ -2408,6 +2419,22 @@ export const GUIDE: GuideSection[] = [
           "Players aren't sent any change you make to a hidden entry, so nothing gives it away.",
           "When you reveal the token, its entry appears in the players' list.",
           "If you delete a token that's in the list, its entry stays in your list but players stop seeing it. To take it out, click **Remove** (the X) on its row."
+        ]
+      },
+      {
+        "title": "Find a creature on the map (GM)",
+        "steps": [
+          "Click **Initiative** in the top bar.",
+          "Click the coloured dot at the left of a row.",
+          "Rings pulse on that token for a few seconds. It stays selected, so its card shows and you can see where it stands.",
+          "Your map moves to it only if it's out of view. If it's already in view, your map stays where it is, so you can click down the list without losing your place."
+        ],
+        "notes": [
+          "It's for your eyes only: players don't see the rings or the selection, and their dots aren't buttons.",
+          "Only rows tied to a token can be found. A name typed into the list has nothing to find, so its dot isn't a button.",
+          "If the token's on another scene, a message names that scene. If it's gone from the map, a message says so.",
+          "On a phone, the panel closes so you can see the map.",
+          "If a table display is following your view and the creature is hidden, your map stays put even when it's out of view, so the table isn't led straight to it. A message tells you."
         ]
       }
     ]

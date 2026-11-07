@@ -3511,6 +3511,25 @@ button:disabled {
   border-color: var(--accent);
   background: rgba(79, 209, 255, 0.1);
 }
+/* The dot, for the GM: a bigger target than it looks, without moving what's beside it. */
+.init-find {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: -4px -8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.init-find:hover .dot,
+.init-find:focus-visible .dot {
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.7);
+}
 /* The GM's alone: the players don't get it. */
 .init-row.gm-only {
   border-style: dashed;

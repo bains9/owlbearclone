@@ -553,7 +553,7 @@ describe("what a kind of creature starts with", () => {
 
 describe("the guide", () => {
   it("says how, in What's new and in Monsters", () => {
-    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[1];
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[2];
     expect(news.title).toBe("GM: monsters with HP, AC and attacks that roll two d10 (6 November 2026)");
     const part = GUIDE.find((s) => s.id === "monsters")!.parts.find((p) => p.title === "Give a monster stats and attacks")!;
     const text = [...part.steps, ...part.notes].join("\n");

@@ -2,9 +2,9 @@ import { useEffect, useState } from "preact/hooks";
 import { ChevronLeft, ChevronRight, Dices, Eye, EyeOff, Plus, Trash, X } from "lucide-preact";
 import { secureRng } from "../../shared/dice";
 import { randomId } from "../../shared/ids";
-import type { TokenItem } from "../../shared/types";
+import type { InitEntry, TokenItem } from "../../shared/types";
 import { isCompass } from "../../shared/types";
-import { AUTO_KEY, initEntryFor, loadAutoInitiative, saveAutoInitiative } from "../initiative";
+import { AUTO_KEY, initEntryFor, loadAutoInitiative, placeOfEntry, saveAutoInitiative } from "../initiative";
 import { CommitInput, ConfirmDialog, cx, useRoom, useRoomState } from "./common";
 
 export function InitiativePanel() {
@@ -38,6 +38,19 @@ export function InitiativePanel() {
     if (token && token.kind === "token" && token.sceneId === room.state.viewSceneId) {
       room.select([token.id]);
       room.board?.centerOn(token);
+    }
+  };
+
+  /** GM: lights up an entry's token on this screen alone, and selects it so its card shows. */
+  const find = (e: InitEntry) => {
+    const place = placeOfEntry(e, items, room.state.scenes, room.state.viewSceneId);
+    if (place.at === "gone") return room.toast(`${e.name} isn't on the map any more.`);
+    if (place.at === "scene") return room.toast(`${e.name} is on another scene: ${place.sceneName}.`);
+    room.select([place.token.id]);
+    // On a phone the panel lies over the map: out of the way, or the rings are behind it.
+    if (window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
+    if (room.board?.spotlight(place.token) === false) {
+      room.toast(`${e.name} is out of view. Your map stays put, so the table display following it isn't led to a hidden creature.`);
     }
   };
 
@@ -86,7 +99,13 @@ export function InitiativePanel() {
         <ol class="init-list">
           {entries.map((e, i) => (
             <li key={e.id} class={cx("init-row", i === init.turn && "current", e.hidden && "gm-only")}>
-              <span class="dot" style={{ background: e.color }} />
+              {gm && e.tokenId ? (
+                <button class="init-find" title="Find them on the map: only you see it" aria-label={`Find ${e.name} on the map`} onClick={() => find(e)}>
+                  <span class="dot" style={{ background: e.color }} />
+                </button>
+              ) : (
+                <span class="dot" style={{ background: e.color }} />
+              )}
               <CommitInput
                 class="init-name"
                 value={e.name}
