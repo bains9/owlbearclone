@@ -1,6 +1,7 @@
 // The data model shared by the Worker, the Room Durable Object and the browser.
 // All coordinates are in "world" units: pixels of the scene's map image.
 
+import type { RoomSounds } from "./sounds";
 import type { DiceSetId } from "./diceSets";
 import type { Stamp } from "./terrain";
 import type { SpellLook } from "./zones";
@@ -440,6 +441,8 @@ export interface RoomSettings {
    * (rulers and spell areas aren't snapped either). Missing: off.
    */
   freePlacement?: boolean;
+  /** The background sounds playing for everyone here (shared/sounds.ts). Missing: none. */
+  sounds?: RoomSounds;
 }
 
 /** Whether a scene snaps tokens (and rulers and spell areas) to its grid, in a room with these settings. */

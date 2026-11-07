@@ -17,7 +17,7 @@ describe("the calendar on the page", () => {
     expect(page).toContain("<DateOverlay />");
     expect(read("src/client/ui/TableDisplay.tsx")).toContain("{hasHello && <DateOverlay />}");
     expect(read("src/client/ui/CalendarPanel.tsx")).toContain("if (!cal || cal.showOnMap === false) return null;");
-    expect(read("src/client/room/client.ts")).toContain('export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings" | "notes" | "handouts";');
+    expect(read("src/client/room/client.ts")).toContain('export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "sound" | "settings" | "notes" | "handouts";');
   });
 
   it("is read on joining and when the GM changes it, and the GM's changes are told to the room", () => {
@@ -85,7 +85,7 @@ describe("the calendar at the Worker", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and has its own part", () => {
-    expect(GUIDE[0].parts[9].title).toBe("The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)");
+    expect(GUIDE[0].parts[10].title).toBe("The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     for (const words of ["**Bring it in**", "**Sync**", "**The GM's eyes only**", "**New weather for the whole calendar**", "Leap days and months that come only some years"]) expect(all).toContain(words);
   });

@@ -2,6 +2,7 @@
 // every incoming item, patch and scene through these before it stores anything,
 // so a buggy or hostile client can't corrupt the room for everyone else.
 
+import { sanitizeSounds } from "./sounds";
 import type {
   DiagonalRule,
   DrawingItem,
@@ -678,6 +679,8 @@ export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSetti
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const metric = bool(r.metric) ?? current.metric;
   const freePlacement = bool(r.freePlacement) ?? current.freePlacement;
+  // Left out keeps what's playing; a list with nothing in it (Stop all) stops it.
+  const sounds = (r.sounds === undefined ? null : sanitizeSounds(r.sounds)) ?? current.sounds;
   return {
     playersCanDraw: bool(r.playersCanDraw) ?? current.playersCanDraw,
     playersCanAddTokens: bool(r.playersCanAddTokens) ?? current.playersCanAddTokens,
@@ -685,6 +688,7 @@ export function sanitizeSettings(raw: unknown, current: RoomSettings): RoomSetti
     // Left out (a page from before metres, say) keeps what the room has; a room that never had it stays without.
     ...(metric !== undefined ? { metric } : {}),
     ...(freePlacement !== undefined ? { freePlacement } : {}),
+    ...(sounds && Object.keys(sounds).length ? { sounds } : {}),
   };
 }
 

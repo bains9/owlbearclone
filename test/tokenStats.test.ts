@@ -364,6 +364,15 @@ describe("the GM's page", () => {
     const board = await source("src/client/room/board.ts");
     expect(board).toContain("const stats = this.room.state.tokenStats[t.id];");
   });
+
+  it("Player view shows no monster's HP bar, as the players never see one; a character's stays", async () => {
+    const board = await source("src/client/room/board.ts");
+    const hpOf = board.slice(board.indexOf("private hpOf(t: TokenItem)"), board.indexOf("private buildToken("));
+    // The character's line comes first: everyone sees those.
+    expect(hpOf.indexOf("if (c) return c.hp")).toBeGreaterThan(-1);
+    expect(hpOf.indexOf("if (c) return c.hp")).toBeLessThan(hpOf.indexOf("fogOpts.preview"));
+    expect(hpOf.indexOf('if (this.room.state.fogOpts.preview) return "";')).toBeLessThan(hpOf.indexOf("tokenStats[t.id]"));
+  });
 });
 
 describe("what a kind of creature starts with", () => {
@@ -544,7 +553,7 @@ describe("what a kind of creature starts with", () => {
 
 describe("the guide", () => {
   it("says how, in What's new and in Monsters", () => {
-    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[0];
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[1];
     expect(news.title).toBe("GM: monsters with HP, AC and attacks that roll two d10 (6 November 2026)");
     const part = GUIDE.find((s) => s.id === "monsters")!.parts.find((p) => p.title === "Give a monster stats and attacks")!;
     const text = [...part.steps, ...part.notes].join("\n");

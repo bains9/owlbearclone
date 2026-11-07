@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, Maximize2, MessageSquare, Minimize2, Monitor, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
+import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, Maximize2, MessageSquare, Minimize2, Monitor, Music, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
 import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
 import { watchPageErrors } from "../pageErrors";
@@ -35,6 +35,7 @@ import { LevelBar } from "./LevelBar";
 import { LightBar } from "./LightBar";
 import { CardDock, SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
+import { SoundHeldNotice, SoundHost, SoundPanel } from "./SoundPanel";
 import { TableDisplayDialog } from "./TableDisplay";
 import { BuildHints, BuildSelectionBar, ToolOptions, Toolbar, ZoomControls } from "./Toolbar";
 import { Guard, Modal, RoomContext, Swatches, copyText, cx, useClearOfBars, useRoom, useRoomState, useStageHeight, useStageNarrow } from "./common";
@@ -315,6 +316,10 @@ function RoomShell() {
           <Guard name="the voice notice" retry={(s) => s.viewSceneId}>
             <VoiceHeldNotice />
           </Guard>
+          <Guard name="the background sound" retry={(s) => s.viewSceneId}>
+            <SoundHost />
+            <SoundHeldNotice />
+          </Guard>
           <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD}`}>
             <NoteDialog />
             <MapImportDialog />
@@ -357,6 +362,7 @@ const PANELS: { id: PanelId; label: string; icon: typeof MessageSquare; gm?: boo
   { id: "library", label: "Tokens & images", icon: Images },
   { id: "initiative", label: "Initiative", icon: Swords },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "sound", label: "Sound", icon: Music },
   { id: "notes", label: "Campaign notes", icon: BookOpen, gm: true },
   { id: "handouts", label: "Handouts", icon: ScrollText, handouts: true },
   { id: "scenes", label: "Scenes", icon: Layers, gm: true },
@@ -439,12 +445,13 @@ function TopBar() {
         }}
         onDisplay={() => setDisplay(true)}
         onHelp={() => setHelp(true)}
+        onSound={() => room.setPanel("sound")}
       />
       <div class="topbar-sep" />
       {PANELS.filter((p) => (!p.gm || gm) && (!p.handouts || gm || hasHandouts)).map((p) => (
         <button
           key={p.id}
-          class={cx("icon-btn", panel === p.id && "active")}
+          class={cx("icon-btn", panel === p.id && "active", p.id === "sound" && "hide-phone")}
           title={p.label}
           aria-label={p.label}
           aria-pressed={panel === p.id}
@@ -465,7 +472,8 @@ function TopBar() {
  * The top bar's More (the three dots): what's used now and then, kept out of the bar so it stays
  * short. Copy invite link and Help & shortcuts for everyone; Table display and Dungeon for the GM,
  * and Problems on devices when something has failed on someone's (an amber dot on the button).
- * On a phone, where the bar has room for little, it's how to reach them at all.
+ * On a phone, where the bar has room for little, it's how to reach them at all, and Sound too, the
+ * one panel that's in here rather than in the bar there.
  */
 function MoreMenu(props: {
   gm: boolean;
@@ -475,6 +483,7 @@ function MoreMenu(props: {
   onDisplay: () => void;
   onProblems: () => void;
   onHelp: () => void;
+  onSound: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -527,6 +536,9 @@ function MoreMenu(props: {
         <div class="more-pop" role="menu" aria-label="More">
           <button class="more-item" role="menuitem" onClick={pick(props.onCopy)}>
             <Link size={16} /> Copy invite link
+          </button>
+          <button class="more-item show-phone" role="menuitem" onClick={pick(props.onSound)}>
+            <Music size={16} /> Sound
           </button>
           {props.gm && (
             <button class="more-item" role="menuitem" onClick={pick(props.onDisplay)}>
@@ -607,6 +619,7 @@ function SidePanel(props: { panel: PanelId }) {
   else if (props.panel === "library") body = <LibraryPanel />;
   else if (props.panel === "initiative") body = <InitiativePanel />;
   else if (props.panel === "calendar") body = <CalendarPanel />;
+  else if (props.panel === "sound") body = <SoundPanel />;
   else if (props.panel === "scenes" && gm) body = <ScenesPanel />;
   else if (props.panel === "settings" && gm) body = <SettingsPanel />;
   else if (isNotes) body = <NotesPanel wide={wide} />;

@@ -461,8 +461,8 @@ describe("on the page, and in the guide", () => {
 
   it("leads What's new, with a section of its own, several vaults and all", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[2].title).toBe("GM: your Obsidian notes in Table, and handouts for the players (4 November 2026)");
-    const top = [...news.parts[2].steps, ...news.parts[2].notes].join("\n");
+    expect(news.parts[3].title).toBe("GM: your Obsidian notes in Table, and handouts for the players (4 November 2026)");
+    const top = [...news.parts[3].steps, ...news.parts[3].notes].join("\n");
     for (const words of ["**Choose your vault's folder**", "the folder holding all your vaults", "Ubuntu", "**Show to players**", "**%% comments %%**", "**Link to**", "**Update**", "**Vault** menu"]) {
       expect(top).toContain(words);
     }

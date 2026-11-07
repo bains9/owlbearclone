@@ -154,8 +154,8 @@ describe("the dice thrown on the map", () => {
 describe("the guide", () => {
   it("leads What's new with them, and Dice and chat explains the thrown dice", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[3].title).toBe("Dice as they are: shaped in the chat, and thrown across the map (4 November 2026)");
-    const top = [...news.parts[3].steps, ...news.parts[3].notes].join("\n");
+    expect(news.parts[4].title).toBe("Dice as they are: shaped in the chat, and thrown across the map (4 November 2026)");
+    const top = [...news.parts[4].steps, ...news.parts[4].notes].join("\n");
     for (const words of ["a d4 is a triangle", "outlined as on Roll20", "**Throw the dice on the map (3D)**", "they stay where they land until you click the map or someone rolls again", "00 and 0 make 100"]) expect(top).toContain(words);
     const chat = GUIDE.find((s) => s.id === "dice-and-chat")!;
     expect(chat.parts.at(-1)!.title).toBe("Dice thrown on the map");

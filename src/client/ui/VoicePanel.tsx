@@ -246,9 +246,14 @@ export function VoiceMicButton() {
   );
 }
 
+/** Whether the browser is holding back the others' voices. */
+export function useVoiceHeld(): boolean {
+  return useVoice((s) => s.status === "on" && s.blocked);
+}
+
 /** Over the map while the browser holds back the others' sound: any click on the page plays it. */
 export function VoiceHeldNotice() {
-  const held = useVoice((s) => s.status === "on" && s.blocked);
+  const held = useVoiceHeld();
   if (!held) return null;
   return (
     <button class="voice-held" onClick={() => voice.unblock()}>

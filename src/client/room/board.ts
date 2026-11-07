@@ -1303,7 +1303,8 @@ export class Board implements BoardApi {
   private hpOf(t: TokenItem): string {
     const c = t.character && !isCompass(t) ? this.room.characterOf(t) : null;
     if (c) return c.hp !== null && c.maxHp ? `${c.hp}/${c.maxHp}` : "";
-    // A monster's, for the GM: a player's page is never sent them.
+    // A monster's, for the GM alone: a player's page is never sent them, and Player view shows what they see.
+    if (this.room.state.fogOpts.preview) return "";
     const stats = this.room.state.tokenStats[t.id];
     return stats?.maxHp ? `${stats.hp}/${stats.maxHp}` : "";
   }

@@ -65,7 +65,7 @@ export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" |
 
 /** Tools only the GM has. */
 export const GM_TOOLS: ToolId[] = ["fog", "build"];
-export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "settings" | "notes" | "handouts";
+export type PanelId = "chat" | "scenes" | "library" | "initiative" | "calendar" | "sound" | "settings" | "notes" | "handouts";
 export type Status = "connecting" | "open" | "reconnecting" | "notfound" | "deleted";
 
 export interface DrawOptions {

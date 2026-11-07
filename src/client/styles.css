@@ -1736,6 +1736,85 @@ button:disabled {
   gap: 6px;
   color: var(--muted);
 }
+/* A phone's top bar is full: Sound is under More there. */
+.more-item.show-phone {
+  display: none;
+}
+@media (max-width: 560px) {
+  .icon-btn.hide-phone {
+    display: none;
+  }
+  .more-item.show-phone {
+    display: flex;
+  }
+}
+.sound-panel h3 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.sound-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sound-slider {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+.sound-slider input {
+  width: 100%;
+}
+.sound-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  margin-top: 14px;
+}
+.sound-head h3 {
+  margin: 0;
+}
+.sound-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sound-about {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.sound-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.sound-playing .sound-name {
+  flex: 1;
+  min-width: 0;
+}
+.sound-playing input {
+  width: 110px;
+}
+.sound-buttons {
+  display: flex;
+  gap: 4px;
+}
+.sound-on {
+  min-width: 50px;
+  text-align: right;
+}
 .voice-blocked {
   display: block;
   width: 100%;

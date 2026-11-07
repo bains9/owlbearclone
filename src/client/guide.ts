@@ -18,6 +18,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 6 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Your table's background sound: a tavern, a storm, war drums (6 November 2026)",
+        "steps": [
+          "GM: click **Sound** in the top bar (the musical note). There are 21 to choose from: places, the outdoors, weather and moods.",
+          "Click the headphones beside one to hear it yourself first, then **Add**, and everyone hears it. Add a second to layer them, such as a tavern with a storm outside, up to four at once. **Switch** changes over to that one, and **Stop all** stops them.",
+          "Everyone: you set how loud it is for you under **Your volume** in **Sound** (on a phone, it's under **More**), or turn it off on your device with the speaker button. Nobody else is affected."
+        ],
+        "notes": [
+          "Each browser makes the sounds itself, so there's nothing to download. A browser only plays sound after you've clicked on the page: if yours is holding it back, a notice over the map says so.",
+          "See **Background sound**."
+        ]
+      },
+      {
         "title": "GM: monsters with HP, AC and attacks that roll two d10 (6 November 2026)",
         "steps": [
           "Select a monster or NPC and click **Give it stats** on its bar (the heart). Fill in its HP, AC, initiative and attacks.",
@@ -895,6 +907,7 @@ export const GUIDE: GuideSection[] = [
           "**Chat & dice**: messages, dice rolls and who's here. A number on the button counts messages you haven't seen.",
           "**Tokens & images**: quick coloured tokens and uploaded images to put on the map. If the GM has turned this off for players, the panel says \"The GM has turned off adding tokens for players.\"",
           "**Initiative**: the turn order for combat.",
+          "**Sound**: your own volume for the background sound, and for the GM, the sounds to put on.",
           "**Scenes** (GM only): every scene in the room. Preview one privately, or show it to the players.",
           "**Room settings** (GM only): the room's name, the invite link, what players are allowed to do, whether distances are in metres, backups, and deleting the room.",
           "Only one panel is open at a time. On a large screen, **Chat & dice** opens by itself when you enter a room."
@@ -1534,7 +1547,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Attacks roll as characters' do: two d10 with its bonus. Both tens is a natural 20, a critical hit: the chat says so, and its damage button turns into **Crit**, which adds the most its dice can roll. Both ones is a natural 2, a critical failure.",
-          "Only you see a monster's stats and HP: they're never sent to players' browsers or table displays. Its HP bar on the map is only on your screen.",
+          "Only you see a monster's stats and HP: they're never sent to players' browsers or table displays. Its HP bar on the map is only on your screen, and it goes while you're looking through **Player view**, as the players never see it.",
           "Its rolls go in the chat for everyone, in your dice. Tick **Hidden** on its card for only you to see them; each device remembers.",
           "The first time you fill in a kind of creature, **Every new Goblin starts with these** is ticked (it names the creature), so each new one starts with these stats, unhurt, in every room, however you place it. Untick it if this one's a one-off, like a named NPC using a common picture.",
           "After that, changing a token changes only that token, such as one boss among its goblins. To change what every new one starts with, tick **Make these what every new Goblin starts with**. **Forget what every new Goblin starts with** takes them away.",
@@ -2246,6 +2259,46 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "It changes how loud they are for you only, and it's remembered in this browser.",
           "An iPhone or iPad has no sliders, because those devices set the volume themselves: use the device's volume buttons."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sound",
+    "title": "Background sound",
+    "audience": "everyone",
+    "intro": "The GM can put on background sound for the whole table: one place or mood, or a few layered together. Everyone hears it, each at their own volume. **Sound** in the top bar (the musical note) has it all.",
+    "parts": [
+      {
+        "title": "Put on a sound (GM)",
+        "steps": [
+          "Click **Sound** in the top bar.",
+          "Find one in the list. To hear it first, click the headphones beside it: only you hear that, and it stops when you click them again or close the panel.",
+          "Click **Add**. It fades in for everyone.",
+          "To layer another with it, click **Add** on that one too, up to four at once: a **Tavern** with a **Thunderstorm** outside, say, or a **Campfire** in the **Woods at night**.",
+          "To change over to a different one, click **Switch** beside it: what's playing fades out as it fades in.",
+          "Under **Playing for everyone**, drag a sound's slider to set how loud it is for everyone, and click its **X** to stop it. **Stop all** stops everything."
+        ],
+        "notes": [
+          "**Places:** Tavern, Town street, Temple, Dungeon, Cave, Ship at sea.",
+          "**Outdoors:** Campfire, Forest by day, Woods at night, Swamp, River, Seashore.",
+          "**Weather:** Steady rain, Thunderstorm, Howling wind, Blizzard.",
+          "**Mood:** War drums, Dread, Magic, Quiet harp, Minstrel's lute.",
+          "What's playing belongs to the room: it's still on when you come back, and it changes when you move the group to another room. It carries on when you change scene.",
+          "Players see the names of what's playing, so a name won't stay a surprise. A table display plays no sound: the GM's own device is the one to play it from at a table."
+        ]
+      },
+      {
+        "title": "Set your own volume",
+        "steps": [
+          "Click **Sound** in the top bar (on a phone, it's under **More**, the three dots).",
+          "Drag **Your volume**. It's for this device only, and it doesn't change anyone else's.",
+          "To turn background sound off on this device, click the speaker button beside it. Click it again to turn it back on."
+        ],
+        "notes": [
+          "A browser only plays sound after you've clicked on the page. If yours is holding it back, a notice over the map says so: click anywhere and it starts.",
+          "Voice chat has its own volume, and today's rain and wind have their own button in the **Calendar** panel.",
+          "If a device struggles, turning background sound off there gives it the work back."
         ]
       }
     ]
