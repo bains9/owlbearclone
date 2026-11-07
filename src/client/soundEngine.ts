@@ -913,11 +913,12 @@ function whisper(k: SoundKit, t: number): void {
 }
 
 /** A held chord of buzzing notes, dulled and drifting: the floor under a dark place. */
-function drone(k: SoundKit, freqs: number[], cutoff: number, level: number, space: Space): void {
+function drone(k: SoundKit, freqs: number[], cutoff: number, level: number, space: Space, into?: AudioNode): void {
   const dull = k.filter(lp(cutoff, 1.2));
   const g = k.gain(level);
   dull.connect(g);
-  k.place(g, { space, wet: 0.5 });
+  if (into) g.connect(into);
+  else k.place(g, { space, wet: 0.5 });
   k.wobble(dull.frequency, 0.05, cutoff * 0.3);
   k.wobble(g.gain, 0.08, level * 0.2);
   for (const f of freqs) {
@@ -1548,6 +1549,253 @@ function plainchant(k: SoundKit): void {
   });
 }
 
+// ------------------------------------------------------------ the big brass
+
+/** Low brass chords written for this, stacked as an orchestra's low end is: they only ever fall. */
+const BWAH_D_MINOR = [38, 45, 50, 53];
+const BWAH_B_FLAT = [34, 41, 46, 50];
+const BWAH_G_MINOR = [31, 38, 43, 46];
+export const BWAH_PHRASES: { chords: number[][]; then: number }[] = [
+  { chords: [BWAH_D_MINOR], then: 24 },
+  { chords: [BWAH_D_MINOR, BWAH_B_FLAT], then: 28 },
+  { chords: [BWAH_D_MINOR], then: 22 },
+  { chords: [BWAH_D_MINOR, BWAH_B_FLAT, BWAH_G_MINOR], then: 30 },
+];
+
+/** The build into a hit. Long enough too that the first arrives once a newly added sound has faded in. */
+export const BWAH_BUILD = 1.6;
+/** Nothing at all, just before it. */
+export const BWAH_SILENCE = 0.16;
+const BWAH_HIT = 3.6;
+const BWAH_LAST = 5;
+const BWAH_GAP = 4.6;
+const BWAH_CLOCK = 0.125;
+
+export interface BwahEvent {
+  at: number;
+  what: "build" | "hit" | "back" | "tick" | "tock" | "pulse";
+  chord?: number[];
+  seconds?: number;
+}
+
+/**
+ * The same every time, with no chance in it: everyone who started together hears each hit together.
+ * After the hits the clock starts up, quickening, with low strings pushing under it from a third of the
+ * way through, and all of it gets louder until it cuts dead for the next.
+ */
+export function bwahScore(): { events: BwahEvent[]; seconds: number } {
+  const events: BwahEvent[] = [];
+  let at = 0;
+  for (const { chords, then } of BWAH_PHRASES) {
+    events.push({ at, what: "build" });
+    let hit = at + BWAH_BUILD;
+    chords.forEach((chord, i) => {
+      if (i) hit += BWAH_GAP;
+      events.push({ at: hit, what: "hit", chord, seconds: i === chords.length - 1 ? BWAH_LAST : BWAH_HIT });
+    });
+    const back = hit + BWAH_LAST - 1;
+    const cut = back + then + BWAH_BUILD - BWAH_SILENCE;
+    events.push({ at: back, what: "back", seconds: cut - back });
+    let beats = 0;
+    for (let n = 0; back + n * BWAH_CLOCK < cut - 0.05; n++) {
+      const t = back + n * BWAH_CLOCK;
+      const through = (t - back) / (cut - back);
+      if (n % (through < 0.45 ? 4 : through < 0.9 ? 2 : 1) === 0) events.push({ at: t, what: beats++ % 2 ? "tock" : "tick" });
+      if (through > 0.35 && n % 4 === 0) events.push({ at: t, what: "pulse" });
+    }
+    at = back + then;
+  }
+  // The last clock runs on into the first build, as the piece comes round.
+  const seconds = at;
+  return { events: events.map((e) => ({ ...e, at: e.at % seconds })).sort((a, b) => a.at - b.at), seconds };
+}
+
+const SHEPARD_VOICES = 6;
+const SHEPARD_OCTAVE_SECONDS = 12;
+const SHEPARD_STEP = 1.5;
+
+/**
+ * One of the tones of a rise that never gets anywhere: each climbs six octaves, coming in from nothing at
+ * the bottom and going to nothing at the top, while others take its place. What's heard is forever going up.
+ */
+export function shepardVoice(phase: number): { hz: number; level: number } {
+  return { hz: 55 * 2 ** (phase * SHEPARD_VOICES), level: Math.sin(Math.PI * phase) ** 2 };
+}
+
+function endlessRise(k: SoundKit, level: number, into: AudioNode): void {
+  const tone = k.gain(level);
+  tone.connect(into);
+  const voices = Array.from({ length: SHEPARD_VOICES }, (_, i) => {
+    const o = k.c.createOscillator();
+    o.type = "triangle";
+    const g = k.gain(0);
+    o.connect(g).connect(tone);
+    o.start(k.c.currentTime);
+    k.sources.push(o);
+    return { o, g, phase: i / SHEPARD_VOICES };
+  });
+  k.loop(0, (t) => {
+    for (const v of voices) {
+      const from = shepardVoice(v.phase);
+      v.phase = (v.phase + SHEPARD_STEP / (SHEPARD_VOICES * SHEPARD_OCTAVE_SECONDS)) % 1;
+      const to = shepardVoice(v.phase);
+      v.o.frequency.setValueAtTime(from.hz, t);
+      v.g.gain.setValueAtTime(from.level, t);
+      // Off the top it's silent, and starts again at the bottom next time.
+      if (to.hz > from.hz) {
+        v.o.frequency.exponentialRampToValueAtTime(to.hz, t + SHEPARD_STEP);
+        v.g.gain.linearRampToValueAtTime(to.level, t + SHEPARD_STEP);
+      }
+    }
+    return SHEPARD_STEP;
+  });
+}
+
+/** The air drawn in before a hit, rising until it stops dead. */
+function suckBack(k: SoundKit, t: number): void {
+  const rising = BWAH_BUILD - BWAH_SILENCE;
+  const src = k.shot("pink", t, BWAH_BUILD);
+  const tone = k.filter(lp(250, 1.5));
+  tone.frequency.setValueAtTime(250, t);
+  tone.frequency.exponentialRampToValueAtTime(5000, t + rising);
+  const g = k.gain(0.01);
+  g.gain.setValueAtTime(0.01, t);
+  g.gain.exponentialRampToValueAtTime(1.6, t + rising);
+  g.gain.linearRampToValueAtTime(0, t + rising + 0.02);
+  src.connect(tone).connect(g);
+  k.place(g);
+}
+
+/** What overdriving does to brass, making it snarl: the curve it's bent through. */
+const RASP = Float32Array.from({ length: 1025 }, (_, i) => Math.tanh(2.2 * (i / 512 - 1)));
+
+/**
+ * The hit: a low brass section, closed at first and bursting open, the "b" and then the "wah". Two sections,
+ * left and right, a little apart in tuning, played hard enough to rasp and flutter, with horns above, the
+ * floor shaking below, and a very big room around it.
+ */
+function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
+  const end = t + seconds;
+  const note = (type: OscillatorType, midi: number, cents: number, into: AudioNode) => {
+    const f = hz(midi);
+    const o = k.osc(type, f * 0.96, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.16);
+    // Sagging as it runs out of breath.
+    o.frequency.setValueAtTime(f, end - 0.8);
+    o.frequency.exponentialRampToValueAtTime(f * 0.97, end);
+    o.detune.value = cents;
+    o.stop(end + 0.05);
+    o.connect(into);
+  };
+  for (const [pan, flutter, spread] of [
+    [-0.4, 27, [-11, 4]],
+    [0.4, 31, [-4, 12]],
+  ] as const) {
+    const mouth = k.filter(lp(110, 1.6));
+    mouth.frequency.setValueAtTime(110, t);
+    mouth.frequency.exponentialRampToValueAtTime(1900, t + 0.2);
+    mouth.frequency.exponentialRampToValueAtTime(600, end);
+    for (const midi of chord) for (const cents of spread) note("sawtooth", midi, cents, mouth);
+    const rasp = k.c.createWaveShaper();
+    rasp.curve = RASP;
+    const growl = k.gain(1);
+    const shake = k.osc("sine", flutter, t);
+    shake.stop(end + 0.05);
+    shake.connect(k.gain(0.2)).connect(growl.gain);
+    const g = k.gain(0);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.42, t + 0.04);
+    g.gain.setValueAtTime(0.42, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.24, t + seconds * 0.6);
+    g.gain.linearRampToValueAtTime(0, end);
+    mouth.connect(k.gain(0.35)).connect(rasp);
+    rasp.connect(k.filter(lp(4200))).connect(growl);
+    // Where brass bites, and what small speakers can play of it.
+    rasp.connect(k.filter(bp(1100, 0.9))).connect(k.gain(1.3)).connect(growl);
+    growl.connect(g);
+    k.place(g, { pan, space: "church", wet: 0.55 });
+  }
+  const horns = k.filter(lp(2200, 0.9));
+  for (const [midi, cents] of [
+    [chord[0]! + 24, -6],
+    [chord[0]! + 24, 7],
+    [chord[1]! + 24, -4],
+    [chord[1]! + 24, 5],
+  ] as const) {
+    note("sawtooth", midi, cents, horns);
+  }
+  const swell = k.gain(0);
+  swell.gain.setValueAtTime(0, t);
+  swell.gain.linearRampToValueAtTime(0.16, t + 0.18);
+  swell.gain.setValueAtTime(0.16, end - 1.2);
+  swell.gain.linearRampToValueAtTime(0, end);
+  horns.connect(swell);
+  k.place(swell, { space: "church", wet: 0.9, dry: 0.6 });
+  // Below what the section plays, unless that's below what anything can play.
+  const low = chord[0]! - 12 >= 26 ? chord[0]! - 12 : chord[0]!;
+  const floor = k.gain(0);
+  floor.gain.setValueAtTime(0, t);
+  floor.gain.linearRampToValueAtTime(0.16, t + 0.06);
+  floor.gain.linearRampToValueAtTime(0.1, t + seconds * 0.6);
+  floor.gain.linearRampToValueAtTime(0, end);
+  note("sine", low, 0, floor);
+  k.place(floor);
+  boom(k, t, 0.18, "church");
+  // Breath, hitting the mouthpieces.
+  k.through(k.shot("white", t, 0.16), [bp(1300, 0.7)]).end.connect(k.struck(t, 0.2, 0.004, 0.14)).connect(k.out);
+}
+
+/** A low string section digging in, one short note. */
+function stringPulse(k: SoundKit, t: number, midi: number, level: number, into: AudioNode): void {
+  const tone = k.filter(lp(900, 0.8));
+  for (const [m, cents] of [
+    [midi, -7],
+    [midi, 6],
+    [midi + 12, -3],
+  ] as const) {
+    const o = k.osc("sawtooth", hz(m), t);
+    o.detune.value = cents;
+    o.stop(t + 0.35);
+    o.connect(tone);
+  }
+  tone.connect(k.struck(t, level, 0.012, 0.28)).connect(into);
+}
+
+/** A watch: a click, with no body to it. */
+function clockTick(k: SoundKit, t: number, f: number, level: number, into: AudioNode): void {
+  k.through(k.shot("white", t, 0.02), [bp(f, 5)]).end.connect(k.struck(t, level, 0.001, 0.018)).connect(into);
+}
+
+function bigBrass(k: SoundKit): void {
+  const { events, seconds } = bwahScore();
+  const bed = k.gain(0);
+  // Dry, so that it can stop dead: a room around it would ring on through the silence.
+  k.place(bed);
+  drone(k, [hz(26), hz(38), hz(45)], 240, 0.06, "church", bed);
+  endlessRise(k, 0.18, bed);
+  let i = 0;
+  k.loop(0.05, (t) => {
+    const e = events[i]!;
+    if (e.what === "build") {
+      suckBack(k, t);
+      bed.gain.setTargetAtTime(0, t + BWAH_BUILD - BWAH_SILENCE, 0.015);
+    } else if (e.what === "hit") {
+      bwah(k, t, e.chord!, e.seconds!);
+    } else if (e.what === "back") {
+      bed.gain.setValueAtTime(0.0001, t);
+      bed.gain.linearRampToValueAtTime(0.45, t + 3);
+      // A hair before the cut: if rounding put this after it, the bed would stay up through the silence.
+      bed.gain.linearRampToValueAtTime(1, t + e.seconds! - 0.02);
+    } else if (e.what === "pulse") {
+      stringPulse(k, t, 38, 0.3, bed);
+    } else {
+      clockTick(k, t, e.what === "tick" ? 3400 : 2700, 2.5, bed);
+    }
+    i = (i + 1) % events.length;
+    return (i ? events[i]!.at : seconds) - e.at;
+  });
+}
+
 const BATTLE_BIG = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0];
 const BATTLE_TOM = [0, 0, 0.6, 0, 0.5, 0, 0, 0.6, 0, 0, 0.6, 0, 0.7, 0.5, 0.8, 0.6];
 const BATTLE_STEP = 60 / 76 / 2;
@@ -1758,6 +2006,7 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
   battle: { make: warDrums },
   throne: { make: darkThrone },
   gregorian: { make: plainchant },
+  bwah: { make: bigBrass },
   dread: {
     make(k) {
       drone(k, [110, 116.5, 155.6], 900, 0.05, "cave");
@@ -1814,6 +2063,7 @@ export const SOUND_TRIMS: Record<string, number> = {
   cantina: 0.9,
   throne: 1.78,
   gregorian: 2.3,
+  bwah: 0.36,
   town: 6.17,
   temple: 3.63,
   dungeon: 1.58,

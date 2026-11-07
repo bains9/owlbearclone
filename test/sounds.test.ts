@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, readChant, soundsOf, swung } from "../src/client/soundEngine";
+import { BWAH_BUILD, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -112,6 +112,9 @@ class FakeContext {
   }
   createConvolver() {
     return Object.assign(new FakeNode(), { buffer: null });
+  }
+  createWaveShaper() {
+    return Object.assign(new FakeNode(), { curve: null });
   }
   createDynamicsCompressor() {
     return Object.assign(new FakeNode(), { threshold: new FakeParam(), knee: new FakeParam(), ratio: new FakeParam(), attack: new FakeParam(), release: new FakeParam() });
@@ -271,6 +274,80 @@ describe("making them", () => {
   it("the dark throne's chant keeps time too, with a chord for each bar", () => {
     expect(THRONE_CHORDS).toHaveLength(THRONE_TUNE.length);
     for (const bar of THRONE_TUNE) expect(bar.reduce((sum, [, beats]) => sum + beats, 0)).toBe(4);
+  });
+
+  describe("the big brass", () => {
+    const { events, seconds } = bwahScore();
+    const hits = events.filter((e) => e.what === "hit");
+    const clock = events.filter((e) => e.what === "tick" || e.what === "tock" || e.what === "pulse");
+
+    it("keeps its events in order, all inside the piece, so nothing is ever due before the last", () => {
+      for (let i = 1; i < events.length; i++) expect(events[i]!.at).toBeGreaterThanOrEqual(events[i - 1]!.at);
+      for (const e of events) expect(e.at).toBeGreaterThanOrEqual(0);
+      expect(events[events.length - 1]!.at).toBeLessThan(seconds);
+    });
+
+    it("plays every chord of every phrase, and every phrase starts with a build", () => {
+      expect(hits.map((h) => h.chord)).toEqual(BWAH_PHRASES.flatMap((p) => p.chords));
+      const builds = events.filter((e) => e.what === "build");
+      expect(builds).toHaveLength(BWAH_PHRASES.length);
+      for (const b of builds) expect(hits.some((h) => Math.abs(h.at - b.at - BWAH_BUILD) < 1e-6)).toBe(true);
+    });
+
+    it("hits first once a sound just added has faded in, not while it's still coming up", () => {
+      // A new layer comes up with a time constant of 0.6 s (soundscape.ts).
+      expect(1 - Math.exp(-hits[0]!.at / 0.6)).toBeGreaterThan(0.9);
+    });
+
+    it("has dead silence before each hit that follows a build, and no clock over the hits", () => {
+      for (const b of events.filter((e) => e.what === "build")) {
+        const hit = b.at + BWAH_BUILD;
+        expect(clock.filter((e) => e.at > hit - BWAH_SILENCE && e.at < hit + 3)).toEqual([]);
+      }
+    });
+
+    it("the clock quickens as it goes", () => {
+      const back = events.find((e) => e.what === "back")!;
+      const ticks = events.filter((e) => (e.what === "tick" || e.what === "tock") && e.at >= back.at && e.at < back.at + back.seconds!);
+      const gaps = ticks.slice(1).map((e, i) => e.at - ticks[i]!.at);
+      expect(gaps[0]).toBeCloseTo(0.5);
+      expect(gaps[gaps.length - 1]).toBeCloseTo(0.125);
+      for (let i = 1; i < gaps.length; i++) expect(gaps[i]!).toBeLessThanOrEqual(gaps[i - 1]! + 1e-9);
+    });
+
+    it("cuts dead every time: the bed's swell always finishes before the cut, whichever way the sums round", () => {
+      const c = new FakeContext();
+      const gains: ReturnType<FakeContext["createGain"]>[] = [];
+      const make = c.createGain.bind(c);
+      c.createGain = () => {
+        const g = make();
+        gains.push(g);
+        return g;
+      };
+      const sound = buildSound("bwah", c as unknown as BaseAudioContext, c.destination as unknown as AudioNode)!;
+      sound.pump(0, seconds * 3);
+      const bed = gains.find((g) => g.gain.events.some((e) => e.kind === "target" && e.value === 0))!;
+      const cuts = bed.gain.events.filter((e) => e.kind === "target");
+      const swells = bed.gain.events.filter((e) => e.kind === "linear" && e.value === 1);
+      expect(swells.length).toBeGreaterThan(8);
+      // The last may still be waiting for its cut, which comes after what's been scheduled.
+      for (const swell of swells.slice(0, -1)) {
+        const cut = cuts.find((e) => e.at >= swell.at - 0.001);
+        expect(cut).toBeDefined();
+        expect(cut!.at - swell.at).toBeGreaterThan(0.005);
+        expect(cut!.at - swell.at).toBeLessThan(0.05);
+      }
+    });
+
+    it("the rise that never arrives: tones come and go silently, an octave apart, and the whole stays level", () => {
+      expect(shepardVoice(0).level).toBeCloseTo(0);
+      expect(shepardVoice(1).level).toBeCloseTo(0);
+      expect(shepardVoice(1 / 6).hz / shepardVoice(0).hz).toBeCloseTo(2);
+      for (const phase of [0, 0.03, 0.08, 0.13]) {
+        const sum = [0, 1, 2, 3, 4, 5].reduce((all, i) => all + shepardVoice((phase + i / 6) % 1).level, 0);
+        expect(sum).toBeCloseTo(3);
+      }
+    });
   });
 
   describe("plainchant, as it's written", () => {

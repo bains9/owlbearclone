@@ -36,6 +36,7 @@ export const SOUNDS: SoundOption[] = [
   { id: "dread", name: "Dread", group: "Mood", blurb: "A low drone, a heartbeat, whispers" },
   { id: "throne", name: "Dark throne", group: "Mood", blurb: "A low choir, slow and menacing" },
   { id: "gregorian", name: "Gregorian chant", group: "Mood", blurb: "Monks in a stone church, singing the Dies Irae" },
+  { id: "bwah", name: "Bwah", group: "Mood", blurb: "Huge trailer brass over a ticking clock" },
   { id: "magic", name: "Magic", group: "Mood", blurb: "Shimmering chimes" },
   { id: "harp", name: "Quiet harp", group: "Mood", blurb: "A slow, gentle harp" },
   { id: "lute", name: "Minstrel's lute", group: "Mood", blurb: "Greensleeves, played on a lute" },

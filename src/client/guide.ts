@@ -32,7 +32,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Your table's background sound: a tavern, a storm, war drums (6 November 2026)",
         "steps": [
-          "GM: click **Sound** in the top bar (the musical note). There are 24 to choose from: places, the outdoors, weather and moods.",
+          "GM: click **Sound** in the top bar (the musical note). There are 25 to choose from: places, the outdoors, weather and moods.",
           "Click the headphones beside one to hear it yourself first, then **Add**, and everyone hears it. Add a second to layer them, such as a tavern with a storm outside, up to four at once. **Switch** changes over to that one, and **Stop all** stops them.",
           "Everyone: you set how loud it is for you under **Your volume** in **Sound** (on a phone, it's under **More**), or turn it off on your device with the speaker button. Nobody else is affected."
         ],
@@ -2295,7 +2295,7 @@ export const GUIDE: GuideSection[] = [
           "**Places:** Tavern, Cantina, Town street, Temple, Dungeon, Cave, Ship at sea.",
           "**Outdoors:** Campfire, Forest by day, Woods at night, Swamp, River, Seashore.",
           "**Weather:** Steady rain, Thunderstorm, Howling wind, Blizzard.",
-          "**Mood:** War drums, Dread, Dark throne, Gregorian chant, Magic, Quiet harp, Minstrel's lute.",
+          "**Mood:** War drums, Dread, Dark throne, Gregorian chant, Bwah, Magic, Quiet harp, Minstrel's lute.",
           "What's playing belongs to the room: it's still on when you come back, and it changes when you move the group to another room. It carries on when you change scene.",
           "Players see the names of what's playing, so a name won't stay a surprise. A table display plays no sound: the GM's own device is the one to play it from at a table."
         ]
