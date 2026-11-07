@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { CANTINA_CHORDS, CANTINA_TUNE, GREENSLEEVES, GREENSLEEVES_CHORDS, SOUND_RECIPES, SOUND_TRIMS, buildSound, swung } from "../src/client/soundEngine";
+import { CANTINA_CHORDS, CANTINA_TUNE, GREENSLEEVES, GREENSLEEVES_CHORDS, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -268,10 +268,15 @@ describe("making them", () => {
     for (const bar of CANTINA_TUNE) expect(bar.reduce((sum, [, beats]) => sum + beats, 0)).toBe(4);
   });
 
+  it("the dark throne's chant keeps time too, with a chord for each bar", () => {
+    expect(THRONE_CHORDS).toHaveLength(THRONE_TUNE.length);
+    for (const bar of THRONE_TUNE) expect(bar.reduce((sum, [, beats]) => sum + beats, 0)).toBe(4);
+  });
+
   it("swings: the beat stays where it is, and the second eighth of each pair comes late", () => {
     for (const beat of [0, 1, 2, 3, 4]) expect(swung(beat)).toBe(beat);
-    expect(swung(0.5)).toBeCloseTo(2 / 3);
-    expect(swung(1.5)).toBeCloseTo(1 + 2 / 3);
+    expect(swung(0.5)).toBeCloseTo(0.6);
+    expect(swung(1.5)).toBeCloseTo(1.6);
     // Always forward, or a note would end before it began.
     for (let b = 0; b < 4; b += 0.25) expect(swung(b + 0.25)).toBeGreaterThan(swung(b));
   });

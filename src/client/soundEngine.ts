@@ -1106,84 +1106,119 @@ function lute(k: SoundKit): void {
   });
 }
 
-/** A swing tune written for this, in D minor: [note, beats], 0 for a rest, four beats to a bar. */
+// A fast, bouncing little band. The feel is that of old hot swing and novelty bands; the tune is written
+// for this, and isn't anyone else's.
+const CANTINA_HEAD: [number, number][] = [[81, 0.5], [77, 0.5], [80, 0.5], [76, 0.5], [79, 0.5], [75, 0.5], [78, 0.5], [74, 0.5]];
+const CANTINA_LEAP: [number, number][] = [[0, 0.5], [74, 0.5], [77, 0.5], [81, 0.5], [86, 1], [0, 1]];
+const CANTINA_TURN: [number, number][] = [[82, 0.5], [81, 0.5], [79, 0.5], [77, 0.5], [76, 0.5], [79, 0.5], [73, 0.5], [76, 0.5]];
+const CANTINA_HOME: [number, number][] = [[74, 1], [0, 1], [69, 0.5], [74, 0.5], [0, 1]];
+/** [note, beats], 0 for a rest, four beats to a bar. */
 export const CANTINA_TUNE: [number, number][][] = [
-  [[74, 1], [77, 0.5], [81, 0.5], [79, 0.5], [77, 0.5], [76, 0.5], [74, 0.5]],
-  [[73, 0.5], [74, 0.5], [77, 1], [74, 1], [0, 1]],
-  [[67, 0.5], [70, 0.5], [74, 1], [70, 0.5], [69, 0.5], [67, 1]],
-  [[69, 1], [65, 0.5], [69, 0.5], [74, 1], [0, 1]],
-  [[70, 0.5], [74, 0.5], [77, 1], [76, 0.5], [74, 0.5], [72, 1]],
-  [[73, 0.5], [76, 0.5], [79, 1], [77, 0.5], [76, 0.5], [73, 1]],
-  [[74, 1.5], [69, 0.5], [74, 0.5], [77, 0.5], [81, 1]],
-  [[79, 0.5], [77, 0.5], [76, 0.5], [74, 0.5], [73, 1], [69, 1]],
-  [[81, 1], [84, 0.5], [81, 0.5], [77, 1], [81, 1]],
-  [[79, 1], [82, 0.5], [79, 0.5], [76, 1], [72, 1]],
-  [[77, 0.5], [79, 0.5], [81, 0.5], [84, 0.5], [81, 1], [77, 1]],
-  [[76, 0.5], [77, 0.5], [79, 0.5], [76, 0.5], [73, 2]],
-  [[74, 0.5], [77, 0.5], [82, 1], [81, 0.5], [79, 0.5], [77, 1]],
-  [[76, 0.5], [79, 0.5], [81, 1], [79, 0.5], [77, 0.5], [76, 1]],
-  [[74, 1], [77, 0.5], [81, 0.5], [86, 1], [81, 1]],
-  [[74, 1], [0, 3]],
+  CANTINA_HEAD,
+  CANTINA_LEAP,
+  [[82, 0.5], [79, 0.5], [81, 0.5], [77, 0.5], [79, 0.5], [75, 0.5], [77, 0.5], [74, 0.5]],
+  [[73, 0.5], [76, 0.5], [79, 0.5], [82, 0.5], [81, 1], [0, 1]],
+  CANTINA_HEAD,
+  CANTINA_LEAP,
+  CANTINA_TURN,
+  CANTINA_HOME,
+  [[77, 0.5], [79, 0.5], [81, 0.5], [84, 0.5], [0, 0.5], [81, 0.5], [0, 1]],
+  [[76, 0.5], [79, 0.5], [82, 0.5], [86, 0.5], [0, 0.5], [82, 0.5], [0, 1]],
+  [[74, 0.5], [77, 0.5], [82, 0.5], [86, 0.5], [84, 0.5], [82, 0.5], [81, 0.5], [79, 0.5]],
+  [[81, 1], [73, 0.5], [76, 0.5], [81, 1], [0, 1]],
+  CANTINA_HEAD,
+  CANTINA_LEAP,
+  CANTINA_TURN,
+  CANTINA_HOME,
 ];
 
 interface BandChord {
-  /** The bass's four beats. */
-  bass: number[];
-  /** The guitar, on beats two and four. */
-  comp: number[];
+  /** The bass, bouncing between these on beats one and three. */
+  bass: [number, number];
+  /** The steel drum, off the beat. */
+  stab: number[];
   /** What a solo can pick from. */
   solo: number[];
 }
-const D_MINOR: BandChord = { bass: [38, 45, 50, 45], comp: [62, 65, 69], solo: [62, 65, 69, 72, 74, 77, 81] };
-const G_MINOR: BandChord = { bass: [43, 50, 55, 50], comp: [62, 67, 70], solo: [62, 67, 70, 74, 79, 82] };
-const B_FLAT: BandChord = { bass: [46, 53, 58, 53], comp: [62, 65, 70], solo: [62, 65, 70, 74, 77, 82] };
-const A_SEVEN: BandChord = { bass: [45, 52, 57, 52], comp: [61, 64, 67], solo: [61, 64, 67, 69, 73, 76, 79] };
-const F_MAJOR: BandChord = { bass: [41, 48, 53, 48], comp: [60, 65, 69], solo: [60, 65, 69, 72, 77, 81] };
-const C_SEVEN: BandChord = { bass: [36, 43, 48, 43], comp: [60, 64, 70], solo: [60, 64, 67, 70, 72, 76, 79] };
+const D_MINOR: BandChord = { bass: [38, 45], stab: [77, 81], solo: [62, 65, 69, 72, 74, 77, 81] };
+const G_MINOR: BandChord = { bass: [43, 38], stab: [74, 79], solo: [62, 67, 70, 74, 79, 82] };
+const B_FLAT: BandChord = { bass: [46, 41], stab: [74, 77], solo: [62, 65, 70, 74, 77, 82] };
+const A_SEVEN: BandChord = { bass: [45, 40], stab: [73, 79], solo: [61, 64, 67, 69, 73, 76, 79] };
+const F_MAJOR: BandChord = { bass: [41, 48], stab: [72, 77], solo: [60, 65, 69, 72, 77, 81] };
+const C_SEVEN: BandChord = { bass: [36, 43], stab: [70, 76], solo: [60, 64, 67, 70, 72, 76, 79] };
 export const CANTINA_CHORDS: BandChord[] = [
-  D_MINOR, D_MINOR, G_MINOR, D_MINOR, B_FLAT, A_SEVEN, D_MINOR, A_SEVEN,
-  F_MAJOR, C_SEVEN, F_MAJOR, A_SEVEN, B_FLAT, A_SEVEN, D_MINOR, D_MINOR,
+  D_MINOR, D_MINOR, G_MINOR, A_SEVEN, D_MINOR, D_MINOR, A_SEVEN, D_MINOR,
+  F_MAJOR, C_SEVEN, B_FLAT, A_SEVEN, D_MINOR, D_MINOR, A_SEVEN, D_MINOR,
 ];
-const CANTINA_BEAT = 60 / 150;
-const BAND_BASS = { seconds: 1.2, damp: 0.994, soft: 0.3 };
-const BAND_GUITAR = { seconds: 0.9, damp: 0.985, soft: 0.7 };
+const CANTINA_BEAT = 60 / 216;
+const SWING = 0.6;
+const BAND_BASS = { seconds: 0.7, damp: 0.99, soft: 0.35 };
 
-/** Where a beat falls with a swing: the second eighth of each pair comes late. */
+/** Where a beat falls with a swing: the second eighth of each pair comes a little late. */
 export function swung(beat: number): number {
   const whole = Math.floor(beat);
   const part = beat - whole;
-  return whole + (part < 0.5 ? (part * 2) / 1.5 : 2 / 3 + ((part - 0.5) * 2) / 3);
+  return whole + (part < 0.5 ? (part * SWING) / 0.5 : SWING + ((part - 0.5) * (1 - SWING)) / 0.5);
+}
+
+/** A steel drum's note: its octave nearly as strong as the note, a clang dying fast. Made once for each. */
+function panOf(c: BaseAudioContext, midi: number): Pluck {
+  const plucks = sharedOf(c).plucks;
+  const key = `pan ${midi}`;
+  const found = plucks.get(key);
+  if (found) return found;
+  const sr = c.sampleRate;
+  const len = Math.round(sr * 0.7);
+  const buffer = c.createBuffer(1, len, sr);
+  const d = buffer.getChannelData(0);
+  const w = (2 * Math.PI * hz(midi)) / sr;
+  for (let i = 0; i < len; i++) {
+    const t = i / sr;
+    const tone =
+      Math.exp(-t * 4) * Math.sin(w * i) + 0.75 * Math.exp(-t * 6) * Math.sin(2 * w * i) + 0.3 * Math.exp(-t * 11) * Math.sin(3 * w * i) + 0.12 * Math.exp(-t * 20) * Math.sin(4.02 * w * i);
+    d[i] = 0.5 * tone * Math.min(1, t / 0.002) * Math.min(1, (len - i) / (sr * 0.03));
+  }
+  const made = { buffer, rate: 1 };
+  plucks.set(key, made);
+  return made;
 }
 
 function cantinaBand(k: SoundKit): void {
   const band = k.gain(1);
-  k.place(band, { space: "room", wet: 0.45 });
-  // A square wave's odd harmonics, dulled: as near as a single voice gets to a clarinet.
-  const reed = k.filter(lp(2400, 0.9));
+  k.place(band, { space: "room", wet: 0.35 });
+  // A square wave's odd harmonics, a little bright: as near as one voice gets to a hot clarinet.
+  const reed = k.filter(lp(3000, 0.9));
   reed.connect(band);
   const brush = k.filter(hp(5000));
   brush.connect(band);
   const snap = k.filter(bp(1800, 1.2));
   snap.connect(band);
-  const plucked = (t: number, midi: number, level: number, style: typeof BAND_BASS) => {
-    const { buffer, rate } = pluckOf(k.c, midi, style.seconds, style.damp, style.soft);
+  const play = (t: number, { buffer, rate }: Pluck, level: number) => {
     const src = k.c.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = rate;
     src.connect(k.gain(level)).connect(band);
     src.start(t);
   };
+  // Short and punchy, each note gone before the next: that's most of the bounce.
   const blown = (t: number, seconds: number, midi: number) => {
-    const o = k.osc("square", hz(midi), t);
-    o.detune.value = k.r(-4, 4);
-    o.stop(t + seconds + 0.08);
+    const held = seconds * 0.62;
     const level = 0.085 * k.r(0.85, 1.05);
     const g = k.gain(0);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(level, t + 0.02);
-    g.gain.setValueAtTime(level, t + seconds * 0.8);
-    g.gain.linearRampToValueAtTime(0, t + seconds + 0.05);
-    o.connect(g).connect(reed);
+    g.gain.linearRampToValueAtTime(level, t + 0.012);
+    g.gain.setValueAtTime(level, t + held * 0.75);
+    g.gain.linearRampToValueAtTime(0, t + held);
+    g.connect(reed);
+    const top = k.osc("square", hz(midi), t);
+    top.detune.value = k.r(-4, 4);
+    top.stop(t + held + 0.02);
+    top.connect(g);
+    // A reedy voice underneath, an octave down, to give it some edge.
+    const under = k.osc("sawtooth", hz(midi - 12), t);
+    under.detune.value = k.r(-4, 4);
+    under.stop(t + held + 0.02);
+    under.connect(k.gain(0.35)).connect(g);
   };
   let walk = 3;
   /** A bar of solo: eighths wandering through the chord, with room to breathe. */
@@ -1191,7 +1226,7 @@ function cantinaBand(k: SoundKit): void {
     const line: [number, number][] = [];
     for (let i = 0; i < 8; i++) {
       walk = Math.max(0, Math.min(chord.solo.length - 1, walk + k.pick([-2, -1, 1, 2])));
-      line.push([k.chance(0.18) ? 0 : chord.solo[walk]!, 0.5]);
+      line.push([k.chance(0.2) ? 0 : chord.solo[walk]!, 0.5]);
     }
     return line;
   };
@@ -1199,27 +1234,113 @@ function cantinaBand(k: SoundKit): void {
   k.loop(0.2, (t) => {
     const place = bar % CANTINA_TUNE.length;
     const chord = CANTINA_CHORDS[place]!;
-    // The tune, then a solo on it, and round again.
+    // The tune, then solos on it: the reed for eight bars, the steel drum for eight.
     const soloing = Math.floor(bar / CANTINA_TUNE.length) % 2 === 1;
+    const steel = soloing && place >= 8;
     const at = (beat: number) => t + swung(beat) * CANTINA_BEAT;
-    chord.bass.forEach((midi, beat) => plucked(at(beat), midi, 0.38 * k.r(0.9, 1.05), BAND_BASS));
+    play(at(0), pluckOf(k.c, chord.bass[0], BAND_BASS.seconds, BAND_BASS.damp, BAND_BASS.soft), 0.42);
+    play(at(2), pluckOf(k.c, chord.bass[1], BAND_BASS.seconds, BAND_BASS.damp, BAND_BASS.soft), 0.36);
     for (const beat of [1, 3]) {
-      chord.comp.forEach((midi, i) => plucked(at(beat) + i * 0.008, midi, 0.1, BAND_GUITAR));
+      for (const midi of chord.stab) play(at(beat), panOf(k.c, midi), 0.13);
       const rim = k.shot("white", at(beat), 0.08);
-      rim.connect(k.struck(at(beat), 0.09, 0.001, 0.05)).connect(snap);
+      rim.connect(k.struck(at(beat), 0.1, 0.001, 0.04)).connect(snap);
     }
     for (let eighth = 0; eighth < 8; eighth++) {
       const on = at(eighth / 2);
-      const stroke = k.shot("white", on, 0.06);
-      stroke.connect(k.struck(on, eighth % 2 ? 0.02 : 0.035, 0.001, 0.035)).connect(brush);
+      const stroke = k.shot("white", on, 0.05);
+      stroke.connect(k.struck(on, eighth % 2 ? 0.02 : 0.035, 0.001, 0.028)).connect(brush);
     }
     let beat = 0;
     for (const [midi, length] of soloing ? soloBar(chord) : CANTINA_TUNE[place]!) {
-      if (midi) blown(at(beat), at(beat + length) - at(beat), midi);
+      if (midi) {
+        if (steel) play(at(beat), panOf(k.c, midi + 12), 0.3);
+        else blown(at(beat), at(beat + length) - at(beat), midi);
+      }
       beat += length;
     }
     bar++;
     return CANTINA_BEAT * 4;
+  });
+}
+
+/**
+ * A slow chant written for this, in D with a flattened second: [note, beats], 0 for a rest, four beats to
+ * a bar, and two bars at the end for the strings and the bell alone.
+ */
+export const THRONE_TUNE: [number, number][][] = [
+  [[50, 2], [50, 1], [51, 1]],
+  [[50, 3], [0, 1]],
+  [[51, 2], [53, 1], [51, 1]],
+  [[50, 3], [0, 1]],
+  [[53, 2], [54, 1], [53, 1]],
+  [[51, 2], [49, 1], [51, 1]],
+  [[50, 1], [53, 1], [57, 2]],
+  [[55, 1], [53, 1], [51, 1], [50, 1]],
+  [[0, 4]],
+  [[0, 4]],
+];
+const THRONE_D = [38, 45, 50];
+const THRONE_E_FLAT = [39, 46, 51];
+const THRONE_B_FLAT_MINOR = [41, 46, 49];
+export const THRONE_CHORDS = [THRONE_D, THRONE_D, THRONE_E_FLAT, THRONE_D, THRONE_B_FLAT_MINOR, THRONE_E_FLAT, THRONE_D, THRONE_D, THRONE_D, THRONE_D];
+const THRONE_BEAT = 1;
+
+function darkThrone(k: SoundKit): void {
+  k.noise("pink", [lp(500)], 0.04);
+  // Men's voices on "oh", as three resonances of the voice.
+  const voices = k.gain(1);
+  const sung = k.gain(1);
+  for (const [f, q, level] of [
+    [430, 5, 1],
+    [800, 7, 0.55],
+    [2500, 9, 0.12],
+  ] as const) {
+    voices.connect(k.filter(bp(f, q))).connect(k.gain(level)).connect(sung);
+  }
+  k.place(sung, { space: "hall", wet: 1, dry: 0.5 });
+  const strings = k.filter(lp(650, 0.8));
+  k.place(strings, { space: "hall", wet: 0.6 });
+
+  /** Saws together, swelling and fading as one: a section of a choir, or of strings. */
+  const section = (t: number, end: number, notes: [number, number][], level: number, attack: number, release: number, into: AudioNode) => {
+    const g = k.gain(0);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + attack);
+    g.gain.setValueAtTime(level, Math.max(t + attack, end - release));
+    g.gain.linearRampToValueAtTime(0, end);
+    g.connect(into);
+    for (const [midi, cents] of notes) {
+      const f = hz(midi);
+      const o = k.osc("sawtooth", f * 0.985, t);
+      o.frequency.exponentialRampToValueAtTime(f, t + Math.min(0.2, attack));
+      o.detune.value = cents;
+      o.stop(end + 0.05);
+      o.connect(g);
+    }
+  };
+
+  let bar = 0;
+  k.loop(0.1, (t) => {
+    const place = bar % THRONE_TUNE.length;
+    const chord = THRONE_CHORDS[place]!;
+    const barLength = THRONE_BEAT * 4;
+    // The chord, overlapping the next as it fades.
+    section(t, t + barLength + 1.5, chord.flatMap((midi) => [[midi, -7], [midi, 6]] as [number, number][]), 0.05, 1.2, 1.5, voices);
+    section(t, t + barLength + 1, [[chord[0]! , -4], [chord[0]! + 12, 5]], 0.09, 0.9, 1, strings);
+    // The chant over it: three voices together, and one an octave down.
+    let beat = 0;
+    for (const [midi, beats] of THRONE_TUNE[place]!) {
+      if (midi) {
+        const on = t + beat * THRONE_BEAT;
+        section(on, on + beats * THRONE_BEAT + 0.3, [[midi, -8], [midi, 1], [midi, 9], [midi - 12, 3]], 0.085, 0.25, 0.35, voices);
+      }
+      beat += beats;
+    }
+    if (place === 0 || place === 4) boom(k, t, 0.22, "hall");
+    if (place === 2 || place === 6) boom(k, t, 0.12, "hall");
+    if (place === 8) metal(k, t, 98, BELL, 7, 0.09, { pan: -0.2, space: "hall", wet: 1, dry: 0.5 });
+    bar++;
+    return barLength;
   });
 }
 
@@ -1431,6 +1552,7 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
     },
   },
   battle: { make: warDrums },
+  throne: { make: darkThrone },
   dread: {
     make(k) {
       drone(k, [110, 116.5, 155.6], 900, 0.05, "cave");
@@ -1484,7 +1606,8 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
  */
 export const SOUND_TRIMS: Record<string, number> = {
   tavern: 3.94,
-  cantina: 0.95,
+  cantina: 0.9,
+  throne: 1.78,
   town: 6.17,
   temple: 3.63,
   dungeon: 1.58,
