@@ -44,14 +44,15 @@ describe("on the page", () => {
     const find = panel.slice(panel.indexOf("const find = (e: InitEntry)"), panel.indexOf("const add = (e: Event)"));
     expect(find).toContain("room.select([place.token.id]);");
     expect(find).toContain(`window.matchMedia("(max-width: 760px)").matches) room.setPanel(null)`);
-    expect(find).toContain("room.board?.spotlight(place.token) === false");
+    expect(find).toContain("light(e.name, place.token);");
     expect(find).toContain("isn't on the map any more");
     expect(find).toContain("is on another scene");
+    expect(panel).toContain("is out of view. Your map stays put");
   });
 
   it("sends nothing: the rings are on this screen alone", async () => {
     const board = await source("src/client/room/board.ts");
-    const body = board.slice(board.indexOf("spotlight(t: TokenItem): boolean"), board.indexOf("// ---------------------------------------------------------------- rendering"));
+    const body = board.slice(board.indexOf("spotlight(t: TokenItem, center = false): boolean"), board.indexOf("// ---------------------------------------------------------------- rendering"));
     expect(body).toContain(`this.addPing("spotlight", SPOTLIGHT_COLOR, t);`);
     expect(body).not.toContain("sendEph");
     expect(body).not.toContain("submit");
@@ -63,11 +64,27 @@ describe("on the page", () => {
 
   it("moves the map only for what's out of view, and not to a hidden one a table display would follow", async () => {
     const board = await source("src/client/room/board.ts");
-    const body = board.slice(board.indexOf("spotlight(t: TokenItem): boolean"), board.indexOf("// ---------------------------------------------------------------- rendering"));
+    const body = board.slice(board.indexOf("spotlight(t: TokenItem, center = false): boolean"), board.indexOf("// ---------------------------------------------------------------- rendering"));
     expect(body).toContain("const followed = this.steering && this.room.state.players.some((p) => p.display);");
-    expect(body).toContain("const stays = !inView && t.hidden && followed;");
-    expect(body).toContain("if (!inView && !stays) this.centerOn(t);");
-    expect(body).toContain("return !stays;");
+    expect(body).toContain("const held = t.hidden && followed;");
+    expect(body).toContain("if ((center || !inView) && !held) this.centerOn(t);");
+    // Only left out of view calls for a word: a hidden creature in view is lit up where it is.
+    expect(body).toContain("return inView || !held;");
+  });
+
+  it("the turn moving on lights up whoever's turn it is, and goes through the same care for a hidden one", async () => {
+    const panel = await source("src/client/ui/InitiativePanel.tsx");
+    const step = panel.slice(panel.indexOf("const step = (dir: 1 | -1)"), panel.indexOf("const find = (e: InitEntry)"));
+    expect(step).toContain("room.select([place.token.id]);");
+    expect(step).toContain("light(entry.name, place.token, true);");
+    // Nothing in the panel moves the map by itself, where it could lead a table display to a hidden creature.
+    expect(panel).not.toContain("centerOn");
+    expect(panel.match(/board\?\.spotlight/g)).toHaveLength(1);
+    const guide = GUIDE.find((s) => s.id === "initiative")!.parts.flatMap((p) => p.notes).join(" ");
+    expect(guide).toContain("pulses gold rings on it and moves your map to it");
+    expect(guide).toContain("the turn lands on a hidden creature");
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[0];
+    expect(news.steps.join(" ")).toContain("**Next turn** and **Previous turn** show the same rings");
   });
 
   it("says so in What's new and the guide", () => {

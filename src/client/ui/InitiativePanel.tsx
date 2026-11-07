@@ -27,17 +27,24 @@ export function InitiativePanel() {
   }, []);
   const entries = init.entries;
 
+  /** Rings on a token, on this screen alone, and a word if it's been left out of view on purpose. */
+  const light = (name: string, token: TokenItem, center?: boolean) => {
+    if (room.board?.spotlight(token, center) === false) {
+      room.toast(`${name} is out of view. Your map stays put, so the table display following it isn't led to a hidden creature.`);
+    }
+  };
+
   const step = (dir: 1 | -1) => {
     if (!entries.length) return;
     // Say whose turn is ending, so two people pressing Next together only advance once.
     room.initiativeOp({ op: "step", dir, from: entries[init.turn]?.id ?? null });
-    // Bring the new current combatant's token into view.
+    // Bring the new current combatant's token into view, and light it up.
     const now = room.state.initiative;
-    const tokenId = now.entries[now.turn]?.tokenId;
-    const token = tokenId ? items[tokenId] : undefined;
-    if (token && token.kind === "token" && token.sceneId === room.state.viewSceneId) {
-      room.select([token.id]);
-      room.board?.centerOn(token);
+    const entry = now.entries[now.turn];
+    const place = entry ? placeOfEntry(entry, items, room.state.scenes, room.state.viewSceneId) : null;
+    if (entry && place?.at === "here") {
+      room.select([place.token.id]);
+      light(entry.name, place.token, true);
     }
   };
 
@@ -49,9 +56,7 @@ export function InitiativePanel() {
     room.select([place.token.id]);
     // On a phone the panel lies over the map: out of the way, or the rings are behind it.
     if (window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
-    if (room.board?.spotlight(place.token) === false) {
-      room.toast(`${e.name} is out of view. Your map stays put, so the table display following it isn't led to a hidden creature.`);
-    }
+    light(e.name, place.token);
   };
 
   const add = (e: Event) => {

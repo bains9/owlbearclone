@@ -909,21 +909,22 @@ export class Board implements BoardApi {
   }
 
   /**
-   * The GM finding a token from the initiative list: rings pulsing on it, on this screen alone, as
-   * nothing is sent. The map moves only if it's out of view, and not even then for a hidden token while
-   * a table display follows this view, which would lead the table straight to it. False when it stayed put.
+   * Finding a token from the initiative list, or the turn moving on to it: rings pulsing on it, on this
+   * screen alone, as nothing is sent. The map moves only if it's out of view (with center, either way),
+   * and never to a hidden token while a table display follows this view, which would lead the table
+   * straight to it. False when it's been left out of view for that reason.
    */
-  spotlight(t: TokenItem): boolean {
+  spotlight(t: TokenItem, center = false): boolean {
     const scale = this.cam.scale;
     const x = t.x * scale + this.cam.x;
     const y = t.y * scale + this.cam.y;
     const edge = 40;
     const inView = x >= edge && x <= this.stage.width() - edge && y >= edge && y <= this.stage.height() - edge;
     const followed = this.steering && this.room.state.players.some((p) => p.display);
-    const stays = !inView && t.hidden && followed;
-    if (!inView && !stays) this.centerOn(t);
+    const held = t.hidden && followed;
+    if ((center || !inView) && !held) this.centerOn(t);
     this.addPing("spotlight", SPOTLIGHT_COLOR, t);
-    return !stays;
+    return inView || !held;
   }
 
   // ---------------------------------------------------------------- rendering

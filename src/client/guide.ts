@@ -21,10 +21,11 @@ export const GUIDE: GuideSection[] = [
         "title": "GM: find a creature from the initiative list (6 November 2026)",
         "steps": [
           "In **Initiative**, click the coloured dot at the left of a creature's row.",
-          "Rings pulse on its token on your map, and it's selected, so its card shows. If it's out of view, your map moves to it. If it's already in view, your map stays where it is."
+          "Rings pulse on its token on your map, and it's selected, so its card shows. If it's out of view, your map moves to it. If it's already in view, your map stays where it is.",
+          "**Next turn** and **Previous turn** show the same rings on the creature whose turn it is."
         ],
         "notes": [
-          "Only you see it. Nothing goes to the players or a table display, so a rogue hiding in the bushes stays hidden.",
+          "Only you see it. Nothing goes to the players or a table display, so a rogue hiding in the bushes stays hidden. A table display following your view isn't led to a hidden creature, by either of these.",
           "See **Find a creature on the map** in **Initiative**."
         ]
       },
@@ -2385,7 +2386,8 @@ export const GUIDE: GuideSection[] = [
           "**Round** at the top counts the rounds. After the last person, the turn goes back to the top of the list and the round number goes up by one.",
           "If you step back from the first person, the turn goes to the last person of the previous round. The round never drops below 1.",
           "Anyone can use these buttons, players included. If two people click **Next turn** at the same moment, the turn only moves once.",
-          "When you click **Next turn** or **Previous turn** and the turn lands on a token, the app selects that token and moves your map to it, as long as the token is on the scene you're looking at. This only happens on the screen of the person who clicked."
+          "When you click **Next turn** or **Previous turn** and the turn lands on a token, the app selects that token, pulses gold rings on it and moves your map to it, as long as the token is on the scene you're looking at. This only happens on the screen of the person who clicked.",
+          "GM: if a table display is following your view and the turn lands on a hidden creature, your map stays where it is, so the table isn't led straight to it. If that leaves the creature out of view, a message tells you."
         ]
       },
       {
