@@ -31,7 +31,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Your table's background sound: a tavern, a storm, war drums (6 November 2026)",
         "steps": [
-          "GM: click **Sound** in the top bar (the musical note). There are 21 to choose from: places, the outdoors, weather and moods.",
+          "GM: click **Sound** in the top bar (the musical note). There are 22 to choose from: places, the outdoors, weather and moods.",
           "Click the headphones beside one to hear it yourself first, then **Add**, and everyone hears it. Add a second to layer them, such as a tavern with a storm outside, up to four at once. **Switch** changes over to that one, and **Stop all** stops them.",
           "Everyone: you set how loud it is for you under **Your volume** in **Sound** (on a phone, it's under **More**), or turn it off on your device with the speaker button. Nobody else is affected."
         ],
@@ -2291,7 +2291,7 @@ export const GUIDE: GuideSection[] = [
           "Under **Playing for everyone**, drag a sound's slider to set how loud it is for everyone, and click its **X** to stop it. **Stop all** stops everything."
         ],
         "notes": [
-          "**Places:** Tavern, Town street, Temple, Dungeon, Cave, Ship at sea.",
+          "**Places:** Tavern, Cantina, Town street, Temple, Dungeon, Cave, Ship at sea.",
           "**Outdoors:** Campfire, Forest by day, Woods at night, Swamp, River, Seashore.",
           "**Weather:** Steady rain, Thunderstorm, Howling wind, Blizzard.",
           "**Mood:** War drums, Dread, Magic, Quiet harp, Minstrel's lute.",

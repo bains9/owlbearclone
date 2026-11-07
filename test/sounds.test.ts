@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { GREENSLEEVES, GREENSLEEVES_CHORDS, SOUND_RECIPES, SOUND_TRIMS, buildSound } from "../src/client/soundEngine";
+import { CANTINA_CHORDS, CANTINA_TUNE, GREENSLEEVES, GREENSLEEVES_CHORDS, SOUND_RECIPES, SOUND_TRIMS, buildSound, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -260,6 +260,20 @@ describe("making them", () => {
       buildSound("rain", c as unknown as BaseAudioContext, c.destination as unknown as AudioNode, Math.random, trimmed);
       expect(gains[0].gain.value).toBe(trimmed ? SOUND_TRIMS.rain : 1);
     }
+  });
+
+  it("the cantina's band keeps time: every bar of its tune adds up, with a chord for each", () => {
+    expect(CANTINA_TUNE).toHaveLength(16);
+    expect(CANTINA_CHORDS).toHaveLength(16);
+    for (const bar of CANTINA_TUNE) expect(bar.reduce((sum, [, beats]) => sum + beats, 0)).toBe(4);
+  });
+
+  it("swings: the beat stays where it is, and the second eighth of each pair comes late", () => {
+    for (const beat of [0, 1, 2, 3, 4]) expect(swung(beat)).toBe(beat);
+    expect(swung(0.5)).toBeCloseTo(2 / 3);
+    expect(swung(1.5)).toBeCloseTo(1 + 2 / 3);
+    // Always forward, or a note would end before it began.
+    for (let b = 0; b < 4; b += 0.25) expect(swung(b + 0.25)).toBeGreaterThan(swung(b));
   });
 
   it("plays Greensleeves whole: every bar adds up, with a chord for each half of it", () => {

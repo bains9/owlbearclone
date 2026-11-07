@@ -16,6 +16,7 @@ export const SOUND_GROUPS: SoundGroup[] = ["Places", "Outdoors", "Weather", "Moo
 
 export const SOUNDS: SoundOption[] = [
   { id: "tavern", name: "Tavern", group: "Places", blurb: "Talk, mugs and a fire" },
+  { id: "cantina", name: "Cantina", group: "Places", blurb: "A busy bar, a hot little band" },
   { id: "town", name: "Town street", group: "Places", blurb: "Voices, horses, a smith at work" },
   { id: "temple", name: "Temple", group: "Places", blurb: "Slow chanting, a far-off bell" },
   { id: "dungeon", name: "Dungeon", group: "Places", blurb: "Cold air, chains, stone shifting" },

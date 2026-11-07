@@ -793,8 +793,8 @@ function talk(k: SoundKit, t: number, crowd: AudioNode): void {
 }
 
 /** A crowd to send talk into: a little dulled by the distance, and in a space. */
-function crowdBus(k: SoundKit, muffle: number, space: Space, wet: number): AudioNode {
-  const bus = k.gain(1);
+function crowdBus(k: SoundKit, muffle: number, space: Space, wet: number, level = 1): AudioNode {
+  const bus = k.gain(level);
   const dull = k.filter(lp(muffle));
   bus.connect(dull);
   k.place(dull, { space, wet });
@@ -1106,6 +1106,123 @@ function lute(k: SoundKit): void {
   });
 }
 
+/** A swing tune written for this, in D minor: [note, beats], 0 for a rest, four beats to a bar. */
+export const CANTINA_TUNE: [number, number][][] = [
+  [[74, 1], [77, 0.5], [81, 0.5], [79, 0.5], [77, 0.5], [76, 0.5], [74, 0.5]],
+  [[73, 0.5], [74, 0.5], [77, 1], [74, 1], [0, 1]],
+  [[67, 0.5], [70, 0.5], [74, 1], [70, 0.5], [69, 0.5], [67, 1]],
+  [[69, 1], [65, 0.5], [69, 0.5], [74, 1], [0, 1]],
+  [[70, 0.5], [74, 0.5], [77, 1], [76, 0.5], [74, 0.5], [72, 1]],
+  [[73, 0.5], [76, 0.5], [79, 1], [77, 0.5], [76, 0.5], [73, 1]],
+  [[74, 1.5], [69, 0.5], [74, 0.5], [77, 0.5], [81, 1]],
+  [[79, 0.5], [77, 0.5], [76, 0.5], [74, 0.5], [73, 1], [69, 1]],
+  [[81, 1], [84, 0.5], [81, 0.5], [77, 1], [81, 1]],
+  [[79, 1], [82, 0.5], [79, 0.5], [76, 1], [72, 1]],
+  [[77, 0.5], [79, 0.5], [81, 0.5], [84, 0.5], [81, 1], [77, 1]],
+  [[76, 0.5], [77, 0.5], [79, 0.5], [76, 0.5], [73, 2]],
+  [[74, 0.5], [77, 0.5], [82, 1], [81, 0.5], [79, 0.5], [77, 1]],
+  [[76, 0.5], [79, 0.5], [81, 1], [79, 0.5], [77, 0.5], [76, 1]],
+  [[74, 1], [77, 0.5], [81, 0.5], [86, 1], [81, 1]],
+  [[74, 1], [0, 3]],
+];
+
+interface BandChord {
+  /** The bass's four beats. */
+  bass: number[];
+  /** The guitar, on beats two and four. */
+  comp: number[];
+  /** What a solo can pick from. */
+  solo: number[];
+}
+const D_MINOR: BandChord = { bass: [38, 45, 50, 45], comp: [62, 65, 69], solo: [62, 65, 69, 72, 74, 77, 81] };
+const G_MINOR: BandChord = { bass: [43, 50, 55, 50], comp: [62, 67, 70], solo: [62, 67, 70, 74, 79, 82] };
+const B_FLAT: BandChord = { bass: [46, 53, 58, 53], comp: [62, 65, 70], solo: [62, 65, 70, 74, 77, 82] };
+const A_SEVEN: BandChord = { bass: [45, 52, 57, 52], comp: [61, 64, 67], solo: [61, 64, 67, 69, 73, 76, 79] };
+const F_MAJOR: BandChord = { bass: [41, 48, 53, 48], comp: [60, 65, 69], solo: [60, 65, 69, 72, 77, 81] };
+const C_SEVEN: BandChord = { bass: [36, 43, 48, 43], comp: [60, 64, 70], solo: [60, 64, 67, 70, 72, 76, 79] };
+export const CANTINA_CHORDS: BandChord[] = [
+  D_MINOR, D_MINOR, G_MINOR, D_MINOR, B_FLAT, A_SEVEN, D_MINOR, A_SEVEN,
+  F_MAJOR, C_SEVEN, F_MAJOR, A_SEVEN, B_FLAT, A_SEVEN, D_MINOR, D_MINOR,
+];
+const CANTINA_BEAT = 60 / 150;
+const BAND_BASS = { seconds: 1.2, damp: 0.994, soft: 0.3 };
+const BAND_GUITAR = { seconds: 0.9, damp: 0.985, soft: 0.7 };
+
+/** Where a beat falls with a swing: the second eighth of each pair comes late. */
+export function swung(beat: number): number {
+  const whole = Math.floor(beat);
+  const part = beat - whole;
+  return whole + (part < 0.5 ? (part * 2) / 1.5 : 2 / 3 + ((part - 0.5) * 2) / 3);
+}
+
+function cantinaBand(k: SoundKit): void {
+  const band = k.gain(1);
+  k.place(band, { space: "room", wet: 0.45 });
+  // A square wave's odd harmonics, dulled: as near as a single voice gets to a clarinet.
+  const reed = k.filter(lp(2400, 0.9));
+  reed.connect(band);
+  const brush = k.filter(hp(5000));
+  brush.connect(band);
+  const snap = k.filter(bp(1800, 1.2));
+  snap.connect(band);
+  const plucked = (t: number, midi: number, level: number, style: typeof BAND_BASS) => {
+    const { buffer, rate } = pluckOf(k.c, midi, style.seconds, style.damp, style.soft);
+    const src = k.c.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    src.connect(k.gain(level)).connect(band);
+    src.start(t);
+  };
+  const blown = (t: number, seconds: number, midi: number) => {
+    const o = k.osc("square", hz(midi), t);
+    o.detune.value = k.r(-4, 4);
+    o.stop(t + seconds + 0.08);
+    const level = 0.085 * k.r(0.85, 1.05);
+    const g = k.gain(0);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + 0.02);
+    g.gain.setValueAtTime(level, t + seconds * 0.8);
+    g.gain.linearRampToValueAtTime(0, t + seconds + 0.05);
+    o.connect(g).connect(reed);
+  };
+  let walk = 3;
+  /** A bar of solo: eighths wandering through the chord, with room to breathe. */
+  const soloBar = (chord: BandChord): [number, number][] => {
+    const line: [number, number][] = [];
+    for (let i = 0; i < 8; i++) {
+      walk = Math.max(0, Math.min(chord.solo.length - 1, walk + k.pick([-2, -1, 1, 2])));
+      line.push([k.chance(0.18) ? 0 : chord.solo[walk]!, 0.5]);
+    }
+    return line;
+  };
+  let bar = 0;
+  k.loop(0.2, (t) => {
+    const place = bar % CANTINA_TUNE.length;
+    const chord = CANTINA_CHORDS[place]!;
+    // The tune, then a solo on it, and round again.
+    const soloing = Math.floor(bar / CANTINA_TUNE.length) % 2 === 1;
+    const at = (beat: number) => t + swung(beat) * CANTINA_BEAT;
+    chord.bass.forEach((midi, beat) => plucked(at(beat), midi, 0.38 * k.r(0.9, 1.05), BAND_BASS));
+    for (const beat of [1, 3]) {
+      chord.comp.forEach((midi, i) => plucked(at(beat) + i * 0.008, midi, 0.1, BAND_GUITAR));
+      const rim = k.shot("white", at(beat), 0.08);
+      rim.connect(k.struck(at(beat), 0.09, 0.001, 0.05)).connect(snap);
+    }
+    for (let eighth = 0; eighth < 8; eighth++) {
+      const on = at(eighth / 2);
+      const stroke = k.shot("white", on, 0.06);
+      stroke.connect(k.struck(on, eighth % 2 ? 0.02 : 0.035, 0.001, 0.035)).connect(brush);
+    }
+    let beat = 0;
+    for (const [midi, length] of soloing ? soloBar(chord) : CANTINA_TUNE[place]!) {
+      if (midi) blown(at(beat), at(beat + length) - at(beat), midi);
+      beat += length;
+    }
+    bar++;
+    return CANTINA_BEAT * 4;
+  });
+}
+
 const BATTLE_BIG = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0];
 const BATTLE_TOM = [0, 0, 0.6, 0, 0.5, 0, 0, 0.6, 0, 0, 0.6, 0, 0.7, 0.5, 0.8, 0.6];
 const BATTLE_STEP = 60 / 76 / 2;
@@ -1150,6 +1267,18 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
       k.ticks(3, [1800, 5000], [0.015, 0.08], [0.0015, 0.004]);
       k.every(3, 9, (t) => knock(k, t, k.r(0.05, 0.11), { pan: k.r(-0.7, 0.7), space: "room", wet: 0.5 }));
       k.every(8, 20, (t) => creak(k, t, k.r(0.02, 0.05), { pan: k.r(-0.8, 0.8), space: "room", wet: 0.4 }));
+    },
+  },
+  cantina: {
+    make(k) {
+      cantinaBand(k);
+      const hum = k.noise("pink", [bp(650, 0.8)], 0.22, { space: "room", wet: 0.3 });
+      k.wobble(hum.gain.gain, 3.3, 0.05);
+      k.wobble(hum.gain.gain, 5.1, 0.03);
+      const crowd = crowdBus(k, 2300, "room", 0.5, 2.6);
+      k.every(0.14, 0.42, (t) => talk(k, t, crowd));
+      k.every(0.8, 3, (t) => clink(k, t, k.r(0.05, 0.13)));
+      k.every(4, 11, (t) => knock(k, t, k.r(0.05, 0.1), { pan: k.r(-0.7, 0.7), space: "room", wet: 0.5 }));
     },
   },
   town: {
@@ -1355,6 +1484,7 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
  */
 export const SOUND_TRIMS: Record<string, number> = {
   tavern: 3.94,
+  cantina: 0.95,
   town: 6.17,
   temple: 3.63,
   dungeon: 1.58,
