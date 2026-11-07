@@ -287,10 +287,12 @@ describe("making them", () => {
       expect(events[events.length - 1]!.at).toBeLessThan(seconds);
     });
 
-    it("is brass as low as it goes: bare fifths and octaves with no third, falling two semitones as it dies", () => {
+    it("is brass lower than brass goes: bare fifths and octaves with no third, falling two semitones as it dies", () => {
       for (const { chords } of BWAH_PHRASES) {
         for (const chord of chords) {
-          expect(chord[0]!).toBeLessThanOrEqual(26);
+          expect(chord[0]!).toBeLessThanOrEqual(24);
+          // Nothing over the octave: the top notes are what the ear takes for a chord's pitch.
+          expect(Math.max(...chord) - chord[0]!).toBeLessThanOrEqual(12);
           for (const n of chord) expect([0, 7]).toContain((n - chord[0]!) % 12);
         }
       }
@@ -380,9 +382,13 @@ describe("making them", () => {
       expect(starts.filter((t) => t === 10)).toHaveLength(1);
       expect(starts.filter((t) => t === hit).length).toBeGreaterThan(10);
       expect(starts.every((t) => t === 10 || t === hit)).toBe(true);
-      // Its lowest note is D1, as low as a tuba goes.
+      // Its lowest note is C1, below what a tuba plays, and nothing in the section or the horns is over C3.
       const notes = c.made.flatMap((s) => s.frequency.events.filter((e) => e.kind === "exponential" && Math.abs(e.at - (hit + 0.16)) < 1e-9).map((e) => e.value));
-      expect(Math.min(...notes)).toBeCloseTo(440 * 2 ** ((26 - 69) / 12));
+      expect(Math.min(...notes)).toBeCloseTo(440 * 2 ** ((24 - 69) / 12));
+      expect(Math.max(...notes)).toBeLessThan(440 * 2 ** ((48 - 69) / 12));
+      // Under it, the sub dives an octave onto that note.
+      const dive = c.made.flatMap((s) => s.frequency.events.filter((e) => e.kind === "exponential" && Math.abs(e.at - (hit + 0.6)) < 1e-9));
+      expect(dive.map((e) => e.value)).toEqual([expect.closeTo(440 * 2 ** ((24 - 69) / 12), 3)]);
       for (const s of c.made) {
         expect(s.stoppedAt).not.toBeNull();
         expect(s.stoppedAt!).toBeLessThan(done - 5);

@@ -1552,20 +1552,22 @@ function plainchant(k: SoundKit): void {
 // ------------------------------------------------------------ the big brass
 
 /**
- * Low brass written for this, as low as brass goes: bare fifths and octaves with no third, the way a
- * trailer's braam is, so it's dark rather than sad. They only ever fall.
+ * Low brass written for this, lower than brass goes: a root, its fifth and the octave, with no third and
+ * nothing above, the way a trailer's braam is, so it's dark rather than sad. They only ever fall.
  */
-const BWAH_D = [26, 33, 38, 45];
-const BWAH_B_FLAT = [22, 29, 34, 41];
-const BWAH_G = [19, 26, 31, 38];
+const BWAH_C = [24, 31, 36];
+const BWAH_A_FLAT = [20, 27, 32];
+const BWAH_F = [17, 24, 29];
 export const BWAH_PHRASES: { chords: number[][]; then: number }[] = [
-  { chords: [BWAH_D], then: 24 },
-  { chords: [BWAH_D, BWAH_B_FLAT], then: 28 },
-  { chords: [BWAH_D], then: 22 },
-  { chords: [BWAH_D, BWAH_B_FLAT, BWAH_G], then: 30 },
+  { chords: [BWAH_C], then: 24 },
+  { chords: [BWAH_C, BWAH_A_FLAT], then: 28 },
+  { chords: [BWAH_C], then: 22 },
+  { chords: [BWAH_C, BWAH_A_FLAT, BWAH_F], then: 30 },
 ];
 /** How far a hit sags as it runs out of breath, the foghorn's fall: two semitones. */
 export const BWAH_FALL = 2 ** (-2 / 12);
+/** How long the sub under a hit takes to dive the octave onto its lowest note. */
+const BWAH_SUB_DROP = 0.6;
 
 /** The build into a hit. Long enough too that the first arrives once a newly added sound has faded in. */
 export const BWAH_BUILD = 1.6;
@@ -1676,7 +1678,7 @@ const RASP = Float32Array.from({ length: 1025 }, (_, i) => Math.tanh(2.2 * (i / 
 
 /**
  * The hit: a low brass section, closed at first and bursting open, the "b" and then the "wah". Two sections,
- * left and right, a little apart in tuning, played hard enough to rasp and flutter, with horns above, the
+ * left and right, a little apart in tuning, played hard enough to rasp and flutter, with horns among them, the
  * floor shaking below, and a very big room around it.
  */
 function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
@@ -1696,10 +1698,10 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
     [-0.4, 27, [-11, 4]],
     [0.4, 31, [-4, 12]],
   ] as const) {
-    const mouth = k.filter(lp(70, 1.6));
-    mouth.frequency.setValueAtTime(70, t);
-    mouth.frequency.exponentialRampToValueAtTime(1000, t + 0.22);
-    mouth.frequency.exponentialRampToValueAtTime(320, end);
+    const mouth = k.filter(lp(60, 1.6));
+    mouth.frequency.setValueAtTime(60, t);
+    mouth.frequency.exponentialRampToValueAtTime(700, t + 0.25);
+    mouth.frequency.exponentialRampToValueAtTime(220, end);
     for (const midi of chord) for (const cents of spread) note("sawtooth", midi, cents, mouth);
     const rasp = k.c.createWaveShaper();
     rasp.curve = RASP;
@@ -1714,18 +1716,19 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
     g.gain.exponentialRampToValueAtTime(0.24, t + seconds * 0.6);
     g.gain.linearRampToValueAtTime(0, end);
     mouth.connect(k.gain(0.35)).connect(rasp);
-    rasp.connect(k.filter(lp(2600))).connect(growl);
+    rasp.connect(k.filter(lp(1800))).connect(growl);
     // Where brass this low bites, and what small speakers can play of it.
-    rasp.connect(k.filter(bp(600, 0.9))).connect(k.gain(1.3)).connect(growl);
+    rasp.connect(k.filter(bp(420, 0.9))).connect(k.gain(1.3)).connect(growl);
     growl.connect(g);
     k.place(g, { pan, space: "church", wet: 0.55 });
   }
-  const horns = k.filter(lp(1200, 0.9));
+  // Horns low down too, with the section rather than over it.
+  const horns = k.filter(lp(900, 0.9));
   for (const [midi, cents] of [
-    [chord[0]! + 24, -6],
-    [chord[0]! + 24, 7],
-    [chord[1]! + 24, -4],
-    [chord[1]! + 24, 5],
+    [chord[0]! + 12, -6],
+    [chord[0]! + 12, 7],
+    [chord[1]! + 12, -4],
+    [chord[1]! + 12, 5],
   ] as const) {
     note("sawtooth", midi, cents, horns);
   }
@@ -1736,14 +1739,20 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
   swell.gain.linearRampToValueAtTime(0, end);
   horns.connect(swell);
   k.place(swell, { space: "church", wet: 0.9, dry: 0.6 });
-  // The lowest note again, as a pure tone: the floor shaking.
-  const low = chord[0]!;
+  // The floor shaking: a pure tone diving from an octave above the lowest note down onto it, as a
+  // trailer's sub drop does, then falling with the rest.
+  const low = hz(chord[0]!);
   const floor = k.gain(0);
   floor.gain.setValueAtTime(0, t);
-  floor.gain.linearRampToValueAtTime(0.16, t + 0.06);
-  floor.gain.linearRampToValueAtTime(0.1, t + seconds * 0.6);
+  floor.gain.linearRampToValueAtTime(0.22, t + 0.06);
+  floor.gain.linearRampToValueAtTime(0.14, t + seconds * 0.6);
   floor.gain.linearRampToValueAtTime(0, end);
-  note("sine", low, 0, floor);
+  const sub = k.osc("sine", low * 2, t);
+  sub.frequency.exponentialRampToValueAtTime(low, t + BWAH_SUB_DROP);
+  sub.frequency.setValueAtTime(low, end - 1.4);
+  sub.frequency.exponentialRampToValueAtTime(low * BWAH_FALL, end);
+  sub.stop(end + 0.05);
+  sub.connect(floor);
   k.place(floor);
   boom(k, t, 0.18, "church");
   // Breath, hitting the mouthpieces.
@@ -1776,7 +1785,7 @@ function bigBrass(k: SoundKit): void {
   const bed = k.gain(0);
   // Dry, so that it can stop dead: a room around it would ring on through the silence.
   k.place(bed);
-  drone(k, [hz(26), hz(38), hz(45)], 240, 0.06, "church", bed);
+  drone(k, [hz(24), hz(36), hz(43)], 240, 0.06, "church", bed);
   endlessRise(k, 0.18, bed);
   let i = 0;
   k.loop(0.05, (t) => {
@@ -1792,7 +1801,7 @@ function bigBrass(k: SoundKit): void {
       // A hair before the cut: if rounding put this after it, the bed would stay up through the silence.
       bed.gain.linearRampToValueAtTime(1, t + e.seconds! - 0.02);
     } else if (e.what === "pulse") {
-      stringPulse(k, t, 38, 0.3, bed);
+      stringPulse(k, t, 36, 0.3, bed);
     } else {
       clockTick(k, t, e.what === "tick" ? 3400 : 2700, 2.5, bed);
     }
@@ -2107,7 +2116,7 @@ export function buildSting(id: StingId, c: BaseAudioContext, out: AudioNode, at:
   const hit = at + BWAH_BUILD;
   if (id === "bwah") {
     suckBack(k, at);
-    bwah(k, hit, BWAH_D, BWAH_LAST);
+    bwah(k, hit, BWAH_C, BWAH_LAST);
   }
   return { hit, done: hit + BWAH_LAST + STING_TAIL };
 }
