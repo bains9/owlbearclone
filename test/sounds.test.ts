@@ -3,9 +3,9 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { BWAH_BUILD, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
+import { BWAH_BUILD, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
-import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
+import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, STINGS, isSting, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
 vi.mock("cloudflare:workers", () => ({
   DurableObject: class {
@@ -348,6 +348,33 @@ describe("making them", () => {
         expect(sum).toBeCloseTo(3);
       }
     });
+
+    it("one hit on its own, for the GM's button: the breath in at once, nothing, then the hit, all of it over by the end it says", () => {
+      expect(STINGS.map((s) => s.id)).toEqual(["bwah"]);
+      expect([isSting("bwah"), isSting("tavern"), isSting(7)]).toEqual([true, false, false]);
+      const c = new FakeContext();
+      c.currentTime = 10;
+      const gains: ReturnType<FakeContext["createGain"]>[] = [];
+      const make = c.createGain.bind(c);
+      c.createGain = () => {
+        const g = make();
+        gains.push(g);
+        return g;
+      };
+      const { hit, done } = buildSting("bwah", c as unknown as BaseAudioContext, c.destination as unknown as AudioNode, 10);
+      expect(hit).toBeCloseTo(10 + BWAH_BUILD);
+      // As loud as a hit in the Bwah sound.
+      const out = gains.filter((g) => g.connected.includes(c.destination));
+      expect(out.map((g) => g.gain.value)).toEqual([SOUND_TRIMS.bwah]);
+      const starts = c.made.map((s) => s.startedAt!);
+      expect(starts.filter((t) => t === 10)).toHaveLength(1);
+      expect(starts.filter((t) => t === hit).length).toBeGreaterThan(10);
+      expect(starts.every((t) => t === 10 || t === hit)).toBe(true);
+      for (const s of c.made) {
+        expect(s.stoppedAt).not.toBeNull();
+        expect(s.stoppedAt!).toBeLessThan(done - 5);
+      }
+    });
   });
 
   describe("plainchant, as it's written", () => {
@@ -538,6 +565,101 @@ describe("on a device", () => {
     expect(s.soundState().preview).toBeNull();
     expect(beds.every((b) => b.stoppedAt !== null)).toBe(true);
   });
+
+  describe("a hit the GM fires", () => {
+    let gains: ReturnType<FakeContext["createGain"]>[];
+    beforeEach(() => {
+      gains = [];
+      vi.stubGlobal("AudioContext", function AudioContext() {
+        c = new FakeContext();
+        const make = c.createGain.bind(c);
+        c.createGain = () => {
+          const g = make();
+          gains.push(g);
+          return g;
+        };
+        return c;
+      });
+    });
+
+    it("plays over what's on, which drops away for the silence before it and comes back in under it", async () => {
+      const s = await load();
+      s.setRoomSounds({ rain: 1 });
+      const [master, duck] = gains;
+      // The rain goes through the duck; the hit doesn't, so it's never pushed down with the rest.
+      expect(gains[2]!.connected[0]).toBe(duck);
+      const before = c.made.length;
+      c.currentTime = 4;
+      s.playSting("bwah");
+      expect(c.made.length).toBeGreaterThan(before + 10);
+      const own = gains.find((g, i) => i > 2 && g.connected[0] === master);
+      expect(own).toBeDefined();
+      const hit = 4.02 + BWAH_BUILD;
+      const targets = duck!.gain.events.filter((e) => e.kind === "target");
+      expect(targets.map((e) => e.value)).toEqual([0, 1]);
+      // Gone by the silence (a time constant of 0.1 s, from 0.6 s before), back after the hit lands.
+      expect(hit - BWAH_SILENCE - targets[0]!.at).toBeGreaterThan(0.4);
+      expect(targets[1]!.at).toBeGreaterThan(hit);
+      // When it's rung away, its own nodes go.
+      vi.advanceTimersByTime(15000);
+      expect(own!.connected).toEqual([]);
+    });
+
+    it("plays with nothing else on, and a double click is one hit", async () => {
+      const s = await load();
+      s.playSting("bwah");
+      const one = c.made.length;
+      expect(one).toBeGreaterThan(10);
+      c.currentTime = 0.5;
+      s.playSting("bwah");
+      expect(c.made.length).toBe(one);
+      c.currentTime = 1.5;
+      s.playSting("bwah");
+      expect(c.made.length).toBeGreaterThan(one);
+    });
+
+    it("plays nothing while muted", async () => {
+      const s = await load();
+      s.setSoundMuted(true);
+      s.playSting("bwah");
+      expect(c.made.length).toBe(0);
+    });
+
+    it("never late: a browser that won't play sound straight away gets no hit", async () => {
+      const s = await load();
+      vi.stubGlobal("AudioContext", function AudioContext() {
+        c = new FakeContext();
+        c.state = "suspended";
+        // Allowed, but slowly.
+        c.resume = () =>
+          new Promise((done) =>
+            setTimeout(() => {
+              c.state = "running";
+              done();
+            }, 700),
+          );
+        return c;
+      });
+      s.playSting("bwah");
+      vi.advanceTimersByTime(700);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(c.state).toBe("running");
+      expect(c.made.length).toBe(0);
+    });
+
+    it("but one that's allowing it as it comes plays it", async () => {
+      const s = await load();
+      vi.stubGlobal("AudioContext", function AudioContext() {
+        c = new FakeContext();
+        c.state = "suspended";
+        return c;
+      });
+      s.playSting("bwah");
+      await Promise.resolve();
+      expect(c.made.length).toBeGreaterThan(10);
+    });
+  });
 });
 
 // ---------------------------------------------------------------- the room
@@ -620,6 +742,36 @@ describe("in a room", () => {
     await send(gm, { t: "room.update", settings: { sounds: {} } });
     expect(room.info.settings.sounds).toBeUndefined();
   });
+
+  it("the GM fires a hit: everyone else hears it there and then, a table display doesn't, and it isn't kept", async () => {
+    const { room, gm, player, ctx } = await aRoom();
+    const display = socket(conn("player", { display: true }));
+    ctx.getWebSockets = () => [gm, player, display];
+    // Sent as the page sends it, with no seq: one resent after a reconnect would come late.
+    const fire = (ws: ReturnType<typeof socket>, id: string) => room.webSocketMessage(ws, JSON.stringify({ t: "sting", id }));
+    await fire(gm, "bwah");
+    expect(player.sent.filter((m) => m.t === "sting")).toEqual([{ t: "sting", id: "bwah" }]);
+    // The GM's own tab played it already.
+    expect(gm.sent.filter((m) => m.t === "sting" || m.t === "ack")).toEqual([]);
+    expect(display.sent).toEqual([]);
+    // A double click is one hit; a second hit after it, its own.
+    await fire(gm, "bwah");
+    expect(player.sent.filter((m) => m.t === "sting")).toHaveLength(1);
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 1500);
+    await fire(gm, "bwah");
+    expect(player.sent.filter((m) => m.t === "sting")).toHaveLength(2);
+    expect(JSON.stringify(room.hello(conn("player")))).not.toContain("sting");
+  });
+
+  it("a player can't fire one, and nor can the GM fire one that doesn't exist", async () => {
+    const { room, gm, player } = await aRoom();
+    await room.webSocketMessage(player, JSON.stringify({ t: "sting", id: "bwah" }));
+    expect(gm.sent.filter((m) => m.t === "sting")).toEqual([]);
+    expect(player.sent.at(-1)).toEqual({ t: "error", message: "Only the GM can do that." });
+    await room.webSocketMessage(gm, JSON.stringify({ t: "sting", id: "tavern" }));
+    expect(player.sent.filter((m) => m.t === "sting")).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------- the page
@@ -646,6 +798,20 @@ describe("the page", () => {
     const panel = await source("src/client/ui/SoundPanel.tsx");
     expect(panel).toContain("if (room.display) return;");
     expect(panel).toMatch(/\(\) => \(\) => \{\s+setRoomSounds\(\{\}\);\s+previewSound\(null\);/);
+    // Nor a hit the GM fires.
+    expect(panel).toContain("if (room.display) return;\n    return room.onSting(playSting);");
+  });
+
+  it("gives the GM alone the hit, under what's playing where it's quick to reach, and plays it in the click", async () => {
+    const panel = await source("src/client/ui/SoundPanel.tsx");
+    expect(panel).toMatch(/\{gm && \(\s+<section>\s+<h3>One hit, for everyone<\/h3>/);
+    expect(panel.indexOf("One hit, for everyone")).toBeLessThan(panel.indexOf("SOUND_GROUPS.map("));
+    expect(panel).toContain("unlockSound();\n    playSting(sting.id);\n    room.sting(sting.id);");
+    const client = await source("src/client/room/client.ts");
+    expect(client).toContain(`if (!this.isGm || this.display) return;\n    if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "sting", id }`);
+    const guide = GUIDE.find((s) => s.id === "sound")!.parts.find((p) => p.title === "Fire one hit (GM)")!;
+    const words = [...guide.steps, ...guide.notes].join(" ");
+    for (const label of ["**One hit, for everyone**", "**Play**", "**BWAH**", "headphones"]) expect(words).toContain(label);
   });
 
   it("says so in What's new and the guide", () => {

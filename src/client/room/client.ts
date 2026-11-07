@@ -6,6 +6,7 @@ import { creatureKey, freshCopy, type TokenStats } from "../../shared/tokenStats
 import type { Character, CharactersReply } from "../../shared/characters";
 import type { LibraryEntry } from "../../shared/library";
 import type { DiceSetId } from "../../shared/diceSets";
+import type { StingId } from "../../shared/sounds";
 import type { Handout, VaultIndex } from "../../shared/vault";
 import { MAX_EXPLORE_BATCH, addExplored, emptyBits, exploreSlot, isSceneSlot, keyCells, textToBits } from "../../shared/explore";
 import type { Explored } from "../../shared/explore";
@@ -518,6 +519,7 @@ export class RoomClient {
   private undoStack: UndoEntry[] = [];
   private redoStack: UndoEntry[] = [];
   private ephListeners = new Set<(from: string, e: Ephemeral) => void>();
+  private stingListeners = new Set<(id: StingId) => void>();
   private toastSeq = 0;
 
   /** A table display: shows the live scene as players see it, and never changes anything. */
@@ -885,6 +887,21 @@ export class RoomClient {
     return () => this.ephListeners.delete(fn);
   }
 
+  /**
+   * GM: one hit (shared/sounds.ts STINGS) for everyone else here, now; this tab plays its own. Only
+   * while connected: one held back and sent after a reconnect would come late.
+   */
+  sting(id: StingId): void {
+    if (!this.isGm || this.display) return;
+    if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "sting", id } satisfies ClientMsg));
+  }
+
+  /** A hit the GM just fired. */
+  onSting(fn: (id: StingId) => void): () => void {
+    this.stingListeners.add(fn);
+    return () => this.stingListeners.delete(fn);
+  }
+
   // ---------------------------------------------------------------- server messages
 
   private onServer(msg: ServerMsg): void {
@@ -1059,6 +1076,10 @@ export class RoomClient {
 
       case "eph":
         for (const fn of this.ephListeners) fn(msg.from, msg.e);
+        return;
+
+      case "sting":
+        for (const fn of this.stingListeners) fn(msg.id);
         return;
 
       case "goto":

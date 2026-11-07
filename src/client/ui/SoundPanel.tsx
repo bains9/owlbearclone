@@ -2,8 +2,8 @@
 // how loud each is, and can hear one alone before the table does; everyone has their own volume.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Headphones, Square, Volume2, VolumeX, X } from "lucide-preact";
-import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, soundOption, withSound, withoutSound, type RoomSounds, type SoundOption } from "../../shared/sounds";
-import { previewSound, setRoomSounds, setSoundLevelHere, setSoundMuted, setSoundVolume, soundState, subscribeSound, unlockSound } from "../soundscape";
+import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, STINGS, soundOption, withSound, withoutSound, type RoomSounds, type SoundOption } from "../../shared/sounds";
+import { playSting, previewSound, setRoomSounds, setSoundLevelHere, setSoundMuted, setSoundVolume, soundState, subscribeSound, unlockSound } from "../soundscape";
 import { useVoiceHeld } from "./VoicePanel";
 import { cx, useRoom, useRoomState } from "./common";
 
@@ -41,6 +41,11 @@ export function SoundHost() {
     },
     [],
   );
+  // A hit the GM fires, played the moment it comes.
+  useEffect(() => {
+    if (room.display) return;
+    return room.onSting(playSting);
+  }, []);
   return null;
 }
 
@@ -176,6 +181,40 @@ function OptionRow(props: { option: SoundOption; sounds: RoomSounds; preview: st
   );
 }
 
+/** Long enough that a double click is one hit, short enough for two or three in a row. */
+const STING_BUSY_MS = 2000;
+
+/** A hit the GM fires for everyone, the moment it's wanted. */
+function StingRow(props: { sting: (typeof STINGS)[number] }) {
+  const room = useRoom();
+  const { sting } = props;
+  const [busy, setBusy] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current !== null && clearTimeout(timer.current)), []);
+  const fire = () => {
+    // Started in the click: Safari plays only that.
+    unlockSound();
+    playSting(sting.id);
+    room.sting(sting.id);
+    setBusy(true);
+    timer.current = setTimeout(() => setBusy(false), STING_BUSY_MS);
+  };
+  return (
+    <li class="sound-row">
+      <div class="sound-about">
+        <span class="sound-name">{sting.name}</span>
+        <span class="small muted">{sting.blurb}</span>
+      </div>
+      <button class="icon-btn" title="Hear it: only you, nobody else at the table" aria-label={`Hear ${sting.name}, only you`} onClick={() => playSting(sting.id)}>
+        <Headphones size={16} />
+      </button>
+      <button class="btn btn-sm btn-primary" disabled={busy} title="Everyone hears it: a breath in, then the hit, a second and a half after you click" onClick={fire}>
+        Play
+      </button>
+    </li>
+  );
+}
+
 export function SoundPanel() {
   const room = useRoom();
   const gm = useRoomState((s) => s.me?.role === "gm");
@@ -204,6 +243,16 @@ export function SoundPanel() {
         </ul>
       ) : (
         <p class="small muted">{gm ? "Nothing yet. Add one below and everyone hears it." : "Nothing at the moment. Sound the GM puts on plays here, at your own volume."}</p>
+      )}
+      {gm && (
+        <section>
+          <h3>One hit, for everyone</h3>
+          <ul class="sound-list">
+            {STINGS.map((sting) => (
+              <StingRow key={sting.id} sting={sting} />
+            ))}
+          </ul>
+        </section>
       )}
       {gm &&
         SOUND_GROUPS.map((group) => (

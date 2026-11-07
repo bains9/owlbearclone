@@ -6,6 +6,7 @@ import type { InitOp } from "./initiative";
 import type { Handout } from "./vault";
 import type { Problem } from "./problems";
 import type { FxLook } from "./spellfx";
+import type { StingId } from "./sounds";
 import type {
   Asset,
   ChatMessage,
@@ -133,7 +134,9 @@ export type ClientMsg =
   | (ClientAction & { seq: number })
   | { t: "eph"; e: Ephemeral }
   /** Something this tab couldn't show, for the GM (shared/problems.ts): a table display's too. */
-  | { t: "problem"; where: string; message: string; device: string };
+  | { t: "problem"; where: string; message: string; device: string }
+  /** GM only: one hit (shared/sounds.ts STINGS) for everyone, now. No seq: one sent again after a reconnect would come late. */
+  | { t: "sting"; id: StingId };
 
 export type ServerMsg =
   | {
@@ -206,6 +209,8 @@ export type ServerMsg =
   | { t: "calendar"; version: number }
   /** A character's sheet was just changed from Table (a combat rest): read the party again. */
   | { t: "party" }
+  /** The GM fired a hit: play it now (never to the GM's own tab that sent it, nor to a table display). */
+  | { t: "sting"; id: StingId }
   | { t: "closed"; reason: "deleted" | "notfound" };
 
 /** WebSocket close codes the client treats as final (no reconnect). */

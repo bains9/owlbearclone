@@ -2,8 +2,8 @@
 // own volume. A browser plays only after a click on the page: until then the sound is held, the page
 // says so (ui/SoundPanel.tsx SoundHeldNotice), and the next click or key starts it.
 
-import { buildSound, type RunningSound } from "./soundEngine";
-import type { RoomSounds } from "../shared/sounds";
+import { buildSound, buildSting, type RunningSound } from "./soundEngine";
+import { STING_GAP_MS, type RoomSounds, type StingId } from "../shared/sounds";
 
 const VOLUME_KEY = "tabletop-sound-volume";
 const MUTED_KEY = "tabletop-sound-muted";
@@ -19,6 +19,8 @@ const FADE_OUT_S = 3;
 /** A browser that's about to allow it takes a moment: no notice for that. */
 const HELD_AFTER_MS = 500;
 const PREVIEW = "preview";
+/** How long a browser that's about to allow sound is given to: a hit any later is no use. */
+const STING_WAIT_MS = 600;
 
 export interface SoundState {
   volume: number;
@@ -77,6 +79,9 @@ export function volumeGain(volume: number): number {
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
+/** What's playing goes through this, so it can drop away under a hit. */
+let duck: GainNode | null = null;
+let lastSting = -Infinity;
 let wanted: RoomSounds = {};
 const layers = new Map<string, Layer>();
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -100,6 +105,9 @@ function context(): AudioContext | null {
   limiter.attack.value = 0.003;
   limiter.release.value = 0.2;
   master.connect(limiter).connect(ctx.destination);
+  duck = ctx.createGain();
+  duck.gain.value = 1;
+  duck.connect(master);
   ctx.onstatechange = checkHeld;
   return ctx;
 }
@@ -148,10 +156,10 @@ function pump(): void {
 
 function addLayer(key: string, id: string, level: number): void {
   const c = context();
-  if (!c || !master) return;
+  if (!c || !duck) return;
   const gain = c.createGain();
   gain.gain.value = 0;
-  gain.connect(master);
+  gain.connect(duck);
   const sound = buildSound(id, c, gain);
   if (!sound) {
     gain.disconnect();
@@ -212,6 +220,41 @@ export function previewSound(id: string | null): void {
   }
   setState({ preview: id });
   checkHeld();
+}
+
+/**
+ * One hit (shared/sounds.ts STINGS) on this device, now: the GM pressing the button, or that press
+ * arriving here. Everything else playing drops away for the moment of silence before it and comes back
+ * under it, as a film's sound does. Not while muted, and never late: if the browser won't play sound
+ * straight away, the hit is dropped.
+ */
+export function playSting(id: StingId): void {
+  if (soundState().muted) return;
+  const c = context();
+  if (!c) return;
+  if (c.state === "running") return fireSting(c, id);
+  const asked = Date.now();
+  c.resume().then(
+    () => {
+      if (c.state === "running" && Date.now() - asked < STING_WAIT_MS) fireSting(c, id);
+    },
+    () => {},
+  );
+}
+
+function fireSting(c: AudioContext, id: StingId): void {
+  const now = c.currentTime;
+  if (now - lastSting < STING_GAP_MS / 1000 || !master || !duck) return;
+  lastSting = now;
+  const gain = c.createGain();
+  gain.connect(master);
+  const { hit, done } = buildSting(id, c, gain, now + 0.02);
+  const d = duck.gain;
+  d.cancelScheduledValues(now);
+  d.setValueAtTime(d.value, now);
+  d.setTargetAtTime(0, hit - 0.6, 0.1);
+  d.setTargetAtTime(1, hit + 1, 1);
+  setTimeout(() => gain.disconnect(), (done - now) * 1000);
 }
 
 export function setSoundVolume(volume: number): void {

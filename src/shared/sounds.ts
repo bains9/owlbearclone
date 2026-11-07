@@ -82,3 +82,17 @@ export function withoutSound(now: RoomSounds, id: string): RoomSounds {
   const { [id]: _gone, ...rest } = now;
   return rest;
 }
+
+/**
+ * One hit, fired by the GM the moment it's wanted (the dragon appearing), over whatever's playing. Sent
+ * to everyone there and then, never kept: a page opened later, or a tab that was offline, doesn't get it.
+ */
+export type StingId = "bwah";
+export const STINGS: { id: StingId; name: string; blurb: string }[] = [{ id: "bwah", name: "BWAH", blurb: "One huge brass hit for everyone, over what's playing" }];
+
+export function isSting(id: unknown): id is StingId {
+  return STINGS.some((s) => s.id === id);
+}
+
+/** Two hits closer than this are a double click: the second is dropped. */
+export const STING_GAP_MS = 1000;

@@ -4,7 +4,7 @@
 // at uneven times a little ahead of when they play. Works on any audio context: a page's, or an offline
 // one that renders it to measure (scratch checks of how loud each is, and its small-speaker content).
 
-import type { SoundOption } from "../shared/sounds";
+import type { SoundOption, StingId } from "../shared/sounds";
 
 type Rand = () => number;
 type NoiseKind = "white" | "pink" | "brown";
@@ -2085,6 +2085,27 @@ export const SOUND_TRIMS: Record<string, number> = {
   harp: 1.4,
   lute: 1.33,
 };
+
+/** How long the church goes on ringing after a hit has stopped. */
+const STING_TAIL = SPACES.church.seconds + 0.5;
+
+/**
+ * One hit on its own, on demand (the GM's button, shared/sounds.ts STINGS), from `at`: the air drawn in, a
+ * moment of nothing, then the brass, as loud as a hit in the Bwah sound. Says when the hit lands, and when
+ * the last of it has rung away.
+ */
+export function buildSting(id: StingId, c: BaseAudioContext, out: AudioNode, at: number, rand: Rand = Math.random, trimmed = true): { hit: number; done: number } {
+  const trim = c.createGain();
+  trim.gain.value = trimmed ? SOUND_TRIMS.bwah! : 1;
+  trim.connect(out);
+  const k = new SoundKit(c, trim, rand);
+  const hit = at + BWAH_BUILD;
+  if (id === "bwah") {
+    suckBack(k, at);
+    bwah(k, hit, BWAH_D_MINOR, BWAH_LAST);
+  }
+  return { hit, done: hit + BWAH_LAST + STING_TAIL };
+}
 
 export interface RunningSound {
   /** Schedules what's due before `until`. */

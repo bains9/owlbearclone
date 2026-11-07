@@ -2301,6 +2301,18 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
+        "title": "Fire one hit (GM)",
+        "steps": [
+          "Click **Sound** in the top bar.",
+          "Under **One hit, for everyone**, click **Play** beside **BWAH**. Everyone hears a breath in, a moment of silence, then one huge brass hit, a second and a half after your click: for the moment the dragon appears."
+        ],
+        "notes": [
+          "Whatever's playing drops away for the silence and comes back in under the hit.",
+          "The headphones beside it play it for you alone, to try it first.",
+          "It's for that moment only: someone who joins, reloads or reconnects afterwards doesn't hear it, and nor does a browser that hasn't been clicked on yet."
+        ]
+      },
+      {
         "title": "Set your own volume",
         "steps": [
           "Click **Sound** in the top bar (on a phone, it's under **More**, the three dots).",

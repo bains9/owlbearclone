@@ -29,6 +29,7 @@ import { canCreate, canDelete, canMove, canPatch, canReplace, visibleToPlayer } 
 import type { ClientMsg, Ephemeral, ServerMsg } from "../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, MEASURE_SHAPES } from "../shared/protocol";
 import { cleanFx, fxVersion } from "../shared/spellfx";
+import { STING_GAP_MS, isSting } from "../shared/sounds";
 import { lookVersion } from "../shared/zones";
 import {
   DEFAULT_SETTINGS,
@@ -239,6 +240,8 @@ export class Room extends DurableObject<Env> {
    * connects later. Only in memory: if it's lost, displays show the whole scene.
    */
   private displayView: Extract<Ephemeral, { k: "view" }> | null = null;
+  /** When the GM last fired a hit (Date.now()): a second one straight after is a double click. */
+  private lastStingAt = 0;
   /** Browser tab -> the last seq applied from it (a cache of the sessions table). */
   private sessionSeqs = new Map<string, number>();
 
@@ -1070,6 +1073,23 @@ export class Room extends DurableObject<Env> {
       case "problem":
         this.addProblem(conn, msg);
         return;
+
+      case "sting": {
+        // One hit, now, for everyone else here: never kept. The GM's own tab has played it already, and a
+        // table display plays no sound.
+        if (!gm) return this.deny(ws);
+        if (!isSting(msg.id)) return;
+        const now = Date.now();
+        if (now - (this.lastStingAt || 0) < STING_GAP_MS) return;
+        this.lastStingAt = now;
+        const data = JSON.stringify({ t: "sting", id: msg.id } satisfies ServerMsg);
+        for (const target of this.ctx.getWebSockets()) {
+          if (target === ws) continue;
+          const c = target.deserializeAttachment() as Conn | null;
+          if (c && !c.display) this.sendRaw(target, data);
+        }
+        return;
+      }
 
       case "calendar.changed": {
         // Anyone's (a player's log line changes it too), never a display's.
