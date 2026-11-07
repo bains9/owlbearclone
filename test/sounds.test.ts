@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { CANTINA_CHORDS, CANTINA_TUNE, GREENSLEEVES, GREENSLEEVES_CHORDS, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, swung } from "../src/client/soundEngine";
+import { CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, readChant, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -271,6 +271,60 @@ describe("making them", () => {
   it("the dark throne's chant keeps time too, with a chord for each bar", () => {
     expect(THRONE_CHORDS).toHaveLength(THRONE_TUNE.length);
     for (const bar of THRONE_TUNE) expect(bar.reduce((sum, [, beats]) => sum + beats, 0)).toBe(4);
+  });
+
+  describe("plainchant, as it's written", () => {
+    const pitches = (line: string) => readChant(line).flatMap((s) => s.notes.map((n) => n.midi));
+
+    it("opens the Dies Irae on its own notes: F E F D E C D D", () => {
+      expect(pitches(DIES_IRAE[0]![0]!)).toEqual([53, 52, 53, 50, 52, 48, 50, 50]);
+      expect(readChant(DIES_IRAE[0]![0]!).map((s) => s.text)).toEqual(["Di", "es", "i", "rae,", "di", "es", "il", "la,"]);
+    });
+
+    it("has its verses in pairs, each pair on one melody: a slip in copying either would show", () => {
+      expect(DIES_IRAE).toHaveLength(6);
+      for (const first of [0, 2, 4]) {
+        for (const breath of [0, 1, 2]) expect(pitches(DIES_IRAE[first + 1]![breath]!)).toEqual(pitches(DIES_IRAE[first]![breath]!));
+      }
+    });
+
+    it("gives every syllable a note, in every piece", () => {
+      for (const piece of [DIES_IRAE, REQUIEM, KYRIE]) {
+        for (const verse of piece) {
+          for (const line of verse) {
+            const syllables = readChant(line);
+            expect(syllables.length).toBeGreaterThan(1);
+            for (const s of syllables) {
+              expect(s.text.length).toBeGreaterThan(0);
+              expect(s.notes.length).toBeGreaterThan(0);
+              for (const n of s.notes) expect(n.midi).toBeGreaterThanOrEqual(45);
+            }
+          }
+        }
+      }
+    });
+
+    it("reads what's on the page: several notes to a syllable, shapes that aren't notes, flats, and held notes", () => {
+      expect(readChant("spar(hvGF)gens(g)")[0]!.notes.map((n) => n.midi)).toEqual([57, 55, 53]);
+      // A flat from where it's marked, for the rest of the breath, and not before.
+      expect(pitches("Ky(ifg)ri(ixhi)e(i)")).toEqual([59, 53, 55, 57, 58, 58]);
+      expect(pitches("a(i)")).toEqual([59]);
+      // Two dots hold the last two notes, one the last only, and the end of a breath is always held.
+      expect(readChant("so(hd..)na(g)")[0]!.notes.map((n) => n.beats)).toEqual([2, 2]);
+      expect(readChant("so(ecd.)na(g)")[0]!.notes.map((n) => n.beats)).toEqual([1, 1, 2]);
+      expect(readChant("so(g)na(g)").map((s) => s.notes[0]!.beats)).toEqual([1, 2]);
+    });
+
+    it("sings Latin's vowels, and knows what comes before them", () => {
+      expect(soundsOf("Di")).toEqual({ vowel: "i", onset: "d" });
+      expect(soundsOf("rae,")).toEqual({ vowel: "e", onset: "r" });
+      expect(soundsOf("Quan")).toEqual({ vowel: "a", onset: "q" });
+      expect(soundsOf("qui")).toEqual({ vowel: "i", onset: "q" });
+      expect(soundsOf("scri")).toEqual({ vowel: "i", onset: "scr" });
+      expect(soundsOf("býl")).toEqual({ vowel: "i", onset: "b" });
+      expect(soundsOf("ae")).toEqual({ vowel: "e", onset: "" });
+      expect(soundsOf("thro")).toEqual({ vowel: "o", onset: "thr" });
+    });
   });
 
   it("swings: the beat stays where it is, and the second eighth of each pair comes late", () => {

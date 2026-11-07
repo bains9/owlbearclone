@@ -8,7 +8,7 @@ import type { SoundOption } from "../shared/sounds";
 
 type Rand = () => number;
 type NoiseKind = "white" | "pink" | "brown";
-type Space = "room" | "hall" | "cave";
+type Space = "room" | "hall" | "cave" | "church";
 type Filter = [BiquadFilterType, number, number];
 
 const lp = (f: number, q = 0.7): Filter => ["lowpass", f, q];
@@ -20,6 +20,7 @@ const SPACES: Record<Space, { seconds: number; tone: number }> = {
   room: { seconds: 0.8, tone: 0.35 },
   hall: { seconds: 2.2, tone: 0.22 },
   cave: { seconds: 3.2, tone: 0.14 },
+  church: { seconds: 5, tone: 0.16 },
 };
 
 interface Pluck {
@@ -1344,6 +1345,209 @@ function darkThrone(k: SoundKit): void {
   });
 }
 
+// ------------------------------------------------------------ plainchant
+
+/**
+ * Real plainchant, long out of anyone's copyright: the melodies are medieval. Written as chant is written
+ * down (gabc, with the C clef on the top line): a syllable, its notes in brackets, one letter for each
+ * place on the stave, a capital only being a differently drawn note. A dot holds a note, "ix" marks a flat.
+ * One string for each breath, one list for each verse, which the two sides of the choir take in turn.
+ * From the Graduale Romanum and the Liber Usualis, as transcribed on GregoBase.
+ */
+export const DIES_IRAE: string[][] = [
+  ["Di(f)es(e) i(f)rae,(d) di(e)es(c) il(d)la,(d.)", "Sol(f)vet(fg) sae(fe)clum(dc) in(e) fa(f)víl(e)la:(d.)", "Te(a)ste(cd) Da(d)vid(dc) cum(e) Si(f)býl(e)la.(d.)"],
+  ["Quan(f)tus(e) tre(f)mor(d) est(e) fu(c)tú(d)rus,(d.)", "Quan(f)do(fg) ju(fe)dex(dc) est(e) ven(f)tú(e)rus,(d.)", "Cun(a)cta(cd) stri(d)cte(dc) dis(e)cus(f)sú(e)rus!(d.)"],
+  ["Tu(h)ba(j) mi(j)rum(igh) spar(hvGF)gens(g) so(h)num(hd..)", "Per(f) se(e)púl(f)cra(d) re(e)gi(c)ó(d)num,(d.)", "Co(f)get(gh) o(hvGF)mnes(evDC) an(e)te(f) thro(e)num.(d.)"],
+  ["Mors(h) stu(j)pé(j)bit(igh) et(hvGF) na(g)tú(h)ra,(hd..)", "Cum(f) re(e)súr(f)get(d) cre(e)a(c)tú(d)ra,(d.)", "Ju(f)di(gh)cán(hvGF)ti(evDC) re(e)spon(f)sú(e)ra.(d.)"],
+  ["Li(h)ber(gf) scri(g)ptus(h_d) pro(dc)fe(a)ré(cd)tur,(d.)", "In(fe) quo(d) to(c)tum(a) con(c)ti(d)né(f)tur,(ecd.)", "Un(h)de(f) mun(g)dus(d) ju(c)di(d)cé(f)tur.(ecd.)"],
+  ["Ju(h)dex(gf) er(g)go(h_d) cum(dc) se(a)dé(cd)bit,(d.)", "Quid(fe)quid(d) la(c)tet(a) ap(c)pa(d)ré(f)bit:(ecd.)", "Nil(h) in(f)úl(g)tum(d) re(c)ma(d)né(f)bit.(ecd.)"],
+];
+const ELEISON = "e(hvGFEf)lé(g)i(f)son.(f)";
+const KYRIE_VERSE = ["Ky(ixfg!hi)ri(h)e(hg)", ELEISON];
+const CHRISTE_VERSE = ["Chris(ixfg!hi)te(hg)", ELEISON];
+/** From the Mass for the Dead, in the Cistercians' book. */
+export const KYRIE: string[][] = [KYRIE_VERSE, KYRIE_VERSE, KYRIE_VERSE, CHRISTE_VERSE, CHRISTE_VERSE, CHRISTE_VERSE, KYRIE_VERSE, KYRIE_VERSE, ["Ky(j)ri(f)e(fixji!jkJIHG)", ELEISON]];
+/** The opening of the same Mass. */
+export const REQUIEM: string[][] = [
+  ["Ré(ffg)qui(f)em(f) ae(fg'h)tér(hggfg)nam(gf..)", "do(fg'h)na(hg) e(h)is(ixhjHG'hw!ivHG') Dó(f)mi(fg!hvGF'g)ne:(gf..)"],
+  ["et(hg~) lux(hvGF') per(h)pé(gh)tu(gf)a(f.)", "lú(hg)ce(h)at(ixhjHG'hw!ivHG) e(fg!hvGF'g)is.(gf..)"],
+];
+
+export interface ChantNote {
+  midi: number;
+  beats: number;
+}
+export interface ChantSyllable {
+  text: string;
+  notes: ChantNote[];
+}
+
+/** Where each letter sits with the C clef on the top line: d is the D below middle C, the home of the Dies Irae. */
+const STAVE = "abcdefghijklm";
+const STAVE_MIDI = [45, 47, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65];
+const B_FLAT_MIDI = 58;
+
+/** One breath of chant, read. The last note of a breath is always held; a flat lasts to the end of it. */
+export function readChant(line: string): ChantSyllable[] {
+  const syllables: ChantSyllable[] = [];
+  let flat = false;
+  for (const [, text, marks] of line.matchAll(/([^\s()]*)\(([^)]*)\)/g)) {
+    const notes: ChantNote[] = [];
+    let dots = 0;
+    for (let p = 0; p < marks!.length; p++) {
+      const mark = marks![p]!;
+      if (marks![p + 1] === "x") {
+        flat ||= mark === "i";
+        p++;
+      } else if (mark === ".") {
+        const held = notes[notes.length - 1 - dots++];
+        if (held) held.beats = 2;
+      } else if (mark === "_") {
+        notes[notes.length - 1]!.beats = 1.4;
+      } else {
+        const place = STAVE.indexOf(mark.toLowerCase());
+        if (place < 0) continue;
+        dots = 0;
+        notes.push({ midi: mark.toLowerCase() === "i" && flat ? B_FLAT_MIDI : STAVE_MIDI[place]!, beats: 1 });
+      }
+    }
+    syllables.push({ text: text!, notes });
+  }
+  const last = syllables[syllables.length - 1]?.notes.at(-1);
+  if (last) last.beats = Math.max(last.beats, 2);
+  return syllables;
+}
+
+type Vowel = "a" | "e" | "i" | "o" | "u";
+
+/** What a syllable is sung on, and what comes before it. Latin says "ae" as "e", and y as i, and the u after q isn't sung. */
+export function soundsOf(text: string): { vowel: Vowel; onset: string } {
+  const plain = text.normalize("NFD").replace(/[^a-zA-Z]/g, "").toLowerCase().replace(/qu/g, "q").replace(/ae/g, "e").replace(/y/g, "i");
+  const at = plain.search(/[aeiou]/);
+  if (at < 0) return { vowel: "a", onset: plain };
+  return { vowel: plain[at] as Vowel, onset: plain.slice(0, at) };
+}
+
+/**
+ * The resonances of a low male voice on each vowel: [pitch, level]. The sound under them falls away with
+ * pitch, so the higher ones are lifted to make up some of that (see VOICE_LIFT).
+ */
+const VOWEL_SHAPES: Record<Vowel, [number, number][]> = {
+  a: [[600, 1], [1040, 0.45], [2250, 0.35], [2450, 0.35], [2750, 0.1]],
+  e: [[400, 1], [1620, 0.25], [2400, 0.35], [2800, 0.25], [3100, 0.13]],
+  i: [[260, 1], [1750, 0.12], [2600, 0.16], [3050, 0.08], [3340, 0.04]],
+  o: [[400, 1], [750, 0.28], [2400, 0.09], [2600, 0.1], [2900, 0.01]],
+  u: [[350, 1], [600, 0.1], [2400, 0.03], [2675, 0.04], [2950, 0.02]],
+};
+const VOICE_WIDTHS = [90, 100, 120, 120, 130];
+const VOICE_LIFT = 0.7;
+const CHOIR_VOICES = 8;
+const CHANT_BEAT = 0.46;
+
+interface Choir {
+  voices: GainNode;
+  shape: GainNode;
+  parts: { filter: BiquadFilterNode; level: GainNode }[];
+  hiss: AudioNode;
+  burst: AudioNode;
+}
+
+/** One side of the choir: everything it sings goes through the shape of a vowel, and the swell of the line. */
+function choirOf(k: SoundKit, pan: number): Choir {
+  const voices = k.gain(1);
+  const shape = k.gain(0);
+  const parts = VOICE_WIDTHS.map(() => {
+    const filter = k.filter(bp(500, 5));
+    const level = k.gain(0);
+    voices.connect(filter).connect(level).connect(shape);
+    return { filter, level };
+  });
+  // Well back in the church, but with the tune still plain through the ring of it.
+  k.place(shape, { pan, space: "church", wet: 0.7, dry: 0.7 });
+  const edges = k.gain(1);
+  k.place(edges, { pan, space: "church", wet: 0.8, dry: 0.5 });
+  const hiss = k.filter(hp(4200));
+  hiss.connect(edges);
+  const burst = k.filter(bp(2200, 1.2));
+  burst.connect(edges);
+  return { voices, shape, parts, hiss, burst };
+}
+
+/** Sings one breath from this moment, and says how long it takes. */
+function singBreath(k: SoundKit, choir: Choir, line: string, start: number): number {
+  const syllables = readChant(line);
+  const sung: { at: number; midi: number }[] = [];
+  const { gain } = choir.shape;
+  gain.setValueAtTime(0.0001, start);
+  let at = start;
+  syllables.forEach((syllable, i) => {
+    const { vowel, onset } = soundsOf(syllable.text);
+    VOWEL_SHAPES[vowel].forEach(([f, level], part) => {
+      const { filter, level: g } = choir.parts[part]!;
+      const glide = i === 0 ? 0.001 : 0.03;
+      filter.frequency.setTargetAtTime(f, at - 0.02, glide);
+      filter.Q.setTargetAtTime(f / VOICE_WIDTHS[part]!, at - 0.02, glide);
+      g.gain.setTargetAtTime(level * (f / 400) ** VOICE_LIFT, at - 0.02, glide);
+    });
+    // The voice lifts a little at the top of the line, as it would.
+    const swell = 0.85 + (syllable.notes[0]!.midi - 48) * 0.022;
+    // A consonant: the sound closing for a moment, and a hiss or a small burst of breath.
+    const sibilant = /[sfxz]/.test(onset);
+    const stopped = /[tdpbcgkq]/.test(onset);
+    if (i > 0) gain.setTargetAtTime(swell * (sibilant || stopped ? 0.2 : onset ? 0.5 : 0.75), at - 0.04, 0.012);
+    gain.setTargetAtTime(swell, at + 0.012, i === 0 ? 0.05 : 0.028);
+    if (sibilant) k.shot("white", at - 0.05, 0.1).connect(k.struck(at - 0.05, 0.05, 0.015, 0.06)).connect(choir.hiss);
+    else if (stopped) k.shot("white", at, 0.03).connect(k.struck(at, 0.04, 0.001, 0.018)).connect(choir.burst);
+    for (const note of syllable.notes) {
+      sung.push({ at, midi: note.midi });
+      at += note.beats * CHANT_BEAT * k.r(0.97, 1.03);
+    }
+  });
+  gain.setTargetAtTime(0.0001, at - 0.12, 0.09);
+  const end = at + 0.35;
+  // Everyone on the same note, none of them quite together: that's what makes it a choir.
+  for (let v = 0; v < CHOIR_VOICES; v++) {
+    const base = k.r(-12, 12);
+    const late = k.r(0, 0.03);
+    // Starting a moment apart, or they would all crack out in step at the top of each line.
+    const o = k.osc("sawtooth", hz(sung[0]!.midi), start + k.r(0, 0.012));
+    o.detune.setValueAtTime(base, start);
+    for (const { at: on, midi } of sung.slice(1)) {
+      o.frequency.setTargetAtTime(hz(midi), on - 0.025 + late, 0.035);
+      o.detune.setTargetAtTime(base + k.r(-5, 5), on, 0.2);
+    }
+    o.stop(end);
+    o.connect(k.gain(0.05)).connect(choir.voices);
+  }
+  // And the air in their voices.
+  k.shot("pink", start, end - start).connect(k.gain(0.05)).connect(choir.voices);
+  return at - start;
+}
+
+function plainchant(k: SoundKit): void {
+  k.noise("pink", [lp(800)], 0.03);
+  const sides = [choirOf(k, -0.35), choirOf(k, 0.35)];
+  const pieces = [DIES_IRAE, REQUIEM, KYRIE];
+  let piece = 0;
+  let verse = 0;
+  let breath = 0;
+  let side = 0;
+  k.loop(0.3, (t) => {
+    const verses = pieces[piece]!;
+    const seconds = singBreath(k, sides[side]!, verses[verse]![breath]!, t);
+    if (++breath < verses[verse]!.length) return seconds + 0.6;
+    breath = 0;
+    side = 1 - side;
+    if (++verse < verses.length) return seconds + 1.5;
+    // The end of a chant, then quiet, and a bell before the next.
+    verse = 0;
+    piece = (piece + 1) % pieces.length;
+    const wait = k.r(11, 15);
+    metal(k, t + seconds + wait - 5, 147, BELL, 7, 0.07, { pan: -0.3, space: "church", wet: 1, dry: 0.4 });
+    return seconds + wait;
+  });
+}
+
 const BATTLE_BIG = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0];
 const BATTLE_TOM = [0, 0, 0.6, 0, 0.5, 0, 0, 0.6, 0, 0, 0.6, 0, 0.7, 0.5, 0.8, 0.6];
 const BATTLE_STEP = 60 / 76 / 2;
@@ -1553,6 +1757,7 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
   },
   battle: { make: warDrums },
   throne: { make: darkThrone },
+  gregorian: { make: plainchant },
   dread: {
     make(k) {
       drone(k, [110, 116.5, 155.6], 900, 0.05, "cave");
@@ -1608,6 +1813,7 @@ export const SOUND_TRIMS: Record<string, number> = {
   tavern: 3.94,
   cantina: 0.9,
   throne: 1.78,
+  gregorian: 2.3,
   town: 6.17,
   temple: 3.63,
   dungeon: 1.58,
