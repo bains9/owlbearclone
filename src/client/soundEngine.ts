@@ -1440,9 +1440,21 @@ const VOWEL_SHAPES: Record<Vowel, [number, number][]> = {
   o: [[400, 1], [750, 0.28], [2400, 0.09], [2600, 0.1], [2900, 0.01]],
   u: [[350, 1], [600, 0.1], [2400, 0.03], [2675, 0.04], [2950, 0.02]],
 };
+/** Big men with deep chests: their resonances sit lower than an ordinary man's, and darker. */
+const VOICE_DEPTH = 0.9;
 const VOICE_WIDTHS = [90, 100, 120, 120, 130];
-const VOICE_LIFT = 0.7;
+const VOICE_LIFT = 0.5;
+/** The chest itself: what's under the vowel, the body of a low voice. */
+const VOICE_CHEST = 0.22;
 const CHOIR_VOICES = 8;
+/**
+ * The key it's sung in, against how it's written: chant has no fixed pitch, and a choir pitches it where
+ * its voices sit. A fourth down, for deep voices: the Dies Irae comes home on A, not D.
+ */
+export const CHANT_KEY = -5;
+/** Basses an octave under the line, as a Russian choir's oktavists sing: how many on each side, and how loud. */
+export const CHANT_BASSES = 4;
+const CHANT_BASS_LEVEL = 0.8;
 const CHANT_BEAT = 0.46;
 
 interface Choir {
@@ -1463,6 +1475,7 @@ function choirOf(k: SoundKit, pan: number): Choir {
     voices.connect(filter).connect(level).connect(shape);
     return { filter, level };
   });
+  voices.connect(k.filter(lp(230, 0.8))).connect(k.gain(VOICE_CHEST)).connect(shape);
   // Well back in the church, but with the tune still plain through the ring of it.
   k.place(shape, { pan, space: "church", wet: 0.7, dry: 0.7 });
   const edges = k.gain(1);
@@ -1483,7 +1496,8 @@ function singBreath(k: SoundKit, choir: Choir, line: string, start: number): num
   let at = start;
   syllables.forEach((syllable, i) => {
     const { vowel, onset } = soundsOf(syllable.text);
-    VOWEL_SHAPES[vowel].forEach(([f, level], part) => {
+    VOWEL_SHAPES[vowel].forEach(([written, level], part) => {
+      const f = written * VOICE_DEPTH;
       const { filter, level: g } = choir.parts[part]!;
       const glide = i === 0 ? 0.001 : 0.03;
       filter.frequency.setTargetAtTime(f, at - 0.02, glide);
@@ -1506,19 +1520,21 @@ function singBreath(k: SoundKit, choir: Choir, line: string, start: number): num
   });
   gain.setTargetAtTime(0.0001, at - 0.12, 0.09);
   const end = at + 0.35;
-  // Everyone on the same note, none of them quite together: that's what makes it a choir.
-  for (let v = 0; v < CHOIR_VOICES; v++) {
+  // Everyone on the same note, none of them quite together: that's what makes it a choir. The basses
+  // sing it too, an octave down.
+  for (let v = 0; v < CHOIR_VOICES + CHANT_BASSES; v++) {
+    const down = CHANT_KEY - (v < CHOIR_VOICES ? 0 : 12);
     const base = k.r(-12, 12);
     const late = k.r(0, 0.03);
     // Starting a moment apart, or they would all crack out in step at the top of each line.
-    const o = k.osc("sawtooth", hz(sung[0]!.midi), start + k.r(0, 0.012));
+    const o = k.osc("sawtooth", hz(sung[0]!.midi + down), start + k.r(0, 0.012));
     o.detune.setValueAtTime(base, start);
     for (const { at: on, midi } of sung.slice(1)) {
-      o.frequency.setTargetAtTime(hz(midi), on - 0.025 + late, 0.035);
+      o.frequency.setTargetAtTime(hz(midi + down), on - 0.025 + late, 0.035);
       o.detune.setTargetAtTime(base + k.r(-5, 5), on, 0.2);
     }
     o.stop(end);
-    o.connect(k.gain(0.05)).connect(choir.voices);
+    o.connect(k.gain(v < CHOIR_VOICES ? 0.05 : 0.05 * CHANT_BASS_LEVEL)).connect(choir.voices);
   }
   // And the air in their voices.
   k.shot("pink", start, end - start).connect(k.gain(0.05)).connect(choir.voices);
@@ -1544,7 +1560,8 @@ function plainchant(k: SoundKit): void {
     verse = 0;
     piece = (piece + 1) % pieces.length;
     const wait = k.r(11, 15);
-    metal(k, t + seconds + wait - 5, 147, BELL, 7, 0.07, { pan: -0.3, space: "church", wet: 1, dry: 0.4 });
+    // On the chants' home note.
+    metal(k, t + seconds + wait - 5, hz(50 + CHANT_KEY), BELL, 7, 0.07, { pan: -0.3, space: "church", wet: 1, dry: 0.4 });
     return seconds + wait;
   });
 }
@@ -2076,7 +2093,7 @@ export const SOUND_TRIMS: Record<string, number> = {
   tavern: 3.94,
   cantina: 0.9,
   throne: 1.78,
-  gregorian: 2.3,
+  gregorian: 2.8,
   bwah: 0.36,
   town: 6.17,
   temple: 3.63,

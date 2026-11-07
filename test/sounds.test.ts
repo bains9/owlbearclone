@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { BWAH_BUILD, BWAH_FALL, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
+import { BWAH_BUILD, BWAH_FALL, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CHANT_BASSES, CHANT_KEY, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, STINGS, isSting, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -402,6 +402,18 @@ describe("making them", () => {
     it("opens the Dies Irae on its own notes: F E F D E C D D", () => {
       expect(pitches(DIES_IRAE[0]![0]!)).toEqual([53, 52, 53, 50, 52, 48, 50, 50]);
       expect(readChant(DIES_IRAE[0]![0]!).map((s) => s.text)).toEqual(["Di", "es", "i", "rae,", "di", "es", "il", "la,"]);
+    });
+
+    it("is sung deep: a fourth under how it's written, with basses an octave under that", () => {
+      const c = context();
+      buildSound("gregorian", c, c.destination as unknown as AudioNode)!.pump(0, 1);
+      const first = c.made.filter((s) => s.type === "sawtooth").map((s) => s.frequency.events[0]!.value);
+      const written = readChant(DIES_IRAE[0]![0]!)[0]!.notes[0]!.midi;
+      const on = (m: number) => first.filter((f) => Math.abs(f - 440 * 2 ** ((m - 69) / 12)) < 0.01).length;
+      expect(CHANT_KEY).toBe(-5);
+      expect(on(written + CHANT_KEY)).toBe(8);
+      expect(on(written + CHANT_KEY - 12)).toBe(CHANT_BASSES);
+      expect(first).toHaveLength(8 + CHANT_BASSES);
     });
 
     it("has its verses in pairs, each pair on one melody: a slip in copying either would show", () => {
