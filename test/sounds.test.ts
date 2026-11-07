@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { BWAH_BUILD, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
+import { BWAH_BUILD, BWAH_FALL, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, STINGS, isSting, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -287,6 +287,16 @@ describe("making them", () => {
       expect(events[events.length - 1]!.at).toBeLessThan(seconds);
     });
 
+    it("is brass as low as it goes: bare fifths and octaves with no third, falling two semitones as it dies", () => {
+      for (const { chords } of BWAH_PHRASES) {
+        for (const chord of chords) {
+          expect(chord[0]!).toBeLessThanOrEqual(26);
+          for (const n of chord) expect([0, 7]).toContain((n - chord[0]!) % 12);
+        }
+      }
+      expect(12 * Math.log2(1 / BWAH_FALL)).toBeCloseTo(2);
+    });
+
     it("plays every chord of every phrase, and every phrase starts with a build", () => {
       expect(hits.map((h) => h.chord)).toEqual(BWAH_PHRASES.flatMap((p) => p.chords));
       const builds = events.filter((e) => e.what === "build");
@@ -370,6 +380,9 @@ describe("making them", () => {
       expect(starts.filter((t) => t === 10)).toHaveLength(1);
       expect(starts.filter((t) => t === hit).length).toBeGreaterThan(10);
       expect(starts.every((t) => t === 10 || t === hit)).toBe(true);
+      // Its lowest note is D1, as low as a tuba goes.
+      const notes = c.made.flatMap((s) => s.frequency.events.filter((e) => e.kind === "exponential" && Math.abs(e.at - (hit + 0.16)) < 1e-9).map((e) => e.value));
+      expect(Math.min(...notes)).toBeCloseTo(440 * 2 ** ((26 - 69) / 12));
       for (const s of c.made) {
         expect(s.stoppedAt).not.toBeNull();
         expect(s.stoppedAt!).toBeLessThan(done - 5);

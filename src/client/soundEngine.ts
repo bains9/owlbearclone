@@ -1551,16 +1551,21 @@ function plainchant(k: SoundKit): void {
 
 // ------------------------------------------------------------ the big brass
 
-/** Low brass chords written for this, stacked as an orchestra's low end is: they only ever fall. */
-const BWAH_D_MINOR = [38, 45, 50, 53];
-const BWAH_B_FLAT = [34, 41, 46, 50];
-const BWAH_G_MINOR = [31, 38, 43, 46];
+/**
+ * Low brass written for this, as low as brass goes: bare fifths and octaves with no third, the way a
+ * trailer's braam is, so it's dark rather than sad. They only ever fall.
+ */
+const BWAH_D = [26, 33, 38, 45];
+const BWAH_B_FLAT = [22, 29, 34, 41];
+const BWAH_G = [19, 26, 31, 38];
 export const BWAH_PHRASES: { chords: number[][]; then: number }[] = [
-  { chords: [BWAH_D_MINOR], then: 24 },
-  { chords: [BWAH_D_MINOR, BWAH_B_FLAT], then: 28 },
-  { chords: [BWAH_D_MINOR], then: 22 },
-  { chords: [BWAH_D_MINOR, BWAH_B_FLAT, BWAH_G_MINOR], then: 30 },
+  { chords: [BWAH_D], then: 24 },
+  { chords: [BWAH_D, BWAH_B_FLAT], then: 28 },
+  { chords: [BWAH_D], then: 22 },
+  { chords: [BWAH_D, BWAH_B_FLAT, BWAH_G], then: 30 },
 ];
+/** How far a hit sags as it runs out of breath, the foghorn's fall: two semitones. */
+export const BWAH_FALL = 2 ** (-2 / 12);
 
 /** The build into a hit. Long enough too that the first arrives once a newly added sound has faded in. */
 export const BWAH_BUILD = 1.6;
@@ -1681,8 +1686,8 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
     const o = k.osc(type, f * 0.96, t);
     o.frequency.exponentialRampToValueAtTime(f, t + 0.16);
     // Sagging as it runs out of breath.
-    o.frequency.setValueAtTime(f, end - 0.8);
-    o.frequency.exponentialRampToValueAtTime(f * 0.97, end);
+    o.frequency.setValueAtTime(f, end - 1.4);
+    o.frequency.exponentialRampToValueAtTime(f * BWAH_FALL, end);
     o.detune.value = cents;
     o.stop(end + 0.05);
     o.connect(into);
@@ -1691,10 +1696,10 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
     [-0.4, 27, [-11, 4]],
     [0.4, 31, [-4, 12]],
   ] as const) {
-    const mouth = k.filter(lp(110, 1.6));
-    mouth.frequency.setValueAtTime(110, t);
-    mouth.frequency.exponentialRampToValueAtTime(1900, t + 0.2);
-    mouth.frequency.exponentialRampToValueAtTime(600, end);
+    const mouth = k.filter(lp(70, 1.6));
+    mouth.frequency.setValueAtTime(70, t);
+    mouth.frequency.exponentialRampToValueAtTime(1000, t + 0.22);
+    mouth.frequency.exponentialRampToValueAtTime(320, end);
     for (const midi of chord) for (const cents of spread) note("sawtooth", midi, cents, mouth);
     const rasp = k.c.createWaveShaper();
     rasp.curve = RASP;
@@ -1709,13 +1714,13 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
     g.gain.exponentialRampToValueAtTime(0.24, t + seconds * 0.6);
     g.gain.linearRampToValueAtTime(0, end);
     mouth.connect(k.gain(0.35)).connect(rasp);
-    rasp.connect(k.filter(lp(4200))).connect(growl);
-    // Where brass bites, and what small speakers can play of it.
-    rasp.connect(k.filter(bp(1100, 0.9))).connect(k.gain(1.3)).connect(growl);
+    rasp.connect(k.filter(lp(2600))).connect(growl);
+    // Where brass this low bites, and what small speakers can play of it.
+    rasp.connect(k.filter(bp(600, 0.9))).connect(k.gain(1.3)).connect(growl);
     growl.connect(g);
     k.place(g, { pan, space: "church", wet: 0.55 });
   }
-  const horns = k.filter(lp(2200, 0.9));
+  const horns = k.filter(lp(1200, 0.9));
   for (const [midi, cents] of [
     [chord[0]! + 24, -6],
     [chord[0]! + 24, 7],
@@ -1731,8 +1736,8 @@ function bwah(k: SoundKit, t: number, chord: number[], seconds: number): void {
   swell.gain.linearRampToValueAtTime(0, end);
   horns.connect(swell);
   k.place(swell, { space: "church", wet: 0.9, dry: 0.6 });
-  // Below what the section plays, unless that's below what anything can play.
-  const low = chord[0]! - 12 >= 26 ? chord[0]! - 12 : chord[0]!;
+  // The lowest note again, as a pure tone: the floor shaking.
+  const low = chord[0]!;
   const floor = k.gain(0);
   floor.gain.setValueAtTime(0, t);
   floor.gain.linearRampToValueAtTime(0.16, t + 0.06);
@@ -2102,7 +2107,7 @@ export function buildSting(id: StingId, c: BaseAudioContext, out: AudioNode, at:
   const hit = at + BWAH_BUILD;
   if (id === "bwah") {
     suckBack(k, at);
-    bwah(k, hit, BWAH_D_MINOR, BWAH_LAST);
+    bwah(k, hit, BWAH_D, BWAH_LAST);
   }
   return { hit, done: hit + BWAH_LAST + STING_TAIL };
 }
