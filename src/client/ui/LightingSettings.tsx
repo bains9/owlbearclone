@@ -166,7 +166,7 @@ export function LightingSettings(props: { scene: Scene }) {
             title="Then click the map where it goes"
             onClick={() => {
               room.setTool("select");
-              room.store.set({ lightAdd: { sceneId: s.id }, lightPick: null });
+              room.store.set({ lightAdd: { sceneId: s.id }, lightPick: null, partyTake: null });
               if (window.matchMedia("(max-width: 760px)").matches) room.setPanel(null);
             }}
           >

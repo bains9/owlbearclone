@@ -939,8 +939,8 @@ describe("the page", () => {
 
   it("says so in What's new and the guide", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.intro).toContain("The latest updates came out on 6 November 2026.");
-    const part = news.parts[1];
+    expect(news.intro).toContain("The latest updates came out on 8 November 2026.");
+    const part = news.parts[2];
     expect(part.title).toContain("background sound");
     const words = [...part.steps, ...part.notes].join(" ");
     for (const label of ["**Sound**", "**Add**", "**Switch**", "**Stop all**", "**Your volume**"]) expect(words).toContain(label);

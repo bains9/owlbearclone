@@ -245,6 +245,11 @@ export interface RoomState {
   /** GM: Add a light was clicked (Edit scene › Lighting): the next click on that scene's map places one. */
   lightAdd: { sceneId: string } | null;
   /**
+   * GM: Take the party here was clicked, on a scene players aren't on: the next click on that
+   * scene's map is where the party arrives (levels.ts takeParty).
+   */
+  partyTake: { sceneId: string } | null;
+  /**
    * The map's area is as narrow as a phone's (a phone, or a tablet beside the side panel): its
    * bars stack as on a phone, the character card in the selection bar's stack (useStageNarrow).
    */
@@ -567,6 +572,7 @@ export class RoomClient {
       spellOpts: { spell: "Magic Missile" },
       lightPick: null,
       lightAdd: null,
+      partyTake: null,
       stageNarrow: false,
       newDayUndo: null,
       problems: [],
@@ -1950,13 +1956,13 @@ export class RoomClient {
   }
 
   activateScene(id: string): void {
-    this.store.set({ viewSceneId: id, selection: [] });
+    this.store.set({ viewSceneId: id, selection: [], partyTake: null });
     this.refreshUndoFlags();
     this.submit({ t: "scene.activate", id });
   }
 
   viewSceneLocally(id: string): void {
-    this.store.set({ viewSceneId: id, selection: [] });
+    this.store.set({ viewSceneId: id, selection: [], partyTake: null });
     this.refreshUndoFlags();
   }
 

@@ -15,8 +15,23 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 6 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 8 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Take the party to another map (8 November 2026)",
+        "steps": [
+          "GM: open **Scenes** and click the map the party's going to. Only you see it for now.",
+          "Click **Take the party here** at the top right of the map, then click where they arrive. Dashed circles show where each of them will stand.",
+          "Their tokens go there as they stood, with the spells on them, and players see that map."
+        ],
+        "notes": [
+          "Until now, showing players another map left the party's tokens behind, and each character had to be put down again.",
+          "The party is the characters' tokens and the tokens players put down (not hidden ones or props). They land on the new map's grid; hold **Alt** as you click to put them down off it.",
+          "They arrive selected, so you can drag them all together. **Cancel**, or Escape, stops without moving anyone.",
+          "Everyone is still always on the same scene: Tabletop can't put players on different maps at once.",
+          "See **Take the party to another map** in **Scenes**."
+        ]
+      },
       {
         "title": "GM: find a creature from the initiative list (6 November 2026)",
         "steps": [
@@ -1011,6 +1026,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "When you look at a scene the players aren't on, look at the top bar, beside the scene's name. It says \"Only you can see this scene.\" and, on a wide window, names the scene the players are on.",
           "Click **Show to players** to move everyone to the scene you're looking at.",
+          "Or click **Take the party here** at the top right of the map, then click where they arrive: the party's tokens come too, and players see this scene.",
           "Or click **Back to live scene** to return to the scene the players can see."
         ],
         "notes": [
@@ -3161,7 +3177,26 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "While you're previewing a scene you can also click **Show to players** in the top bar (in the banner near the bottom of the map, on a phone).",
           "Everyone moves to that scene at once, and its row now says **Players see this**.",
+          "The party's tokens stay on the scene they were on. To bring them too, see **Take the party to another map**.",
           "The scene players are already on has no play button."
+        ]
+      },
+      {
+        "title": "Take the party to another map",
+        "steps": [
+          "Open **Scenes** and click the map the party's going to. Only you see it for now.",
+          "At the top right of the map, click **Take the party here**.",
+          "Point where they arrive: dashed circles show where each of them will stand. Click.",
+          "Their tokens leave the scene players were on and stand there as they stood before, with the spells on them, and players see this map."
+        ],
+        "notes": [
+          "The party is the characters' tokens and the tokens players put down, on the scene players are on (not hidden ones or props). Monsters and NPCs stay where they were: put one down on the new map to bring it along.",
+          "They keep the same number of squares between them, at the new map's squares, and land on its grid. Hold **Alt** as you click to put them down off the grid.",
+          "They arrive selected, so you can drag them all together if they need to move.",
+          "**Cancel**, or Escape, stops without moving anyone. On a phone or tablet there are no circles: tap where they arrive.",
+          "Initiative carries on as it was.",
+          "On a map with levels, **Take the party** ▲ **Up** or ▼ **Down** takes them to the same squares on the next level instead (see **A map with levels**).",
+          "Everyone is always on the same scene: Tabletop can't put some players on one map and the rest on another."
         ]
       },
       {

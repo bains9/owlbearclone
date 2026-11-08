@@ -4,7 +4,7 @@
 // from one level to the next: their tokens, and the spells on them, to the same squares there, and
 // that level shown to players.
 
-import type { Point } from "../shared/geometry";
+import { isOnGrid, snapTokenCenter, type Point } from "../shared/geometry";
 import type { ItemMap } from "../shared/ops";
 import type { GridSettings, Item, Scene, TokenItem } from "../shared/types";
 import type { RoomClient } from "./room/client";
@@ -82,30 +82,61 @@ export function partyOn(items: ItemMap, sceneId: string, selection: readonly str
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * GM: the party (partyOn) to the same squares on another level, with the spells on them, and that
- * level shown to players. How many tokens went (none: nothing happens).
+ * Where the party stands on another map, put down at `at` (Take the party here): the token nearest
+ * their middle on that point (snapped as a token put down is), the rest around it as they stood,
+ * the same number of squares away at that map's squares, and one that sat on the grid stays on it.
  */
-export function takeParty(room: RoomClient, from: Scene, to: Scene): number {
+export function partyLanding(party: readonly TokenItem[], from: GridSettings, to: GridSettings, at: Point, snap: boolean): Map<string, Point> {
+  const out = new Map<string, Point>();
+  if (!party.length) return out;
+  const cx = party.reduce((n, t) => n + t.x, 0) / party.length;
+  const cy = party.reduce((n, t) => n + t.y, 0) / party.length;
+  const lead = party.reduce((a, t) => (Math.hypot(t.x - cx, t.y - cy) < Math.hypot(a.x - cx, a.y - cy) ? t : a));
+  const k = to.size / from.size;
+  const home = snap ? snapTokenCenter(at, lead.size, to) : at;
+  for (const t of party) {
+    let p = { x: home.x + (t.x - lead.x) * k, y: home.y + (t.y - lead.y) * k };
+    if (snap && t !== lead && isOnGrid(t, t.size, from)) p = snapTokenCenter(p, t.size, to);
+    out.set(t.id, p);
+  }
+  return out;
+}
+
+/**
+ * GM: the party (partyOn) to another scene, with the spells on them, and that scene shown to
+ * players. To the same squares on another level; or, with `place`, to where the GM clicked on
+ * another map (partyLanding), the whole party whatever's selected. How many tokens went (none:
+ * nothing happens).
+ */
+export function takeParty(room: RoomClient, from: Scene, to: Scene, place?: { at: Point; snap: boolean }): number {
   const s = room.state;
-  const party = partyOn(s.items, from.id, s.selection);
+  const party = partyOn(s.items, from.id, place ? [] : s.selection);
   if (!party.length) return 0;
-  const ids = new Set(party.map((t) => t.id));
-  const move = (x: number, y: number) => onLevel({ x, y }, from.grid, to.grid);
+  const where = place
+    ? partyLanding(party, from.grid, to.grid, place.at, place.snap)
+    : new Map(party.map((t) => [t.id, onLevel(t, from.grid, to.grid)]));
+  const k = to.grid.size / from.grid.size;
   const upsert: Item[] = party.map((t) => {
-    const p = move(t.x, t.y);
+    const p = where.get(t.id)!;
     return { ...t, sceneId: to.id, x: round2(p.x), y: round2(p.y) };
   });
+  // A spell on a token keeps its place on it: moved as the token was, and scaled to the new squares.
+  const tokens = new Map(party.map((t) => [t.id, t]));
   for (const i of Object.values(s.items)) {
-    if (i.kind !== "drawing" || !i.on || !ids.has(i.on)) continue;
-    const points: number[] = [];
-    for (let k = 0; k + 1 < i.points.length; k += 2) {
-      const p = move(i.points[k], i.points[k + 1]);
-      points.push(round2(p.x), round2(p.y));
-    }
+    const t = i.kind === "drawing" && i.on ? tokens.get(i.on) : undefined;
+    if (i.kind !== "drawing" || !t) continue;
+    const p = where.get(t.id)!;
+    const points = i.points.map((v, n) => round2(n % 2 === 0 ? p.x + (v - t.x) * k : p.y + (v - t.y) * k));
     upsert.push({ ...i, sceneId: to.id, points });
   }
   room.change({ upsert });
   room.activateScene(to.id);
   room.select(party.map((t) => t.id));
   return party.length;
+}
+
+/** What the GM's told when the party's gone: who, where, and that players see it. */
+export function partyGone(party: readonly TokenItem[], where: string): string {
+  const who = party.length === 1 ? party[0].label || "1 token" : `${party.length} tokens`;
+  return `${who} to ${where}: players see it now.`;
 }

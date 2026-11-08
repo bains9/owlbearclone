@@ -3,7 +3,7 @@
 // the party from one level to the same squares on the next, the spells on them too.
 import { describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { levelOf, levelsOf, mapNameOf, onLevel, partyOn, sceneEntries, takeParty } from "../src/client/levels";
+import { levelOf, levelsOf, mapNameOf, onLevel, partyGone, partyLanding, partyOn, sceneEntries, takeParty } from "../src/client/levels";
 import { parseUniversalVttLevels } from "../src/client/mapImport";
 import { RoomClient } from "../src/client/room/client";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER, sanitizeScene } from "../src/shared/sanitize";
@@ -163,9 +163,114 @@ describe("taking the party to another level", () => {
   });
 });
 
+describe("taking the party to another map (8 November 2026)", () => {
+  // Par: "How can Vern drag people to different maps?" On the map they're going to, the GM clicks
+  // Take the party here, then where they arrive.
+  const from = { ...DEFAULT_GRID, size: 50, offsetX: 0, offsetY: 0 };
+  const to = { ...DEFAULT_GRID, size: 100, offsetX: 10, offsetY: 20 };
+
+  it("puts the one nearest their middle where it's clicked, on that map's grid, the rest around them as they stood", () => {
+    const party = [
+      token("a", "Town12345678", { x: 175, y: 225 }),
+      token("b", "Town12345678", { x: 225, y: 225 }),
+      token("c", "Town12345678", { x: 175, y: 275 }),
+    ];
+    // "a" is nearest the middle; the click is in the square whose centre is (360, 470).
+    const at = { x: 333, y: 444 };
+    const snapped = partyLanding(party, from, to, at, true);
+    expect(Object.fromEntries(snapped)).toEqual({ a: { x: 360, y: 470 }, b: { x: 460, y: 470 }, c: { x: 360, y: 570 } });
+    // Off the grid (Alt held, or a map that doesn't snap): just where it's clicked, the same squares apart.
+    expect(Object.fromEntries(partyLanding(party, from, to, at, false))).toEqual({ a: at, b: { x: 433, y: 444 }, c: { x: 333, y: 544 } });
+    // A token that stood off the grid isn't put on it.
+    const loose = token("d", "Town12345678", { x: 180, y: 230 });
+    expect(partyLanding([party[0], loose], from, to, at, true).get("d")).toEqual({ x: 370, y: 480 });
+    expect(partyLanding([], from, to, at, true).size).toBe(0);
+  });
+
+  it("moves the whole party and the spells on them, whatever's selected, and shows players that map", () => {
+    const room = new RoomClient("AbCdEf123456", { uid: GM_OWNER, name: "GM", color: "#ff0000" });
+    const me: Player = { connId: "c1", userId: GM_OWNER, name: "GM", color: "#ff0000", role: "gm" };
+    const town = scene("Town12345678", { grid: { ...from, offsetX: 0, offsetY: 0 } });
+    const keep = scene("Keep12345678", { grid: { ...to, offsetX: 0, offsetY: 0 } });
+    const hero = token("hero", town.id, { character: "1SheetAbcdefghij", x: 175, y: 225 });
+    const pc = token("pc", town.id, { owner: "player1abcdef", x: 225, y: 225 });
+    const outline: DrawingItem = { id: "spell1", sceneId: town.id, kind: "drawing", z: 1, owner: GM_OWNER, shape: "ellipse", points: [150, 200, 200, 250], color: "#ff00ff", width: 2, fill: false, fx: "outline", spell: "Faerie Fire", on: "hero" };
+    room.store.set({
+      me,
+      room: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
+      scenes: { [town.id]: town, [keep.id]: keep },
+      viewSceneId: keep.id,
+      activeSceneId: town.id,
+      items: { hero, pc, spell1: outline, orc: token("orc", town.id) },
+      selection: ["orc"],
+    });
+    const change = vi.spyOn(room, "change").mockImplementation(() => {});
+    const show = vi.spyOn(room, "activateScene").mockImplementation(() => {});
+    expect(takeParty(room, town, keep, { at: { x: 512, y: 340 }, snap: true })).toBe(2);
+    expect(change).toHaveBeenCalledWith({
+      upsert: [
+        { ...hero, sceneId: keep.id, x: 550, y: 350 },
+        { ...pc, sceneId: keep.id, x: 650, y: 350 },
+        // Faerie Fire stays round the hero, at the keep's bigger squares.
+        { ...outline, sceneId: keep.id, points: [500, 300, 600, 400] },
+      ],
+    });
+    expect(show).toHaveBeenCalledWith(keep.id);
+    expect(room.state.selection).toEqual(["hero", "pc"]);
+    expect(partyGone([hero, pc], "“Keep”")).toBe("2 tokens to “Keep”: players see it now.");
+    expect(partyGone([hero], "Cellar")).toBe("hero to Cellar: players see it now.");
+  });
+
+  it("waits for the click on that map, and forgets it when the GM looks at another scene", () => {
+    const room = new RoomClient("AbCdEf123456", { uid: GM_OWNER, name: "GM", color: "#ff0000" });
+    room.store.set({ partyTake: { sceneId: "Keep12345678" } });
+    room.viewSceneLocally("Town12345678");
+    expect(room.state.partyTake).toBeNull();
+  });
+
+  it("is a bar for the GM at the top right of a map players aren't on, and the board takes the click", () => {
+    const bar = fs.readFileSync(new URL("../src/client/ui/PartyBar.tsx", import.meta.url), "utf8");
+    for (const words of [
+      "if (!gm || !view || !from || view.id === from.id) return null;",
+      "const party = partyOn(items, from.id, []);",
+      "Take the party here",
+      "Click where the party arrives.",
+      "room.store.set({ partyTake: { sceneId: view.id }, lightAdd: null })",
+      "room.store.set({ partyTake: null })",
+    ]) expect(bar).toContain(words);
+    const page = fs.readFileSync(new URL("../src/client/ui/RoomPage.tsx", import.meta.url), "utf8");
+    const right = page.slice(page.indexOf("<TopRight>"), page.indexOf("</TopRight>"));
+    expect(right.indexOf("<PartyBar />")).toBeGreaterThan(right.indexOf("<LevelBar />"));
+    const client = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");
+    expect(client).toContain('this.store.set({ viewSceneId: id, selection: [], partyTake: null });\n    this.refreshUndoFlags();\n    this.submit({ t: "scene.activate", id });'.replace(/\n/g, client.includes("\r\n") ? "\r\n" : "\n"));
+    const board = fs.readFileSync(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
+    for (const words of [
+      "if (s.partyTake && this.isGm && scene && s.partyTake.sceneId === scene.id) {",
+      "this.takePartyTo(scene, world, !e.altKey);",
+      "if (takeParty(this.room, going.from, scene, place)) this.room.toast(partyGone(going.party, `“${scene.name}”`));",
+      "this.drawPartyLanding(c, px);",
+      'else if (room.state.partyTake && this.gesture.kind === "none") {',
+    ]) expect(board).toContain(words);
+  });
+});
+
 describe("in the guide", () => {
+  it("leads What's new with taking the party to another map, and Scenes says how", () => {
+    const news = GUIDE.find((s) => s.id === "whats-new")!;
+    expect(news.intro).toContain("The latest updates came out on 8 November 2026.");
+    expect(news.parts[0].title).toBe("Take the party to another map (8 November 2026)");
+    const top = JSON.stringify(news.parts[0]);
+    for (const words of ["**Scenes**", "**Take the party here**", "Dashed circles", "**Alt**", "**Cancel**", "same scene", "**Take the party to another map** in **Scenes**"]) expect(top).toContain(words);
+    const scenes = GUIDE.find((s) => s.id === "scenes")!;
+    const part = JSON.stringify(scenes.parts.find((p) => p.title === "Take the party to another map"));
+    for (const words of ["**Take the party here**", "dashed circles", "**Alt**", "Escape", "Initiative carries on", "**Take the party** ▲ **Up**", "tap where they arrive"]) expect(part).toContain(words);
+    expect(JSON.stringify(scenes.parts.find((p) => p.title === "Show a scene to players"))).toContain("**Take the party to another map**");
+    const parts = GUIDE.flatMap((s) => s.parts);
+    expect(JSON.stringify(parts.find((p) => p.title === 'GM: "Only you can see this scene"'))).toContain("**Take the party here** at the top right of the map");
+  });
+
   it("leads What's new, and Scenes says how to go up and down and take the party", () => {
-    expect(GUIDE[0].parts[15].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
+    expect(GUIDE[0].parts[16].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
     const scenes = GUIDE.find((s) => s.id === "scenes")!;
     const part = scenes.parts.find((p) => p.title === "A map with levels");
     expect(part).toBeDefined();

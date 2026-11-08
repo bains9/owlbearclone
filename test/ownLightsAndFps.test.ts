@@ -34,7 +34,8 @@ describe("lights the GM places", () => {
     expect(board).toContain('else if (room.state.lightAdd && this.gesture.kind === "none") room.store.set({ lightAdd: null });');
     const bar = read("src/client/ui/LightBar.tsx");
     for (const words of ["<span>Reach</span>", 'aria-label="Remove this light"']) expect(bar).toContain(words);
-    expect(read("src/client/ui/LightingSettings.tsx")).toContain("room.store.set({ lightAdd: { sceneId: s.id }, lightPick: null });");
+    // (Placing a light stops a Take the party here waiting for its click, so that click can't take them.)
+    expect(read("src/client/ui/LightingSettings.tsx")).toContain("room.store.set({ lightAdd: { sceneId: s.id }, lightPick: null, partyTake: null });");
     expect(read("src/client/ui/RoomPage.tsx")).toContain("<span>Click the map where the light goes.</span>");
   });
 });
@@ -59,7 +60,7 @@ describe("the frame-rate readout", () => {
 
 describe("in the guide", () => {
   it("leads What's new, and the lights, card and party parts say how", () => {
-    expect(GUIDE[0].parts[13].title).toBe("A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)");
+    expect(GUIDE[0].parts[14].title).toBe("A new day for the party, ki on a Samurai's card, and lights you place yourself (31 October 2026)");
     const all = JSON.stringify(GUIDE);
     for (const words of ["**Add a light**", "Drag a marker to move its light.", "**Ki:**", "**New day for the party**", "?fps"]) expect(all).toContain(words);
   });

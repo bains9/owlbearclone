@@ -2777,6 +2777,11 @@ button:disabled {
   padding-left: 8px;
   border-left: 1px solid var(--border);
 }
+/* Take the party here (PartyBar), and what to do next: the level bar's look, under it. */
+.party-bar-ask {
+  padding: 0 4px;
+  font-weight: 600;
+}
 .light-bar-title {
   padding: 0 4px;
 }

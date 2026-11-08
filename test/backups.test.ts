@@ -943,7 +943,7 @@ describe("the guide", () => {
     expect(section.audience).toBe("gm");
     const text = [section.intro, ...section.parts.flatMap((p) => [...p.steps, ...p.notes])].join("\n");
     for (const words of ["**Copy the script**", "FOLDER_ID", "Anyone", "**Back up now**", "**Put it back**", "TABLE_KEY", "nothing is kept on Cloudflare", "never deletes", "encrypted before they leave Table", "never goes to Drive", "Bring them in again from Obsidian", "isn't encrypted"]) expect(text).toContain(words);
-    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[3];
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[4];
     expect(news.title).toBe("GM: everything backed up to Google Drive, every night (6 November 2026)");
   });
 });

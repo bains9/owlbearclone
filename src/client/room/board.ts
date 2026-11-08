@@ -84,6 +84,7 @@ import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../sh
 import { drawZone, rgba, seedOf, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
+import { partyGone, partyLanding, partyOn, takeParty } from "../levels";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -457,6 +458,8 @@ export class Board implements BoardApi {
   private fxPlays: FxPlay[] = [];
   /** Where the mouse is, for the Spells tool's preview before a press. */
   private spellHover: Point | null = null;
+  /** Where the mouse is, after Take the party here: the party's drawn where they'd stand. */
+  private partyHover: Point | null = null;
   /** Compass roses again, over the fog where it covers them: a compass is never hidden by fog. */
   private compassFogNode: Konva.Shape;
   /**
@@ -694,8 +697,9 @@ export class Board implements BoardApi {
     on(el, "pointercancel", this.onPointerUp);
     on(el, "pointerleave", () => {
       this.pointerPos = null;
-      if (this.spellHover) {
+      if (this.spellHover || this.partyHover) {
         this.spellHover = null;
+        this.partyHover = null;
         this.uiLayer.batchDraw();
       }
       this.updateBrushCursor(null);
@@ -2257,6 +2261,50 @@ export class Board implements BoardApi {
   /** Where a light being dragged is now (its marker's drawn there; the light moves when it's let go). */
   private lightDragAt: { index: number; x: number; y: number } | null = null;
 
+  /** Where the party's coming from to `scene` (the scene players are on), and who: none if it's this one. */
+  private partyFor(scene: Scene): { from: Scene; party: TokenItem[] } | null {
+    const s = this.room.state;
+    const from = s.activeSceneId ? s.scenes[s.activeSceneId] : undefined;
+    if (!from || from.id === scene.id) return null;
+    const party = partyOn(s.items, from.id, []);
+    return party.length ? { from, party } : null;
+  }
+
+  /** GM: the party here, where the map was clicked (Take the party here), and this scene shown to players. */
+  private takePartyTo(scene: Scene, world: Point, snap: boolean): void {
+    this.room.store.set({ partyTake: null });
+    this.partyHover = null;
+    this.uiLayer.batchDraw();
+    const going = this.partyFor(scene);
+    if (!going) return;
+    const place = { at: world, snap: snap && this.room.tokenSnaps(scene) };
+    if (takeParty(this.room, going.from, scene, place)) this.room.toast(partyGone(going.party, `“${scene.name}”`));
+  }
+
+  /** After Take the party here: dashed rings where each of the party would stand if the map were clicked here. */
+  private drawPartyLanding(c: CanvasRenderingContext2D, px: number): void {
+    const s = this.room.state;
+    const scene = this.renderedScene;
+    if (!this.partyHover || !s.partyTake || !scene || s.partyTake.sceneId !== scene.id || !this.isGm) return;
+    const going = this.partyFor(scene);
+    if (!going) return;
+    const where = partyLanding(going.party, going.from.grid, scene.grid, this.partyHover, !this.altDown && this.room.tokenSnaps(scene));
+    const color = s.me?.color ?? "#ffffff";
+    c.save();
+    c.setLineDash([6 * px, 5 * px]);
+    c.lineWidth = 2 * px;
+    c.strokeStyle = color;
+    c.fillStyle = hexToRgba(color, 0.15);
+    for (const t of going.party) {
+      const p = where.get(t.id)!;
+      c.beginPath();
+      c.arc(p.x, p.y, (t.size * scene.grid.size) / 2, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+    }
+    c.restore();
+  }
+
   /** GM: a light of their own where the map was clicked (Add a light), picked so its look can be set. */
   private addLight(scene: Scene, world: Point): void {
     const v = scene.vision;
@@ -2876,6 +2924,7 @@ export class Board implements BoardApi {
     const now = performance.now();
     const px = 1 / this.stage.scaleX();
     for (const f of this.fxPlays) drawFx(c, f, now, px);
+    this.drawPartyLanding(c, px);
     const s = this.room.state;
     if (s.tool !== "spell" || this.room.display) return;
     const g = this.gesture;
@@ -3140,6 +3189,11 @@ export class Board implements BoardApi {
     // GM: Add a light (Edit scene › Lighting): the light goes where the map's clicked, whatever the tool.
     if (s.lightAdd && this.isGm && scene && s.lightAdd.sceneId === scene.id) {
       this.addLight(scene, world);
+      return;
+    }
+    // GM: Take the party here (PartyBar): the party arrives where the map's clicked, whatever the tool.
+    if (s.partyTake && this.isGm && scene && s.partyTake.sceneId === scene.id) {
+      this.takePartyTo(scene, world, !e.altKey);
       return;
     }
     if (s.gridAlign && this.isGm) {
@@ -4738,6 +4792,10 @@ export class Board implements BoardApi {
         this.spellHover = world;
         this.uiLayer.batchDraw();
       }
+      if (this.room.state.partyTake || this.partyHover) {
+        this.partyHover = this.room.state.partyTake ? world : null;
+        this.uiLayer.batchDraw();
+      }
     }
     if (!this.pointers.has(e.pointerId)) {
       if (this.poly) this.updatePolyPreview(world);
@@ -5702,6 +5760,11 @@ export class Board implements BoardApi {
       case "Escape":
         if (room.state.gridAlign && this.gesture.kind === "none") room.store.set({ gridAlign: null });
         else if (room.state.lightAdd && this.gesture.kind === "none") room.store.set({ lightAdd: null });
+        else if (room.state.partyTake && this.gesture.kind === "none") {
+          room.store.set({ partyTake: null });
+          this.partyHover = null;
+          this.uiLayer.batchDraw();
+        }
         else if (this.wallPath && this.gesture.kind === "none") this.cancelWallPath();
         else if (this.poly) this.cancelPoly();
         else if (this.gesture.kind !== "none") this.cancelGesture();

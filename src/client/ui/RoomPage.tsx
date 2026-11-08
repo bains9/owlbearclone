@@ -32,6 +32,7 @@ import { navigate, noteArrival, takeArrival } from "../nav";
 import { SeasonButton } from "./SeasonPicker";
 import { FpsMeter } from "./FpsMeter";
 import { LevelBar } from "./LevelBar";
+import { PartyBar } from "./PartyBar";
 import { LightBar } from "./LightBar";
 import { CardDock, SelectionBar } from "./SelectionBar";
 import { SettingsPanel } from "./SettingsPanel";
@@ -302,6 +303,9 @@ function RoomShell() {
             </Guard>
             <Guard name="the level bar" retry={(s) => s.viewSceneId}>
               <LevelBar />
+            </Guard>
+            <Guard name="the party bar" retry={(s) => s.viewSceneId}>
+              <PartyBar />
             </Guard>
             <Guard name="who's speaking" retry={(s) => s.viewSceneId}>
               <SpeakingOverlay />

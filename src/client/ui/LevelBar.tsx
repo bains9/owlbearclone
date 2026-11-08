@@ -3,7 +3,7 @@
 // party's tokens (or the ones selected) to the same squares there, and that level shown to players.
 
 import { ChevronDown, ChevronUp } from "lucide-preact";
-import { levelOf, levelsOf, mapNameOf, partyOn, takeParty } from "../levels";
+import { levelOf, levelsOf, mapNameOf, partyGone, partyOn, takeParty } from "../levels";
 import type { Scene } from "../../shared/types";
 import { useRoom, useRoomState } from "./common";
 
@@ -26,8 +26,7 @@ export function LevelBar() {
   const picked = party.some((t) => selection.includes(t.id));
   const who = picked ? (party.length === 1 ? party[0].label || "the token selected" : `the ${party.length} tokens selected`) : "the party";
   const take = (to: Scene) => {
-    const n = takeParty(room, scene, to);
-    if (n) room.toast(`${n === 1 ? (party[0].label || "1 token") : `${n} tokens`} to ${name(to)}: players see it now.`);
+    if (takeParty(room, scene, to)) room.toast(partyGone(party, name(to)));
   };
   return (
     <div class="level-bar" onPointerDown={(e) => e.stopPropagation()}>
