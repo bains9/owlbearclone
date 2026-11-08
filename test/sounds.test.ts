@@ -3,7 +3,7 @@
 // that every one can be made, that a browser wouldn't refuse what it's asked to do, and how they're shared.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { BWAH_BUILD, BWAH_FALL, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CHANT_BASSES, CHANT_KEY, CANTINA_TUNE, DIES_IRAE, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, THRONE_CHORDS, THRONE_TUNE, buildSound, buildSting, bwahScore, readChant, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
+import { BOLS, BWAH_BUILD, BWAH_FALL, BWAH_PHRASES, BWAH_SILENCE, CANTINA_CHORDS, CHANT_BASSES, CHANT_KEY, CANTINA_TUNE, DIES_IRAE, DIWALI_ALAAP, DIWALI_ANTARA, DIWALI_BEAT, DIWALI_END, DIWALI_GAT, DIWALI_SA, DIWALI_STHAYI, DIWALI_TAANS, DIWALI_TABLA, GREENSLEEVES, GREENSLEEVES_CHORDS, KYRIE, REQUIEM, SOUND_RECIPES, SOUND_TRIMS, TEENTAAL, THRONE_CHORDS, THRONE_TUNE, YAMAN, buildSound, buildSting, bwahScore, diwaliScore, readChant, readSargam, shepardVoice, soundsOf, swung } from "../src/client/soundEngine";
 import { DEFAULT_SETTINGS, GM_OWNER, sanitizeSettings } from "../src/shared/sanitize";
 import { MAX_SOUNDS, SOUNDS, SOUND_GROUPS, STINGS, isSting, sanitizeSounds, soundOption, withSound, withoutSound } from "../src/shared/sounds";
 
@@ -459,6 +459,98 @@ describe("making them", () => {
       expect(soundsOf("býl")).toEqual({ vowel: "i", onset: "b" });
       expect(soundsOf("ae")).toEqual({ vowel: "e", onset: "" });
       expect(soundsOf("thro")).toEqual({ vowel: "o", onset: "thr" });
+    });
+  });
+
+  describe("Diwali night", () => {
+    const { events, seconds, gat } = diwaliScore();
+    const beats = (line: string) => readSargam(line).reduce((sum, n) => sum + n.beats, 0);
+    const notes = events.filter((e) => e.what === "breath").flatMap((e) => e.notes!.map((n) => ({ ...n, at: e.at + n.at })));
+    const strokes = events.filter((e) => e.what === "stroke");
+
+    it("reads sargam: the octave marks, several notes to a beat, holds and rests, and nothing it doesn't know", () => {
+      expect(readSargam("N.R G - ,")).toEqual([
+        { midi: 59, beats: 0.5 },
+        { midi: 62, beats: 0.5 },
+        { midi: 64, beats: 2 },
+        { midi: 0, beats: 1 },
+      ]);
+      expect(readSargam("S' M m").map((n) => n.midi)).toEqual([72, 66, 65]);
+      expect(readSargam("S---")).toEqual([{ midi: 60, beats: 1 }]);
+      expect(() => readSargam("S X")).toThrow();
+      expect(() => readSargam("S Q.")).toThrow();
+    });
+
+    it("is Raag Yaman throughout: only its notes, the sharp Ma and never the plain one, and only the notation's own", () => {
+      for (const line of [...DIWALI_ALAAP, ...DIWALI_GAT]) {
+        for (const { midi } of readSargam(line)) if (midi) expect(YAMAN).toContain((((midi - DIWALI_SA) % 12) + 12) % 12);
+      }
+      expect(DIWALI_GAT.join(" ")).not.toMatch(/m/);
+      // A shehnai's range.
+      const played = notes.map((n) => n.midi);
+      expect(Math.min(...played)).toBeGreaterThanOrEqual(57);
+      expect(Math.max(...played)).toBeLessThanOrEqual(76);
+    });
+
+    it("every line of the composition is a cycle of teentaal, sixteen beats, and the tabla's is too", () => {
+      for (const line of [...DIWALI_STHAYI, ...DIWALI_ANTARA, ...DIWALI_TAANS, ...DIWALI_END]) expect(beats(line)).toBe(16);
+      expect(DIWALI_TABLA).toHaveLength(DIWALI_GAT.length);
+      for (const bols of DIWALI_TABLA.slice(0, -1)) expect(bols.split(" ")).toHaveLength(16);
+      for (const bol of DIWALI_TABLA.join(" ").match(/[A-Z][a-z]*/g)!) expect(BOLS[bol]).toBeDefined();
+      expect(TEENTAAL.split(" ")).toEqual(["Dha", "Dhin", "Dhin", "Dha", "Dha", "Dhin", "Dhin", "Dha", "Dha", "Tin", "Tin", "Ta", "Ta", "Dhin", "Dhin", "Dha"]);
+    });
+
+    it("the tabla keeps time with the shehnai, and its bass drum is silent through the khali", () => {
+      const cycle = 16 * DIWALI_BEAT;
+      // Every cycle's first beat has the shehnai on it and the tabla's hardest stroke.
+      DIWALI_GAT.forEach((_, c) => {
+        const sam = gat + c * cycle;
+        const on = strokes.filter((s) => Math.abs(s.at - sam) < 1e-6);
+        expect(on.map((s) => s.stroke).sort()).toEqual(["ge", "na"]);
+        expect(on[0]!.level).toBe(1);
+      });
+      // Not in the tihai at the end, which is played stroke for note with the shehnai.
+      const theka = strokes.filter((s) => s.stroke === "ge" && s.at < gat + (DIWALI_GAT.length - 2) * cycle - 1e-6);
+      expect(theka.length).toBeGreaterThan(100);
+      for (const s of theka) {
+        const beat = Math.round((((s.at - gat) % cycle) / DIWALI_BEAT) * 1000) / 1000;
+        expect(beat < 9 || beat >= 13).toBe(true);
+      }
+      expect(strokes.length).toBeGreaterThan(200);
+    });
+
+    it("ends with a tihai: N. R G three times, the last G landing on the first beat with the tabla, then home and quiet", () => {
+      const sam = gat + (DIWALI_GAT.length - 1) * 16 * DIWALI_BEAT;
+      const lands = notes.find((n) => Math.abs(n.at - sam) < 1e-6)!;
+      expect(lands.midi).toBe(64);
+      const tihai = notes.filter((n) => n.at > sam - 12 * DIWALI_BEAT - 1e-6 && n.at < sam + 1e-6).map((n) => n.midi);
+      expect(tihai).toEqual([59, 62, 64, 59, 62, 64, 59, 62, 64]);
+      // The tabla's strokes are the tihai's notes, and the landing is its last.
+      const tablaTihai = [...new Set(strokes.filter((s) => s.at > sam - 12 * DIWALI_BEAT - 1e-6).map((s) => Math.round(s.at * 1000)))];
+      expect(tablaTihai).toEqual(notes.filter((n) => n.at > sam - 12 * DIWALI_BEAT - 1e-6 && n.at < sam + 1e-6).map((n) => Math.round(n.at * 1000)));
+      expect(notes[notes.length - 1]!.midi).toBe(DIWALI_SA);
+    });
+
+    it("keeps its events in order, inside the piece: the puja first, then the alaap, then the tabla", () => {
+      for (let i = 1; i < events.length; i++) expect(events[i]!.at).toBeGreaterThanOrEqual(events[i - 1]!.at);
+      expect(events[events.length - 1]!.at).toBeLessThan(seconds);
+      expect(events[0]!.what).toBe("bell");
+      expect(events.filter((e) => e.what === "conch")).toHaveLength(3);
+      expect(Math.min(...strokes.map((s) => s.at))).toBe(gat);
+      expect(notes[0]!.at).toBeGreaterThan(12);
+      expect(notes[0]!.at).toBeLessThan(gat);
+      expect(seconds).toBeGreaterThan(180);
+      expect(seconds).toBeLessThan(240);
+    });
+
+    it("plays the score as written, the tabla tuned to Sa", () => {
+      const c = context();
+      buildSound("diwali", c, c.destination as unknown as AudioNode)!.pump(0, gat + 2);
+      const sines = c.made.filter((s) => s.type === "sine" && (s.startedAt ?? 0) >= gat - 0.01);
+      expect(sines.some((s) => Math.abs(s.frequency.events[0]!.value - 440 * 2 ** ((DIWALI_SA - 69) / 12)) < 0.01)).toBe(true);
+      const reeds = c.made.filter((s) => s.type === "sawtooth" && (s.startedAt ?? 0) > 12);
+      // The drone, the alaap's three breaths, and the composition's first.
+      expect(reeds).toHaveLength(5);
     });
   });
 

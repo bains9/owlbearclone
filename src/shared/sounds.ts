@@ -40,6 +40,7 @@ export const SOUNDS: SoundOption[] = [
   { id: "magic", name: "Magic", group: "Mood", blurb: "Shimmering chimes" },
   { id: "harp", name: "Quiet harp", group: "Mood", blurb: "A slow, gentle harp" },
   { id: "lute", name: "Minstrel's lute", group: "Mood", blurb: "Greensleeves, played on a lute" },
+  { id: "diwali", name: "Diwali night", group: "Mood", blurb: "Shehnai and tabla in an evening raga, fireworks outside" },
 ];
 
 /** More than this at once is only noise, and more work for a slow device. */

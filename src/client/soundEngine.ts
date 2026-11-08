@@ -1853,6 +1853,549 @@ function warDrums(k: SoundKit): void {
   k.every(24, 55, (t) => warHorn(k, t), k.r(4, 10));
 }
 
+// ------------------------------------------------------------ Diwali
+
+/**
+ * Diwali night: an evening raga on a shehnai, the reed that plays at weddings and festivals, over a tanpura's
+ * drone, with tabla in teentaal, after a conch and the puja bell, and fireworks going off outside. The raga is
+ * Yaman, the raga of lamp-lighting time. A raga is a grammar rather than a tune: these phrases are written for
+ * this in Yaman's (its sharp fourth, rising N. R G and M D N, resting on Ga and Ni), and are nobody's piece.
+ *
+ * Written in sargam, as Indian music is: S R G M P D N, M being Yaman's sharp Ma (m would be the plain one).
+ * A dot after a note is the octave below, a quote the octave above. Each group between spaces is one beat,
+ * shared evenly among what's in it; "-" holds the note before, "," is a rest, where the player breathes.
+ */
+export const DIWALI_SA = 60;
+/** Yaman's notes, up from Sa: everything but the plain fourth and the flats. */
+export const YAMAN = [0, 2, 4, 6, 7, 9, 11];
+const SARGAM: Record<string, number> = { S: 0, r: 1, R: 2, g: 3, G: 4, m: 5, M: 6, P: 7, d: 8, D: 9, n: 10, N: 11 };
+
+export interface SargamNote {
+  /** 0 for a rest. */
+  midi: number;
+  beats: number;
+}
+
+export function readSargam(line: string): SargamNote[] {
+  const out: SargamNote[] = [];
+  for (const beat of line.trim().split(/\s+/)) {
+    const marks = beat.match(/[SrRgGmMPdDnN][.']*|[-,]/g) ?? [];
+    if (marks.join("") !== beat) throw new Error(`Can't read "${beat}" in "${line}"`);
+    for (const mark of marks) {
+      const beats = 1 / marks.length;
+      const last = out[out.length - 1];
+      if (mark === "-" && last) last.beats += beats;
+      else if (mark === "-" || mark === ",") out.push({ midi: 0, beats });
+      else {
+        const octave = (mark.match(/'/g)?.length ?? 0) - (mark.match(/\./g)?.length ?? 0);
+        out.push({ midi: DIWALI_SA + SARGAM[mark[0]!]! + 12 * octave, beats });
+      }
+    }
+  }
+  return out;
+}
+
+/** Slowly, with no beat: the raga unfolding over the drone, one breath to a line. */
+export const DIWALI_ALAAP: string[] = [
+  "N. R G - - - R - S - -",
+  "G M D - - - P - M G - - R G R S - -",
+  "M D N S' - - - N R' S' - - N D P - M G R - - S - - -",
+];
+// The composition, a cycle of teentaal (sixteen beats) to a line.
+const STHAYI_1 = "N. R G - G M G R S N. D. N. R - S ,";
+const STHAYI_2 = "G M D - N D P - M G R G R S - ,";
+const ANTARA_1 = "G M D N S' - S' - N R' G' R' S' - N ,";
+const ANTARA_2 = "D N S' R' N D P - M G R G R S - ,";
+/** Fast runs, four notes to a beat, each coming back round to the start of the composition. */
+const TAAN_1 = "N.RGM DNS'N DPMG RGRS N.RGM DNS'R' G'R'S'N DPMG MDNS' NDPM GRGM DNS'- S'NDP MGRS N.D.N.R S---";
+const TAAN_2 = "N.RGR GMGM DNDN S'NS'- GMDN DNS'R' S'NDP MGRG N.RGM GMDN MDNS' DNS'R' G'R'S'N DPMG RGRS S---";
+/** The end: N. R G three times over, the last G landing on the first beat (a tihai), then home. */
+const TIHAI = "G M G R N. R G - , N. R G - , N. R";
+const HOME = "G - - - R - - - S - - - - - - ,";
+export const DIWALI_STHAYI = [STHAYI_1, STHAYI_2];
+export const DIWALI_ANTARA = [ANTARA_1, ANTARA_2];
+export const DIWALI_TAANS = [TAAN_1, TAAN_2];
+export const DIWALI_END = [TIHAI, HOME];
+/** The order its lines are played in. */
+export const DIWALI_GAT = [STHAYI_1, STHAYI_2, STHAYI_1, STHAYI_2, ANTARA_1, ANTARA_2, STHAYI_1, STHAYI_2, TAAN_1, STHAYI_1, TAAN_2, STHAYI_1, TIHAI, HOME];
+
+/** Teentaal's beat on the tabla: the bass drum drops out for beats ten to thirteen, the khali. */
+export const TEENTAAL = "Dha Dhin Dhin Dha Dha Dhin Dhin Dha Dha Tin Tin Ta Ta Dhin Dhin Dha";
+/** Before something new: a quick roll in place of the second-last beat. */
+const TEENTAAL_FILL = "Dha Dhin Dhin Dha Dha Dhin Dhin Dha Dha Tin Tin Ta Ta Dhin TiReKiTe Dha";
+/** With the shehnai's tihai, a stroke for each note of it. */
+const TABLA_TIHAI = "Dha Dhin Dhin Dha Dha Dha Dha - , Dha Dha Dha - , Dha Dha";
+/** What the tabla plays under each line of the composition, ending on one stroke as it lands. */
+export const DIWALI_TABLA = DIWALI_GAT.map((line, i) => {
+  if (line === TIHAI) return TABLA_TIHAI;
+  if (line === HOME) return "Dha";
+  const next = DIWALI_GAT[i + 1];
+  return next === ANTARA_1 || next === TAAN_1 || next === TAAN_2 ? TEENTAAL_FILL : TEENTAAL;
+});
+/** How hard each beat of the cycle is played: the first hardest. */
+const TAAL_ACCENT = [1, 0.68, 0.68, 0.72, 0.85, 0.68, 0.68, 0.72, 0.8, 0.62, 0.62, 0.66, 0.85, 0.68, 0.68, 0.75];
+
+export type TablaStroke = "na" | "tin" | "closed" | "ge" | "ka";
+/** What each spoken stroke is, on the right-hand drum and the left. */
+export const BOLS: Record<string, TablaStroke[]> = {
+  Dha: ["na", "ge"],
+  Dhin: ["tin", "ge"],
+  Ta: ["na"],
+  Na: ["na"],
+  Tin: ["tin"],
+  Ti: ["closed"],
+  Re: ["closed"],
+  Te: ["closed"],
+  Ki: ["ka"],
+  Ka: ["ka"],
+  Ge: ["ge"],
+};
+
+export const DIWALI_BEAT = 0.58;
+const ALAAP_BEAT = 0.8;
+
+export interface DiwaliNote {
+  at: number;
+  midi: number;
+  seconds: number;
+}
+
+export interface DiwaliEvent {
+  at: number;
+  what: "bell" | "conch" | "sur" | "breath" | "stroke";
+  /** A breath's notes, from when it starts. */
+  notes?: DiwaliNote[];
+  /** How quickly the shehnai moves between notes: slow and singing in the alaap. */
+  glide?: number;
+  /** How long a bell, a conch or the drone lasts. */
+  seconds?: number;
+  stroke?: TablaStroke;
+  level?: number;
+  /** A bass stroke pushed up in pitch by the heel of the hand. */
+  rise?: boolean;
+}
+
+/** The lines as breaths of the shehnai, a breath ending at each rest. Says when the last of them ends. */
+function breathsOf(lines: string[], start: number, beat: number, glide: number, events: DiwaliEvent[]): number {
+  let at = start;
+  let from = at;
+  let notes: DiwaliNote[] = [];
+  const close = () => {
+    if (notes.length) events.push({ at: from, what: "breath", glide, notes: notes.map((n) => ({ ...n, at: n.at - from })) });
+    notes = [];
+  };
+  for (const line of lines) {
+    for (const { midi, beats } of readSargam(line)) {
+      if (!midi) close();
+      else {
+        if (!notes.length) from = at;
+        notes.push({ at, midi, seconds: beats * beat });
+      }
+      at += beats * beat;
+    }
+  }
+  close();
+  return at;
+}
+
+/**
+ * The same every time, with no chance in it, so a table that started together plays together: the bell and
+ * the conch, the alaap, then the composition with the tabla, and quiet but for the drone before it comes round.
+ */
+export function diwaliScore(): { events: DiwaliEvent[]; seconds: number; gat: number } {
+  const events: DiwaliEvent[] = [{ at: 1.2, what: "bell", seconds: 11 }];
+  for (const [at, seconds] of [
+    [1.6, 2.8],
+    [5.2, 2.8],
+    [8.8, 4],
+  ] as const) {
+    events.push({ at, what: "conch", seconds });
+  }
+  let at = 14.5;
+  const drone = at - 1.5;
+  for (const line of DIWALI_ALAAP) at = breathsOf([line], at, ALAAP_BEAT, 0.08, events) + 1.4;
+  const gat = at + 0.4;
+  const end = breathsOf(DIWALI_GAT, gat, DIWALI_BEAT, 0.03, events);
+  DIWALI_TABLA.forEach((bols, cycle) => {
+    const from = gat + cycle * 16 * DIWALI_BEAT;
+    bols.split(/\s+/).forEach((beat, b) => {
+      const strokes = beat.match(/[A-Z][a-z]*/g) ?? [];
+      strokes.forEach((bol, j) => {
+        const t = from + (b + j / strokes.length) * DIWALI_BEAT;
+        const level = TAAL_ACCENT[b]! * (strokes.length > 1 ? 0.7 : 1);
+        for (const stroke of BOLS[bol]!) events.push({ at: t, what: "stroke", stroke, level, rise: stroke === "ge" && b === 15 && cycle % 2 === 1 });
+      });
+    });
+  });
+  events.push({ at: drone, what: "sur", seconds: end - drone });
+  return { events: events.sort((a, b) => a.at - b.at), seconds: end + 9, gat };
+}
+
+function yamanAbove(midi: number): number {
+  let m = midi + 1;
+  while (!YAMAN.includes((((m - DIWALI_SA) % 12) + 12) % 12)) m++;
+  return m;
+}
+
+interface Reed {
+  voice: GainNode;
+  shape: GainNode;
+}
+
+/** A shehnai: a double reed and a flared bell, so little of the note itself and a strong nasal ring above it. */
+function shehnaiOf(k: SoundKit, pan: number, wet: number): Reed {
+  const voice = k.gain(1);
+  const shape = k.gain(0);
+  const body = k.filter(hp(380, 0.9));
+  voice.connect(body);
+  for (const [f, q, level] of [
+    [1200, 1.6, 1],
+    [2800, 2.5, 0.55],
+    [4400, 3, 0.18],
+  ] as const) {
+    body.connect(k.filter(bp(f, q))).connect(k.gain(level)).connect(shape);
+  }
+  body.connect(k.filter(lp(1500, 0.7))).connect(k.gain(0.4)).connect(shape);
+  k.place(shape, { pan, space: "hall", wet });
+  return { voice, shape };
+}
+
+const SHEHNAI_LEVEL = 0.3;
+const SUR_LEVEL = 0.1;
+/** Under the shehnai, not over it. */
+const TABLA_LEVEL = 0.85;
+
+/**
+ * One breath on the shehnai: a single reed gliding from note to note, scooping up into the first, a note
+ * played again tongued, a long note touched from the one above first (a kan) and given some vibrato.
+ */
+function blow(k: SoundKit, reed: Reed, notes: DiwaliNote[], start: number, glide: number, level: number, sings = true): void {
+  const { gain } = reed.shape;
+  const last = notes[notes.length - 1]!;
+  const end = start + last.at + last.seconds;
+  const first = hz(notes[0]!.midi);
+  const o = k.osc("sawtooth", first * 0.97, start);
+  o.frequency.setTargetAtTime(first, start, 0.04);
+  gain.setTargetAtTime(level, start, 0.03);
+  const depth = k.gain(0);
+  if (sings) {
+    const shake = k.osc("sine", 5.4, start);
+    shake.stop(end + 0.4);
+    shake.connect(depth).connect(o.detune);
+  }
+  notes.forEach((n, i) => {
+    const at = start + n.at;
+    const f = hz(n.midi);
+    const before = notes[i - 1];
+    if (before) {
+      const tau = Math.min(glide, n.seconds * 0.12);
+      if (before.midi === n.midi) {
+        gain.setTargetAtTime(level * 0.2, at - 0.035, 0.008);
+        gain.setTargetAtTime(level, at, 0.012);
+      } else if (n.seconds >= 0.9 && n.midi > before.midi) {
+        o.frequency.setTargetAtTime(hz(yamanAbove(n.midi)), at - 0.03, 0.01);
+        o.frequency.setTargetAtTime(f, at + 0.05, tau);
+      } else {
+        o.frequency.setTargetAtTime(f, at - tau, tau);
+      }
+    }
+    if (sings && n.seconds >= 1.1) {
+      depth.gain.setTargetAtTime(16, at + 0.5, 0.3);
+      depth.gain.setTargetAtTime(0, at + n.seconds - 0.12, 0.04);
+    }
+  });
+  gain.setTargetAtTime(0.0001, end - 0.08, 0.05);
+  o.stop(end + 0.4);
+  o.connect(reed.voice);
+  // The breath in the reed.
+  k.shot("pink", start, end - start).connect(k.gain(0.15)).connect(reed.voice);
+}
+
+/** Pa, Sa, Sa and the low Sa, over and over: the drone everything sits on. */
+const TANPURA_NOTES = [43, 48, 48, 36];
+const TANPURA = { seconds: 6, damp: 0.9994, soft: 0.85 };
+
+function tanpura(k: SoundKit): void {
+  const bus = k.gain(1);
+  k.place(bus, { space: "hall", wet: 0.45 });
+  let n = 0;
+  k.loop(0.1, (t) => {
+    const midi = TANPURA_NOTES[n % TANPURA_NOTES.length]!;
+    const { buffer, rate } = pluckOf(k.c, midi, TANPURA.seconds, TANPURA.damp, TANPURA.soft);
+    const src = k.c.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    src.connect(k.gain(midi < 40 ? 0.19 : 0.14)).connect(bus);
+    // The buzz of its flat bridge: overtones that bloom after the pluck, sweeping up through the note.
+    const f = hz(midi);
+    const ring = k.filter(bp(f * 5, 7));
+    ring.frequency.setValueAtTime(f * 5, t);
+    ring.frequency.exponentialRampToValueAtTime(f * 22, t + 3.5);
+    src.connect(ring).connect(k.struck(t, 0.65, 0.5, 3)).connect(bus);
+    src.start(t);
+    n++;
+    return n % TANPURA_NOTES.length ? 1.15 : 1.9;
+  });
+}
+
+/** The right-hand drum's rings, tuned to Sa: [harmonic, level, how long]. Its black patch puts them in tune. */
+const NA_RINGS = [
+  [1, 0.35, 0.3],
+  [2, 1, 0.5],
+  [3, 0.55, 0.35],
+  [4, 0.3, 0.22],
+  [5, 0.15, 0.15],
+] as const;
+const TIN_RINGS = [
+  [1, 1, 0.55],
+  [2, 0.4, 0.4],
+  [3, 0.2, 0.25],
+] as const;
+export const BAYAN_HZ = 98;
+
+function tablaStroke(k: SoundKit, t: number, stroke: TablaStroke, level: number, rise: boolean, into: AudioNode): void {
+  const sa = hz(DIWALI_SA);
+  if (stroke === "na" || stroke === "tin") {
+    for (const [n, l, d] of stroke === "na" ? NA_RINGS : TIN_RINGS) {
+      const o = k.osc("sine", sa * n, t);
+      o.stop(t + d + 0.05);
+      o.connect(k.struck(t, level * l * 0.2, 0.001, d)).connect(into);
+    }
+    // The finger striking.
+    k.through(k.shot("white", t, 0.03), [bp(stroke === "na" ? 4200 : 2600, 1.5)]).end.connect(k.struck(t, level * 0.1, 0.0005, 0.012)).connect(into);
+  } else if (stroke === "closed") {
+    // The hand left on the skin, so nothing rings.
+    k.through(k.shot("white", t, 0.04), [bp(1700, 1.3)]).end.connect(k.struck(t, level * 0.12, 0.0008, 0.025)).connect(into);
+    const o = k.osc("sine", sa * 2, t);
+    o.stop(t + 0.08);
+    o.connect(k.struck(t, level * 0.06, 0.001, 0.04)).connect(into);
+  } else if (stroke === "ka") {
+    k.through(k.shot("pink", t, 0.05), [lp(900)]).end.connect(k.struck(t, level * 0.3, 0.001, 0.03)).connect(into);
+  } else {
+    // The big left-hand drum, open and booming, a hair after the right: two hands are never quite together.
+    t += 0.012;
+    for (const [type, ratio, peak, d] of [
+      ["sine", 1, 0.2, rise ? 0.75 : 0.6],
+      // What small speakers play of it.
+      ["triangle", 2.1, 0.1, 0.22],
+    ] as const) {
+      const f = BAYAN_HZ * ratio;
+      const o = k.osc(type, f * 1.15, t);
+      o.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+      if (rise) {
+        o.frequency.setValueAtTime(f, t + 0.06);
+        o.frequency.exponentialRampToValueAtTime(f * 1.45, t + 0.4);
+      }
+      o.stop(t + d + 0.1);
+      o.connect(k.struck(t, level * peak, 0.004, d)).connect(into);
+    }
+  }
+}
+
+/** The conch, blown to begin the puja: a horn's buzz, scooping up into its note and falling away as the breath goes. */
+function conch(k: SoundKit, t: number, seconds: number): void {
+  const f = 330;
+  const end = t + seconds;
+  const tone = k.filter(lp(600, 1.8));
+  tone.frequency.setValueAtTime(600, t);
+  tone.frequency.exponentialRampToValueAtTime(2600, t + 0.5);
+  tone.frequency.exponentialRampToValueAtTime(1400, end);
+  const g = k.gain(0);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.09, t + 0.35);
+  g.gain.linearRampToValueAtTime(0.11, end - 0.6);
+  g.gain.linearRampToValueAtTime(0, end);
+  for (const [type, ratio, cents] of [
+    ["sawtooth", 1, -5],
+    ["sawtooth", 1, 6],
+    ["triangle", 2, 0],
+  ] as const) {
+    const o = k.osc(type, f * ratio * 0.82, t);
+    o.frequency.exponentialRampToValueAtTime(f * ratio, t + 0.3);
+    o.frequency.setValueAtTime(f * ratio, end - 0.5);
+    o.frequency.exponentialRampToValueAtTime(f * ratio * 0.88, end);
+    o.detune.value = cents;
+    o.stop(end + 0.05);
+    o.connect(tone);
+  }
+  tone.connect(g);
+  const waver = k.osc("sine", 5.5, t);
+  waver.stop(end + 0.05);
+  waver.connect(k.gain(0.012)).connect(g.gain);
+  k.through(k.shot("pink", t, seconds), [bp(1600, 1.2)]).end.connect(k.gain(0.02)).connect(g);
+  k.place(g, { pan: -0.15, space: "hall", wet: 0.7, dry: 0.7 });
+}
+
+/** A stretch made once and kept, for a one-off sound with many small parts to it. */
+function madeOnce(c: BaseAudioContext, key: string, seconds: number, fill: (write: (n: number, value: number, pan: number) => void, sr: number) => void): AudioBuffer {
+  const scatters = sharedOf(c).scatters;
+  const found = scatters.get(key);
+  if (found) return found;
+  const len = Math.round(c.sampleRate * seconds);
+  const buffer = c.createBuffer(2, len, c.sampleRate);
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+  fill((n, value, pan) => {
+    if (n < 0 || n >= len) return;
+    left[n] = left[n]! + value * Math.cos((pan * Math.PI) / 2);
+    right[n] = right[n]! + value * Math.sin((pan * Math.PI) / 2);
+  }, c.sampleRate);
+  scatters.set(key, buffer);
+  return buffer;
+}
+
+/** The little brass bell rung at the puja: bright, its rings in pairs a hair apart, so it shimmers. */
+const GHANTI: [number, number, number][] = [
+  [1, 1, 0.9],
+  [1.0045, 0.8, 0.9],
+  [2.66, 0.5, 0.45],
+  [2.675, 0.4, 0.45],
+  [4.95, 0.25, 0.25],
+  [7.3, 0.12, 0.12],
+];
+
+function ghantiOf(c: BaseAudioContext): AudioBuffer {
+  return madeOnce(c, "ghanti", 1.4, (write, sr) => {
+    const f = 2280;
+    const len = Math.round(sr * 1.4);
+    for (let n = 0; n < len; n++) {
+      const t = n / sr;
+      let v = 0;
+      for (const [ratio, level, decay] of GHANTI) v += level * Math.exp(-t / (decay / 3)) * Math.sin(2 * Math.PI * f * ratio * t);
+      write(n, 0.22 * v * Math.min(1, t / 0.001) * Math.min(1, (len - n) / (sr * 0.05)), 0.5);
+    }
+  });
+}
+
+/** The bell swung steadily all through the puja, its clapper striking both sides: one stroke hard, one lighter. */
+function ghanti(k: SoundKit, t: number, seconds: number): void {
+  const bus = k.gain(1);
+  k.place(bus, { pan: -0.35, space: "hall", wet: 0.4 });
+  const buffer = ghantiOf(k.c);
+  for (let at = 0, n = 0; at < seconds; n++) {
+    const fade = Math.min(1, at / 0.6, (seconds - at) / 1.5);
+    const src = k.c.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = 1 + k.r(-0.004, 0.004);
+    src.connect(k.gain((n % 2 ? 0.55 : 1) * 0.4 * Math.max(fade, 0.05))).connect(bus);
+    src.start(t + at);
+    at += n % 2 ? 0.18 : 0.15;
+  }
+}
+
+/** One firecracker: a crack of noise gone in a few thousandths of a second, with a thud of air behind it. */
+function crack(write: (n: number, value: number, pan: number) => void, start: number, a: number, pan: number, sr: number): void {
+  const sharp = 0.0015 * sr;
+  const body = 0.007 * sr;
+  const w = (2 * Math.PI * (160 + Math.random() * 160)) / sr;
+  for (let n = 0; n < body * 6; n++) write(start + n, a * ((Math.random() * 2 - 1) * Math.exp(-n / sharp) + 0.6 * Math.sin(w * n) * Math.exp(-n / body)), pan);
+}
+
+/** A string of firecrackers going off, slowly while the fuse catches, then rattling away. */
+function ladiOf(c: BaseAudioContext): AudioBuffer {
+  return madeOnce(c, "ladi", 5, (write, sr) => {
+    for (let at = 0.02; at < 4.7; at += at < 0.5 ? 0.06 + Math.random() * 0.14 : 0.02 + Math.random() * 0.06) {
+      crack(write, Math.round(at * sr), 0.3 + 0.7 * Math.random() ** 2, 0.35 + Math.random() * 0.3, sr);
+    }
+  });
+}
+
+/** A rocket's stars crackling as they fall, fewer as they go. */
+function crackleOf(c: BaseAudioContext): AudioBuffer {
+  return madeOnce(c, "crackle", 2.6, (write, sr) => {
+    for (let i = 0; i < 70; i++) {
+      const at = 2.4 * Math.random() ** 1.6;
+      crack(write, Math.round(at * sr), (0.08 + 0.27 * Math.random()) * (1 - at / 2.6), Math.random(), sr);
+    }
+  });
+}
+
+function playOnce(k: SoundKit, t: number, buffer: AudioBuffer, level: number, rate: number, into: AudioNode): void {
+  const src = k.c.createBufferSource();
+  src.buffer = buffer;
+  src.playbackRate.value = rate;
+  src.connect(k.gain(level)).connect(into);
+  src.start(t);
+}
+
+function panned(k: SoundKit, pan: number, into: AudioNode): AudioNode {
+  const p = k.c.createStereoPanner();
+  p.pan.value = pan;
+  p.connect(into);
+  return p;
+}
+
+/** A firework bursting: the crack, the boom behind it, and the thump of it. */
+function burst(k: SoundKit, t: number, level: number, into: AudioNode): void {
+  k.through(k.shot("white", t, 0.3), [lp(k.r(2500, 4500))]).end.connect(k.struck(t, level, 0.0008, k.r(0.08, 0.16))).connect(into);
+  k.through(k.shot("pink", t, 0.8), [lp(380)]).end.connect(k.struck(t, level * 1.4, 0.003, k.r(0.4, 0.7))).connect(into);
+  const thump = k.osc("sine", 90, t);
+  thump.frequency.exponentialRampToValueAtTime(45, t + 0.15);
+  thump.stop(t + 0.6);
+  thump.connect(k.struck(t, level * 0.8, 0.002, 0.45)).connect(into);
+}
+
+/** A rocket going up, hissing and often whistling, bursting at the top, its stars crackling as they fall. */
+function rocket(k: SoundKit, t: number, far: AudioNode): void {
+  const into = panned(k, k.r(-0.8, 0.8), far);
+  const rise = k.r(1.1, 1.9);
+  const up = (g: GainNode, level: number) => {
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + 0.25);
+    g.gain.linearRampToValueAtTime(level * 0.6, t + rise - 0.05);
+    g.gain.linearRampToValueAtTime(0, t + rise);
+    return g;
+  };
+  k.through(k.shot("white", t, rise), [bp(k.r(2500, 4000), 1.5)]).end.connect(up(k.gain(0), 0.05)).connect(into);
+  if (k.chance(0.6)) {
+    const o = k.osc("sine", k.r(900, 1300), t);
+    o.frequency.exponentialRampToValueAtTime(k.r(2400, 3400), t + rise);
+    o.stop(t + rise + 0.05);
+    o.connect(up(k.gain(0), 0.025)).connect(into);
+  }
+  burst(k, t + rise, k.r(0.12, 0.25), into);
+  if (k.chance(0.6)) playOnce(k, t + rise + 0.25, crackleOf(k.c), k.r(0.25, 0.5), k.r(0.85, 1.15), into);
+}
+
+/** Fireworks some way off between the houses, so a bang comes back off the walls. */
+function fireworks(k: SoundKit): void {
+  const far = k.filter(lp(4200, 0.7));
+  k.place(far, { space: "hall", wet: 0.8, dry: 0.6 });
+  k.every(
+    4,
+    13,
+    (t) => {
+      const roll = k.rand();
+      if (roll < 0.45) rocket(k, t, far);
+      else if (roll < 0.75) playOnce(k, t, ladiOf(k.c), k.r(0.3, 0.6), k.r(0.9, 1.1), panned(k, k.r(-0.7, 0.7), far));
+      else burst(k, t, k.r(0.18, 0.35), panned(k, k.r(-0.8, 0.8), far));
+    },
+    k.r(6, 10),
+  );
+}
+
+function diwali(k: SoundKit): void {
+  const { events, seconds } = diwaliScore();
+  tanpura(k);
+  fireworks(k);
+  const lead = shehnaiOf(k, 0.1, 0.35);
+  const sur = shehnaiOf(k, -0.3, 0.5);
+  const tabla = k.gain(TABLA_LEVEL);
+  k.place(tabla, { pan: 0.3, space: "hall", wet: 0.25 });
+  const first = events[0]!.at;
+  let i = 0;
+  k.loop(first, (t) => {
+    const e = events[i]!;
+    if (e.what === "breath") blow(k, lead, e.notes!, t, e.glide!, SHEHNAI_LEVEL);
+    else if (e.what === "stroke") tablaStroke(k, t + k.r(-0.006, 0.006), e.stroke!, e.level!, !!e.rise, tabla);
+    else if (e.what === "sur") blow(k, sur, [{ at: 0, midi: DIWALI_SA, seconds: e.seconds! }], t, 0.05, SUR_LEVEL, false);
+    else if (e.what === "conch") conch(k, t, e.seconds!);
+    else ghanti(k, t, e.seconds!);
+    i = (i + 1) % events.length;
+    return (i ? events[i]!.at : seconds + first) - e.at;
+  });
+}
+
 interface Recipe {
   make(k: SoundKit): void;
 }
@@ -2081,6 +2624,7 @@ export const SOUND_RECIPES: Record<string, Recipe> = {
   },
   harp: { make: harp },
   lute: { make: lute },
+  diwali: { make: diwali },
 };
 
 /**
@@ -2115,6 +2659,7 @@ export const SOUND_TRIMS: Record<string, number> = {
   magic: 4.17,
   harp: 1.4,
   lute: 1.33,
+  diwali: 0.84,
 };
 
 /** How long the church goes on ringing after a hit has stopped. */

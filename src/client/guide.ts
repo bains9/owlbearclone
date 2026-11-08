@@ -2295,7 +2295,7 @@ export const GUIDE: GuideSection[] = [
           "**Places:** Tavern, Cantina, Town street, Temple, Dungeon, Cave, Ship at sea.",
           "**Outdoors:** Campfire, Forest by day, Woods at night, Swamp, River, Seashore.",
           "**Weather:** Steady rain, Thunderstorm, Howling wind, Blizzard.",
-          "**Mood:** War drums, Dread, Dark throne, Gregorian chant, Bwah, Magic, Quiet harp, Minstrel's lute.",
+          "**Mood:** War drums, Dread, Dark throne, Gregorian chant, Bwah, Magic, Quiet harp, Minstrel's lute, Diwali night.",
           "What's playing belongs to the room: it's still on when you come back, and it changes when you move the group to another room. It carries on when you change scene.",
           "Players see the names of what's playing, so a name won't stay a surprise. A table display plays no sound: the GM's own device is the one to play it from at a table."
         ]
