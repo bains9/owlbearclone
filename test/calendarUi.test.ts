@@ -35,6 +35,9 @@ describe("the calendar on the page", () => {
     for (const words of [
       "onClick={() => moveDay(today + 1)}",
       "onDblClick={gm ? () => jumpTo(epoch) : undefined}",
+      // Like every side panel, it scrolls when it's taller than the window.
+      '<div class="panel-body calendar">',
+      'title="Back to today" onClick={backToToday}',
       "room.sendChat(dayLine(calendar))",
       "act(() => logLine(room, text), () => setLog(\"\"))",
       "<NewPartyDay />",

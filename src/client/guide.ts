@@ -190,7 +190,7 @@ export const GUIDE: GuideSection[] = [
         "title": "The campaign's calendar: the date, the moons, the weather, and what happens when (31 October 2026)",
         "steps": [
           "Click **Calendar** in the top bar (or the date beside the room's name). The day the game is at is at the top, with its season, the weather and the moons.",
-          "Click a day in the month to see what's on it; the arrows go a month back or on, and the month's name goes back to today.",
+          "Click a day in the month to see what's on it; the arrows go a month back or on, and **Today** beside the date (or the month's name) goes back to today.",
           "GM: the arrows beside the date move the game a day back or on, and double-clicking a day in the month takes it straight there. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
           "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
           "**Coming up** lists what starts in the next 30 days; **Find an event** jumps to the next day an event falls on. Anyone can add a line to **The party's log for today**: a player's goes in with their name.",

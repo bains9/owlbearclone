@@ -387,28 +387,43 @@ export function CalendarPanel() {
     return n > 0 ? `in ${n} days` : `${-n} days ago`;
   };
   const dayEvents = byDay.get(shown) ?? eventsOn(cal, shown, gm);
+  // Looking at another day or month: the Today button beside the date comes back.
+  const away = shown !== today || v.year !== d.year || v.month !== d.month;
+  const backToToday = () => {
+    setPicked(null);
+    setView(null);
+  };
 
   return (
-    <div class="calendar">
-      <section class="cal-today">
-        <div class="cal-today-head">
-          <div>
-            <div class="cal-date">{dateText(cal, today)}</div>
-            <div class="small muted">
-              {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.timeOfDay ?? "morning"} · {cal.climate}
-            </div>
+    <div class="panel-body calendar">
+      <div class="cal-today-head">
+        <div>
+          <div class="cal-date">{dateText(cal, today)}</div>
+          <div class="small muted">
+            {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.timeOfDay ?? "morning"} · {cal.climate}
           </div>
-          {gm && (
-            <span class="cal-day-buttons">
-              <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => moveDay(today - 1)}>
-                <ChevronLeft size={16} />
-              </button>
-              <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => moveDay(today + 1)}>
-                <ChevronRight size={16} />
-              </button>
-            </span>
-          )}
         </div>
+        {(gm || away) && (
+          <span class="cal-day-buttons">
+            {away && (
+              <button class="btn btn-sm" title="Back to today" onClick={backToToday}>
+                Today
+              </button>
+            )}
+            {gm && (
+              <>
+                <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => moveDay(today - 1)}>
+                  <ChevronLeft size={16} />
+                </button>
+                <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => moveDay(today + 1)}>
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
+          </span>
+        )}
+      </div>
+      <section class="cal-today">
         <div class="cal-weather">
           <WeatherIcon w={weather} size={18} />
           <span>{note ?? weather.text}</span>
@@ -512,7 +527,7 @@ export function CalendarPanel() {
           <button class="icon-btn" title="The month before" aria-label="The month before" onClick={() => moveMonth(-1)}>
             <ChevronLeft size={16} />
           </button>
-          <button class="link-btn cal-month-name" title="Back to today" onClick={() => { setPicked(null); setView(null); }}>
+          <button class="link-btn cal-month-name" title="Back to today" onClick={backToToday}>
             {cal.months[v.month]?.name}, Year {v.year}
           </button>
           <button class="icon-btn" title="The month after" aria-label="The month after" onClick={() => moveMonth(1)}>
@@ -751,7 +766,7 @@ function EventForm(props: { cal: Calendar; draft: Draft; busy: boolean; onChange
 function CalendarSetup(props: { busy: boolean; act: (what: () => Promise<unknown>, then?: () => void) => void }) {
   const room = useRoom();
   return (
-    <div class="calendar">
+    <div class="panel-body calendar">
       <p class="small muted">The campaign's calendar: the day the game is at, the moons, the seasons, the weather, and what happens when. Everyone in your rooms sees it.</p>
       <button class="btn btn-sm" disabled={props.busy} onClick={() => props.act(() => patchCalendar(room, { today: 0 }))}>
         Start a plain calendar
