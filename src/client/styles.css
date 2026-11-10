@@ -4335,6 +4335,10 @@ kbd {
   border-radius: 50%;
   flex: none;
 }
+/* A double-click on a day brings this up, clear of the date row that stays at the top. */
+.cal-day-list {
+  scroll-margin-top: 76px;
+}
 .cal-day-list-head {
   display: flex;
   align-items: center;

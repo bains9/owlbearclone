@@ -3,7 +3,7 @@
 // the day on, sets the region and the weather, adds and changes events (some the GM's eyes
 // only), and brings the calendar in from Fantasy Calendar. The top bar's DateChip shows the date.
 
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { CalendarDays, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudRain, CloudSnow, CloudSun, EyeOff, Pencil, RefreshCw, Search, Snowflake, Sun, Trash2 } from "lucide-preact";
 import {
   dateOf,
@@ -278,6 +278,7 @@ export function CalendarPanel() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [log, setLog] = useState("");
   const [find, setFind] = useState("");
+  const dayList = useRef<HTMLElement>(null);
   const party = useRoomState((s) => s.party?.configured === true);
   // The panel opens on today; it follows the day as the GM moves it, until a day is picked.
   useEffect(() => {
@@ -546,6 +547,7 @@ export function CalendarPanel() {
                 class={cx("cal-day", epoch === today && "today", epoch === shown && "picked", epoch < today && "past")}
                 title={list.map((e) => e.name).join("\n") || undefined}
                 onClick={() => setPicked(epoch)}
+                onDblClick={() => dayList.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
               >
                 <span class="cal-day-num">{i + 1}</span>
                 {list.length > 0 && (
@@ -561,7 +563,7 @@ export function CalendarPanel() {
         </div>
       </section>
 
-      <section class="cal-day-list">
+      <section class="cal-day-list" ref={dayList}>
         <div class="cal-day-list-head">
           <strong>{dateText(cal, shown)}</strong>
           {gm && !draft && (

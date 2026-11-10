@@ -51,8 +51,9 @@ describe("the calendar on the page", () => {
       "Bring it in",
     ])
       expect(panel).toContain(words);
-    // Clicking a day in the month is for looking at it and adding to it: only the arrows and Go to this day move the game.
-    expect(panel).not.toContain("onDblClick");
+    // A day in the month is for looking at and editing: a double-click brings its events up. Only the arrows and Go to this day move the game.
+    expect(panel).toContain('onDblClick={() => dayList.current?.scrollIntoView({ behavior: "smooth", block: "start" })}');
+    expect(panel).not.toMatch(/onDblClick=.*moveDay/);
     expect(panel).toContain('return gm ? <CalendarSetup busy={busy} act={act} /> : <p class="small muted">The GM hasn\'t set up the calendar yet.</p>;');
   });
 });
