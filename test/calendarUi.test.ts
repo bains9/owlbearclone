@@ -34,7 +34,6 @@ describe("the calendar on the page", () => {
     const panel = read("src/client/ui/CalendarPanel.tsx");
     for (const words of [
       "onClick={() => moveDay(today + 1)}",
-      "onDblClick={gm ? () => jumpTo(epoch) : undefined}",
       // Like every side panel, it scrolls when it's taller than the window.
       '<div class="panel-body calendar">',
       'title="Back to today" onClick={backToToday}',
@@ -52,6 +51,8 @@ describe("the calendar on the page", () => {
       "Bring it in",
     ])
       expect(panel).toContain(words);
+    // Clicking a day in the month is for looking at it and adding to it: only the arrows and Go to this day move the game.
+    expect(panel).not.toContain("onDblClick");
     expect(panel).toContain('return gm ? <CalendarSetup busy={busy} act={act} /> : <p class="small muted">The GM hasn\'t set up the calendar yet.</p>;');
   });
 });
