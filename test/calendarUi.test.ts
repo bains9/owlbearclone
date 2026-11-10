@@ -33,7 +33,11 @@ describe("the calendar on the page", () => {
   it("lets the GM move the day, set the region and weather, log, and add events; players only look", () => {
     const panel = read("src/client/ui/CalendarPanel.tsx");
     for (const words of [
-      "onClick={() => setAskDay(today + 1)}",
+      // An arrow asks, a day further each click; a day picked in the month can be asked about too.
+      "onClick={() => stepAsk(1)}",
+      "const next = (askDay ?? today) + n;",
+      "onClick={() => setAskDay(shown)}",
+      "Make it the game's date",
       "onClick={() => moveDay(askDay)}",
       "patchCalendar(room, { today: epoch, move: true })",
       "onDblClick={() => openDay(list)}",

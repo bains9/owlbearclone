@@ -405,6 +405,16 @@ export function CalendarPanel() {
     setPicked(null);
     setView(null);
   };
+  // Each arrow steps the day it asks about, shown in the month, so a week on is seven clicks and one yes.
+  const stepAsk = (n: number) => {
+    const next = (askDay ?? today) + n;
+    setAskDay(next === today ? null : next);
+    goTo(next);
+  };
+  const cancelAsk = () => {
+    setAskDay(null);
+    backToToday();
+  };
 
   return (
     <div class="panel-body calendar">
@@ -425,10 +435,10 @@ export function CalendarPanel() {
               )}
               {gm && (
                 <>
-                  <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => setAskDay(today - 1)}>
+                  <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => stepAsk(-1)}>
                     <ChevronLeft size={16} />
                   </button>
-                  <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => setAskDay(today + 1)}>
+                  <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => stepAsk(1)}>
                     <ChevronRight size={16} />
                   </button>
                 </>
@@ -438,11 +448,13 @@ export function CalendarPanel() {
         </div>
         {gm && askDay !== null && (
           <div class="cal-ask">
-            <span class="small">Change the game's date to {dateText(cal, askDay)}?</span>
+            <span class="small">
+              Change the game's date to {dateText(cal, askDay)} ({dayWord(askDay)})?
+            </span>
             <button class="btn btn-sm btn-primary" disabled={busy} onClick={() => moveDay(askDay)}>
               Change the date
             </button>
-            <button class="btn btn-sm" onClick={() => setAskDay(null)}>
+            <button class="btn btn-sm" onClick={cancelAsk}>
               Cancel
             </button>
           </div>
@@ -596,6 +608,11 @@ export function CalendarPanel() {
       <section class="cal-day-list" ref={dayList}>
         <div class="cal-day-list-head">
           <strong>{dateText(cal, shown)}</strong>
+          {gm && shown !== today && askDay !== shown && (
+            <button class="btn btn-sm" disabled={busy} title="Asks first" onClick={() => setAskDay(shown)}>
+              Make it the game's date
+            </button>
+          )}
           {gm && !draft && (
             <button class="btn btn-sm" disabled={busy} onClick={add}>
               Add an event
