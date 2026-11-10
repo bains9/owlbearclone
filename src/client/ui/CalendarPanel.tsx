@@ -354,7 +354,13 @@ export function CalendarPanel() {
     act(() => logLine(room, text), () => setLog(""));
   };
   // The GM moving the day: a line in the chat says where the game is now.
-  const moveDay = (epoch: number) => act(() => patchCalendar(room, { today: epoch }).then(({ calendar }) => room.sendChat(dayLine(calendar))));
+  const moveDay = (epoch: number, then?: () => void) => act(() => patchCalendar(room, { today: epoch }).then(({ calendar }) => room.sendChat(dayLine(calendar))), then);
+  // The GM double-clicking a day in the month: the game goes straight there, however far off, and the panel follows it again.
+  const jumpTo = (epoch: number) => {
+    if (busy) return;
+    if (epoch === today) setPicked(null);
+    else moveDay(epoch, () => setPicked(null));
+  };
   const setTime = (time: TimeOfDay) => {
     if ((cal.timeOfDay ?? "morning") === time) return;
     act(() => patchCalendar(room, { timeOfDay: time }).then(() => room.sendChat(timeLine(time))));
@@ -529,8 +535,9 @@ export function CalendarPanel() {
               <button
                 key={epoch}
                 class={cx("cal-day", epoch === today && "today", epoch === shown && "picked", epoch < today && "past")}
-                title={list.map((e) => e.name).join("\n") || undefined}
+                title={[...list.map((e) => e.name), ...(gm && epoch !== today ? ["Double-click to go to this day"] : [])].join("\n") || undefined}
                 onClick={() => setPicked(epoch)}
+                onDblClick={gm ? () => jumpTo(epoch) : undefined}
               >
                 <span class="cal-day-num">{i + 1}</span>
                 {list.length > 0 && (

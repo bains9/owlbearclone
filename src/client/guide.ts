@@ -191,7 +191,7 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Click **Calendar** in the top bar (or the date beside the room's name). The day the game is at is at the top, with its season, the weather and the moons.",
           "Click a day in the month to see what's on it; the arrows go a month back or on, and the month's name goes back to today.",
-          "GM: the arrows beside the date move the game a day back or on. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
+          "GM: the arrows beside the date move the game a day back or on, and double-clicking a day in the month takes it straight there. Under **Set the date, region and weather**, go to any day, pick the region the party is in (its weather follows), and put today's weather in your own words.",
           "GM: **Add an event** on the day shown: once, every year or month on that day, or every so many days. Tick **The GM's eyes only** for one the players shouldn't see. **The party's log for today** takes a line about what happened.",
           "**Coming up** lists what starts in the next 30 days; **Find an event** jumps to the next day an event falls on. Anyone can add a line to **The party's log for today**: a player's goes in with their name.",
           "GM: under **Set the date, region and weather**, three more ticks: rain and snow falling on the map on a wet day; the moons lighting night scenes (lighting on, set to night) as bright as they are that night; and scenes with a season following the calendar's, winter when it's winter (pin a scene's season in its **Season** pop-up to keep it). **New day for the party** sits under the date too.",

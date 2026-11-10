@@ -34,6 +34,7 @@ describe("the calendar on the page", () => {
     const panel = read("src/client/ui/CalendarPanel.tsx");
     for (const words of [
       "onClick={() => moveDay(today + 1)}",
+      "onDblClick={gm ? () => jumpTo(epoch) : undefined}",
       "room.sendChat(dayLine(calendar))",
       "act(() => logLine(room, text), () => setLog(\"\"))",
       "<NewPartyDay />",
