@@ -4201,10 +4201,6 @@ kbd {
 /* The date and its buttons stay at the top while the column scrolls: edge to edge over the panel's
    padding, so what scrolls under it doesn't show round it. */
 .cal-today-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
   position: sticky;
   top: -10px; /* The browser measures from inside the panel's 10px of padding. */
   z-index: 2;
@@ -4212,8 +4208,27 @@ kbd {
   padding: 10px 14px 6px;
   background: var(--panel);
 }
+.cal-today-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
 .cal-day-buttons .btn {
   margin-right: 4px;
+}
+.cal-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cal-ask .small {
+  flex-basis: 100%;
+}
+.cal-event[title] {
+  cursor: default;
 }
 .cal-date {
   font-weight: 600;

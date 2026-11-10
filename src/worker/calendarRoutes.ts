@@ -170,6 +170,8 @@ export async function calendarRoute(request: Request, env: Env, pathname: string
     const int = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
     const today = int(b.today);
     if (today !== null && today !== c.today) {
+      // The game's date moves only when the GM has said so: a page from before that rule is refused.
+      if (had && b.move !== true) return fail(409, "Tabletop has been updated. Reload this page to change the date.");
       c.today = Math.max(-1e8, Math.min(1e8, today));
       // A day begins in the morning, unless the change says when.
       delete c.timeOfDay;

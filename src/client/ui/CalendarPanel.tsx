@@ -266,6 +266,8 @@ interface Draft {
   every: number;
   /** The rule kept as it was (from Fantasy Calendar), when the event has one. */
   rule?: { conditions: unknown[]; summary: string };
+  /** The date of an event being changed, kept as it was: a long event shows on days after the one it starts on. */
+  on?: { year: number; month: number; day: number };
 }
 
 export function CalendarPanel() {
@@ -279,6 +281,9 @@ export function CalendarPanel() {
   const [log, setLog] = useState("");
   const [find, setFind] = useState("");
   const dayList = useRef<HTMLElement>(null);
+  // The day an arrow beside the date would take the game to, until the GM says yes or no.
+  const [askDay, setAskDay] = useState<number | null>(null);
+  useEffect(() => setAskDay(null), [cal?.today]);
   const party = useRoomState((s) => s.party?.configured === true);
   // The panel opens on today; it follows the day as the GM moves it, until a day is picked.
   useEffect(() => {
@@ -337,14 +342,26 @@ export function CalendarPanel() {
       repeat: e.when.kind === "rule" ? "none" : "none",
       every: 7,
       rule: e.when.kind === "rule" ? { conditions: e.when.conditions, summary: e.when.summary } : undefined,
+      on: e.when.kind === "date" ? { year: e.when.year, month: e.when.month, day: e.when.day } : undefined,
     });
+  // Double-clicks are for looking and editing, never for moving the game's date.
+  const toDayList = () => dayList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const openDay = (list: CalEvent[]) => {
+    if (gm && list.length === 1) edit(list[0]);
+    toDayList();
+  };
+  const editOnDoubleClick = (ev: MouseEvent, e: CalEvent) => {
+    if ((ev.target as Element).closest("button")) return;
+    edit(e);
+    toDayList();
+  };
   const add = () => setDraft({ id: eventId(), name: "", text: "", category: cal.logCategory, gmOnly: false, days: 1, repeat: "none", every: 7 });
   const save = (dr: Draft) => {
     const at = dateOf(cal, shown);
     const when: CalEvent["when"] = dr.rule
       ? { kind: "rule", conditions: dr.rule.conditions, summary: dr.rule.summary }
       : dr.repeat === "none"
-        ? { kind: "date", year: at.year, month: at.month, day: at.day }
+        ? { kind: "date", ...(dr.on ?? { year: at.year, month: at.month, day: at.day }) }
         : { kind: "rule", conditions: repeatRule(dr.repeat, { month: at.month, day: at.day }, dr.every, shown), summary: ruleSummary(cal, repeatRule(dr.repeat, { month: at.month, day: at.day }, dr.every, shown)) };
     const e: CalEvent = { id: dr.id, name: dr.name.trim() || "Event", text: dr.text.trim(), category: dr.category, gmOnly: dr.gmOnly, when, days: Math.max(1, Math.round(dr.days) || 1) };
     act(() => patchCalendar(room, { upsert: [e] }), () => setDraft(null));
@@ -355,7 +372,7 @@ export function CalendarPanel() {
     act(() => logLine(room, text), () => setLog(""));
   };
   // The GM moving the day: a line in the chat says where the game is now.
-  const moveDay = (epoch: number) => act(() => patchCalendar(room, { today: epoch }).then(({ calendar }) => room.sendChat(dayLine(calendar))));
+  const moveDay = (epoch: number) => act(() => patchCalendar(room, { today: epoch, move: true }).then(({ calendar }) => room.sendChat(dayLine(calendar))));
   const setTime = (time: TimeOfDay) => {
     if ((cal.timeOfDay ?? "morning") === time) return;
     act(() => patchCalendar(room, { timeOfDay: time }).then(() => room.sendChat(timeLine(time))));
@@ -392,30 +409,43 @@ export function CalendarPanel() {
   return (
     <div class="panel-body calendar">
       <div class="cal-today-head">
-        <div>
-          <div class="cal-date">{dateText(cal, today)}</div>
-          <div class="small muted">
-            {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.timeOfDay ?? "morning"} · {cal.climate}
+        <div class="cal-today-row">
+          <div>
+            <div class="cal-date">{dateText(cal, today)}</div>
+            <div class="small muted">
+              {cal.seasons[season.index]?.name ?? ""}, day {season.day} · {cal.timeOfDay ?? "morning"} · {cal.climate}
+            </div>
           </div>
+          {(gm || away) && (
+            <span class="cal-day-buttons">
+              {away && (
+                <button class="btn btn-sm" title="Back to today" onClick={backToToday}>
+                  Today
+                </button>
+              )}
+              {gm && (
+                <>
+                  <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => setAskDay(today - 1)}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => setAskDay(today + 1)}>
+                    <ChevronRight size={16} />
+                  </button>
+                </>
+              )}
+            </span>
+          )}
         </div>
-        {(gm || away) && (
-          <span class="cal-day-buttons">
-            {away && (
-              <button class="btn btn-sm" title="Back to today" onClick={backToToday}>
-                Today
-              </button>
-            )}
-            {gm && (
-              <>
-                <button class="icon-btn" title="A day back" aria-label="A day back" disabled={busy} onClick={() => moveDay(today - 1)}>
-                  <ChevronLeft size={16} />
-                </button>
-                <button class="icon-btn" title="A day on" aria-label="A day on" disabled={busy} onClick={() => moveDay(today + 1)}>
-                  <ChevronRight size={16} />
-                </button>
-              </>
-            )}
-          </span>
+        {gm && askDay !== null && (
+          <div class="cal-ask">
+            <span class="small">Change the game's date to {dateText(cal, askDay)}?</span>
+            <button class="btn btn-sm btn-primary" disabled={busy} onClick={() => moveDay(askDay)}>
+              Change the date
+            </button>
+            <button class="btn btn-sm" onClick={() => setAskDay(null)}>
+              Cancel
+            </button>
+          </div>
         )}
       </div>
       <section class="cal-today">
@@ -547,7 +577,7 @@ export function CalendarPanel() {
                 class={cx("cal-day", epoch === today && "today", epoch === shown && "picked", epoch < today && "past")}
                 title={list.map((e) => e.name).join("\n") || undefined}
                 onClick={() => setPicked(epoch)}
-                onDblClick={() => dayList.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                onDblClick={() => openDay(list)}
               >
                 <span class="cal-day-num">{i + 1}</span>
                 {list.length > 0 && (
@@ -579,7 +609,7 @@ export function CalendarPanel() {
           {dayEvents.map((e) => {
             const cat = catOf(e.category);
             return (
-              <li key={e.id} class={cx("cal-event", e.gmOnly && "gm-only")}>
+              <li key={e.id} class={cx("cal-event", e.gmOnly && "gm-only")} title={gm ? "Double-click to change it" : undefined} onDblClick={gm ? (ev) => editOnDoubleClick(ev, e) : undefined}>
                 <span class="cal-dot" style={{ background: cat?.color ?? "#8a8f98" }} />
                 <div class="cal-event-body">
                   <div class="cal-event-name">

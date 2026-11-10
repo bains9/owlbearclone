@@ -33,7 +33,11 @@ describe("the calendar on the page", () => {
   it("lets the GM move the day, set the region and weather, log, and add events; players only look", () => {
     const panel = read("src/client/ui/CalendarPanel.tsx");
     for (const words of [
-      "onClick={() => moveDay(today + 1)}",
+      "onClick={() => setAskDay(today + 1)}",
+      "onClick={() => moveDay(askDay)}",
+      "patchCalendar(room, { today: epoch, move: true })",
+      "onDblClick={() => openDay(list)}",
+      "onDblClick={gm ? (ev) => editOnDoubleClick(ev, e) : undefined}",
       // Like every side panel, it scrolls when it's taller than the window.
       '<div class="panel-body calendar">',
       'title="Back to today" onClick={backToToday}',
@@ -51,9 +55,12 @@ describe("the calendar on the page", () => {
       "Bring it in",
     ])
       expect(panel).toContain(words);
-    // A day in the month is for looking at and editing: a double-click brings its events up. Only the arrows and Go to this day move the game.
-    expect(panel).toContain('onDblClick={() => dayList.current?.scrollIntoView({ behavior: "smooth", block: "start" })}');
+    // Double-clicks are for looking and editing. Only an arrow, once answered, and Go to this day move the game.
     expect(panel).not.toMatch(/onDblClick=.*moveDay/);
+    expect(panel.slice(panel.indexOf("const toDayList"), panel.indexOf("const add = "))).not.toContain("moveDay");
+    expect(panel).not.toMatch(/onClick=\{\(\) => moveDay\(today/);
+    // Changing a long event from a later day leaves its date alone.
+    expect(panel).toContain("...(dr.on ?? { year: at.year, month: at.month, day: at.day })");
     expect(panel).toContain('return gm ? <CalendarSetup busy={busy} act={act} /> : <p class="small muted">The GM hasn\'t set up the calendar yet.</p>;');
   });
 });
@@ -66,6 +73,8 @@ describe("the calendar at the Worker", () => {
     expect(routes).toContain("return json({ calendar: calendar ? (gm ? calendar : forPlayers(calendar)) : null, version });");
     expect(routes).toContain('if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");');
     expect(routes).toContain("const FC_HASH = /^[a-f0-9]{32}$/;");
+    // The game's date moves only when asked for, which a page left open from before can't say.
+    expect(routes).toContain("if (had && b.move !== true) return fail(409,");
     expect(routes).toContain("if (text.length > MAX_BYTES) return");
     // An event from Fantasy Calendar keeps its link to it through a change here.
     expect(routes).toContain("if (old?.fc !== undefined) e.fc = old.fc;");

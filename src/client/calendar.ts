@@ -8,6 +8,8 @@ import type { RoomClient } from "./room/client";
 
 export interface CalendarPatch {
   today?: number;
+  /** Says the GM asked for this date: without it the Worker won't move the game's day. */
+  move?: true;
   timeOfDay?: TimeOfDay;
   name?: string;
   climate?: string;
