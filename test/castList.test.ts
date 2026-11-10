@@ -53,6 +53,8 @@ describe("a sheet's spells, as the Spells tool knows them", () => {
   it("are matched however the sheet writes them", () => {
     expect(tableSpellsFor("Light (R)")).toEqual(["Light", "Light (reversed)"]);
     expect(tableSpellsFor("Cure wounds (R)")).toEqual(["Cure wounds"]);
+    expect(tableSpellsFor("Light (M)")).toEqual(["Light"]);
+    expect(tableSpellsFor("Light (M)(R)")).toEqual(["Light", "Light (reversed)"]);
     expect(tableSpellsFor("battle song")).toEqual(["Battle Song"]);
     expect(tableSpellsFor("Protection from spirits")).toEqual(["Protection from Spirits"]);
     expect(tableSpellsFor("Detect Magic (1)")).toEqual([]);

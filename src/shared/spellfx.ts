@@ -335,12 +335,16 @@ export function tokenSpell(name: string): TokenSpell | undefined {
   return TOKEN_SPELLS.find((s) => s.name === name);
 }
 
-/** A spell's name as the sheets and Table might both spell it: lower case, plain quotes, no "(R)" or "(1)" after it. */
+/**
+ * A spell's name as the sheets and Table might both spell it: lower case, plain quotes, no "(M)", "(R)"
+ * or "(1)" after it. The mage book marks a spell that shares a name on the priest list with (M), even
+ * "Unlock (M)(R)"; it looks the same on the map.
+ */
 function spellKey(name: string): string {
   return name
     .toLowerCase()
     .replace(/[‘’]/g, "'")
-    .replace(/\s*\((r|\d+)\)\s*$/i, "")
+    .replace(/(\s*\((m|r|\d+)\))+\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
 }
