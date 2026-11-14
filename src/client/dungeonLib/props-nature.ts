@@ -1,11 +1,11 @@
-// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
 import { rng } from "./noise";
 import { radial, linear, canopy } from "./propkit";
 import { cross, vary, family, shade, ell, poly, fo, disc, stroke, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
 
 // Nature for the big library. Every id names what grows or lies there (oak-tree, pine-tree,
-// stump, fallen-branch, flower-bush, reeds, rock, snowdrift...), because table.parhome.ca's
+// stump, fallen-branch, flower-bush, reeds, rock, snowdrift...), because Table's
 // Seasons give an object its seasonal look by those words (see its dd/roles.ts).
 
 const N = "Nature" as const;

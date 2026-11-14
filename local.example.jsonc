@@ -1,0 +1,43 @@
+// Your table's own settings. Copy this file to local.jsonc and change what you need.
+// local.jsonc is never committed (it's in .gitignore): it's where everything that is yours
+// and not the code's goes. `npm run deploy` won't go without it. scripts/local.mjs reads it;
+// in a git worktree it's also looked for in the main checkout, so one file serves them all.
+{
+  // Laid over wrangler.jsonc whenever the app is built or run: a setting here replaces
+  // wrangler.jsonc's, and a list (routes, r2_buckets) is added to wrangler.jsonc's.
+  "wrangler": {
+    // Where your table is served. With nothing here it gets your account's workers.dev
+    // address. For a domain of your own (it must be on your Cloudflare account):
+    //
+    // "workers_dev": false,
+    // "routes": [{ "pattern": "table.example.com", "custom_domain": true }],
+
+    "vars": {
+      // Lines shown under "Loading map…", one at a time, never the same twice in a row. Leave
+      // the list empty for none.
+      "LOADING_LINES": [],
+
+      // If you also run Dungeon (the map maker), where it is. Table then shows its Dungeon
+      // button, New scene › From Dungeon and Update from Dungeon. Without it there are none.
+      // "DUNGEON_URL": "https://dungeon.example.com",
+    },
+
+    // With Dungeon: its bucket of maps, so Table's backups take them too.
+    // "r2_buckets": [{ "binding": "DUNGEON_MAPS", "bucket_name": "dungeon-maps" }],
+  },
+
+  // Words that must never appear in the files or their names: your players' names, your
+  // domain, your campaign's secrets. `npm test` and `npm run deploy` both fail if one turns up
+  // (scripts/private-words.mjs says how a word matches). Only useful if you share your changes.
+  "private_words": [],
+
+  // For this computer's tests and scripts: folders of maps that can't go in the code. The
+  // tests that read them are skipped when a folder isn't there.
+  "env": {
+    // "DD_FIXTURES": "/path/to/dungeondraft/sample/maps",
+    // "DD_PRIVATE": "/path/to/your/own/maps",
+    // With Dungeon's code on this computer: where it is, so its drawing library can be copied in
+    // (scripts/sync-dungeon-library.mjs) and the copies checked against it.
+    // "DUNGEON_DIR": "/path/to/dungeon",
+  }
+}

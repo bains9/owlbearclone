@@ -164,7 +164,7 @@ describe("taking the party to another level", () => {
 });
 
 describe("taking the party to another map (8 November 2026)", () => {
-  // Par: "How can Vern drag people to different maps?" On the map they're going to, the GM clicks
+  // The ask: "How can the GM drag people to different maps?" On the map they're going to, the GM clicks
   // Take the party here, then where they arrive.
   const from = { ...DEFAULT_GRID, size: 50, offsetX: 0, offsetY: 0 };
   const to = { ...DEFAULT_GRID, size: 100, offsetX: 10, offsetY: 20 };

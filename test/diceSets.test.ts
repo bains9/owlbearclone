@@ -65,7 +65,7 @@ describe("the sets", () => {
     const pearl = css.slice(css.indexOf(".dice-set-pearl {"), css.indexOf("}", css.indexOf("--d-sheen", css.indexOf(".dice-set-pearl {"))));
     expect(pearl).toMatch(/--d-ink: #a87a00;/);
     expect(pearl).toMatch(/rgba\(176, 116, 255, 0\.6\)/);
-    // The villains' sets read at a glance on Vern's screen (Par, 4 November: the white outline "not
+    // The villains' sets read at a glance on the GM's screen (4 November: the white outline "not
     // readable"): plain, solid numbers, a hard shadow at most; the menace in the die's edge and glow.
     const villains = css.slice(css.indexOf(".dice-set-villain {"), css.indexOf(".dice-set-bone {")).replace(/\r\n/g, "\n");
     expect(villains).toMatch(/\.dice-set-villain \{\n {2}--d-paint: radial-gradient\(circle at 32% 26%, #34262a[^}]*--d-ink: #f4ead6;\n {2}--d-ink-shadow: 0 1px 0 #000;\n {2}--d-glow: 0 0 6px rgba\(220, 20, 30, 0\.75\);/);

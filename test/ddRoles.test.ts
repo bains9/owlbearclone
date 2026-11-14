@@ -8,8 +8,8 @@ import {
   terrainRole, type ObjectRole,
 } from "../src/client/dd/roles";
 
-type FsLike = { readFileSync(path: string | URL, encoding: "utf8"): string };
-const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as FsLike;
+// The waterfall map (a GM's own, not committed): from the folder DD_PRIVATE names, when it has it.
+const { haveWaterfall, waterfallText } = await import("./helpers/ddFixtures");
 
 const ref = (path: string): AssetRef | null => parseAssetRef(path, new Map());
 const objName = (p: string) => defaultName(ref(`res://textures/objects/${p}.png`));
@@ -171,7 +171,7 @@ describe("roles: every default object in the samples has a deliberate role", () 
     expect(wrong).toEqual([]);
   });
 
-  it("Par: eucalyptus and mangrove are evergreen, whatever their number", () => {
+  it("eucalyptus and mangrove are evergreen, whatever their number", () => {
     for (const n of ["more_trees/eucalyptus_01", "more_trees/eucalyptus_09", "swamp/mangrove_tree_01", "swamp/mangrove_tree_12"]) {
       expect(roleOf(n), n).toBe(OR.EVERGREEN);
     }
@@ -341,7 +341,9 @@ describe("roles: hostile names", () => {
 });
 
 describe("roles: waterfall.dungeondraft_map (4.1)", () => {
-  const map = parseDungeondraftMap(fs.readFileSync(new URL("./fixtures/dd/waterfall.dungeondraft_map", import.meta.url), "utf8"));
+  // Nothing to read without the map: one skipped test says so.
+  if (!haveWaterfall) return void it.skip("needs the waterfall map (DD_PRIVATE)", () => {});
+  const map = parseDungeondraftMap(waterfallText());
   const L = map.world.levels[0];
 
   it("its 71 objects", () => {

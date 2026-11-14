@@ -26,8 +26,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  /** configured: a GM password is set. google: Google sign-in is set up. */
-  me: () => call<{ gm: boolean; configured: boolean; google: boolean }>("/api/me"),
+  /** configured: a GM password is set. google: Google sign-in is set up. dungeon: where this table's Dungeon is, if it has one. */
+  me: () => call<{ gm: boolean; configured: boolean; google: boolean; dungeon?: string | null }>("/api/me"),
   login: (password: string) => call<{ gm: boolean }>("/api/login", { method: "POST", body: JSON.stringify({ password }) }),
   logout: () => call<{ gm: boolean }>("/api/logout", { method: "POST", body: "{}" }),
   /** GM only: the key in this room's table display link. */

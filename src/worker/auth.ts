@@ -9,7 +9,7 @@
 // Google session names the account, and stops working as soon as that account is
 // taken off GM_EMAILS.
 //
-// Dungeon (dungeon.parhome.ca) gets sessions of the same two kinds, signed for it alone,
+// Dungeon (the map maker, on a table that has one) gets sessions of the same two kinds, signed for it alone,
 // so neither site's cookie works on the other (see dungeon.ts).
 
 const COOKIE = "tt_gm";

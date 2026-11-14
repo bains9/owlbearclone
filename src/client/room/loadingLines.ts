@@ -1,36 +1,17 @@
-// The lines shown under "Loading map…" while a map picture downloads: one about Baldr, a
-// different one each time, never the same one twice in a row on a device. Approved by Par
-// word for word, so they're kept exactly as written.
+// The line shown under "Loading map…" while a map picture downloads: one of the table's own
+// lines, a different one each time, never the same one twice in a row on a device. The lines
+// are one of the table's settings (shared/table.ts), not part of the code: a table that has
+// set none shows "Loading map…" alone. Only which line comes next is worked out here.
 
-export const BALDR_LINES: readonly string[] = [
-  "Baldr doesn't roll initiative. Initiative waits for Baldr.",
-  "Baldr once rolled a natural 1. The die apologised and rolled again.",
-  "Dragons hoard gold. Baldr hoards dragons.",
-  "Baldr's armour class is \"no\".",
-  "Baldr doesn't make saving throws. Saving throws are made against Baldr.",
-  "When Baldr takes a long rest, the dungeon takes a short one.",
-  "Mimics pretend to be chests. Around Baldr, chests pretend to be mimics.",
-  "Beholders have ten eyestalks. Nine of them are watching for Baldr.",
-  "Baldr failed a Stealth check on purpose once. The guards are still in therapy.",
-  "Baldr's beard has a higher Strength score than your barbarian.",
-  "Baldr doesn't get advantage. Advantage gets Baldr.",
-  "Gelatinous cubes go around Baldr. They've heard about the beard.",
-  "A lich hides its soul so Baldr can't find it. It isn't working.",
-  "Baldr's tankard is a +3 weapon. The ale is +5.",
-  "Baldr took the Lucky feat. Luck took the Baldr feat.",
-  "Owlbears sleep with a night light, in case of Baldr.",
-  "The DM doesn't hide behind the screen for secrecy. It's for safety from Baldr.",
-  "Baldr doesn't need a map. The map needs Baldr. That's why it's loading.",
-];
-
-const LAST_LINE_KEY = "tabletop-baldr-line";
+const LAST_LINE_KEY = "tabletop-loading-line";
 
 /**
- * A line (its index) chosen at random, never `last` (-1: none yet). Each of the others is
- * equally likely, so over many loads every line comes up.
+ * A line (its index among `count`) chosen at random, never `last` (-1: none yet). Each of the
+ * others is equally likely, so over many loads every line comes up. -1 when there are no lines.
  */
-export function pickLine(last: number, random: () => number = Math.random, count = BALDR_LINES.length): number {
+export function pickLine(last: number, count: number, random: () => number = Math.random): number {
   const pick = (n: number) => Math.min(n - 1, Math.max(0, Math.floor(random() * n)));
+  if (count < 1) return -1;
   if (count < 2) return 0;
   if (last < 0 || last >= count) return pick(count);
   // One of the other count - 1, skipping over the last one.
@@ -41,8 +22,12 @@ export function pickLine(last: number, random: () => number = Math.random, count
 /** The line shown last on this device, while the page has no storage (a private window, say). */
 let lastHere = -1;
 
-/** The next line for this device: never the one it showed last (remembered in the browser). */
-export function nextLine(random: () => number = Math.random): number {
+/**
+ * The next of the table's `count` lines for this device: never the one it showed last
+ * (remembered in the browser). -1, and nothing remembered, when the table has no lines.
+ */
+export function nextLine(count: number, random: () => number = Math.random): number {
+  if (count < 1) return -1;
   let last = lastHere;
   try {
     const stored = localStorage.getItem(LAST_LINE_KEY);
@@ -50,7 +35,7 @@ export function nextLine(random: () => number = Math.random): number {
   } catch {
     // No storage: go by this page alone.
   }
-  const line = pickLine(Number.isInteger(last) ? last : -1, random);
+  const line = pickLine(Number.isInteger(last) ? last : -1, count, random);
   lastHere = line;
   try {
     localStorage.setItem(LAST_LINE_KEY, String(line));

@@ -440,7 +440,7 @@ export class Directory extends DurableObject<Env> {
     if (legacy && legacy !== vault) {
       const old = this.sql.exec<{ path: string }>(`SELECT path FROM vnotes WHERE vault = ?`, legacy).toArray();
       // A note it had is in this vault at the same place, or in one of its folders: it may have been
-      // brought in from a folder inside the vault (Vern's was his Smugglers folder alone).
+      // brought in from a folder inside the vault (one folder of a bigger vault, say).
       const here = new Set<string>();
       for (const { path } of this.sql.exec<{ path: string }>(`SELECT path FROM vnotes WHERE vault = ?`, vault)) {
         const parts = path.split("/");

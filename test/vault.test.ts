@@ -1,5 +1,5 @@
-// The GM's campaign notes (4 November 2026): their Obsidian vaults (Vern keeps several) brought into
-// Table from a folder (any system: Vern's is Ubuntu), each kept apart by its folder's name for every
+// The GM's campaign notes (4 November 2026): their Obsidian vaults (a GM may keep several) brought into
+// Table from a folder (any system, Linux too), each kept apart by its folder's name for every
 // room by the Directory (pictures in R2 by checksum), read only by the GM, rendered as Obsidian's
 // reading view; a note or part of one shown to the players as a handout; a token linked to a note,
 // the GM's alone.
@@ -20,63 +20,63 @@ const HASH = "b".repeat(64);
 
 describe("a vault's files", () => {
   it("brings in notes and pictures, never Obsidian's own folders, nor a way out of the vault", () => {
-    expect(["Factions/Red Tide.md", "Attachments/Hilda.PNG", ".obsidian/app.json", "Notes/.trash/old.md", "Maps/city.pdf"].map(vaultKind)).toEqual(["note", "picture", null, null, null]);
-    expect([isVaultPath("Factions/Red Tide.md"), isVaultPath("../secrets.md"), isVaultPath("/etc/x.md"), isVaultPath("a\\b.md"), isVaultPath("a//b.md")]).toEqual([true, false, false, false, false]);
-    expect([isVaultName("Eastport"), isVaultName("K'dir Khan"), isVaultName("a/b"), isVaultName("a|b"), isVaultName(".hidden"), isVaultName(" x")]).toEqual([true, true, false, false, false, false]);
-    expect(noteTitle("Temples & Religions/Temple of Alessa.md")).toBe("Temple of Alessa");
-    expect(parseNoteRef(noteRef("Eastport", "NPCs/Hilda.md"))).toEqual({ vault: "Eastport", path: "NPCs/Hilda.md" });
-    expect([parseNoteRef("Eastport|../x.md"), parseNoteRef("NPCs/Hilda.md"), parseNoteRef(7)]).toEqual([null, null, null]);
+    expect(["Factions/Red Sash.md", "Attachments/Hanna.PNG", ".obsidian/app.json", "Notes/.trash/old.md", "Maps/city.pdf"].map(vaultKind)).toEqual(["note", "picture", null, null, null]);
+    expect([isVaultPath("Factions/Red Sash.md"), isVaultPath("../secrets.md"), isVaultPath("/etc/x.md"), isVaultPath("a\\b.md"), isVaultPath("a//b.md")]).toEqual([true, false, false, false, false]);
+    expect([isVaultName("Elmhaven"), isVaultName("K'dir Khan"), isVaultName("a/b"), isVaultName("a|b"), isVaultName(".hidden"), isVaultName(" x")]).toEqual([true, true, false, false, false, false]);
+    expect(noteTitle("Temples & Religions/Temple of Averin.md")).toBe("Temple of Averin");
+    expect(parseNoteRef(noteRef("Elmhaven", "NPCs/Hanna.md"))).toEqual({ vault: "Elmhaven", path: "NPCs/Hanna.md" });
+    expect([parseNoteRef("Elmhaven|../x.md"), parseNoteRef("NPCs/Hanna.md"), parseNoteRef(7)]).toEqual([null, null, null]);
   });
 
   it("finds the vaults in a picked folder: the folder itself when it's one, else each folder in it", () => {
     const one = vaultsIn([
-      { name: "a", webkitRelativePath: "Eastport/.obsidian/app.json" },
-      { name: "b", webkitRelativePath: "Eastport/Factions/Red Tide.md" },
+      { name: "a", webkitRelativePath: "Elmhaven/.obsidian/app.json" },
+      { name: "b", webkitRelativePath: "Elmhaven/Factions/Red Sash.md" },
     ]);
-    expect([...one.keys()]).toEqual(["Eastport"]);
-    expect(one.get("Eastport")!.map((e) => e.path)).toEqual([".obsidian/app.json", "Factions/Red Tide.md"]);
-    // The folder holding Vern's vaults: each one separately; a stray file at the top is left out.
+    expect([...one.keys()]).toEqual(["Elmhaven"]);
+    expect(one.get("Elmhaven")!.map((e) => e.path)).toEqual([".obsidian/app.json", "Factions/Red Sash.md"]);
+    // The folder holding several vaults: each one separately; a stray file at the top is left out.
     const many = vaultsIn([
-      { name: "a", webkitRelativePath: "Obsidian/Eastport/.obsidian/app.json" },
-      { name: "b", webkitRelativePath: "Obsidian/Eastport/Red Tide.md" },
+      { name: "a", webkitRelativePath: "Obsidian/Elmhaven/.obsidian/app.json" },
+      { name: "b", webkitRelativePath: "Obsidian/Elmhaven/Red Sash.md" },
       { name: "c", webkitRelativePath: "Obsidian/K'dir Khan/Places/Topside.md" },
       { name: "d", webkitRelativePath: "Obsidian/readme.txt" },
     ]);
-    expect([...many.keys()]).toEqual(["Eastport", "K'dir Khan"]);
+    expect([...many.keys()]).toEqual(["Elmhaven", "K'dir Khan"]);
     expect(many.get("K'dir Khan")!.map((e) => e.path)).toEqual(["Places/Topside.md"]);
     // Notes at its top make a folder a vault, even without Obsidian's folder.
-    expect([...vaultsIn([{ name: "x", webkitRelativePath: "Notes/Hilda.md" }, { name: "y", webkitRelativePath: "Notes/NPCs/Bob.md" }]).keys()]).toEqual(["Notes"]);
+    expect([...vaultsIn([{ name: "x", webkitRelativePath: "Notes/Hanna.md" }, { name: "y", webkitRelativePath: "Notes/NPCs/Bob.md" }]).keys()]).toEqual(["Notes"]);
   });
 
   it("lists as Obsidian does: folders first, then notes, each in order", () => {
     const tree = noteTree([
       { vault: "E", path: "Zed.md", title: "Zed", size: 1 },
-      { vault: "E", path: "Factions/Red Tide.md", title: "Red Tide", size: 1 },
+      { vault: "E", path: "Factions/Red Sash.md", title: "Red Sash", size: 1 },
       { vault: "E", path: "Factions/Maus Cell.md", title: "Maus Cell", size: 1 },
       { vault: "E", path: "Alpha.md", title: "Alpha", size: 1 },
     ]);
     expect(tree.folders.map((f) => f.name)).toEqual(["Factions"]);
-    expect(tree.folders[0].notes.map((n) => n.title)).toEqual(["Maus Cell", "Red Tide"]);
+    expect(tree.folders[0].notes.map((n) => n.title)).toEqual(["Maus Cell", "Red Sash"]);
     expect(tree.notes.map((n) => n.title)).toEqual(["Alpha", "Zed"]);
   });
 });
 
 const index: Pick<VaultIndex, "notes" | "files"> = {
   notes: [
-    { vault: "E", path: "Temples/Temple of Alessa.md", title: "Temple of Alessa", size: 1 },
-    { vault: "E", path: "NPCs/Hilda Bauer.md", title: "Hilda Bauer", size: 1 },
-    { vault: "E", path: "Old/Hilda Bauer.md", title: "Hilda Bauer", size: 1 },
+    { vault: "E", path: "Temples/Temple of Averin.md", title: "Temple of Averin", size: 1 },
+    { vault: "E", path: "NPCs/Hanna Blake.md", title: "Hanna Blake", size: 1 },
+    { vault: "E", path: "Old/Hanna Blake.md", title: "Hanna Blake", size: 1 },
   ],
-  files: [{ vault: "E", path: "Attachments/hilda.png", hash: HASH, mime: "image/png", bytes: 10 }],
+  files: [{ vault: "E", path: "Attachments/hanna.png", hash: HASH, mime: "image/png", bytes: 10 }],
 };
 
 describe("a note, as Obsidian's reading view shows it", () => {
   it("finds links by path or name, the nearest when there are several", () => {
     const find = vaultResolver(index);
-    expect(find.note("NPCs/Hilda Bauer", "x.md")).toBe("NPCs/Hilda Bauer.md");
-    expect(find.note("hilda bauer", "Old/y.md")).toBe("Old/Hilda Bauer.md");
+    expect(find.note("NPCs/Hanna Blake", "x.md")).toBe("NPCs/Hanna Blake.md");
+    expect(find.note("hanna blake", "Old/y.md")).toBe("Old/Hanna Blake.md");
     expect(find.note("Nobody", "x.md")).toBeNull();
-    expect(find.file("hilda.png", "Temples/x.md")?.hash).toBe(HASH);
+    expect(find.file("hanna.png", "Temples/x.md")?.hash).toBe(HASH);
   });
 
   it("takes properties out to a table, and comments out altogether", () => {
@@ -91,23 +91,23 @@ describe("a note, as Obsidian's reading view shows it", () => {
 
   it("renders links between notes, pictures, highlights, headings and callouts, a secret one marked", () => {
     const html = renderNote(
-      "# Hilda\nSee [[Temple of Alessa|the temple]] and [[Nobody]].\n![[hilda.png|200]]\n==Miss Berries==\n> [!secret] The truth\n> She's the traitor.\n\n> [!note]\n> Plain.",
-      "NPCs/Hilda Bauer.md",
+      "# Hanna\nSee [[Temple of Averin|the temple]] and [[Nobody]].\n![[hanna.png|200]]\n==Miss Bramble==\n> [!secret] The truth\n> She's the traitor.\n\n> [!note]\n> Plain.",
+      "NPCs/Hanna Blake.md",
       index,
     );
-    expect(html).toContain(`<h1 id="h-hilda">Hilda</h1>`);
-    expect(html).toContain(`<a class="wikilink" data-note="Temples/Temple of Alessa.md">the temple</a>`);
+    expect(html).toContain(`<h1 id="h-hanna">Hanna</h1>`);
+    expect(html).toContain(`<a class="wikilink" data-note="Temples/Temple of Averin.md">the temple</a>`);
     expect(html).toContain(`<span class="wikilink unresolved">Nobody</span>`);
-    expect(html).toContain(`<img src="/api/vault/file/${HASH}" alt="hilda" width="200">`);
-    expect(html).toContain("<mark>Miss Berries</mark>");
+    expect(html).toContain(`<img src="/api/vault/file/${HASH}" alt="hanna" width="200">`);
+    expect(html).toContain("<mark>Miss Bramble</mark>");
     expect(html).toContain(`<blockquote class="callout callout-secret" data-callout="secret" data-secret=""><p class="callout-title">The truth</p>`);
     expect(html).toContain(`<blockquote class="callout callout-note" data-callout="note"><p class="callout-title">Note</p>`);
-    expect(headingId("The Red Tide's Ships!")).toBe("h-the-red-tide-s-ships");
+    expect(headingId("The Red Sash's Ships!")).toBe("h-the-red-sash-s-ships");
   });
 
   it("follows Markdown links to notes too, and leaves the web's links as they are", () => {
-    const html = renderNote("[temple](../Temples/Temple%20of%20Alessa.md) and [site](https://example.com)", "NPCs/Hilda Bauer.md", index);
-    expect(html).toContain(`<a class="wikilink" data-note="Temples/Temple of Alessa.md">temple</a>`);
+    const html = renderNote("[temple](../Temples/Temple%20of%20Averin.md) and [site](https://example.com)", "NPCs/Hanna Blake.md", index);
+    expect(html).toContain(`<a class="wikilink" data-note="Temples/Temple of Averin.md">temple</a>`);
     expect(html).toContain(`<a href="https://example.com">site</a>`);
   });
 });
@@ -155,23 +155,23 @@ describe("the Directory's vaults", () => {
   it("brings a vault in, then again: what left it goes, pictures no vault uses any more are named for removal", async () => {
     const d = await directory();
     const first = d.vaultStart("E")!;
-    expect(d.vaultPutNotes("E", first, [{ path: "A.md", body: "Hilda the cleric" }, { path: "Old.md", body: "gone soon" }])).toBeNull();
+    expect(d.vaultPutNotes("E", first, [{ path: "A.md", body: "Hanna the cleric" }, { path: "Old.md", body: "gone soon" }])).toBeNull();
     expect(d.vaultPutFiles("E", first, [pic("a.png", "1".repeat(64)), pic("b.png", "2".repeat(64))])).toBeNull();
     expect(d.vaultFinish("E", first)).toEqual({ notes: 2, files: 2, unused: [] });
     expect(d.vaultIndex().vaults).toEqual([{ name: "E", importedAt: expect.any(Number), notes: 2 }]);
     const second = d.vaultStart("E")!;
     expect(d.vaultKnownHashes(["1".repeat(64), "3".repeat(64)])).toEqual(["1".repeat(64)]);
-    d.vaultPutNotes("E", second, [{ path: "A.md", body: "Hilda, now a traitor" }]);
+    d.vaultPutNotes("E", second, [{ path: "A.md", body: "Hanna, now a traitor" }]);
     d.vaultPutFiles("E", second, [pic("a.png", "1".repeat(64))]);
     expect(d.vaultFinish("E", second)).toEqual({ notes: 1, files: 1, unused: ["2".repeat(64)] });
-    expect(d.vaultNote("E", "A.md")).toBe("Hilda, now a traitor");
+    expect(d.vaultNote("E", "A.md")).toBe("Hanna, now a traitor");
     expect(d.vaultNote("E", "Old.md")).toBeNull();
   });
 
   it("keeps several vaults apart: bringing one in leaves the others, the same path in each its own", async () => {
     const d = await directory();
     for (const [v, body] of [
-      ["Eastport", "the docks"],
+      ["Elmhaven", "the docks"],
       ["K'dir Khan", "the desert"],
     ] as const) {
       const id = d.vaultStart(v)!;
@@ -179,18 +179,18 @@ describe("the Directory's vaults", () => {
       d.vaultPutFiles(v, id, [pic("shared.png", "4".repeat(64))]);
       d.vaultFinish(v, id);
     }
-    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport", "K'dir Khan"]);
-    expect([d.vaultNote("Eastport", "Home.md"), d.vaultNote("K'dir Khan", "Home.md")]).toEqual(["the docks", "the desert"]);
-    // Eastport again with only a new note: K'dir Khan stays as it was.
-    const again = d.vaultStart("Eastport")!;
-    d.vaultPutNotes("Eastport", again, [{ path: "New.md", body: "x" }]);
-    d.vaultFinish("Eastport", again);
+    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Elmhaven", "K'dir Khan"]);
+    expect([d.vaultNote("Elmhaven", "Home.md"), d.vaultNote("K'dir Khan", "Home.md")]).toEqual(["the docks", "the desert"]);
+    // Elmhaven again with only a new note: K'dir Khan stays as it was.
+    const again = d.vaultStart("Elmhaven")!;
+    d.vaultPutNotes("Elmhaven", again, [{ path: "New.md", body: "x" }]);
+    d.vaultFinish("Elmhaven", again);
     expect(d.vaultNote("K'dir Khan", "Home.md")).toBe("the desert");
     expect(d.vaultSearch("desert", null).map((h) => h.vault)).toEqual(["K'dir Khan"]);
-    expect(d.vaultSearch("desert", "Eastport")).toEqual([]);
+    expect(d.vaultSearch("desert", "Elmhaven")).toEqual([]);
     // The picture's copy goes with the last vault using it.
     expect(d.vaultClear("K'dir Khan")).toEqual(["4".repeat(64)]);
-    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport"]);
+    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Elmhaven"]);
   });
 
   it("refuses a batch from an import another has overtaken, and SQL's wildcards are only words", async () => {
@@ -198,9 +198,9 @@ describe("the Directory's vaults", () => {
     const old = d.vaultStart("E")!;
     const now = d.vaultStart("E")!;
     expect(d.vaultPutNotes("E", old, [{ path: "A.md", body: "x" }])).toMatch(/overtaken/);
-    d.vaultPutNotes("E", now, [{ path: "Temples/Alessa.md", body: "The harvest priestess, Miss Berries, tends the shrine." }]);
+    d.vaultPutNotes("E", now, [{ path: "Temples/Averin.md", body: "The harvest priestess, Miss Bramble, tends the shrine." }]);
     d.vaultFinish("E", now);
-    expect(d.vaultSearch("miss berries", null)).toEqual([{ vault: "E", path: "Temples/Alessa.md", title: "Alessa", snippet: "The harvest priestess, Miss Berries, tends the shrine." }]);
+    expect(d.vaultSearch("miss bramble", null)).toEqual([{ vault: "E", path: "Temples/Averin.md", title: "Averin", snippet: "The harvest priestess, Miss Bramble, tends the shrine." }]);
     expect(d.vaultSearch("100%", null)).toEqual([]);
     d.vaultClear(null);
     expect(d.vaultIndex()).toEqual({ vaults: [], notes: [], files: [] });
@@ -211,24 +211,24 @@ describe("the Directory's vaults", () => {
       db.exec("CREATE TABLE vault_notes (path TEXT PRIMARY KEY, body TEXT NOT NULL, import TEXT NOT NULL)");
       db.exec("CREATE TABLE vault_files (path TEXT PRIMARY KEY, hash TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, import TEXT NOT NULL)");
       db.exec("CREATE TABLE vault_drive (path TEXT PRIMARY KEY, modified INTEGER NOT NULL, hash TEXT NOT NULL)");
-      db.prepare("INSERT INTO vault_notes VALUES (?, ?, ?)").all("NPCs/Hilda.md", "# Hilda", "old");
+      db.prepare("INSERT INTO vault_notes VALUES (?, ?, ?)").all("NPCs/Hanna.md", "# Hanna", "old");
       db.prepare("INSERT INTO vault_notes VALUES (?, ?, ?)").all("Temple.md", "# Temple", "old");
       db.prepare("INSERT INTO vault_files VALUES (?, ?, ?, ?, ?)").all("h.png", "5".repeat(64), "image/png", 10, "old");
       db.prepare("INSERT INTO blobs VALUES (?, ?, ?)").all("vault_at", "1793838851508", 1);
     });
     expect(d.vaultIndex().vaults).toEqual([{ name: "First vault", importedAt: 1793838851508, notes: 2 }]);
-    expect(d.vaultNote("First vault", "NPCs/Hilda.md")).toBe("# Hilda");
+    expect(d.vaultNote("First vault", "NPCs/Hanna.md")).toBe("# Hanna");
     // A vault that isn't it (no notes in common) leaves it.
     const other = d.vaultStart("K'dir Khan")!;
     d.vaultPutNotes("K'dir Khan", other, [{ path: "Topside.md", body: "x" }]);
     d.vaultFinish("K'dir Khan", other);
     expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["First vault", "K'dir Khan"]);
     // His vault brought in again by its folder's name: First vault gives way; its picture's copy is still used.
-    const real = d.vaultStart("Eastport")!;
-    d.vaultPutNotes("Eastport", real, [{ path: "NPCs/Hilda.md", body: "# Hilda" }, { path: "Temple.md", body: "# Temple" }]);
-    d.vaultPutFiles("Eastport", real, [pic("h.png", "5".repeat(64))]);
-    expect(d.vaultFinish("Eastport", real)?.unused).toEqual([]);
-    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport", "K'dir Khan"]);
+    const real = d.vaultStart("Elmhaven")!;
+    d.vaultPutNotes("Elmhaven", real, [{ path: "NPCs/Hanna.md", body: "# Hanna" }, { path: "Temple.md", body: "# Temple" }]);
+    d.vaultPutFiles("Elmhaven", real, [pic("h.png", "5".repeat(64))]);
+    expect(d.vaultFinish("Elmhaven", real)?.unused).toEqual([]);
+    expect(d.vaultIndex().vaults.map((v) => v.name)).toEqual(["Elmhaven", "K'dir Khan"]);
   });
 
   it("First vault gives way too when it was one folder of the real vault, brought in alone", async () => {
@@ -246,9 +246,9 @@ describe("the Directory's vaults", () => {
     // The whole vault, the folder among the rest.
     const real = d.vaultStart("Campaign")!;
     d.vaultPutNotes("Campaign", real, [
-      { path: "Smugglers/Boyce's Hold.md", body: "#" },
-      { path: "Smugglers/Boyce's Raiders.md", body: "#" },
-      { path: "Smugglers/Dinosaur.md", body: "#" },
+      { path: "Shorewood/Boyce's Hold.md", body: "#" },
+      { path: "Shorewood/Boyce's Raiders.md", body: "#" },
+      { path: "Shorewood/Dinosaur.md", body: "#" },
       { path: "Oracle gone/Temple.md", body: "#" },
     ]);
     d.vaultFinish("Campaign", real);
@@ -309,13 +309,13 @@ describe("the vaults' routes", () => {
   it("brings a vault in: notes, a picture checked against its checksum and kind, then finished", async () => {
     const { go, files } = await setup();
     expect((await go("POST", "/api/vault/import", JSON.stringify({ vault: "a/b" })))?.status).toBe(400);
-    const id = String((await go("POST", "/api/vault/import", JSON.stringify({ vault: "Eastport" })))?.data.import);
-    const v = { vault: "Eastport", import: id };
-    expect((await go("POST", "/api/vault/import/notes", JSON.stringify({ ...v, notes: [{ path: "NPCs/Hilda.md", body: "# Hilda" }] })))?.status).toBe(200);
+    const id = String((await go("POST", "/api/vault/import", JSON.stringify({ vault: "Elmhaven" })))?.data.import);
+    const v = { vault: "Elmhaven", import: id };
+    expect((await go("POST", "/api/vault/import/notes", JSON.stringify({ ...v, notes: [{ path: "NPCs/Hanna.md", body: "# Hanna" }] })))?.status).toBe(200);
     expect((await go("POST", "/api/vault/import/notes", JSON.stringify({ ...v, notes: [{ path: "../x.md", body: "" }] })))?.status).toBe(400);
     const hash = await hex(PNG);
-    expect((await go("POST", "/api/vault/import/files", JSON.stringify({ ...v, files: [{ path: "Att/hilda.png", hash, bytes: PNG.length }] })))?.data.missing).toEqual([hash]);
-    const qs = `vault=Eastport&import=${id}&path=${encodeURIComponent("Att/hilda.png")}`;
+    expect((await go("POST", "/api/vault/import/files", JSON.stringify({ ...v, files: [{ path: "Att/hanna.png", hash, bytes: PNG.length }] })))?.data.missing).toEqual([hash]);
+    const qs = `vault=Elmhaven&import=${id}&path=${encodeURIComponent("Att/hanna.png")}`;
     const wrong = new Uint8Array(PNG);
     wrong[30] = 0;
     expect((await go("PUT", `/api/vault/import/file/${hash}?${qs}`, wrong, true, { "Content-Length": String(wrong.length) }))?.status).toBe(400);
@@ -325,11 +325,11 @@ describe("the vaults' routes", () => {
     expect(files.files.has(`vault/${hash}`)).toBe(true);
     expect((await go("POST", "/api/vault/import/finish", JSON.stringify(v)))?.data).toEqual({ notes: 1, files: 1 });
     const idx = (await go("GET", "/api/vault"))?.data as unknown as VaultIndex;
-    expect(idx.vaults.map((x) => x.name)).toEqual(["Eastport"]);
-    expect(idx.files).toEqual([{ vault: "Eastport", path: "Att/hilda.png", hash, mime: "image/png", bytes: PNG.length }]);
-    expect((await go("GET", `/api/vault/note?vault=Eastport&path=${encodeURIComponent("NPCs/Hilda.md")}`))?.data).toEqual({ vault: "Eastport", path: "NPCs/Hilda.md", body: "# Hilda" });
+    expect(idx.vaults.map((x) => x.name)).toEqual(["Elmhaven"]);
+    expect(idx.files).toEqual([{ vault: "Elmhaven", path: "Att/hanna.png", hash, mime: "image/png", bytes: PNG.length }]);
+    expect((await go("GET", `/api/vault/note?vault=Elmhaven&path=${encodeURIComponent("NPCs/Hanna.md")}`))?.data).toEqual({ vault: "Elmhaven", path: "NPCs/Hanna.md", body: "# Hanna" });
     // One vault out of Table: its notes, and the pictures' copies no vault uses.
-    expect((await go("DELETE", "/api/vault?vault=Eastport"))?.status).toBe(200);
+    expect((await go("DELETE", "/api/vault?vault=Elmhaven"))?.status).toBe(200);
     expect(files.files.has(`vault/${hash}`)).toBe(false);
   });
 });
@@ -401,14 +401,14 @@ describe("handouts and token links in a room", () => {
     const r = room([gm, alice]);
     await r.handle(alice, alice.conn, { t: "handout.show", title: "Letter", html: "<p>x</p>" }, 1);
     expect(r.handouts).toEqual([]);
-    await r.handle(gm, gm.conn, { t: "handout.show", title: "Temple of Alessa", html: "<p>The shrine</p>" }, 1);
+    await r.handle(gm, gm.conn, { t: "handout.show", title: "Temple of Averin", html: "<p>The shrine</p>" }, 1);
     await r.handle(gm, gm.conn, { t: "handout.show", title: "Map", html: "<p>Here</p>" }, 2);
-    expect(r.handouts.map((h) => h.title)).toEqual(["Map", "Temple of Alessa"]);
+    expect(r.handouts.map((h) => h.title)).toEqual(["Map", "Temple of Averin"]);
     expect(alice.sent.filter((m) => m.t === "handouts").at(-1)!.shown).toBe(r.handouts[0].id);
     await r.handle(alice, alice.conn, { t: "handout.remove", id: r.handouts[0].id }, 2);
     expect(r.handouts).toHaveLength(2);
     await r.handle(gm, gm.conn, { t: "handout.remove", id: r.handouts[0].id }, 3);
-    expect(r.handouts.map((h) => h.title)).toEqual(["Temple of Alessa"]);
+    expect(r.handouts.map((h) => h.title)).toEqual(["Temple of Averin"]);
   });
 
   it("keeps as many handouts as fit, the oldest going first", () => {
@@ -422,7 +422,7 @@ describe("handouts and token links in a room", () => {
     const gm = sock(gmConn());
     const alice = sock(playerConn());
     const r = room([gm, alice]);
-    const ref = noteRef("Eastport", "NPCs/Hilda.md");
+    const ref = noteRef("Elmhaven", "NPCs/Hanna.md");
     await r.handle(alice, alice.conn, { t: "token.note", id: "tok000000001", note: ref }, 1);
     expect(r.tokenNotes).toEqual({});
     await r.handle(gm, gm.conn, { t: "token.note", id: "tok000000001", note: ref }, 1);
@@ -430,7 +430,7 @@ describe("handouts and token links in a room", () => {
     expect(gm.sent.filter((m) => m.t === "tokenNotes").at(-1)?.notes).toEqual({ tok000000001: ref });
     expect(alice.sent.some((m) => m.t === "tokenNotes")).toBe(false);
     // Not a note in a vault: refused. Unlinked with null.
-    await r.handle(gm, gm.conn, { t: "token.note", id: "tok000000001", note: "NPCs/Hilda.md" }, 2);
+    await r.handle(gm, gm.conn, { t: "token.note", id: "tok000000001", note: "NPCs/Hanna.md" }, 2);
     expect(r.tokenNotes.tok000000001).toBe(ref);
     await r.handle(gm, gm.conn, { t: "token.note", id: "tok000000001", note: null }, 3);
     expect(r.tokenNotes).toEqual({});

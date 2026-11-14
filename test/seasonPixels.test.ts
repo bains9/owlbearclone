@@ -20,6 +20,7 @@ import {
 import type { BareReach, SeasonAnalysis } from "../src/client/room/seasonPixels";
 import { readPng } from "./helpers/png";
 import type { PngImage } from "./helpers/png";
+import { havePrivateFile, privatePath } from "./helpers/ddFixtures";
 
 // Small synthetic maps built in code. Each is CELL px a square; the analysis runs at half
 // size (as the app analyses a downscaled copy) and bakes run on the full image.
@@ -1458,21 +1459,21 @@ describe("seasonPixels on maps with no snow", () => {
   }
 });
 
-// Kdir Topside (Vern's map, 32 x 18 squares at 108 px), reduced for the tests: the whole map at
-// 20 px a square for the analysis, and for the bakes a crop of 10 x 4.5 squares from square
-// (10.5, 0.5) at 54 px a square (a capped crown, bushes, an evergreen and bare trees). Both are
-// sharp lanczos3 resizes of kdir-topside.webp (alpha removed; the crop from a 1728 x 972 resize at
-// 567, 27), saved as lossless RGB PNGs: `png({ palette: false })`, since sharp's `effort` option
-// turns palette mode on and would dither them to 256 colours.
-const KDIR = { sceneW: 3456, sceneH: 1944, cell: 108, cellA: 20, x0: 1134, y0: 54, scale: 2 };
-let kdirPics: Promise<[PngImage, PngImage]> | null = null;
+// A real map painted under snow: a town, a GM's own (32 x 18 squares at 108 px), so its two
+// pictures aren't in the code. They're read from the folder DD_PRIVATE names, and the tests that
+// need them are skipped without it. Reduced for the tests: the whole map at 20 px a square for
+// the analysis (town-analysis.png), and for the bakes a crop of 10 x 4.5 squares from square
+// (10.5, 0.5) at 54 px a square (town-crop.png: a capped crown, bushes, an evergreen and bare
+// trees). Both are sharp lanczos3 resizes of the map's picture (alpha removed; the crop from a
+// 1728 x 972 resize at 567, 27), saved as lossless RGB PNGs: `png({ palette: false })`, since
+// sharp's `effort` option turns palette mode on and would dither them to 256 colours.
+const TOWN = { sceneW: 3456, sceneH: 1944, cell: 108, cellA: 20, x0: 1134, y0: 54, scale: 2 };
+const haveTown = havePrivateFile("town-analysis.png", "town-crop.png");
+let townPics: Promise<[PngImage, PngImage]> | null = null;
 
-function kdirPictures(): Promise<[PngImage, PngImage]> {
-  kdirPics ??= Promise.all([
-    readPng(new URL("./fixtures/snow/kdir-analysis.png", import.meta.url)),
-    readPng(new URL("./fixtures/snow/kdir-crop.png", import.meta.url)),
-  ]);
-  return kdirPics;
+function townPictures(): Promise<[PngImage, PngImage]> {
+  townPics ??= Promise.all([readPng(privatePath("town-analysis.png")), readPng(privatePath("town-crop.png"))]);
+  return townPics;
 }
 
 /** How many colours a picture uses. */
@@ -1482,13 +1483,13 @@ function colourCount(p: PngImage): number {
   return seen.size;
 }
 
-/** Kdir's crop baked in all twelve looks with seed 777. */
-function kdirBakes(crop: PngImage, a: SeasonAnalysis): Uint8ClampedArray[] {
+/** The town's crop baked in all twelve looks with seed 777. */
+function townBakes(crop: PngImage, a: SeasonAnalysis): Uint8ClampedArray[] {
   const bakes: Uint8ClampedArray[] = [];
   for (const look of SEASON_LOOKS) {
     for (const level of LEVELS) {
       const img = new Uint8ClampedArray(crop.px);
-      bake(img, crop.w, crop.h, { ...KDIR, seed: 777, look, level, a });
+      bake(img, crop.w, crop.h, { ...TOWN, seed: 777, look, level, a });
       bakes.push(img);
     }
   }
@@ -1497,10 +1498,10 @@ function kdirBakes(crop: PngImage, a: SeasonAnalysis): Uint8ClampedArray[] {
 
 // The snowy maps below, analysed by analyse() while the picture's own snow detection is off
 // (PIXEL_SNOWY): taken for plain pictures, exactly as before snowy maps were recognised
-// (ALGO_VERSION 3). Hashes as above (Kdir: its crop's bakes).
+// (ALGO_VERSION 3). Hashes as above (the town: its crop's bakes).
 const GOLDEN_PLAIN: Record<string, string> = {
   snowy: "dc76e417 1c184385",
-  kdir: "10ee0add b2debe02",
+  town: "10ee0add b2debe02",
 };
 
 describe("seasonPixels while the picture's own snow detection is off", () => {
@@ -1510,10 +1511,13 @@ describe("seasonPixels while the picture's own snow detection is off", () => {
     const a = analysedHalf(map);
     expect(a.snow).toBeNull();
     expect(plainHash(map, a, SC)).toBe(GOLDEN_PLAIN.snowy);
-    const [pic, crop] = await kdirPictures();
-    const k = analyse(pic.px, pic.w, pic.h, KDIR.cellA);
+  }, 30_000);
+
+  it.skipIf(!haveTown)("takes a real town painted under snow for a plain picture too, exactly as before", async () => {
+    const [pic, crop] = await townPictures();
+    const k = analyse(pic.px, pic.w, pic.h, TOWN.cellA);
     expect(k.snow).toBeNull();
-    expect(`${fnv(k.f, k.lab, k.crowns, k.under, new Float64Array([k.frac, k.amb, k.nCrowns]))} ${fnv(...kdirBakes(crop, k))}`).toBe(GOLDEN_PLAIN.kdir);
+    expect(`${fnv(k.f, k.lab, k.crowns, k.under, new Float64Array([k.frac, k.amb, k.nCrowns]))} ${fnv(...townBakes(crop, k))}`).toBe(GOLDEN_PLAIN.town);
   }, 30_000);
 });
 
@@ -1525,11 +1529,11 @@ function snowHash(a: SeasonAnalysis): string {
 
 // What the picture's own snow detection and the melt (ALGO_VERSION 4) made of the snowy maps when
 // the detection was turned off (PIXEL_SNOWY), through the test-only analysePixelSnowy: FNV-1a of
-// the analysis, and of all twelve looks baked with seed 777 (snowy: full size; Kdir: its crop).
+// the analysis, and of all twelve looks baked with seed 777 (snowy: full size; the town: its crop).
 // The melt kernels are shared with the Dungeondraft path, so these hold while it's off.
 const GOLDEN_SNOWY: Record<string, string> = {
   snowy: "13a63aba 56fb0269",
-  kdir: "27284aee ff4893ed",
+  town: "27284aee ff4893ed",
 };
 
 describe("seasonPixels on a map painted under snow", () => {
@@ -1543,17 +1547,17 @@ describe("seasonPixels on a map painted under snow", () => {
     expect(`${snowHash(a)} ${fnv(...bakes)}`).toBe(GOLDEN_SNOWY.snowy);
   }, 30_000);
 
-  it("analyses and bakes Kdir Topside exactly as when it was frozen", async () => {
-    const [pic, crop] = await kdirPictures();
-    // Kdir's own pixels, not a palette's (its true resizes have 12,794 and 15,375 colours).
+  it.skipIf(!haveTown)("analyses and bakes the real town exactly as when it was frozen", async () => {
+    const [pic, crop] = await townPictures();
+    // The map's own pixels, not a palette's (its true resizes have 12,794 and 15,375 colours).
     expect(colourCount(pic)).toBe(12794);
     expect(colourCount(crop)).toBe(15375);
-    const k = analysePixelSnowy(pic.px, pic.w, pic.h, KDIR.cellA);
+    const k = analysePixelSnowy(pic.px, pic.w, pic.h, TOWN.cellA);
     expect(k.snow).not.toBeNull();
     // It found capped crowns, evergreens, bare trees and props.
     const kinds = new Set(snowTrees(k).map((t) => t[2]));
     for (const kd of [K_CAP, K_EVER, K_BARE, K_PROP]) expect(kinds.has(kd)).toBe(true);
-    expect(`${snowHash(k)} ${fnv(...kdirBakes(crop, k))}`).toBe(GOLDEN_SNOWY.kdir);
+    expect(`${snowHash(k)} ${fnv(...townBakes(crop, k))}`).toBe(GOLDEN_SNOWY.town);
   }, 30_000);
 
   it("recognises it, and what stands in the snow", () => {

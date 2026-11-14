@@ -21,7 +21,7 @@ import { DEFAULT_GRID } from "../src/shared/sanitize";
 import type { Asset, Scene } from "../src/shared/types";
 import { pelcsLike, snowyMap, twinLevels } from "./fixtures/ddSynthetic";
 import { fakeExportFromMap } from "./fixtures/fakeExport";
-import { atPxPerSquare, downsample, haveVernExport, vernPicture, waterfallText } from "./helpers/ddFixtures";
+import { atPxPerSquare, downsample, havePrivateExport, haveWaterfall, privatePicture, waterfallText } from "./helpers/ddFixtures";
 
 const perf = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PERF;
 
@@ -309,8 +309,8 @@ describe("the dd worker: prepare", () => {
     expect(c.report.gridPxPerSquare).toBe(64);
   });
 
-  it.skipIf(!haveVernExport("waterfall.vtt"))("waterfall on Vern's 1.2 export, with Compare (6.4: timed)", async () => {
-    const full = vernPicture("waterfall.vtt");
+  it.skipIf(!haveWaterfall || !havePrivateExport("waterfall.vtt"))("waterfall on its real 1.2 export, with Compare (6.4: timed)", async () => {
+    const full = privatePicture("waterfall.vtt");
     const pic = atPxPerSquare(full, 50, 35, 32);
     const text = waterfallText();
     const go = async (lastModified: number, compare: boolean) => {
@@ -332,7 +332,7 @@ describe("the dd worker: prepare", () => {
     expect(m.compare!.exact).not.toBe(m.compare!.guessed);
     expect(prep.m.compare).toBeUndefined();
     console.log(`waterfall at 32 px a square: prepare + compare cold ${cold.ms.toFixed(0)} ms; warm prepare ${prep.ms.toFixed(0)} ms, then Compare ${cmp.ms.toFixed(0)} ms, then again ${again.ms.toFixed(0)} ms`);
-    // On Par's desktop in Node: prepare 0.5-0.7 s warm; Compare at the board's analysis size
+    // On a desktop in Node: prepare 0.5-0.7 s warm; Compare at the board's analysis size
     // (1000 x 700) 0.9-1.2 s warm, 1.5 s cold, against 6.4's "about 150 ms" (reported); asked
     // again, 14-16 ms (copies, and the key: hashing the picture).
     expect(prep.ms).toBeLessThan(perf ? 1500 : 20_000);

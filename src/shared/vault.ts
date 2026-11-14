@@ -1,5 +1,5 @@
-// The GM's campaign notes (4 November 2026): their Obsidian vaults (Vern keeps several), each brought
-// into Table from their own computer (any system: Vern's is Ubuntu) by picking its folder, or the
+// The GM's campaign notes (4 November 2026): their Obsidian vaults (a GM may keep several), each brought
+// into Table from their own computer (any system, Linux too) by picking its folder, or the
 // folder holding them all, or from Google Drive; kept for every room, each vault by its folder's
 // name (the Directory keeps the notes, R2 the pictures, by their checksum so an unchanged one isn't
 // sent again), read only by the GM. A note, or the part of one the GM picks, can be shown to the
@@ -8,14 +8,14 @@
 export interface VaultNoteInfo {
   /** The vault it's in: its folder's name. */
   vault: string;
-  /** Where it is in the vault, as Obsidian has it: "Factions/Red Tide.md". */
+  /** Where it is in the vault, as Obsidian has it: "Factions/Red Sash.md". */
   path: string;
   title: string;
   size: number;
 }
 
 export interface VaultFileInfo {
-  /** Where a picture is in the vault: "Attachments/Hilda.png". */
+  /** Where a picture is in the vault: "Attachments/Hanna.png". */
   path: string;
   /** Its SHA-256, hex: the name its copy is kept under. */
   hash: string;
@@ -97,7 +97,7 @@ export function isVaultName(v: unknown): v is string {
   return typeof v === "string" && v.length >= 1 && v.length <= 80 && v.trim() === v && !/[/\\|\u0000-\u001f\u007f]/.test(v) && !v.startsWith(".");
 }
 
-/** A note named across vaults (a token's link, the note open): "Eastport|Factions/Red Tide.md". */
+/** A note named across vaults (a token's link, the note open): "Elmhaven|Factions/Red Sash.md". */
 export function noteRef(vault: string, path: string): string {
   return `${vault}|${path}`;
 }

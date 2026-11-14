@@ -1,7 +1,7 @@
 // Measuring object footprints, presence and snow caps from the picture (design 2.5, 4.3; the tests
 // of 6.3 "Measurement", "Capped", "Presence" and the pack extent; the timing of 6.4). Synthetic
 // pictures drawn here, the public sample pairs from DD_FIXTURES and waterfall's 1.2 export from
-// Vern's folder (DD_VERN) when present.
+// a GM's own maps (DD_PRIVATE) when present.
 import { describe, expect, it } from "vitest";
 import {
   MEASURE, ROLE_RADIUS, measureObjects, measureSummary, priorReach, profileAt, spriteFrameReach, type Measured, type SpriteSizes,
@@ -14,15 +14,12 @@ import { OR, defaultName, objectRole, type ObjectRole } from "../src/client/dd/r
 import { HAND_NAMES, SPRITE_SIZES } from "../src/client/dd/spriteSizes";
 import type { PictureRect, PictureSample } from "../src/client/dd/extract";
 import { decodePng } from "./helpers/png";
+// The public sample maps and a GM's own (neither committed): the folders DD_FIXTURES and DD_PRIVATE name.
+import { DD_FIXTURES as SAMPLES, DD_PRIVATE as PRIVATE } from "./helpers/ddFixtures";
 
 type FsLike = { readFileSync(path: string | URL, encoding?: "utf8"): string & Uint8Array; existsSync(path: string | URL): boolean };
 const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as FsLike;
 const zlib = (await import(/* @vite-ignore */ "node:" + "zlib")) as { inflateSync(b: Uint8Array): Uint8Array };
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-/** The public sample maps (not committed): DD_FIXTURES, or the design's working folder on Par's machine. */
-const SAMPLES = (env.DD_FIXTURES ?? "C:/Users/G/tabletop-work/dd-raw/docs/samples").replace(/[\\/]+$/, "");
-/** Vern's exports (not committed): DD_VERN, or the working folder on Par's machine. */
-const VERN = (env.DD_VERN ?? "C:/Users/G/tabletop-work/vern").replace(/[\\/]+$/, "");
 
 const PPS = 32;
 
@@ -656,7 +653,7 @@ const PAIRS: RealPair[] = [
   { name: "cavern", map: `${SAMPLES}/fs_cavern.dungeondraft_map`, picture: `${SAMPLES}/fs_cavern.png` },
   { name: "river", map: `${SAMPLES}/hd_river.dungeondraft_map`, picture: `${SAMPLES}/hd_river.dd2vtt` },
   { name: "hobble", map: `${SAMPLES}/ak_hobble.dungeondraft_map`, picture: `${SAMPLES}/ak_hobble.png` },
-  { name: "waterfall", map: new URL("./fixtures/dd/waterfall.dungeondraft_map", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), picture: `${VERN}/waterfall.vtt.dd2vtt` },
+  { name: "waterfall", map: `${PRIVATE}/waterfall.dungeondraft_map`, picture: `${PRIVATE}/waterfall.vtt.dd2vtt` },
 ];
 
 function measurePair(p: RealPair): { map: DDMap; lv: Level; roles: ObjectRole[]; ms: Measured[]; notes: string[]; ms32: number } {
@@ -680,7 +677,7 @@ function measurePair(p: RealPair): { map: DDMap; lv: Level; roles: ObjectRole[];
 }
 
 for (const p of PAIRS) {
-  describe.skipIf(!fs.existsSync(p.map) || !fs.existsSync(p.picture))(`real pair: ${p.name} (DD_FIXTURES, DD_VERN)`, () => {
+  describe.skipIf(!fs.existsSync(p.map) || !fs.existsSync(p.picture))(`real pair: ${p.name} (DD_FIXTURES, DD_PRIVATE)`, () => {
     it("keeps nearly every tree, and doesn't lower the fit", () => {
       const { ms, roles, ms32 } = measurePair(p);
       const sum = measureSummary(ms, roles);
@@ -694,8 +691,8 @@ for (const p of PAIRS) {
   });
 }
 
-describe.skipIf(!fs.existsSync(`${VERN}/waterfall.vtt.dd2vtt`))("waterfall's 1.2 export (DD_VERN)", () => {
-  it("finds Vern's dotted grid and keeps all 37 trees", () => {
+describe.skipIf(!fs.existsSync(`${PRIVATE}/waterfall.vtt.dd2vtt`) || !fs.existsSync(`${PRIVATE}/waterfall.dungeondraft_map`))("waterfall's 1.2 export (DD_PRIVATE)", () => {
+  it("finds its dotted grid and keeps all 37 trees", () => {
     const p = PAIRS[PAIRS.length - 1];
     const { lv, ms, roles, notes } = measurePair(p);
     expect(notes.join(" ")).toMatch(/grid/);

@@ -218,7 +218,7 @@ export interface SceneMapData {
    * never opened either way.
    */
   packs?: "guess";
-  /** "dungeon": the data came inside a Dungeon export (dungeon.parhome.ca). Missing: from a Dungeondraft project file. */
+  /** "dungeon": the data came inside a Dungeon export (the map maker's). Missing: from a Dungeondraft project file. */
   from?: "dungeon";
 }
 

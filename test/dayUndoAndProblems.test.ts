@@ -1,6 +1,6 @@
 // A new day for the party asks first and can be taken back; the GM can fill one character's spell
 // points up from their card; the sheets' script says its version, so the GM hears when it's old;
-// and what fails on someone's device reaches the GM (31 October 2026, Par's second "do all").
+// and what fails on someone's device reaches the GM (31 October 2026, the second "do all").
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
 import { newPartyDay, restSpellPoints, undoNewDay } from "../src/client/party";
@@ -150,7 +150,7 @@ describe("problems on devices", () => {
   });
 
   it("leave out what isn't Tabletop's fault: the browser's resize note, other sites' scripts, a dropped connection", () => {
-    const here = "https://table.parhome.ca";
+    const here = "https://table.example.test";
     expect(pageErrorOf({ message: "x is undefined", filename: `${here}/assets/index.js` }, here)).toBe("x is undefined");
     for (const e of [
       { message: "ResizeObserver loop completed with undelivered notifications." },

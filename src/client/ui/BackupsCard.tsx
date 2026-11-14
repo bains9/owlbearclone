@@ -5,7 +5,11 @@ import { AlertTriangle, Check, Cloud, Copy, History, RefreshCw } from "lucide-pr
 import backupScript from "../../../scripts/table-backup.gs?raw";
 import { BACKUP_STALE_MS, TABLE_PARTS, type BackupStage, type BackupStatus, type BackupSummary, type TablePart } from "../../shared/backups";
 import { backups, type BackupNight, type NightRoom } from "../backups";
+import { dungeonUrl } from "../dungeonLink";
 import { ConfirmDialog, copyText, timeAgo } from "./common";
+
+/** The table's own things a backup can put back: Dungeon's maps only on a table that has a Dungeon (the start page asks before this is drawn). */
+const tableParts = () => TABLE_PARTS.filter((p) => p.id !== "dungeon" || dungeonUrl() !== null);
 
 const STAGES: Record<BackupStage, string> = {
   list: "Looking at what's in Google Drive",
@@ -153,7 +157,7 @@ function Night(props: { night: BackupSummary | { id: string }; onChanged: () => 
       </ul>
       <h4>The rest of the table</h4>
       <div class="backup-parts">
-        {TABLE_PARTS.map((p) => (
+        {tableParts().map((p) => (
           <label key={p.id} class="small">
             <input type="checkbox" checked={parts.includes(p.id)} onChange={(e) => setParts(e.currentTarget.checked ? [...parts, p.id] : parts.filter((x) => x !== p.id))} /> {p.label}
           </label>
@@ -266,7 +270,7 @@ export function BackupsCard(props: { onRoomsChanged: () => void }) {
         <p class="small backup-warn">
           <AlertTriangle size={14} /> Nothing is being backed up yet.
         </p>
-        <p class="small muted">Keep a copy of everything (rooms, maps, pictures, notes, the calendar, Dungeon's maps) in a folder in Google Drive, sent every night. It takes a few minutes to set up, once, and only one GM needs to, in their own Google account.</p>
+        <p class="small muted">Keep a copy of everything (rooms, maps, pictures, notes, the calendar{dungeonUrl() ? ", Dungeon's maps" : ""}) in a folder in Google Drive, sent every night. It takes a few minutes to set up, once, and only one GM needs to, in their own Google account.</p>
         <Setup source={null} saved={(source) => setStatus({ ...status, source })} />
       </div>
     );

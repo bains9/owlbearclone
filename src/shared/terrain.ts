@@ -76,7 +76,7 @@ export const STAMP_IDS = [
 ] as const;
 /** The first sixteen objects, drawn by Tabletop itself (with seasonal drawings for some). */
 export type BaseStampId = (typeof STAMP_IDS)[number];
-/** One of Dungeon's built-in objects (dungeon.parhome.ca), by its Dungeon id: "d:oak-tree". */
+/** One of Dungeon's built-in objects (the map maker's), by its Dungeon id: "d:oak-tree". */
 export type DungeonStampId = `d:${string}`;
 export type StampId = BaseStampId | DungeonStampId;
 
@@ -346,7 +346,7 @@ export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: st
 // ---------------------------------------------------------------- textures
 
 /**
- * Dungeon's floor and ground textures (dungeon.parhome.ca), by id: what a cell can be painted
+ * Dungeon's floor and ground textures (the map maker's), by id: what a cell can be painted
  * with besides Tabletop's own floors. The cell's character still says what it is (a room's
  * floor, grass, water), so walls, doors, outdoors and Seasons work as they always have; the
  * texture only changes how it looks. Wall textures aren't floors.

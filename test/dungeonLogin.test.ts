@@ -64,6 +64,21 @@ const hop = (cookie: string | null, query = "") =>
   );
 const codeFrom = (res: Response) => new URL(res.headers.get("Location")!).searchParams.get("code")!;
 
+describe("a table with no Dungeon", () => {
+  it("has no hop: there's nowhere to send anyone, signed in or not", async () => {
+    const cookie = await tableCookie(PASSWORD_GM);
+    for (const none of [undefined, "", "   ", "not an address", "ftp://dungeon.example.test", "http://dungeon.example.test"]) {
+      (env as { DUNGEON_URL?: string }).DUNGEON_URL = none;
+      expect(await (hop(cookie) as Promise<Response | null>), String(none)).toBeNull();
+      expect(await (hop(null) as Promise<Response | null>), String(none)).toBeNull();
+    }
+    // With one, the signed-in GM goes there, whatever follows its host in the setting.
+    env.DUNGEON_URL = "https://dungeon.example.test/some/page?x=1";
+    const there = new URL((await hop(cookie)).headers.get("Location")!);
+    expect(there.origin + there.pathname).toBe("https://dungeon.example.test/auth/table");
+  });
+});
+
 describe("Table's own sessions", () => {
   it("keep their format and still sign the GM in", async () => {
     const cookie = await auth.sessionCookie(env, true);
@@ -275,9 +290,17 @@ describe("the Dungeon button", () => {
   };
 
   it("opens Dungeon in its own tab, or brings that tab forward without reloading it", async () => {
-    const { DUNGEON_URL, openDungeon } = await import("../src/client/dungeonLink");
+    const { dungeonUrl, openDungeon, setDungeonUrl } = await import("../src/client/dungeonLink");
+    const DUNGEON_URL = "https://dungeon.example.test/";
     const blank = { closed: false, focus: vi.fn(), location: { href: "about:blank", replace: vi.fn() } };
     let open = browser({ found: blank });
+    // A table with no Dungeon (or before the server has said where it is) opens nothing.
+    expect(dungeonUrl()).toBeNull();
+    expect(openDungeon()).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+    // The server said where it is (the home page's /api/me, a room's hello).
+    setDungeonUrl(DUNGEON_URL);
+    expect(dungeonUrl()).toBe(DUNGEON_URL);
     expect(openDungeon()).toBe(true);
     expect(open).toHaveBeenCalledWith("", "dungeon");
     expect(blank.location.replace).toHaveBeenCalledWith(DUNGEON_URL);

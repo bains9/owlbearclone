@@ -1,5 +1,5 @@
-// What the board says over itself about the current scene's map: "Loading map…" (with a
-// line about Baldr) while its picture downloads, "Couldn't load the map…" while it's tried
+// What the board says over itself about the current scene's map: "Loading map…" (with one
+// of the table's own lines, when it has any) while its picture downloads, "Couldn't load the map…" while it's tried
 // again or once it's been given up on, and "Making the season…" in a corner while its
 // seasonal look is made. Only the timing lives here, with no DOM, so it can be tested.
 
@@ -31,7 +31,7 @@ export interface LoadTrack {
   status: ImageStatus;
   /** When it started loading: the overlay shows once LOADING_DELAY_MS have passed since. */
   since: number;
-  /** Its Baldr line, an index into BALDR_LINES: -1 until "Loading map…" first shows (see withLine). */
+  /** Its line, an index into the table's loading lines: -1 until "Loading map…" first shows (see withLine). */
   line: number;
 }
 
@@ -68,7 +68,7 @@ export function trackLoad(prev: LoadTrack | null, load: MapLoad, now: number): L
 }
 
 /**
- * The load with its Baldr line, picked by `pick` the moment "Loading map…" first shows at
+ * The load with its line, picked by `pick` the moment "Loading map…" first shows at
  * `now`. Picked then rather than when the load starts, so a map that arrives within the wait
  * (or one that only ever says it's trying again) uses up no line: the device's last line is
  * always the last one someone could read.

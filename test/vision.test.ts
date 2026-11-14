@@ -10,7 +10,7 @@ import type { Scene, SceneVision, TerrainItem, TokenItem } from "../src/shared/t
 import { defaultVisionDistances, distanceIn, distanceSquares, squaresDistance, visionSquares } from "../src/shared/units";
 import { NIGHTVISION_M, PARTIAL_NIGHTVISION_M, nightvisionOf } from "../src/shared/characters";
 
-// Lighting and line of sight (Par: "build lighting and line of sight"): walls and shut doors block
+// Lighting and line of sight (the ask: "build lighting and line of sight"): walls and shut doors block
 // the party's sight, and in the dark only lights (and the party's own light) show. The geometry,
 // the scene's data, and walls from a map file (from Dungeon) and from the Build tool.
 
@@ -68,7 +68,7 @@ describe("what can be seen from a point", () => {
   it("doesn't leak through the crack where one wall stops just short of another, and doors stay open", () => {
     // A room's wall stops at the top of its open door (x 1500, y 2900); the passage's traced edge starts
     // with a rounded corner a hair away, as Dungeon's do. A ray skimming the corner slipped through
-    // and ran on over the rock (Par: "should it be doing this?").
+    // and ran on over the rock (the question: "should it be doing this?").
     const lines = [
       [1500, 2700, 1500, 2900],
       [1508, 2903, 1512, 2900, 1560, 2886, 1740, 2874],
@@ -134,7 +134,7 @@ describe("a scene's lighting", () => {
   });
 });
 
-// Par: "do we want to adjust the site distance based on scale rather then squares?" (yes): sight
+// The ask: "do we want to adjust the site distance based on scale rather then squares?" (yes): sight
 // and the party's light are distances, the same however big a square is. The group's handbook
 // measures in metres.
 describe("how far the party sees and its light reaches, as distances", () => {
@@ -255,7 +255,7 @@ describe("the Build tool's walls and doors", () => {
   });
 });
 
-// Par: "yes, build night lighting with nightvision". The group's handbook: nightvision is black and
+// The ask: "yes, build night lighting with nightvision". The group's handbook: nightvision is black and
 // white by moon or starlight, to 100 m for the elves and 50 m for half-elves, and nothing underground.
 describe("night by moon or starlight, and nightvision", () => {
   it("comes from a character's race, as the handbook has it", () => {

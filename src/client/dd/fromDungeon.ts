@@ -1,4 +1,4 @@
-// Maps made in Dungeon (dungeon.parhome.ca) as a parsed Dungeondraft map, so they get exact
+// Maps made in Dungeon (the map maker) as a parsed Dungeondraft map, so they get exact
 // seasons the way Dungeondraft maps do. Pure (no DOM): it runs in the GM's dd worker.
 //
 // Dungeon's Universal VTT export carries the whole map under the key "dungeon" (its spec is

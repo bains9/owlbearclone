@@ -532,13 +532,13 @@ describe("the browser side", () => {
   const me = person("me", "u0", "Me");
   const cora = person("j1", "uj", "Cora");
   const coraTablet = person("j2", "uj", "Cora");
-  const vern = person("v1", "uv", "Vern", "gm");
+  const wren = person("v1", "uv", "Wren", "gm");
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it("whispering: only the chosen person's tabs hear it, only they're told, and everyone sees the microphone off", async () => {
     const t = setup(true);
     await t.voice.join();
-    t.voice.onPeers([me, cora, coraTablet, vern]);
+    t.voice.onPeers([me, cora, coraTablet, wren]);
     expect(t.pcs).toHaveLength(3);
     expect(t.clones.map((c) => c.enabled)).toEqual([true, true, true]);
     t.sent.length = 0;
@@ -559,11 +559,11 @@ describe("the browser side", () => {
     // Someone joining meanwhile gets a silent call, and isn't told.
     t.sent.length = 0;
     const ula = person("t1", "ut", "Ula");
-    t.voice.onPeers([me, cora, coraTablet, vern, ula]);
+    t.voice.onPeers([me, cora, coraTablet, wren, ula]);
     expect(t.clones.at(-1)?.enabled).toBe(false);
     expect(t.sent).toEqual([]);
     // Cora leaves: nobody hears you, and it never goes back to everyone by itself.
-    t.voice.onPeers([me, vern, ula]);
+    t.voice.onPeers([me, wren, ula]);
     expect(t.toasts.at(-1)).toBe("Cora left voice chat, so nobody hears you. Click Talk to everyone to be heard again.");
     expect(t.clones[0].stopped && t.clones[1].stopped).toBe(true);
     expect(t.clones.slice(2).map((c) => c.enabled)).toEqual([false, false]);
@@ -578,7 +578,7 @@ describe("the browser side", () => {
   it("whispering with push to talk: the server never hears the key, and switching tells both people", async () => {
     const t = setup(false);
     await t.voice.join();
-    t.voice.onPeers([me, cora, vern]);
+    t.voice.onPeers([me, cora, wren]);
     t.voice.whisper("uj");
     t.sent.length = 0;
     t.key("keydown", "ShiftLeft");
@@ -594,7 +594,7 @@ describe("the browser side", () => {
     // After a reconnect, the new calls are told again as they start.
     t.voice.onHello();
     t.sent.length = 0;
-    t.voice.onPeers([me, cora, person("v9", "uv", "Vern", "gm")]);
+    t.voice.onPeers([me, cora, person("v9", "uv", "Wren", "gm")]);
     expect(t.sent).toContainEqual({ t: "rtc", to: "v9", d: { whisper: true } });
     expect(t.sent.filter((m) => m.t === "rtc" && m.to === "j1")).toEqual([]);
     // Leaving ends it.
@@ -605,7 +605,7 @@ describe("the browser side", () => {
   it("being whispered to: shown on this tab alone, and gone when they stop or leave", async () => {
     const t = setup(false);
     await t.voice.join();
-    t.voice.onPeers([me, vern]);
+    t.voice.onPeers([me, wren]);
     t.voice.onSignal("v1", { whisper: true });
     await flush();
     expect(t.state.whisperFrom).toEqual(["v1"]);
@@ -756,25 +756,25 @@ describe("the browser side", () => {
 
   it("tells someone not in voice that it's on as the page connects, and when it starts, but not again on a reconnect", () => {
     const t = setup(false);
-    const vern: VoicePeer = { connId: "x", userId: "ux", name: "Vern", color: "#fff", role: "player", muted: false };
-    const par: VoicePeer = { connId: "y", userId: "uy", name: "Par", color: "#fff", role: "player", muted: false };
+    const wren: VoicePeer = { connId: "x", userId: "ux", name: "Wren", color: "#fff", role: "player", muted: false };
+    const pip: VoicePeer = { connId: "y", userId: "uy", name: "Pip", color: "#fff", role: "player", muted: false };
     // The first list, as the page connects.
-    t.voice.onPeers([vern, par]);
-    expect(t.toasts).toEqual(["Vern and 1 more are in voice chat. Join from the Chat & dice panel."]);
-    t.voice.onPeers([vern]);
+    t.voice.onPeers([wren, pip]);
+    expect(t.toasts).toEqual(["Wren and 1 more are in voice chat. Join from the Chat & dice panel."]);
+    t.voice.onPeers([wren]);
     t.voice.onPeers([]);
     expect(t.toasts).toHaveLength(1);
-    t.voice.onPeers([par]);
-    expect(t.toasts.at(-1)).toBe("Par started voice chat. Join from the Chat & dice panel.");
+    t.voice.onPeers([pip]);
+    expect(t.toasts.at(-1)).toBe("Pip started voice chat. Join from the Chat & dice panel.");
     // A reconnect's first list isn't news.
     t.voice.onHello();
-    t.voice.onPeers([par]);
+    t.voice.onPeers([pip]);
     expect(t.toasts).toHaveLength(2);
     // Nobody in voice as the page connected: the first one in started it.
     const u = setup(false);
     u.voice.onPeers([]);
-    u.voice.onPeers([vern]);
-    expect(u.toasts).toEqual(["Vern started voice chat. Join from the Chat & dice panel."]);
+    u.voice.onPeers([wren]);
+    expect(u.toasts).toEqual(["Wren started voice chat. Join from the Chat & dice panel."]);
   });
 });
 

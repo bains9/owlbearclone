@@ -1,9 +1,11 @@
-// Real Dungeondraft files for tests that can use them: the public sample maps and their exports
-// (DD_FIXTURES, not committed) and Vern's exports (DD_VERN, not committed). Tests skip cleanly
-// when the files they read are absent: it.skipIf with haveSample / havePair / haveVernExport on
-// each file a test reads (haveSamples and haveVern only say whether a folder is there). Also a PNG
-// writer for renders of fixtures, and box-filter downsampling to the 24-32 px a square the
-// attach worker samples at.
+// Real Dungeondraft files for tests that can use them. None is in the code: the public sample
+// maps and their exports aren't ours to hand on (the folder DD_FIXTURES names), and a GM's own
+// maps and exports are theirs (the folder DD_PRIVATE names). Each is set for a run, or once for
+// a computer in local.jsonc's "env" (scripts/local.mjs; vitest.config.ts passes it on). Tests
+// skip cleanly when the files they read are absent: it.skipIf with haveSample / havePair /
+// havePrivateExport / haveWaterfall on each file a test reads (haveSamples and havePrivate only
+// say whether a folder is there). Also a PNG writer for renders of fixtures, and box-filter
+// downsampling to the 24-32 px a square the attach worker samples at.
 
 import { decodePng } from "./png";
 import { crc32 } from "../../src/client/crc32";
@@ -20,23 +22,38 @@ type Zlib = { inflateSync(b: Uint8Array): Uint8Array; deflateSync(b: Uint8Array,
 const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as Fs;
 const zlib = (await import(/* @vite-ignore */ "node:" + "zlib")) as Zlib;
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-const dir = (v: string | undefined, dflt: string) => (v ?? dflt).replace(/\\/g, "/").replace(/\/+$/, "");
+/** A folder as it's named in the run's settings: with forward slashes and no closing one, or "" when it isn't named. */
+const dir = (v: string | undefined) => (v ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
+/** Whether a file is there, in a folder that was named at all. */
+const inDir = (folder: string, file: string) => folder !== "" && fs.existsSync(`${folder}/${file}`);
 
-/** The public sample maps and exports: DD_FIXTURES, or the design's working folder on Par's machine. */
-export const DD_FIXTURES = dir(env.DD_FIXTURES, "C:/Users/G/tabletop-work/dd-raw/docs/samples");
-/** Vern's .dd2vtt exports (each picture also extracted beside it as .png): DD_VERN, or the working folder. */
-export const DD_VERN = dir(env.DD_VERN, "C:/Users/G/tabletop-work/vern");
-/** Where fixture renders go for a human look (written only when the folder's parent exists). */
-export const DD_RENDERS = dir(env.DD_RENDERS, "C:/Users/G/tabletop-work/dd-raw/renders/fixtures");
+/** The public sample maps and exports: the folder DD_FIXTURES names ("" when it names none). */
+export const DD_FIXTURES = dir(env.DD_FIXTURES);
+/**
+ * A GM's own maps, private and never committed: the folder DD_PRIVATE names ("" when it names
+ * none). In it: a Dungeondraft 1.2 project file (waterfall.dungeondraft_map), .dd2vtt exports
+ * (PRIVATE_EXPORTS, each picture also extracted beside it as .png), and two pictures cut from
+ * one of them for the snow tests (town-analysis.png, town-crop.png).
+ */
+export const DD_PRIVATE = dir(env.DD_PRIVATE);
+/** Where fixture renders go for a human look: "fixtures" in the folder DD_RENDERS names (written only when that folder is there). */
+export const DD_RENDERS = env.DD_RENDERS ? `${dir(env.DD_RENDERS)}/fixtures` : "";
 
 /** Whether DD_FIXTURES holds any sample (a test also checks the files it reads: haveSample, havePair). */
-export const haveSamples = fs.existsSync(`${DD_FIXTURES}/fs_pelcs.dungeondraft_map`);
-/** Whether DD_VERN holds any export (a test also checks the files it reads: haveVernExport). */
-export const haveVern = fs.existsSync(`${DD_VERN}/waterfall.vtt.dd2vtt`);
+export const haveSamples = inDir(DD_FIXTURES, "fs_pelcs.dungeondraft_map");
+/** Whether DD_PRIVATE holds any export (a test also checks the files it reads: havePrivateExport). */
+export const havePrivate = inDir(DD_PRIVATE, "waterfall.vtt.dd2vtt");
+/** Whether DD_PRIVATE holds the waterfall map's project file (waterfallText). */
+export const haveWaterfall = inDir(DD_PRIVATE, "waterfall.dungeondraft_map");
 
 /** Whether every one of these files (names in DD_FIXTURES, e.g. "hd_brawl.dd2vtt") is there. */
 export function haveSample(...files: string[]): boolean {
-  return files.every((f) => fs.existsSync(`${DD_FIXTURES}/${f}`));
+  return files.every((f) => inDir(DD_FIXTURES, f));
+}
+
+/** Whether every one of these files (names in DD_PRIVATE, e.g. "town-crop.png") is there. */
+export function havePrivateFile(...files: string[]): boolean {
+  return files.every((f) => inDir(DD_PRIVATE, f));
 }
 
 /** A sample map's base name (DD_FIXTURES/<name>.dungeondraft_map). */
@@ -68,18 +85,18 @@ export const SWAPPED_PAIRS: readonly SamplePair[] = [
   { map: "ak_hobble", picture: "hd_forest.png", snowy: false },
 ];
 
-/** Vern's exports in DD_VERN; waterfall's pairs with test/fixtures/dd/waterfall.dungeondraft_map. */
-export const VERN_EXPORTS = ["waterfall.vtt", "kdir-vtt", "swampbridge-summer.vtt", "swampbridge-winter.vtt"] as const;
-export type VernExport = (typeof VERN_EXPORTS)[number];
+/** The exports in DD_PRIVATE; waterfall's pairs with its project file there (waterfallText). */
+export const PRIVATE_EXPORTS = ["waterfall.vtt", "town-vtt", "swampbridge-summer.vtt", "swampbridge-winter.vtt"] as const;
+export type PrivateExport = (typeof PRIVATE_EXPORTS)[number];
 
 /** Whether a pair's map and picture are both in DD_FIXTURES. */
 export function havePair(p: SamplePair): boolean {
   return haveSample(`${p.map}.dungeondraft_map`, p.picture);
 }
 
-/** Whether these exports' .dd2vtt files are in DD_VERN. */
-export function haveVernExport(...names: VernExport[]): boolean {
-  return names.every((n) => fs.existsSync(`${DD_VERN}/${n}.dd2vtt`));
+/** Whether these exports' .dd2vtt files are in DD_PRIVATE. */
+export function havePrivateExport(...names: PrivateExport[]): boolean {
+  return names.every((n) => inDir(DD_PRIVATE, `${n}.dd2vtt`));
 }
 
 /** A sample map's text. */
@@ -87,9 +104,14 @@ export function sampleText(name: SampleName): string {
   return fs.readFileSync(`${DD_FIXTURES}/${name}.dungeondraft_map`, "utf8");
 }
 
-/** The committed waterfall map (Vern's, Dungeondraft 1.2). */
+/** The waterfall map (a GM's own, Dungeondraft 1.2), from DD_PRIVATE: only where haveWaterfall. */
 export function waterfallText(): string {
-  return fs.readFileSync(new URL("../fixtures/dd/waterfall.dungeondraft_map", import.meta.url), "utf8");
+  return fs.readFileSync(`${DD_PRIVATE}/waterfall.dungeondraft_map`, "utf8");
+}
+
+/** A file in DD_PRIVATE, as a path: only where havePrivateFile says it's there. */
+export function privatePath(file: string): string {
+  return `${DD_PRIVATE}/${file}`;
 }
 
 export interface Picture extends PictureSample {
@@ -118,14 +140,14 @@ export function readPicture(file: string): Picture {
 }
 
 /**
- * One of Vern's exports: the picture from the .png extracted beside it (quicker than the
- * .dd2vtt's base64), with the .dd2vtt's VttMeta.
+ * One of the exports in DD_PRIVATE: the picture from the .png extracted beside it (quicker than
+ * the .dd2vtt's base64), with the .dd2vtt's VttMeta.
  */
-export function vernPicture(name: VernExport): Picture {
-  const j = JSON.parse(fs.readFileSync(`${DD_VERN}/${name}.dd2vtt`, "utf8")) as { image?: string };
+export function privatePicture(name: PrivateExport): Picture {
+  const j = JSON.parse(fs.readFileSync(`${DD_PRIVATE}/${name}.dd2vtt`, "utf8")) as { image?: string };
   delete j.image;
-  const png = `${DD_VERN}/${name}.png`;
-  const pic = fs.existsSync(png) ? pngPicture(fs.readFileSync(png)) : dd2vttPicture(fs.readFileSync(`${DD_VERN}/${name}.dd2vtt`, "utf8"));
+  const png = `${DD_PRIVATE}/${name}.png`;
+  const pic = fs.existsSync(png) ? pngPicture(fs.readFileSync(png)) : dd2vttPicture(fs.readFileSync(`${DD_PRIVATE}/${name}.dd2vtt`, "utf8"));
   return { rgba: pic.rgba, w: pic.w, h: pic.h, vtt: vttMetaOf(j) };
 }
 
@@ -249,7 +271,7 @@ export function encodePng(rgba: Uint8Array | Uint8ClampedArray, w: number, h: nu
 /** Writes a render to DD_RENDERS/<name>.png when that folder's parent exists; returns the path, or null. */
 export function writeRender(name: string, pic: { rgba: Uint8Array | Uint8ClampedArray; w: number; h: number }): string | null {
   const parent = DD_RENDERS.replace(/\/[^/]*$/, "");
-  if (!fs.existsSync(parent)) return null;
+  if (!parent || !fs.existsSync(parent)) return null;
   fs.mkdirSync(DD_RENDERS, { recursive: true });
   const path = `${DD_RENDERS}/${name}.png`;
   fs.writeFileSync(path, encodePng(pic.rgba, pic.w, pic.h));

@@ -1,8 +1,8 @@
 // The exact-seasons fixtures (WP9): the synthetic maps parse as intended, the hand-built sidecars
 // are valid and say what the map text says, the fake exports look as the colour gates of
 // seasonPixels.ts expect and follow their options (erase, shift, crop, size, grid), and the
-// DD_FIXTURES / DD_VERN readers work when those folders are present (they skip otherwise).
-// Renders go to DD_RENDERS (renders/fixtures in the design's working folder) for a human look.
+// DD_FIXTURES / DD_PRIVATE readers work when those folders are present (they skip otherwise).
+// Renders go to "fixtures" in the folder DD_RENDERS names, when it names one, for a human look.
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
 import { GRID, type DDMap } from "../src/client/dd/model";
@@ -21,8 +21,8 @@ import {
 } from "./fixtures/ddSynthetic";
 import { FAKE_COLOURS, INK, fakeExport, fakeExportFromMap, pictureSidecar, type FakePicture } from "./fixtures/fakeExport";
 import {
-  DD_FIXTURES, DD_VERN, SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, dd2vttPicture, downsample, encodePng, havePair, haveSample,
-  haveSamples, haveVern, haveVernExport, pngPicture, readPicture, sampleText, vernPicture, vttMetaOf, waterfallText, writeRender,
+  DD_FIXTURES, DD_PRIVATE, SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, dd2vttPicture, downsample, encodePng, havePair, haveSample,
+  haveSamples, havePrivate, havePrivateExport, haveWaterfall, pngPicture, readPicture, sampleText, privatePicture, vttMetaOf, waterfallText, writeRender,
 } from "./helpers/ddFixtures";
 
 const T = colourTable();
@@ -781,20 +781,20 @@ describe.skipIf(!haveSamples)("DD_FIXTURES: the public sample maps", () => {
   });
 });
 
-describe.skipIf(!haveVern)("DD_VERN: Vern's exports", () => {
-  it.skipIf(!haveVernExport("waterfall.vtt"))("waterfall's 1.2 export pairs with the committed map: 50 x 35 squares at 72 px, origin 0,0", () => {
-    const pic = vernPicture("waterfall.vtt");
+describe.skipIf(!havePrivate)("DD_PRIVATE: a GM's own exports", () => {
+  it.skipIf(!haveWaterfall || !havePrivateExport("waterfall.vtt"))("waterfall's 1.2 export pairs with its map: 50 x 35 squares at 72 px, origin 0,0", () => {
+    const pic = privatePicture("waterfall.vtt");
     expect([pic.w, pic.h]).toEqual([3600, 2520]);
     expect(pic.vtt!.resolution).toEqual({ map_origin: { x: 0, y: 0 }, map_size: { x: 50, y: 35 }, pixels_per_grid: 72 });
     expect(pic.vtt!.line_of_sight.length).toBe(2);
     const m = parseDungeondraftMap(waterfallText());
     expect([m.world.width, m.world.height]).toEqual([50, 35]);
     expect(alignDd2vtt(pic.vtt!.resolution, pic.w, pic.h, m)!.fullMap).toBe(true);
-    expect(DD_VERN.length).toBeGreaterThan(0);
+    expect(DD_PRIVATE.length).toBeGreaterThan(0);
   });
 
-  it.skipIf(!haveVernExport("kdir-vtt"))("Kdir's export is 48 x 27 squares at 72 px", () => {
-    const pic = vernPicture("kdir-vtt");
+  it.skipIf(!havePrivateExport("town-vtt"))("the town's export is 48 x 27 squares at 72 px", () => {
+    const pic = privatePicture("town-vtt");
     expect([pic.w, pic.h]).toEqual([48 * 72, 27 * 72]);
     expect(pic.vtt!.resolution.map_size).toEqual({ x: 48, y: 27 });
   });

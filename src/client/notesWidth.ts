@@ -5,7 +5,7 @@ export const WIDE_FROM = 900;
 /** The map keeps at least this much beside the reader, and the reader is at least this wide. */
 export const MAP_MIN = 320;
 export const WIDE_MIN = 560;
-/** Without a width dragged to, the reader takes this much of the screen (Obsidian's share on Vern's). */
+/** Without a width dragged to, the reader takes this much of the screen (about Obsidian's own share of a screen). */
 export const WIDE_SHARE = 0.75;
 
 /** The reader's width on a screen this wide: the one dragged to, or its share; never squeezing the map out. */

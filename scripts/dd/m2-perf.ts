@@ -91,7 +91,7 @@ for (const name of names) {
     say(`  rasterSidecar + analyseExact at ${w1}x${h1} (cellA ${fmt(cell1, 1)}): ${stats(exact1)} [under 80 ms warm]`);
   } else say(`  analyseExact: refused (green map), the pixel path runs instead`);
   const pixelA = await timeN(RUNS, () => analyse(s.small, s.aw, s.ah, s.cellA));
-  say(`  pixel analyse() at ${s.aw}x${s.ah}: ${stats(pixelA)} [snowAnalysis it replaces: 185-200 ms warm on Kdir]`);
+  say(`  pixel analyse() at ${s.aw}x${s.ah}: ${stats(pixelA)} [snowAnalysis it replaces: 185-200 ms warm on the town map]`);
   const cmp = await timeN(RUNS, () => compareBakes(sc, pic, f.full.w, f.full.h, {}));
   say(`  Compare bakes (analyse + analyseExact + 2 bakes at 512 px): ${stats(cmp)} [about 150 ms]`);
   // The whole scene's bake at the export's size, summer L2 and winter L2: exact against pixel, ns a pixel.

@@ -1,4 +1,4 @@
-// The board's bars after a look at them all (31 October 2026, Par: "do 1 to 5"): the Spells bar's
+// The board's bars after a look at them all (31 October 2026, "do 1 to 5"): the Spells bar's
 // list of spells on the map folds away; the character card folds, and keeps clear of the middle of
 // the map; a phone's selection bar wraps instead of scrolling buttons out of sight, with a word
 // under each on touch screens; and each bar is guarded, so one that fails leaves the rest.

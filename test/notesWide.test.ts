@@ -1,4 +1,4 @@
-// Campaign notes read wide (notesWide.tsx, 4 November 2026): Vern's notes squeezed into the side
+// Campaign notes read wide (notesWide.tsx, 4 November 2026): a GM's notes squeezed into the side
 // column, when Obsidian gives them most of his screen. Read wide opens the panel out across the
 // screen, the list down its left and the note beside it, the map keeping the rest and still in play.
 import { describe, expect, it } from "vitest";

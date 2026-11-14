@@ -1,8 +1,8 @@
-// The map's loading message: the Baldr line picker, the overlay over time (hidden, the
+// The map's loading message: the picker of the table's own lines, the overlay over time (hidden, the
 // wait, loading, being retried, given up on, gone once the map is there), switching scenes
 // mid-load, the season note, and the image cache's view of a map that won't load.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BALDR_LINES, nextLine, pickLine } from "../src/client/room/loadingLines";
+import { nextLine, pickLine } from "../src/client/room/loadingLines";
 import {
   LOADING_DELAY_MS,
   NO_MAP_LOAD,
@@ -28,50 +28,54 @@ function seeded(seed: number): () => number {
   };
 }
 
-describe("the Baldr lines", () => {
-  it("are the 18 approved lines, each once", () => {
-    expect(BALDR_LINES).toHaveLength(18);
-    expect(new Set(BALDR_LINES).size).toBe(18);
-    expect(BALDR_LINES[0]).toBe("Baldr doesn't roll initiative. Initiative waits for Baldr.");
-    expect(BALDR_LINES[3]).toBe('Baldr\'s armour class is "no".');
-    expect(BALDR_LINES[17]).toBe("Baldr doesn't need a map. The map needs Baldr. That's why it's loading.");
-  });
+/** How many lines the table in these tests has set (shared/table.ts): the code itself has none. */
+const LINES = 18;
 
+describe("the table's loading lines", () => {
   it("never picks the last line again, and comes to every line", () => {
     const random = seeded(7);
     const seen = new Set<number>();
     let last = -1;
     for (let i = 0; i < 2000; i++) {
-      const line = pickLine(last, random);
+      const line = pickLine(last, LINES, random);
       expect(line).not.toBe(last);
       expect(line).toBeGreaterThanOrEqual(0);
-      expect(line).toBeLessThan(BALDR_LINES.length);
+      expect(line).toBeLessThan(LINES);
       seen.add(line);
       last = line;
     }
-    expect(seen.size).toBe(BALDR_LINES.length);
+    expect(seen.size).toBe(LINES);
   });
 
   it("can pick any other line, at the edges of the random range too", () => {
-    for (let last = 0; last < BALDR_LINES.length; last++) {
+    for (let last = 0; last < LINES; last++) {
       const reachable = new Set<number>();
-      for (let k = 0; k < BALDR_LINES.length - 1; k++) {
-        reachable.add(pickLine(last, () => k / (BALDR_LINES.length - 1)));
+      for (let k = 0; k < LINES - 1; k++) {
+        reachable.add(pickLine(last, LINES, () => k / (LINES - 1)));
       }
-      expect(reachable.size).toBe(BALDR_LINES.length - 1);
+      expect(reachable.size).toBe(LINES - 1);
       expect(reachable.has(last)).toBe(false);
       // A generator that returns 1 (it shouldn't) still gives a line.
-      expect(pickLine(last, () => 1)).toBeLessThan(BALDR_LINES.length);
-      expect(pickLine(last, () => 1)).not.toBe(last);
+      expect(pickLine(last, LINES, () => 1)).toBeLessThan(LINES);
+      expect(pickLine(last, LINES, () => 1)).not.toBe(last);
     }
-    expect(pickLine(-1, () => 0.999999)).toBe(BALDR_LINES.length - 1);
+    expect(pickLine(-1, LINES, () => 0.999999)).toBe(LINES - 1);
+  });
+
+  it("a table with one line shows it every time, and one with none shows none", () => {
+    expect(pickLine(-1, 1)).toBe(0);
+    expect(pickLine(0, 1)).toBe(0);
+    expect(pickLine(-1, 0)).toBe(-1);
+    expect(pickLine(3, 0)).toBe(-1);
+    // A line remembered from when the table had more of them is just "none yet".
+    expect(pickLine(17, 3, () => 0)).toBe(0);
   });
 
   it("goes by the line last shown on this device, with or without storage", () => {
     // No storage here (as in a private window): the page remembers the last line itself.
-    let last = nextLine(() => 0);
+    let last = nextLine(LINES, () => 0);
     for (let i = 0; i < 50; i++) {
-      const line = nextLine(() => 0);
+      const line = nextLine(LINES, () => 0);
       expect(line).not.toBe(last);
       last = line;
     }
@@ -81,9 +85,12 @@ describe("the Baldr lines", () => {
       setItem: (k: string, v: string) => void stored.set(k, v),
     });
     try {
-      stored.set("tabletop-baldr-line", "5");
-      expect(nextLine(() => 5.5 / 17)).toBe(6);
-      expect(stored.get("tabletop-baldr-line")).toBe("6");
+      stored.set("tabletop-loading-line", "5");
+      expect(nextLine(LINES, () => 5.5 / 17)).toBe(6);
+      expect(stored.get("tabletop-loading-line")).toBe("6");
+      // No lines: nothing picked, and what the device remembers is left alone.
+      expect(nextLine(0)).toBe(-1);
+      expect(stored.get("tabletop-loading-line")).toBe("6");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -237,7 +244,7 @@ describe("the map's loading overlay over time", () => {
     });
     try {
       const random = seeded(11);
-      const f = follower(() => nextLine(random));
+      const f = follower(() => nextLine(LINES, random));
       const shown: number[] = [];
       let now = 0;
       for (let i = 0; i < 2000; i++) {
@@ -256,7 +263,7 @@ describe("the map's loading overlay over time", () => {
       }
       expect(shown.length).toBeGreaterThan(500);
       for (let i = 1; i < shown.length; i++) expect(shown[i]).not.toBe(shown[i - 1]);
-      expect(new Set(shown).size).toBe(BALDR_LINES.length);
+      expect(new Set(shown).size).toBe(LINES);
     } finally {
       vi.unstubAllGlobals();
     }

@@ -6,7 +6,7 @@ import { listNames } from "../levels";
 import { watchPageErrors } from "../pageErrors";
 import { ProblemsDialog } from "./ProblemsDialog";
 import { CalendarPanel, DateChip, DateOverlay, WeatherFx } from "./CalendarPanel";
-import { DUNGEON_URL, openDungeon } from "../dungeonLink";
+import { openDungeon } from "../dungeonLink";
 import { PLAYER_COLORS, loadProfile, saveProfile } from "../identity";
 import type { ComponentChildren } from "preact";
 import type { Profile } from "../identity";
@@ -491,6 +491,8 @@ function MoreMenu(props: {
   onSound: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Where this table's Dungeon is (the room says, to the GM); null on a table without one.
+  const dungeon = useRoomState((s) => s.table.dungeon);
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
   // As the season's pop-up does: a click elsewhere or Escape closes it, and a click on the map
@@ -551,11 +553,11 @@ function MoreMenu(props: {
               {props.displays > 0 && <span class="small muted">{props.displays} connected</span>}
             </button>
           )}
-          {props.gm && (
+          {props.gm && dungeon && (
             <a
               class="more-item"
               role="menuitem"
-              href={DUNGEON_URL}
+              href={dungeon}
               target="dungeon"
               title="Dungeon, the map maker (opens in its own tab)"
               aria-label="Dungeon"

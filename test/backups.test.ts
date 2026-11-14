@@ -257,9 +257,9 @@ async function played(t: Table) {
   );
   await t.FILES.put(`rooms/${roomId}/assetmap00001`, new Uint8Array([1, 2, 3, 4, 5]), { httpMetadata: { contentType: "image/png" } });
   dir.setCalendar(JSON.stringify({ name: "Barovian" }));
-  const v = dir.vaultStart("Eastport");
-  dir.vaultPutNotes("Eastport", v, [{ path: "NPCs/Hilda.md", body: "# Hilda\nShe informs for the Red Tide." }]);
-  dir.vaultFinish("Eastport", v);
+  const v = dir.vaultStart("Elmhaven");
+  dir.vaultPutNotes("Elmhaven", v, [{ path: "NPCs/Hanna.md", body: "# Hanna\nShe informs for the Red Sash." }]);
+  dir.vaultFinish("Elmhaven", v);
   dir.addLibraryEntries([{ id: "MonsterAAAAAAAAA", shelf: "monster", name: "Goblin", mime: "image/png", width: 1, height: 1, bytes: 3, createdAt: 1 }]);
   await t.FILES.put("library/MonsterAAAAAAAAA", new Uint8Array([9, 9, 9]), { httpMetadata: { contentType: "image/png" } });
   await t.DUNGEON_MAPS.put("maps/keep.json", '{"walls":1}', { httpMetadata: { contentType: "application/json" }, customMetadata: { owner: "gm" } });
@@ -307,8 +307,9 @@ describe("a backup", () => {
     // The only buckets are the two it read: nothing written to either.
     expect([...t.FILES.objects.keys()].sort()).toEqual([`rooms/${roomId}/assetmap00001`, "library/MonsterAAAAAAAAA"].sort());
     expect([...t.DUNGEON_MAPS.objects.keys()]).toEqual(["maps/keep.json"]);
+    // The code binds the table's own bucket alone: a table with a Dungeon binds Dungeon's in its own settings (local.jsonc).
     const wrangler = await source("wrangler.jsonc");
-    expect(wrangler.match(/"bucket_name": "[^"]+"/g)).toEqual(['"bucket_name": "tabletop-files"', '"bucket_name": "dungeon-maps"']);
+    expect(wrangler.match(/"bucket_name": "[^"]+"/g)).toEqual(['"bucket_name": "tabletop-files"']);
     expect(wrangler).toContain('"crons": ["30 7 * * *"]');
     const s = await t.status();
     expect(s.running).toBeNull();
@@ -330,7 +331,7 @@ describe("a backup", () => {
     expect(text).not.toContain("VAULTSECRET");
     expect(text).not.toContain(key);
     expect(tables.secrets).toBeUndefined();
-    expect(text).not.toContain("Red Tide");
+    expect(text).not.toContain("Red Sash");
     expect(text).toContain("Barovian");
     const roomFile = drive.folders.get("snapshots")!.get(`${m.rooms[0].snapshot}.json.gz`)!;
     const inRoom = await t.unpack(roomFile.bytes);
@@ -562,11 +563,11 @@ describe("putting the table's things back", () => {
     // Things go wrong.
     dir.setCalendar(JSON.stringify({ name: "Ruined" }));
     dir.vaultClear(null);
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toBeNull();
+    expect(dir.vaultNote("Elmhaven", "NPCs/Hanna.md")).toBeNull();
     await freshBackup();
     const res = await t.call("POST", "/api/backups/night/2026-11-06T07-30Z/table", { parts: ["notes"] });
     expect(res.status).toBe(200);
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
+    expect(dir.vaultNote("Elmhaven", "NPCs/Hanna.md")).toContain("Red Sash");
     // The calendar wasn't asked for: as it is now.
     expect(dir.calendar().json).toContain("Ruined");
     const cal = await t.call("POST", "/api/backups/night/2026-11-06T07-30Z/table", { parts: ["calendar"] });
@@ -590,6 +591,31 @@ describe("putting the table's things back", () => {
     // A room's pictures aren't part of it.
     expect(partFiles("library")).toEqual({ bucket: "tabletop-files", prefix: "library/" });
     expect(partFiles("calendar")).toBeNull();
+  });
+
+  it("on a table with no Dungeon, backs up the table's own files and nothing else", async () => {
+    const { roomId } = await played(t);
+    // No Dungeon: its bucket of maps isn't bound at all.
+    delete t.env.DUNGEON_MAPS;
+    await t.backUp("nightly", Date.UTC(2026, 10, 6, 7, 30));
+    const m = t.night("2026-11-06T07-30Z");
+    expect(m).toMatchObject({ format: "table-backup", complete: true, missing: 0 });
+    expect(m.files.map((f) => [f.bucket, f.key]).sort()).toEqual([
+      ["tabletop-files", "library/MonsterAAAAAAAAA"],
+      ["tabletop-files", `rooms/${roomId}/assetmap00001`],
+    ]);
+    expect((await t.status()).last).toMatchObject({ complete: true, missing: 0 });
+  });
+
+  it("can't bring Dungeon's maps back to a table with no Dungeon, and says how many it couldn't", async () => {
+    await played(t);
+    await t.backUp("nightly", Date.UTC(2026, 10, 6, 7, 30));
+    await t.FILES.delete("library/MonsterAAAAAAAAA");
+    delete t.env.DUNGEON_MAPS;
+    await freshBackup();
+    // The table's own file comes back; the map has nowhere to go, and is counted rather than lost quietly.
+    expect(await t.filesBack("2026-11-06T07-30Z", { parts: ["library", "dungeon"] })).toEqual({ total: 2, missing: 1 });
+    expect([...t.FILES.objects.get("library/MonsterAAAAAAAAA")!.bytes]).toEqual([9, 9, 9]);
   });
 });
 
@@ -620,7 +646,7 @@ describe("a Table that's lost everything", () => {
     expect((await lost.call("POST", "/api/backups/night/2026-11-06T07-30Z/table", { parts })).status).toBe(200);
     expect((await lost.filesBack("2026-11-06T07-30Z", { parts })).missing).toBe(0);
     expect(dir.calendar()!.json).toContain("Barovian");
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toBeNull();
+    expect(dir.vaultNote("Elmhaven", "NPCs/Hanna.md")).toBeNull();
     expect(dir.libraryList()).toHaveLength(1);
     expect(lost.DUNGEON_MAPS.objects.has("maps/keep.json")).toBe(true);
     expect((lost.room(roomId) as unknown as { assets: Map<string, unknown> }).assets.size).toBe(1);
@@ -649,14 +675,14 @@ describe("the GM's campaign notes, encrypted", () => {
   /** A vault with a note, a picture and a token linked to the note. */
   async function secrets(x: Table, roomId: string) {
     const dir = dirOf(x);
-    const v = dir.vaultStart("Eastport");
-    dir.vaultPutNotes("Eastport", v, [{ path: "NPCs/Hilda.md", body: "# Hilda\nShe informs for the Red Tide." }]);
+    const v = dir.vaultStart("Elmhaven");
+    dir.vaultPutNotes("Elmhaven", v, [{ path: "NPCs/Hanna.md", body: "# Hanna\nShe informs for the Red Sash." }]);
     await x.FILES.put(`vault/${HASH}`, PICTURE, { httpMetadata: { contentType: "image/png" } });
-    dir.vaultPutFiles("Eastport", v, [{ path: "Attachments/hilda.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
-    dir.vaultFinish("Eastport", v);
+    dir.vaultPutFiles("Elmhaven", v, [{ path: "Attachments/hanna.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
+    dir.vaultFinish("Elmhaven", v);
     const room = x.room(roomId) as unknown as { setMeta(k: string, v: unknown): void; tokenNotes: Record<string, string> };
-    room.setMeta("token_notes", { token1: "Eastport|NPCs/Hilda.md" });
-    room.tokenNotes = { token1: "Eastport|NPCs/Hilda.md" };
+    room.setMeta("token_notes", { token1: "Elmhaven|NPCs/Hanna.md" });
+    room.tokenNotes = { token1: "Elmhaven|NPCs/Hanna.md" };
   }
 
   /** Everything in the Drive folder, as anyone who can open it could read it. */
@@ -679,7 +705,7 @@ describe("the GM's campaign notes, encrypted", () => {
     const all = await everythingInDrive(t);
     // It does read what isn't encrypted.
     for (const plain of ["Barovian", "Curse of Strahd", "Goblin"]) expect(all).toContain(plain);
-    for (const secret of ["Red Tide", "Hilda", "hilda", "Eastport", "NPCs/", "Attachments", "token1", "PICTURE-OF-THE-SECRET-VILLAIN"]) expect(all).not.toContain(secret);
+    for (const secret of ["Red Sash", "Hanna", "hanna", "Elmhaven", "NPCs/", "Attachments", "token1", "PICTURE-OF-THE-SECRET-VILLAIN"]) expect(all).not.toContain(secret);
     expect(all).not.toContain(key(t));
     // The picture is listed as encrypted, and isn't a picture in Drive.
     const entry = t.night(ID).files.find((f) => f.key === `vault/${HASH}`)!;
@@ -703,16 +729,16 @@ describe("the GM's campaign notes, encrypted", () => {
     expect((await t.status()).last?.sent).toBe(0);
     // A note changes: a new table snapshot only.
     const dir = dirOf(t);
-    const v = dir.vaultStart("Eastport");
-    dir.vaultPutNotes("Eastport", v, [{ path: "NPCs/Hilda.md", body: "# Hilda\nExposed, and fled." }]);
-    dir.vaultPutFiles("Eastport", v, [{ path: "Attachments/hilda.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
-    dir.vaultFinish("Eastport", v);
+    const v = dir.vaultStart("Elmhaven");
+    dir.vaultPutNotes("Elmhaven", v, [{ path: "NPCs/Hanna.md", body: "# Hanna\nExposed, and fled." }]);
+    dir.vaultPutFiles("Elmhaven", v, [{ path: "Attachments/hanna.png", hash: HASH, mime: "image/png", bytes: PICTURE.length }]);
+    dir.vaultFinish("Elmhaven", v);
     await t.backUp("nightly", AT + 2 * 86_400_000);
     expect(drive.folders.get("snapshots")!.size).toBe(snapshots + 1);
     // The first night's still has the note as it was then.
     await t.backUp("before a restore");
     await t.call("POST", `/api/backups/night/${ID}/table`, { parts: ["notes"] });
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
+    expect(dir.vaultNote("Elmhaven", "NPCs/Hanna.md")).toContain("Red Sash");
   });
 
   it("come back whole on this Table: words, names, pictures and tokens' links", async () => {
@@ -727,15 +753,15 @@ describe("the GM's campaign notes, encrypted", () => {
     await t.backUp("before a restore");
     expect((await t.call("POST", `/api/backups/night/${ID}/table`, { parts: ["notes"] })).status).toBe(200);
     expect(await t.filesBack(ID, { parts: ["notes"] })).toEqual({ total: 1, missing: 0 });
-    expect(dir.vaultNote("Eastport", "NPCs/Hilda.md")).toContain("Red Tide");
-    expect(dir.vaultIndex().vaults.map((v) => v.name)).toEqual(["Eastport"]);
-    expect(dir.vaultIndex().files.map((f) => f.path)).toEqual(["Attachments/hilda.png"]);
+    expect(dir.vaultNote("Elmhaven", "NPCs/Hanna.md")).toContain("Red Sash");
+    expect(dir.vaultIndex().vaults.map((v) => v.name)).toEqual(["Elmhaven"]);
+    expect(dir.vaultIndex().files.map((f) => f.path)).toEqual(["Attachments/hanna.png"]);
     const picture = t.FILES.objects.get(`vault/${HASH}`)!;
     expect(new TextDecoder().decode(picture.bytes)).toBe("PICTURE-OF-THE-SECRET-VILLAIN");
     expect(picture.type).toBe("image/png");
     const back = await t.call("POST", `/api/backups/night/${ID}/room`, { room: roomId });
     expect(back.data.linksLost).toBe(false);
-    expect((t.room(roomId) as unknown as { tokenNotes: Record<string, string> }).tokenNotes).toEqual({ token1: "Eastport|NPCs/Hilda.md" });
+    expect((t.room(roomId) as unknown as { tokenNotes: Record<string, string> }).tokenNotes).toEqual({ token1: "Elmhaven|NPCs/Hanna.md" });
   });
 
   it("can be checked without changing anything", async () => {

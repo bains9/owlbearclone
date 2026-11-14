@@ -1,4 +1,4 @@
-// The wide reader for Campaign notes (Vern, 4 November 2026: "it needs its own interface"): the panel
+// The wide reader for Campaign notes (the GM, 4 November 2026: "it needs its own interface"): the panel
 // opened out across most of the screen, the vaults' list down its left and the note beside it, as
 // Obsidian has them. The map keeps the rest of the screen, still in play: tokens to select and link,
 // a token's book button to open its note. Per device; a screen too narrow for it keeps the side panel.

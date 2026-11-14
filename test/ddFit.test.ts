@@ -3,7 +3,7 @@
 // from the sidecar alone, and on the public sample pairs (DD_FIXTURES, skipped when absent): the 7
 // correct pairs are never "no", the 2 swapped never "yes", and shifted pictures never "yes". The
 // sharpness and the peak test come from the small objects (M2: waterfall's big crowns), checked
-// on the synthetic maps and on waterfall's 1.2 export (DD_VERN), which must say "yes".
+// on the synthetic maps and on waterfall's 1.2 export (DD_PRIVATE), which must say "yes".
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
 import { GRID, type DDMap } from "../src/client/dd/model";
@@ -14,7 +14,7 @@ import { SPRITE_SIZES } from "../src/client/dd/spriteSizes";
 import { FIXTURE_SPRITES, fitPairs, mapText, scatterMap, snowyMap, type ObjSpec } from "./fixtures/ddSynthetic";
 import { fakeExport, fakeExportFromMap } from "./fixtures/fakeExport";
 import {
-  DD_VERN, SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, havePair, haveVernExport, readPicture, sampleText, vernPicture, waterfallText,
+  SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, havePair, havePrivateExport, haveWaterfall, readPicture, sampleText, privatePicture, waterfallText,
   type SamplePair,
 } from "./helpers/ddFixtures";
 
@@ -226,9 +226,9 @@ describe("the fit on the public sample pairs (DD_FIXTURES)", () => {
     }
   });
 
-  it.skipIf(!haveVernExport("waterfall.vtt"))(`waterfall on Vern's 1.2 export (${DD_VERN}): "yes", from its small things; shifted half a square or 2 squares, never "yes"`, () => {
+  it.skipIf(!haveWaterfall || !havePrivateExport("waterfall.vtt"))(`waterfall on its real 1.2 export (DD_PRIVATE): "yes", from its small things; shifted half a square or 2 squares, never "yes"`, () => {
     const map = parseDungeondraftMap(waterfallText());
-    const full = vernPicture("waterfall.vtt");
+    const full = privatePicture("waterfall.vtt");
     const r = pictureRect(map, full.w, full.h, full.vtt);
     if ("error" in r) throw new Error(r.error);
     const pic = atPxPerSquare(full, 50, 35, 24);

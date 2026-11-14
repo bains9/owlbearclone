@@ -1,4 +1,4 @@
-// What failed on someone's device, told to the GM (31 October 2026, from Par's "do all"): a bar or
+// What failed on someone's device, told to the GM (31 October 2026, from that day's "do all"): a bar or
 // panel that couldn't be shown (ui/common.tsx Guard), or an error on the page. Otherwise it's only
 // in that device's own console, and nobody knows a player's tablet couldn't show their card. The
 // room keeps the last few (worker/room.ts) and sends them to the GM (More › Problems on devices).

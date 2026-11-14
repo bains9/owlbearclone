@@ -10,10 +10,10 @@ export interface PngImage {
 }
 
 type Zlib = { inflateSync(b: Uint8Array): Uint8Array };
-type Fs = { readFileSync(path: URL): Uint8Array };
+type Fs = { readFileSync(path: URL | string): Uint8Array };
 
-/** Reads and decodes a PNG file (a URL, e.g. new URL("./fixtures/x.png", import.meta.url)). */
-export async function readPng(path: URL): Promise<PngImage> {
+/** Reads and decodes a PNG file (a URL, e.g. new URL("./fixtures/x.png", import.meta.url), or a path). */
+export async function readPng(path: URL | string): Promise<PngImage> {
   const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as Fs;
   return decodePng(fs.readFileSync(path), await zlib());
 }

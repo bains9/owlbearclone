@@ -1,4 +1,4 @@
-// A lighter page (31 October 2026, Par: "do 1 to 5", the fifth being less to load): Konva without
+// A lighter page (31 October 2026, "do 1 to 5", the fifth being less to load): Konva without
 // what the board never uses; the season code and Dungeon's objects loaded when they're first needed
 // rather than with every page; and Dungeon's catalogue kept compactly.
 import { describe, expect, it } from "vitest";

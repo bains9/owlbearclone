@@ -1,4 +1,4 @@
-// A Samurai's ki on their card, and a new day for the party (31 October 2026, from Par's "do all"):
+// A Samurai's ki on their card, and a new day for the party (31 October 2026, from that day's "do all"):
 // the sheets' script (version 6) reads the ki pool for their level and their ki abilities; the ki
 // left today is kept with what's been prayed for (KI_KEY), so a new day fills it; and the GM's new
 // day for the party can put everyone's spell points back to full on their sheets.

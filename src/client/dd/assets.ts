@@ -1,6 +1,6 @@
 // Asset references and what Seasons may infer from them.
 //
-// Policy (Par): items from asset packs are OPAQUE. We never open, read or reproduce pack
+// Policy: items from asset packs are OPAQUE. We never open, read or reproduce pack
 // files, and we do not interpret a pack item beyond "its area stays as drawn" — whatever its
 // file name says and whatever its allow_3rd_party_mapping_software_to_read flag is. Only
 // Dungeondraft's own default assets (res://textures/...) are classified by name, in roles.ts.

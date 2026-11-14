@@ -5,7 +5,7 @@
 // colours, plus that it never writes into the picture, refuses green maps (v1) and over-big data,
 // is deterministic, and how long it takes. Then the bakes (WP4b, at the end): what's left as drawn
 // keeps its bytes, the snow melts where it's painted (to the partner's colour at a drawn edge, to
-// the roof's on a roof), leaves grow only on the trees, autumn follows Par's rule, water freezes by
+// the roof's on a roof), leaves grow only on the trees, autumn follows its own rule, water freezes by
 // its exact shore, strips match a whole pass, a failed analysis leaves the pixel path alone, and
 // what the exact branches cost.
 import { describe, expect, it } from "vitest";
@@ -24,7 +24,7 @@ import {
 import type { SeasonLook } from "../src/shared/types";
 import { frozenLake, jaggedEdge, snowyMap, type Pt } from "./fixtures/ddSynthetic";
 import { FAKE_COLOURS, fakeExport, fakeExportFromMap, type FakePicture } from "./fixtures/fakeExport";
-import { atPxPerSquare, downsample, haveVernExport, vernPicture, waterfallText, type Picture } from "./helpers/ddFixtures";
+import { atPxPerSquare, downsample, havePrivateExport, haveWaterfall, privatePicture, waterfallText, type Picture } from "./helpers/ddFixtures";
 
 /** Analysis pixels a square (the app analyses at about 20). */
 const PPS = 20;
@@ -897,31 +897,31 @@ describe("analyseExact refuses what it can't do exactly", () => {
   });
 });
 
-// ------------------------------------------------------------------ waterfall (Vern's map)
+// ------------------------------------------------------------------ waterfall (a GM's own map, in DD_PRIVATE)
 
-/** Waterfall's sidecar as the attach worker makes it: from Vern's 1.2 export when DD_VERN has it, else from a fake export. */
-function waterfall(): { sc: SeasonSidecar; vern: Picture | null } {
+/** Waterfall's sidecar as the attach worker makes it: from its real 1.2 export when DD_PRIVATE has it, else from a fake export. Only where haveWaterfall. */
+function waterfall(): { sc: SeasonSidecar; real: Picture | null } {
   const map = parseDungeondraftMap(waterfallText());
   const rect: PictureRect = { rect: [0, 0, map.world.width * GRID, map.world.height * GRID] };
-  if (!haveVernExport("waterfall.vtt")) {
-    return { sc: extractSidecar(map, "0", rect, fakeExportFromMap(map, "0", 16, { water: ["KEEP"] }), SPRITE_SIZES, { levels: [] }).sidecar, vern: null };
+  if (!havePrivateExport("waterfall.vtt")) {
+    return { sc: extractSidecar(map, "0", rect, fakeExportFromMap(map, "0", 16, { water: ["KEEP"] }), SPRITE_SIZES, { levels: [] }).sidecar, real: null };
   }
-  const vern = vernPicture("waterfall.vtt");
-  const p = atPxPerSquare(vern, map.world.width, map.world.height, 32);
-  return { sc: extractSidecar(map, "0", rect, p, SPRITE_SIZES, { levels: [], picSize: [vern.w, vern.h] }).sidecar, vern };
+  const real = privatePicture("waterfall.vtt");
+  const p = atPxPerSquare(real, map.world.width, map.world.height, 32);
+  return { sc: extractSidecar(map, "0", rect, p, SPRITE_SIZES, { levels: [], picSize: [real.w, real.h] }).sidecar, real };
 }
 
-describe.skipIf(!haveVernExport("waterfall.vtt"))("analyseExact on waterfall, from Vern's 1.2 export through the extractor (DD_VERN)", () => {
+describe.skipIf(!haveWaterfall || !havePrivateExport("waterfall.vtt"))("analyseExact on waterfall, from its real 1.2 export through the extractor (DD_PRIVATE)", () => {
   // The app's analysis size for this picture: 20 px a square (3600 x 2520 at 72 px a square).
   const w = 1000, h = 700;
   const N = w * h;
-  // Made on first use: vitest runs a skipped block's body too, and without Vern's export there's nothing to read.
+  // Made on first use: vitest runs a skipped block's body too, and without the export there's nothing to read.
   let made: { sc: SeasonSidecar; pic: Uint8ClampedArray; a: SeasonAnalysis } | null = null;
   const vw = () => {
     if (!made) {
-      const { sc, vern } = waterfall();
-      if (!vern) throw new Error("Vern's waterfall export is missing");
-      const pic = downsample(vern, w, h).rgba as Uint8ClampedArray;
+      const { sc, real } = waterfall();
+      if (!real) throw new Error("The waterfall export is missing");
+      const pic = downsample(real, w, h).rgba as Uint8ClampedArray;
       made = { sc, pic, a: analyseExact(pic, w, h, 20, sc, {}) };
     }
     const { sc, pic, a } = made;
@@ -1029,14 +1029,14 @@ describe("analyseExact's time (6.4: rasterSidecar + analyseExact under 80 ms war
     expect(t.analysis).toBeLessThan(bound);
   }, 60_000);
 
-  it("on waterfall (Vern's map) at the app's size, 1000 x 700 (20 px a square), and at 1024 px", () => {
-    const { sc, vern } = waterfall();
+  it.skipIf(!haveWaterfall)("on waterfall (a real map) at the app's size, 1000 x 700 (20 px a square), and at 1024 px", () => {
+    const { sc, real } = waterfall();
     const map = parseDungeondraftMap(waterfallText());
     for (const w of [1000, 1024]) {
       const h = Math.round((w * map.world.height) / map.world.width);
-      const pic = vern ? (downsample(vern, w, h).rgba as Uint8ClampedArray) : fakeExport(sc, w / map.world.width).rgba;
+      const pic = real ? (downsample(real, w, h).rgba as Uint8ClampedArray) : fakeExport(sc, w / map.world.width).rgba;
       const t = timed(sc, pic, w, h, w / map.world.width);
-      console.log(`waterfall ${w} x ${h} (${vern ? "Vern's export" : "a fake export"}, ${sc.objects.n} objects): ` +
+      console.log(`waterfall ${w} x ${h} (${real ? "its real export" : "a fake export"}, ${sc.objects.n} objects): ` +
         `rasterSidecar ${t.raster.toFixed(1)} ms, analyseExact ${t.analysis.toFixed(1)} ms (warm, median of 5)`);
       expect(t.analysis).toBeLessThan(bound);
     }
@@ -1305,7 +1305,7 @@ describe("exact bakes of the snowy synthetic map (6.3 \"Exact seasons\")", () =>
     expect(leafy(exactScene(sm.sidecar, { bare: "dead" }, full))).toBe(0);
   }, 60_000);
 
-  it("turns the oak and the bare tree a mottled mix in autumn by Par's rule, thinning the bare tree", () => {
+  it("turns the oak and the bare tree a mottled mix in autumn by its own rule, thinning the bare tree", () => {
     // The oak: its own leaves (it's drawn green), clump by clump; the bare tree: its new leaves.
     const oakK: number[] = [];
     const oak = grownBy(plane(own(ob.oak)), w, h, -3);

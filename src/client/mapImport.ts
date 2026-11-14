@@ -41,7 +41,7 @@ export interface MapFile {
    * or, for a map from Dungeon, the map data its export carries (ddFrom "dungeon").
    */
   dd?: File;
-  /** "dungeon": `dd` is the map data inside a Dungeon export (dungeon.parhome.ca), not a second file. */
+  /** "dungeon": `dd` is the map data inside a Dungeon export (the map maker's), not a second file. */
   ddFrom?: "dungeon";
   /** For a Universal VTT file: where its picture lies in the map and which level it shows (for `dd`). */
   vtt?: VttMeta;

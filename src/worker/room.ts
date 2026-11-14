@@ -63,6 +63,7 @@ import type {
 } from "../shared/types";
 import { bringsCompass, isCompass } from "../shared/types";
 import { canSeeAsset, helloScenes, playerScene, sceneFor } from "./playerView";
+import { tableSettings } from "./table";
 import { kindAllowed } from "./uploads";
 
 /** What a WebSocket carries: the player, and the browser tab (never shown to anyone else). */
@@ -1169,7 +1170,7 @@ export class Room extends DurableObject<Env> {
       case "token.note": {
         if (!gm) return this.deny(ws);
         const { id, note } = msg as { id?: unknown; note?: unknown };
-        // A note named with its vault ("Eastport|Factions/Red Tide.md"), or null to unlink.
+        // A note named with its vault ("Elmhaven|Factions/Red Sash.md"), or null to unlink.
         const ref = note === null ? null : parseNoteRef(note);
         if (typeof id !== "string" || !isId(id) || (note !== null && !ref)) return;
         const next = { ...this.tokenNotes };
@@ -1935,6 +1936,9 @@ export class Room extends DurableObject<Env> {
     // What the party and its characters have explored of those scenes (with lighting on).
     const explored: Record<string, { key: string; bits: string }> = {};
     for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));
+    // This table's own settings (shared/table.ts): its loading lines for everyone, and for the GM where its Dungeon is.
+    const { dungeon, lines } = tableSettings(this.env);
+    const table = { ...(lines.length ? { lines } : {}), ...(dungeon && conn.role === "gm" ? { dungeon } : {}) };
     return {
       t: "hello",
       you: publicPlayer(conn),
@@ -1953,6 +1957,7 @@ export class Room extends DurableObject<Env> {
       build: BUILD_ID,
       handouts: this.handouts,
       ...(conn.role === "gm" && !conn.display ? { tokenNotes: this.tokenNotes, tokenStats: Object.fromEntries(this.tokenStats) } : {}),
+      ...(Object.keys(table).length ? { table } : {}),
     };
   }
 

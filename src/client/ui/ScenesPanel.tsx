@@ -73,9 +73,11 @@ export function ScenesPanel() {
   // The party split: who the GM sent to each scene (names shown again when who's here changes).
   const placed = useRoomState((s) => s.placed);
   useRoomState((s) => s.players);
+  // Whether this table has a Dungeon (the map maker) to update a map from.
+  const hasDungeon = useRoomState((s) => s.table.dungeon !== null);
   const sentTo = (id: string) => room.namesOf(Object.keys(placed).filter((u) => placed[u] === id));
   const split = Object.values(placed).some((id) => !!scenes[id]);
-  // Send someone here (Par, 2026-11-14, as the party bar's Send here shows only once a map's open):
+  // Send someone here (2026-11-14, as the party bar's Send here shows only once a map's open):
   // on each scene someone could be sent to. One string, so the panel redraws only when it changes.
   const sendable = new Set(
     useRoomState((s) =>
@@ -150,7 +152,7 @@ export function ScenesPanel() {
             <Split size={16} />
           </button>
         )}
-        {isDungeonScene(s) && (
+        {hasDungeon && isDungeonScene(s) && (
           <button
             class="icon-btn"
             title="Update from Dungeon: the map as it is in Dungeon now, tokens and fog kept"
@@ -267,6 +269,8 @@ export function NewSceneDialog(props: {
   const uploading = useRoomState((s) => s.uploading);
   // New scenes measure in feet or metres, as the room does.
   const settings = useRoomState((s) => s.room?.settings);
+  // Whether this table has a Dungeon (the map maker) to bring a map from.
+  const hasDungeon = useRoomState((s) => s.table.dungeon !== null);
   const [name, setName] = useState("");
   const fallbackName = `Scene ${Object.keys(scenes).length + 1}`;
   const [mode, setMode] = useState<"upload" | "library" | "dungeon" | "blank">("upload");
@@ -452,9 +456,11 @@ export function NewSceneDialog(props: {
         <button class={cx("seg-btn wide", mode === "library" && "active")} disabled={!!working} onClick={() => setMode("library")}>
           Uploaded maps
         </button>
-        <button class={cx("seg-btn wide", mode === "dungeon" && "active")} disabled={!!working} onClick={() => setMode("dungeon")} title="Your maps in Dungeon, the map maker">
-          From Dungeon
-        </button>
+        {hasDungeon && (
+          <button class={cx("seg-btn wide", mode === "dungeon" && "active")} disabled={!!working} onClick={() => setMode("dungeon")} title="Your maps in Dungeon, the map maker">
+            From Dungeon
+          </button>
+        )}
         <button class={cx("seg-btn wide", mode === "blank" && "active")} disabled={!!working} onClick={() => setMode("blank")}>
           Blank grid
         </button>

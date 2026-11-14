@@ -129,11 +129,10 @@ export class BackupJob extends DurableObject<Env> {
     else this.sql.exec(`INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)`, k, JSON.stringify(v));
   }
 
+  /** The buckets backed up: the table's files, and Dungeon's maps on a table that has a Dungeon. */
   private buckets(): { name: BackupBucket; r2: R2Bucket }[] {
-    return [
-      { name: "tabletop-files", r2: this.env.FILES },
-      { name: "dungeon-maps", r2: this.env.DUNGEON_MAPS },
-    ];
+    const dungeon = this.env.DUNGEON_MAPS;
+    return [{ name: "tabletop-files", r2: this.env.FILES }, ...(dungeon ? [{ name: "dungeon-maps" as const, r2: dungeon }] : [])];
   }
 
   private directory() {

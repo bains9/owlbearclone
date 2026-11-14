@@ -1,6 +1,6 @@
 // The Dungeondraft map parser (src/client/dd): synthetic maps with known answers, malformed and
-// hostile input, the committed waterfall fixture, and the public sample maps when DD_FIXTURES
-// points at them (they aren't committed; the tests skip without them).
+// hostile input, the waterfall map (a GM's own, when DD_PRIVATE has it), and the public sample
+// maps when DD_FIXTURES points at them (neither is committed; the tests skip without them).
 import { describe, expect, it } from "vitest";
 import { DDParseError, parseDungeondraftMap } from "../src/client/dd/parse";
 import { DEFAULT_LIMITS, GRID } from "../src/client/dd/model";
@@ -15,11 +15,8 @@ import { OR, defaultName, objectRole } from "../src/client/dd/roles";
 
 type FsLike = { readFileSync(path: string | URL, encoding: "utf8"): string; existsSync(path: string | URL): boolean };
 const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as FsLike;
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-/** The public sample maps (not committed): DD_FIXTURES, or the design's working folder on Par's machine. */
-const SAMPLES = (env.DD_FIXTURES ?? "C:/Users/G/tabletop-work/dd-raw/docs/samples").replace(/[\\/]+$/, "");
-const haveSamples = fs.existsSync(`${SAMPLES}/fs_pelcs.dungeondraft_map`);
-const waterfallText = () => fs.readFileSync(new URL("./fixtures/dd/waterfall.dungeondraft_map", import.meta.url), "utf8");
+// The public sample maps and the waterfall map (neither committed): the folders DD_FIXTURES and DD_PRIVATE name.
+const { DD_FIXTURES: SAMPLES, haveSamples, haveWaterfall, waterfallText } = await import("./helpers/ddFixtures");
 
 // ------------------------------------------------------------------ synthetic map builder
 
@@ -446,7 +443,7 @@ describe("parser: hostile input", () => {
     expect(() => parseDungeondraftMap(wrap(new Array(DEFAULT_LIMITS.maxJsonValues + 1).fill("0").join(",")))).toThrow(/values/);
     expect(performance.now() - t0).toBeLessThan(5000);
     // real maps are far inside the limits (the samples are checked too, below)
-    expect(parseDungeondraftMap(waterfallText()).world.levels.length).toBe(1);
+    if (haveWaterfall) expect(parseDungeondraftMap(waterfallText()).world.levels.length).toBe(1);
   });
 
   it("decoded grids share a whole-map byte budget", () => {
@@ -764,8 +761,8 @@ describe("matchDd2vttLevel", () => {
 
 // ------------------------------------------------------------------ real files
 
-describe("waterfall.dungeondraft_map (Vern's, committed)", () => {
-  it("parses cleanly", () => {
+describe("waterfall.dungeondraft_map (a GM's own map, in DD_PRIVATE)", () => {
+  it.skipIf(!haveWaterfall)("parses cleanly", () => {
     const m = parseDungeondraftMap(waterfallText());
     expect(m.warnings, m.warnings.join("\n")).toEqual([]);
     expect([m.world.width, m.world.height]).toEqual([50, 35]);

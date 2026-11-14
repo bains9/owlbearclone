@@ -1,6 +1,6 @@
 // Lights the GM places (Add a light, drag to move, Reach and Remove), kept when the map is brought
 // in again; and the frame-rate readout (?fps) for seeing how a device runs the board (31 October
-// 2026, from Par's "do all").
+// 2026, from that day's "do all").
 import { describe, expect, it } from "vitest";
 import { GUIDE } from "../src/client/guide";
 import { visionFromSight } from "../src/client/importScenes";

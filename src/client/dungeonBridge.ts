@@ -1,4 +1,5 @@
-// Dungeon's maps, for New scene › From Dungeon. Dungeon (dungeon.parhome.ca) keeps the GM's maps
+// Dungeon's maps, for New scene › From Dungeon, on a table that has a Dungeon (the map maker;
+// dungeonLink.ts knows where it is). Dungeon keeps the GM's maps
 // online; its bridge page (Dungeon's src/bridge/), opened here in a hidden frame, lists them and
 // draws one as a Universal VTT file with Dungeon's own code: the very file Dungeon's Export makes.
 // It comes back as a File for the usual import (importScenes.ts), so a map is never saved twice:
@@ -6,7 +7,7 @@
 // Dungeon's src/bridge/bridge.ts. Dungeon lets only this site frame the bridge, and signs itself
 // in on the way with the GM's Table sign-in.
 
-import { DUNGEON_URL } from "./dungeonLink";
+import { dungeonUrl } from "./dungeonLink";
 
 /** A map in Dungeon, as the bridge lists it. */
 export interface DungeonMap {
@@ -224,9 +225,12 @@ export async function withBridge<T>(
 
 /** The bridge in a hidden frame on this page. */
 export function openDungeonBridge(): DungeonBridge {
-  const origin = new URL(DUNGEON_URL).origin;
+  const dungeon = dungeonUrl();
+  // The buttons that lead here only show on a table with a Dungeon.
+  if (!dungeon) throw new BridgeError("This table has no Dungeon.");
+  const origin = new URL(dungeon).origin;
   const frame = document.createElement("iframe");
-  frame.src = new URL("/bridge", DUNGEON_URL).toString();
+  frame.src = new URL("/bridge", dungeon).toString();
   frame.title = "Dungeon";
   frame.tabIndex = -1;
   frame.setAttribute("aria-hidden", "true");

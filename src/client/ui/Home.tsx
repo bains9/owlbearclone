@@ -2,21 +2,29 @@ import { useEffect, useState } from "preact/hooks";
 import { Castle, Copy, LogOut, Plus, Trash } from "lucide-preact";
 import type { RoomSummary } from "../../shared/types";
 import { api, roomUrl } from "../api";
-import { DUNGEON_URL, continueToDungeon, dungeonNext, openDungeon } from "../dungeonLink";
+import { continueToDungeon, dungeonNext, openDungeon, setDungeonUrl } from "../dungeonLink";
+import { cleanDungeonUrl } from "../../shared/table";
 import { ConfirmDialog, copyText, timeAgo } from "./common";
 import { BackupsCard } from "./BackupsCard";
 import { Logo } from "./Logo";
 
 export function Home() {
-  const [me, setMe] = useState<{ gm: boolean; configured: boolean; google: boolean } | null>(null);
+  /** dungeon: where this table's Dungeon is, or null for a table without one. */
+  const [me, setMe] = useState<{ gm: boolean; configured: boolean; google: boolean; dungeon: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Dungeon sent this browser here to sign in: where to take it back to once signed in.
-  const [toDungeon] = useState(dungeonNext);
+  const [next] = useState(dungeonNext);
+  // On a table with no Dungeon there's nowhere to carry on to.
+  const toDungeon = me?.dungeon ? next : null;
   useEffect(() => {
     document.title = "Tabletop";
     api
       .me()
-      .then(setMe)
+      .then((m) => {
+        const dungeon = cleanDungeonUrl(m.dungeon);
+        setDungeonUrl(dungeon);
+        setMe({ ...m, dungeon });
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
   useEffect(() => {
@@ -36,7 +44,7 @@ export function Home() {
   }
   if (!me) return <div class="center-page muted">Loading…</div>;
   if (me.gm && toDungeon !== null) return <div class="center-page muted">Opening Dungeon…</div>;
-  if (me.gm) return <GmHome onSignedOut={() => setMe({ ...me, gm: false })} />;
+  if (me.gm) return <GmHome dungeon={me.dungeon} onSignedOut={() => setMe({ ...me, gm: false })} />;
   return (
     <Welcome
       configured={me.configured}
@@ -177,7 +185,8 @@ function GoogleMark() {
   );
 }
 
-function GmHome(props: { onSignedOut: () => void }) {
+/** dungeon: where this table's Dungeon is, for its button; null on a table without one. */
+function GmHome(props: { dungeon: string | null; onSignedOut: () => void }) {
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -219,17 +228,19 @@ function GmHome(props: { onSignedOut: () => void }) {
               Signed in as the GM. <a href="/guide">How to use Tabletop</a>
             </p>
           </div>
-          <a
-            class="btn"
-            href={DUNGEON_URL}
-            target="dungeon"
-            title="Dungeon, the map maker (opens in its own tab)"
-            onClick={(e) => {
-              if (openDungeon()) e.preventDefault();
-            }}
-          >
-            <Castle size={16} /> Dungeon
-          </a>
+          {props.dungeon && (
+            <a
+              class="btn"
+              href={props.dungeon}
+              target="dungeon"
+              title="Dungeon, the map maker (opens in its own tab)"
+              onClick={(e) => {
+                if (openDungeon()) e.preventDefault();
+              }}
+            >
+              <Castle size={16} /> Dungeon
+            </a>
+          )}
           <button
             class="btn"
             onClick={async () => {

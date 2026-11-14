@@ -1,4 +1,4 @@
-// Dungeon's built-in objects (dungeon.parhome.ca) as Build tool objects: ids "d:<dungeon id>",
+// Dungeon's built-in objects (the map maker's) as Build tool objects: ids "d:<dungeon id>",
 // drawn by Dungeon's own drawings (src/client/dungeonLib/, copied by
 // scripts/sync-dungeon-library.mjs) into the unit square drawStamp promises, with the longer
 // side filling it, and clipped to it as Dungeon clips them to their box.

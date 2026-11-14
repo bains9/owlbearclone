@@ -3,7 +3,7 @@
 // the picture it bakes agree by construction. The look is Dungeondraft-like enough for the colour
 // gates of seasonPixels.ts: snow textured bluish-white (lit and shaded), grass, earth and rock;
 // water blue, ice pale; outlined crowns; bare trees as warm branch strokes; grey roofs and walls,
-// plank floors; an optional baked grid (Kdir's dotted one, or solid lines). Crowns, bare trees,
+// plank floors; an optional baked grid (dotted, as some real exports have, or solid lines). Crowns, bare trees,
 // stumps, logs, rocks and structures carry a dark-and-light mark at their centre (a trunk's top,
 // a knot, a crate's lid), so the luminance spread peaks there as on real sprites and the
 // object-centre fit (2.4) gives the design's verdicts (ddFixtures.test.ts checks them).
@@ -51,7 +51,7 @@ export interface FakePicture {
 }
 
 export interface FakeExportOptions {
-  /** A grid baked into the picture: Kdir's dotted lines, or solid ones. None by default. */
+  /** A grid baked into the picture: dotted lines, or solid ones. None by default. */
   grid?: "dotted" | "solid";
   /** The picture's rectangle in world units [x0, y0, x1, y1] (default: the sidecar's META.rect). */
   rect?: [number, number, number, number];

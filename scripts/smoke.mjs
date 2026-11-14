@@ -1,7 +1,7 @@
 // End-to-end check of the API and the room protocol against a running server.
 //
 //   node scripts/smoke.mjs                         (local dev server on :5230, password from .dev.vars)
-//   BASE=https://table.parhome.ca GM_PASSWORD=... node scripts/smoke.mjs
+//   BASE=https://table.example.com GM_PASSWORD=... node scripts/smoke.mjs
 //   GOOGLE=1 node scripts/smoke.mjs                (local only: also checks Google sign-in,
 //                                                   standing in for Google on port 5239)
 //

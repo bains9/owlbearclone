@@ -220,6 +220,6 @@ describe("the test run", () => {
     expect(config).toContain('silent: verbose ? false : "passed-only",');
     // And the README says how to run the Dungeondraft tests elsewhere.
     const readme = fs.readFileSync(new URL("../README.md", import.meta.url), "utf8");
-    for (const word of ["DD_FIXTURES", "DD_VERN", "VERBOSE=1", "PERF=1", "scripts/dd/register.mjs", "mapdata"]) expect(readme).toContain(word);
+    for (const word of ["DD_FIXTURES", "DD_PRIVATE", "VERBOSE=1", "PERF=1", "scripts/dd/register.mjs", "mapdata"]) expect(readme).toContain(word);
   });
 });

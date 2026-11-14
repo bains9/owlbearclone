@@ -60,6 +60,8 @@ import type { ScatterDensity } from "./scatter";
 import type { SceneDataState } from "./mapData";
 import { NO_MAP_LOAD } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
+import { NO_TABLE_SETTINGS, cleanTableSettings, type TableSettings } from "../../shared/table";
+import { setDungeonUrl } from "../dungeonLink";
 import { voiceLink } from "./voiceLink";
 
 export type ToolId = "select" | "draw" | "erase" | "fog" | "build" | "measure" | "pointer" | "spell";
@@ -223,6 +225,8 @@ export interface RoomState {
   mapDataState: Record<string, SceneDataState>;
   /** The current scene's map picture on this device: loading, failed or there, and its season being made. */
   mapLoad: MapLoad;
+  /** This table's own settings, as the room sent them: its loading lines, and for the GM where its Dungeon is. */
+  table: TableSettings;
   /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
   buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
   /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
@@ -598,6 +602,7 @@ export class RoomClient {
       mapOutdoor: {},
       mapDataState: {},
       mapLoad: NO_MAP_LOAD,
+      table: NO_TABLE_SETTINGS,
       buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
@@ -938,10 +943,14 @@ export class RoomClient {
         // apply them again on top of the fresh state and send them.
         const replay = this.unacked.filter((u) => u.seq > (msg.lastSeq ?? 0));
         this.unacked = [];
+        // This table's own settings. Dungeon's address is also kept where the links and the bridge read it.
+        const table = cleanTableSettings(msg.table);
+        setDungeonUrl(table.dungeon);
         this.store.set({
           status: "open",
           me: msg.you,
           room: msg.room,
+          table,
           scenes,
           activeSceneId: msg.activeSceneId,
           viewSceneId: view,

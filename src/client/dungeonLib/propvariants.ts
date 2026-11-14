@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
+// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
 import { rng } from "./noise";
 import { hexToRgb, mix, rgbToHex } from "./color";
 import { LW, outline, rr, circle, radial, linear, board, flame, type PropCategory, type PropDef } from "./propkit";
@@ -7,7 +7,7 @@ import { LW, outline, rr, circle, radial, linear, board, flame, type PropCategor
 // (woods, stones, metals, cloths, glows, states), made by `family` from one drawing function.
 // Ids are "<design>-<variant>" and names "<Design>, <variant>", so search finds either part.
 //
-// Ids must suit table.parhome.ca's Seasons, which read a role from the words of an id: a
+// Ids must suit Table's Seasons, which read a role from the words of an id: a
 // made thing never carries a growing or natural word (no "oak", "cherry", "rose", "stone",
 // "trunk", "canopy"...), so woods here are "honey" or "walnut", and stone is "granite".
 

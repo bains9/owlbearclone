@@ -1,4 +1,4 @@
-// The rest of the look at the bars (31 October 2026, Par: "do 6 to 9 too"): each edge of the map
+// The rest of the look at the bars (31 October 2026, "do 6 to 9 too"): each edge of the map
 // stacks what's there, so nothing lands on anything else; the top bar's More keeps what's used now
 // and then; a card lists what can be cast now first; and Konva's layer-count warning is left out.
 import { describe, expect, it } from "vitest";

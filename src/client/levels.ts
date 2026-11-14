@@ -1,4 +1,4 @@
-// A map with levels (Par: "one dungeon with five levels? so that the DM does not have to load 5
+// A map with levels (the ask: "one dungeon with five levels? so that the DM does not have to load 5
 // separate maps"): its levels are scenes, brought in together from one file or from Dungeon. Scenes
 // lists them as one entry; on the board the GM goes up and down between them, and takes the party
 // from one level to the next: their tokens, and the spells on them, to the same squares there, and
@@ -153,7 +153,7 @@ export function partyGone(party: readonly TokenItem[], where: string): string {
 }
 
 // ------------------------------------------------------------------ the party split
-// (Par, 2026-11-14: "DM being able to choose who to move from map to map ... the tokens of players
+// (asked for on 2026-11-14: "DM being able to choose who to move from map to map ... the tokens of players
 // will be doing some solo work.") Each person sees one scene: the live one, unless the GM sent them
 // to another (Room's `placed`). Send here takes chosen characters' tokens to the scene the GM is
 // looking at, and the people who play them see it. Show to players puts everyone together again.
@@ -204,7 +204,7 @@ export function sendables(
 
 /**
  * A party character Send here can put down on `to`: one with no token on a scene anyone's on (a new
- * character, such as Tomas before his first outing, or one left only on old maps), whose player
+ * character, such as a new one before their first outing, or one left only on old maps), whose player
  * sees another scene. Their token is put down where the GM clicks (party.ts putDownCharacters).
  * Characters nobody plays aren't listed: Tokens & images places them.
  */

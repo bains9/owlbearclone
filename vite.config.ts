@@ -4,6 +4,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
+import { readLocal } from "./scripts/local.mjs";
+
+/**
+ * This table's own Worker settings: the "wrangler" part of local.jsonc (scripts/local.mjs), a
+ * file that is never committed. It's laid over wrangler.jsonc whenever the app is built or run
+ * here, so the code itself names no table's address. A setting in it replaces wrangler.jsonc's,
+ * and a list (routes, r2_buckets) is added to wrangler.jsonc's. Nothing, on a checkout without
+ * the file: the app as wrangler.jsonc alone describes it.
+ */
+function ownSettings(): Record<string, unknown> | null {
+  const local = readLocal(fileURLToPath(new URL(".", import.meta.url)));
+  return local && Object.keys(local.wrangler).length ? local.wrangler : null;
+}
 
 /**
  * A fingerprint of everything the build is made from: the source, the packages (their exact
@@ -31,8 +44,10 @@ function buildId(): string {
   return hash.digest("base64url").slice(0, 12);
 }
 
+const own = ownSettings();
+
 export default defineConfig({
-  plugins: [cloudflare()],
+  plugins: [cloudflare(own ? { config: own } : {})],
   define: {
     __BUILD_ID__: JSON.stringify(buildId()),
   },

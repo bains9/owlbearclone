@@ -3,7 +3,6 @@ dist/
 .wrangler/
 .dev.vars
 *.log
-node_modules
-.dev.vars
-.wrangler
-dist
+
+# This table's own settings (local.example.jsonc shows what goes in it): never committed.
+local.jsonc

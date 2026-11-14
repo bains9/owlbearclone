@@ -19,7 +19,7 @@
 // Corpus: DD_CORPUS (default snow-melt\corpus\manifest.json), entries
 //   { id, file, grid, set: "fp" | "tp" | "cov" | "amb" | "looks" | "dd", ddMap?, level? }
 // with file and ddMap relative to the manifest's folder unless absolute. Without a manifest it
-// falls back to the Dungeondraft pairs (scripts/dd/lib.ts PAIRS) and Vern's pictures.
+// falls back to the Dungeondraft pairs (scripts/dd/lib.ts PAIRS) and a GM's own pictures (DD_PRIVATE).
 //
 // Output: RENDERS/eval/<run>/report.json and report.md. The exit code is 1 when a gate fails:
 // - fp: no detection with any gating kernel (nearest is report-only);
@@ -38,7 +38,7 @@
 // Not yet (later harness versions, section10-plan.md 2 and 4): the rejecting gate and every gate
 // number (needs a debug hook in seasonPixels.ts, WP4's), forced-mode scoring of maps the verdict
 // rejects (same hook), variants (grids, tilings, colour shifts, JPEG, pads, crops), Chrome mode,
-// Kdir's labels (scripts/dd/kdir-labels.json), paired seasons and contact sheets.
+// hand labels for the town map, paired seasons and contact sheets.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -53,7 +53,7 @@ import { OR, TR, defaultName, objectRole, terrainRole, type ObjectRole, type Ter
 import { ROLE_RADIUS } from "../../src/client/dd/measure";
 import { SPRITE_SIZES } from "../../src/client/dd/spriteSizes";
 import type * as SeasonPixels from "../../src/client/room/seasonPixels";
-import { PAIRS, RENDERS, VERN, pickLevel, readPicture, samplePath, sharp } from "./lib";
+import { ENV, PAIRS, RENDERS, PRIVATE, pickLevel, readPicture, samplePath, sharp } from "./lib";
 
 // ------------------------------------------------------------------ options
 
@@ -91,19 +91,19 @@ interface Entry {
   level?: string;
 }
 
-const MANIFEST = process.env.DD_CORPUS ?? "C:/Users/G/tabletop-work/snow-melt/corpus/manifest.json";
+const MANIFEST = ENV.DD_CORPUS ?? "";
 
 function corpus(): Entry[] {
-  if (existsSync(MANIFEST)) {
+  if (MANIFEST && existsSync(MANIFEST)) {
     const dir = dirname(MANIFEST);
     const abs = (p: string) => (isAbsolute(p) ? p : resolve(dir, p));
     return (JSON.parse(readFileSync(MANIFEST, "utf8")) as Entry[]).map((e) => ({ ...e, file: abs(e.file), ddMap: e.ddMap && abs(e.ddMap) }));
   }
-  console.log(`(no corpus manifest at ${MANIFEST}: the Dungeondraft pairs and Vern's pictures only)`);
+  console.log(`(no corpus manifest${MANIFEST ? ` at ${MANIFEST}` : ": DD_CORPUS names none"}: the Dungeondraft pairs and a GM's own pictures only)`);
   const out: Entry[] = PAIRS.map((p) => ({ id: p.name, file: samplePath(p.picture), grid: 0, set: "dd" as const, ddMap: samplePath(p.map), level: p.level }));
-  out.push({ id: "kdir", file: `${VERN}/kdir-vtt.png`, grid: 72, set: "tp" });
-  out.push({ id: "swampbridge-winter", file: `${VERN}/swampbridge-winter.vtt.png`, grid: 72, set: "cov" });
-  out.push({ id: "swampbridge-summer", file: `${VERN}/swampbridge-summer.vtt.png`, grid: 72, set: "fp" });
+  out.push({ id: "town", file: `${PRIVATE}/town-vtt.png`, grid: 72, set: "tp" });
+  out.push({ id: "swampbridge-winter", file: `${PRIVATE}/swampbridge-winter.vtt.png`, grid: 72, set: "cov" });
+  out.push({ id: "swampbridge-summer", file: `${PRIVATE}/swampbridge-summer.vtt.png`, grid: 72, set: "fp" });
   return out.filter((e) => existsSync(e.file) && (!e.ddMap || existsSync(e.ddMap)));
 }
 

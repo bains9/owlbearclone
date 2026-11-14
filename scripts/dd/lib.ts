@@ -4,26 +4,37 @@
 //
 //   node --import ./scripts/dd/register.mjs scripts/dd/<script>.ts
 //
-// sharp comes from the Tabletop checkout's node_modules (scripts only; tests don't use it).
+// sharp comes from this checkout's node_modules (scripts only; tests don't use it).
+//
+// The maps the scripts read aren't in the code: the public sample maps aren't ours to hand on,
+// and a GM's own are theirs. Their folders are named for a run (DD_FIXTURES=... node ...), or
+// once for a computer in the "env" part of local.jsonc (scripts/local.mjs).
 
 import { readFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { deflateSync } from "node:zlib";
+import { localEnv } from "../local.mjs";
 import { parseDungeondraftMap } from "../../src/client/dd/parse";
 import { alignDd2vtt, alignPlainImage } from "../../src/client/dd/align";
 import type { DDMap, Level } from "../../src/client/dd/model";
 import { GRID } from "../../src/client/dd/model";
 import type { PictureRect, PictureSample } from "../../src/client/dd/extract";
 
-/** The public sample maps (not committed): DD_FIXTURES, or the design's working folder on Par's machine. */
-export const SAMPLES = (process.env.DD_FIXTURES ?? "C:/Users/G/tabletop-work/dd-raw/docs/samples").replace(/[\\/]+$/, "");
-/** Vern's exports (not committed; read when present): his Dungeondraft 1.2 export of waterfall, and Kdir's. */
-export const VERN = (process.env.DD_VERN ?? "C:/Users/G/tabletop-work/vern").replace(/[\\/]+$/, "");
-/** The repo's own fixtures (waterfall's map is committed there), as a plain path. */
-export const FIXTURES = fileURLToPath(new URL("../../test/fixtures/dd/", import.meta.url)).replace(/\\/g, "/");
-/** Where the scripts write their pictures (outside the repo). */
-export const RENDERS = (process.env.DD_RENDERS ?? "C:/Users/G/tabletop-work/dd-raw/renders").replace(/[\\/]+$/, "");
+/** What's set for this run, and under it what local.jsonc sets for this computer. */
+export const ENV: Record<string, string | undefined> = { ...localEnv(), ...process.env };
+const folder = (v: string | undefined) => (v ?? "").trim().replace(/[\\/]+$/, "");
+
+/** The public sample maps (not committed): the folder DD_FIXTURES names ("" when it names none). */
+export const SAMPLES = folder(ENV.DD_FIXTURES);
+/**
+ * A GM's own maps (private, not committed; read when present): the folder DD_PRIVATE names. A
+ * Dungeondraft 1.2 map with its export (waterfall), and exports alone (a town, two swamp bridges).
+ */
+export const PRIVATE = folder(ENV.DD_PRIVATE);
+/** Where the scripts write their pictures (outside the repo): the folder DD_RENDERS names, or one in the system's temporary folder. */
+export const RENDERS = folder(ENV.DD_RENDERS) || join(tmpdir(), "tabletop-dd-renders").replace(/\\/g, "/");
 
 /** A map and the picture exported from one of its levels. */
 export interface Pair {
@@ -44,7 +55,7 @@ export const PAIRS: Pair[] = [
   { name: "river", map: "hd_river.dungeondraft_map", picture: "hd_river.dd2vtt" },
   { name: "hobble", map: "ak_hobble.dungeondraft_map", picture: "ak_hobble.png" },
   { name: "brawl", map: "hd_brawl.dungeondraft_map", picture: "hd_brawl.dd2vtt" },
-  { name: "waterfall", map: `${FIXTURES}waterfall.dungeondraft_map`, picture: `${VERN}/waterfall.vtt.dd2vtt` },
+  { name: "waterfall", map: `${PRIVATE}/waterfall.dungeondraft_map`, picture: `${PRIVATE}/waterfall.vtt.dd2vtt` },
 ];
 
 /** A pair's file: absolute as given, else relative to SAMPLES. */
@@ -53,7 +64,7 @@ export function samplePath(p: string): string {
 }
 
 export function sharp(): any {
-  return createRequire("C:/Users/G/tabletop/package.json")("sharp");
+  return createRequire(import.meta.url)("sharp");
 }
 
 export interface Loaded {

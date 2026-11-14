@@ -1,4 +1,4 @@
-// M2: why waterfall's object-centre fit says "unsure" on Vern's 1.2 export (design 2.4 wants "yes"
+// M2: why waterfall's object-centre fit says "unsure" on its real 1.2 export (design 2.4 wants "yes"
 // on a correct pair). The score landscape over half-square shifts (score(o) is objectFit's s0 with
 // the rectangle moved by o), the sharpness per object role, and the same for the samples.
 //

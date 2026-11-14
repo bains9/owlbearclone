@@ -1,9 +1,10 @@
-// Copies Dungeon's drawing library (dungeon.parhome.ca's objects and textures) into Tabletop,
+// Copies Dungeon's drawing library (the map maker's objects and textures) into Tabletop,
 // so the Build tool can draw every one of them. Dungeon stays the one place they're made:
 // change them there, then run this.
 //
-//   node scripts/sync-dungeon-library.mjs              (Dungeon next to Tabletop: C:\Users\G\dungeon)
+//   node scripts/sync-dungeon-library.mjs              (Dungeon in the folder next to Tabletop's: ../dungeon)
 //   DUNGEON_DIR=/path/to/dungeon node scripts/sync-dungeon-library.mjs
+// (DUNGEON_DIR can also be set once for a computer, in the "env" part of local.jsonc.)
 //
 // It writes:
 //   src/client/dungeonLib/<file>.ts  the library's files, as they are, under a header line: the
@@ -23,9 +24,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
+import { localEnv } from "./local.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const dungeon = process.env.DUNGEON_DIR ?? fileURLToPath(new URL("../../dungeon/", import.meta.url));
+const dungeon = process.env.DUNGEON_DIR ?? localEnv().DUNGEON_DIR ?? fileURLToPath(new URL("../../dungeon/", import.meta.url));
 /** The library's files in Dungeon's src/render: the drawing kit, the textures, the objects, the scatter brush. */
 export const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|scatter|props(-[a-z]+)?)\.ts$/;
 export const HEADER_PREFIX = "// Copied from Dungeon (src/render/";

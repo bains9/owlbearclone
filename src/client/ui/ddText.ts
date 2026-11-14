@@ -329,7 +329,7 @@ export function hasBareTrees(meta: Pick<SidecarMeta, "names">): boolean {
 }
 
 /**
- * Whether Par's pack control would change anything, so it's worth showing: the data has asset-pack
+ * Whether the pack control would change anything, so it's worth showing: the data has asset-pack
  * items, and things placed that Tabletop can't tell (OPAQUE: pack objects, which "Guess from the
  * picture" is for). Pack terrain, materials, patterns, paths and roofs stay as drawn either way.
  */

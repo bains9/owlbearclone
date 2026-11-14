@@ -189,7 +189,7 @@ export function SeasonPicker(props: { scene: Scene }) {
 /**
  * The GM's note on the scene's Dungeondraft data (design 6.1), with its links, and the per-scene
  * controls while the data is in use: which season the map is drawn in, what its bare trees do,
- * and Par's asset-pack option. Each control is one undoable step.
+ * and the asset-pack option. Each control is one undoable step.
  */
 function DataNotes(props: { scene: Scene; state: SceneDataState }) {
   const room = useRoom();

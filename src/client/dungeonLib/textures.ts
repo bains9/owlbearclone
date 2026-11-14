@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
+// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
 import { fbm, hash2, ridged, rng, valueNoise, worley } from "./noise";
 import { css, mix, scale, type RGB } from "./color";
 
@@ -367,7 +367,7 @@ function water(ctx: CanvasRenderingContext2D): void {
 }
 
 // ---- The larger library (26 October 2026) ----
-// Ids are plain words, because table.parhome.ca's Seasons read a role from them: grass, moss,
+// Ids are plain words, because Table's Seasons read a role from them: grass, moss,
 // leaves, meadow → grass; dirt, mud, soil, swamp, earth → earth; sand, beach, desert → sand;
 // snow; ice; rock, gravel, pebble, sandstone, limestone, marble → rock; flagstone, tile,
 // cobble, brick → paved.

@@ -24,7 +24,7 @@ import {
 import { RoomClient } from "../src/client/room/client";
 import type { Asset, Scene } from "../src/shared/types";
 import { snowyMap } from "./fixtures/ddSynthetic";
-import { waterfallText } from "./helpers/ddFixtures";
+import { haveWaterfall, waterfallText } from "./helpers/ddFixtures";
 
 // The attach path (the dd worker) is WP3b's and tested in ddAttach.test.ts; here it answers what a test says.
 vi.mock("../src/client/dd/attach", () => {
@@ -92,12 +92,12 @@ describe("files that aren't maps yet", () => {
   });
 
   it("tells a project file with no picture in the batch to bring both files, or to attach it to a scene (6.1)", async () => {
-    const { maps, errors } = await readMapFiles([dd("Kdir Topside.dungeondraft_map")]);
+    const { maps, errors } = await readMapFiles([dd("Market Square.dungeondraft_map")]);
     expect(maps).toEqual([]);
     expect(errors).toEqual([
-      "Kdir Topside.dungeondraft_map has no picture in it (it's Dungeondraft's project file). Export the map from Dungeondraft and bring in both files, or attach it to a scene with Edit scene › Map.",
+      "Market Square.dungeondraft_map has no picture in it (it's Dungeondraft's project file). Export the map from Dungeondraft and bring in both files, or attach it to a scene with Edit scene › Map.",
     ]);
-    expect(errors[0]).toBe(loneProjectFileNote("Kdir Topside.dungeondraft_map"));
+    expect(errors[0]).toBe(loneProjectFileNote("Market Square.dungeondraft_map"));
     expect(errors[0]).not.toMatch(/Universal VTT/);
   });
 });
@@ -114,7 +114,7 @@ describe("Dungeondraft project files", () => {
     expect(await isDungeondraftFile(new File([ddText(20, 12)], "waterfall"))).toBe(true);
     expect(await isDungeondraftFile(new File(["﻿  " + ddText(20, 12)], "waterfall.txt"))).toBe(false);
     expect(await isDungeondraftFile(new File(["﻿  " + ddText(20, 12)], "waterfall.json"))).toBe(true);
-    expect(await isDungeondraftFile(new File([waterfallText()], "waterfall.json"))).toBe(true);
+    if (haveWaterfall) expect(await isDungeondraftFile(new File([waterfallText()], "waterfall.json"))).toBe(true);
     // Not a project file: a Universal VTT file, an image, other JSON, a picture whose name only mentions one.
     expect(await isDungeondraftFile(new File([`{"format":0.3,"resolution":{}}`], "waterfall.dd2vtt"))).toBe(false);
     expect(await isDungeondraftFile(new File([ddText(20, 12)], "waterfall.png", { type: "image/png" }))).toBe(false);
@@ -128,7 +128,7 @@ describe("Dungeondraft project files", () => {
 
   it("reads the map's size in squares from the start of the file", async () => {
     expect(await dungeondraftSquares(dd("w.dungeondraft_map", 50, 35))).toEqual({ w: 50, h: 35 });
-    expect(await dungeondraftSquares(new File([waterfallText()], "waterfall.dungeondraft_map"))).toEqual({ w: 50, h: 35 });
+    if (haveWaterfall) expect(await dungeondraftSquares(new File([waterfallText()], "waterfall.dungeondraft_map"))).toEqual({ w: 50, h: 35 });
     expect(await dungeondraftSquares(new File([snowyMap().text], "snowy.dungeondraft_map"))).toEqual({ w: 20, h: 12 });
     expect(await dungeondraftSquares(new File(["{ not json"], "notes.dungeondraft_map"))).toBeNull();
     expect(await dungeondraftSquares(new File([`{"header":{},"world":{"format":3,"width":0,"height":35}}`], "x.dungeondraft_map"))).toBeNull();
@@ -141,7 +141,7 @@ describe("Dungeondraft project files", () => {
 
   it("says whether a picture could be an export of a map of so many squares (pairing rule 3)", () => {
     const map = { w: 50, h: 35 };
-    // Vern's waterfall export: 3600 x 2520 at 72 px a square.
+    // A real export of a map that size: 3600 x 2520 at 72 px a square.
     expect(pictureFitsMap({ width: 3600, height: 2520 }, map)).toBe(true);
     expect(pictureFitsMap({ width: 1800, height: 1261 }, map)).toBe(true);
     expect(pictureFitsMap({ width: 3456, height: 1944 }, map)).toBe(false);
@@ -220,14 +220,14 @@ describe("pairing project files with their exports", () => {
       "export.dd2vtt",
     );
     const reads = vi.spyOn(vtt, "text");
-    const { maps } = await readMapFiles([vtt, img("other.png", 1000, 1000), dd("kdir.dungeondraft_map", 50, 35)]);
+    const { maps } = await readMapFiles([vtt, img("other.png", 1000, 1000), dd("town.dungeondraft_map", 50, 35)]);
     expect(maps[0].dd).toBeDefined();
     expect(reads).toHaveBeenCalledTimes(1);
   });
 
   it("pairs the only picture with the only project file, whatever their names", async () => {
     const p = img("Tavern.png", 100, 100);
-    const ddf = dd("kdir.dungeondraft_map", 48, 27);
+    const ddf = dd("town.dungeondraft_map", 48, 27);
     expect(await pairDungeondraft([p, ddf])).toEqual({ pairs: [{ picture: p, dd: ddf }], lone: [], pictures: [] });
     // Two project files and one picture: not by that rule (and here not by size either).
     const wide = img("Tavern.png", 100, 70);
@@ -410,11 +410,11 @@ describe("Universal VTT files", () => {
     expect(map.image.name).toBe("Goblin Cave.png");
     expect(map).toMatchObject({ cols: 30, rows: 20, pxPerCell: 256, width: 7680, height: 5120, offsetX: 0, offsetY: 0 });
     expect(gridSizeFor(map, 6144, 4096)).toBe(204.8);
-    // Dungeondraft 1.2 names its exports "waterfall.vtt.dd2vtt" (Vern's): the ".vtt" is no part of the name.
-    const vern = parseUniversalVtt(vtt(), "waterfall.vtt.dd2vtt");
-    expect(vern.name).toBe("waterfall");
-    expect(vern.image.name).toBe("waterfall.png");
-    expect(parseUniversalVtt(vtt(), "Kdir_Topside.vtt.dd2vtt").name).toBe("Kdir Topside");
+    // Dungeondraft 1.2 names its exports "waterfall.vtt.dd2vtt": the ".vtt" is no part of the name.
+    const named = parseUniversalVtt(vtt(), "waterfall.vtt.dd2vtt");
+    expect(named.name).toBe("waterfall");
+    expect(named.image.name).toBe("waterfall.png");
+    expect(parseUniversalVtt(vtt(), "Market_Square.vtt.dd2vtt").name).toBe("Market Square");
   });
 
   it("moves the grid for a map that starts part-way into a cell", () => {

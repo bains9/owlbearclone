@@ -1,7 +1,8 @@
 # Tabletop
 
-A private virtual tabletop in the spirit of Owlbear Rodeo, live at **https://table.parhome.ca** and running
-entirely on Cloudflare: one Worker, two Durable Object classes, and one R2 bucket.
+A virtual tabletop for a game group, in the spirit of Owlbear Rodeo, running entirely on Cloudflare: one
+Worker, four Durable Object classes, and one R2 bucket. Nothing in the code says whose table it is: where a
+table is served and its own settings are kept out of it (see **Deploying**).
 
 ## What it does
 
@@ -135,7 +136,8 @@ Deploy protocol bumps between sessions: tabs open across one lose the built map 
 - Or one GM password (the `GM_PASSWORD` secret). Either way, signing in sets an HttpOnly, Secure,
   SameSite=Lax cookie signed with a key derived from a random server-side secret; for password sessions the
   key also mixes in the password, so changing it signs those sessions out.
-- Dungeon (dungeon.parhome.ca, the map maker) uses the same sign-in without the cookie leaving this site:
+- On a table with a Dungeon (the map maker; `DUNGEON_URL` says where it is), Dungeon uses the same sign-in
+  without the cookie leaving this site:
   Dungeon sends the browser to `/api/dungeon/hop`, which hands the signed-in GM back with a one-time code
   (signed, a minute long, spent on first use), and Dungeon's Worker trades it for a 12-hour session of its
   own through the `DungeonGate` entrypoint, a service binding. Those sessions are signed for Dungeon alone
@@ -148,7 +150,8 @@ Deploy protocol bumps between sessions: tabs open across one lose the built map 
 - Uploads are checked by their actual bytes and served with `nosniff` and a sandboxing CSP.
 - Each room has a size budget.
 - Plain HTTP is redirected to HTTPS, with HSTS, and the pages carry a strict Content-Security-Policy
-  (`public/_headers`).
+  (`public/_headers`, which names no host; the Worker adds the table's own address, and its Dungeon's if
+  it has one, to each answer: `src/worker/staticFiles.ts`).
 - Built files under `/assets/` are cached for a year as immutable; a missing one is a plain 404 that
   isn't cached, never the page, so a tab left open across a deploy fails cleanly when it asks for an
   old chunk (`src/worker/staticFiles.ts`).
@@ -186,10 +189,12 @@ npm test            # unit tests: dice, grid and hex maths, templates, validatio
                     # monsters (D&D sizes, the generated data, type colours, the art, numbering, placing),
                     # NPCs (the handbook's races and classes, the generated icons, the art, numbering, placing)
 npm run smoke       # end-to-end: API + WebSocket protocol against a running server
+npm run check:private   # none of your private words is in the files (see Deploying; npm test checks too)
 ```
 
-The Dungeondraft tests run on synthetic maps everywhere. The real sample maps and Vern's exports are
-read from `DD_FIXTURES` and `DD_VERN` (by default the folders under `C:/Users/G/tabletop-work`), and
+The Dungeondraft tests run on synthetic maps everywhere. Real maps aren't in the code: the public sample
+maps aren't ours to hand on, and a GM's own maps are theirs. They're read from the folders `DD_FIXTURES`
+and `DD_PRIVATE` name (set for a run, or once for a computer in the `env` part of `local.jsonc`), and
 the tests that need them skip when they aren't there. A passing test's console output (timings,
 verdicts) is hidden: `VERBOSE=1` shows it, and `PERF=1` also makes the timing checks strict (run
 those files on their own). `scripts/dd/` holds the development scripts for this work (measuring the
@@ -205,7 +210,7 @@ told of it; on a scene, players get it only while it's in use) and deletion, the
 the live site:
 
 ```bash
-BASE=https://table.parhome.ca GM_PASSWORD=... npm run smoke
+BASE=https://table.example.com GM_PASSWORD=... npm run smoke
 ```
 
 `THROTTLE=1` adds the login-throttle check, which locks your address out of signing in for 15 minutes, so
@@ -214,25 +219,47 @@ location before testing.
 
 ## Deploying
 
-The first time:
+Whatever is one table's own goes in `local.jsonc`, a file that is never committed: where the table is
+served, its own settings, and the words that must never get into the code. The first time:
 
 ```bash
+cp local.example.jsonc local.jsonc    # then say in it where your table is served
 npx wrangler r2 bucket create tabletop-files
-npm run deploy                      # typecheck, tests, build, wrangler deploy
-npx wrangler secret put GM_PASSWORD # prompts for the password; sign-in is disabled until it's set
+npm run deploy                        # private words, typecheck, tests, layout check, build, wrangler deploy
+npx wrangler secret put GM_PASSWORD   # prompts for the password; sign-in is disabled until it's set
 ```
 
-`wrangler deploy` also creates the custom domain `table.parhome.ca`. To use a different host name,
-change `routes` in `wrangler.jsonc` and `connect-src` in `public/_headers`.
-
 After that, `npm run deploy` is all it takes.
+
+`local.jsonc` has three parts (`local.example.jsonc` shows each; `scripts/local.mjs` reads it, and in a git
+worktree also looks in the main checkout, so one file serves them all):
+
+- **`wrangler`** is laid over `wrangler.jsonc` whenever the app is built or run (`vite.config.ts`): a setting
+  in it replaces `wrangler.jsonc`'s, and a list is added to `wrangler.jsonc`'s. Left as it comes, the table is
+  served at your account's workers.dev address; for a domain of your own, give it `routes` and
+  `"workers_dev": false`. Its `vars` hold the table's own settings:
+  - `LOADING_LINES`: lines shown under "Loading map…", one at a time. None by default.
+  - `DUNGEON_URL`: where your Dungeon (the map maker) is, if you run one. Table then shows its Dungeon button,
+    **New scene › From Dungeon** and **Update from Dungeon**; without it, none of them. Bind Dungeon's bucket of
+    maps as `DUNGEON_MAPS` too (under `r2_buckets`) and the backups take its maps as well.
+
+  Either can be set as a secret instead (`npx wrangler secret put LOADING_LINES`, as a JSON list or a line to
+  a row).
+- **`private_words`**: your players' names, your domain, your campaign's secrets. `npm test` and
+  `npm run deploy` fail if one of them is in a file or a file's name (`scripts/private-words.mjs`), so nothing
+  of yours goes out with a change you share.
+- **`env`**: where this computer keeps maps that can't go in the code, for the tests (see **Checks**).
+
+`npm run deploy` refuses to go without `local.jsonc`: a deploy from a checkout that didn't have it would
+publish the app as `wrangler.jsonc` alone describes it, dropping the table's own address and settings.
+Nothing in the code names a host: the Worker works out the table's address from each request.
 
 ## Google sign-in
 
 1. In Google Cloud Console, create a project, set up the OAuth consent screen (Google Auth Platform:
    an External app asking only for the basic `openid` and `email` scopes), and create an **OAuth client ID**
-   of type **Web application** with this authorized redirect URI:
-   `https://table.parhome.ca/api/auth/google/callback`
+   of type **Web application** with this authorized redirect URI, at your table's own address:
+   `https://table.example.com/api/auth/google/callback`
 2. Give the Worker the client and the GM list (each command prompts for the value):
 
    ```bash

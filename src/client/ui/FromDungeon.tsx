@@ -1,4 +1,4 @@
-// New scene › From Dungeon: the GM's maps in Dungeon (dungeon.parhome.ca), listed and drawn by
+// New scene › From Dungeon: the GM's maps in Dungeon (the map maker), listed and drawn by
 // Dungeon itself through its bridge (dungeonBridge.ts). Picking one hands its .dd2vtt file to
 // the dialog's usual import, just as dropping the file would, with the map's id so each scene
 // remembers where it came from (for Update from Dungeon).

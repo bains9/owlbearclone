@@ -18,8 +18,8 @@ import { isOwnSightToken } from "../src/client/room/vision";
 import { DEFAULT_GRID, GM_OWNER, sanitizeVision } from "../src/shared/sanitize";
 import type { TokenItem } from "../src/shared/types";
 
-// What the party has explored (Par: "build remembering explored areas"): kept for each scene on a
-// grid of half squares, shared by everyone, the GM able to forget it. With per-player sight (Par:
+// What the party has explored (the ask: "build remembering explored areas"): kept for each scene on a
+// grid of half squares, shared by everyone, the GM able to forget it. With per-player sight (the ask:
 // "build per-player sight"), each character keeps their own beside the party's.
 
 const SHEET = "1TestSheetAAAAAAAAAAAAAAAAAAAAAAA";
@@ -174,7 +174,7 @@ describe("per-player sight's explored maps", () => {
   });
 });
 
-// Par: "make explored areas seen by nightvision show grey too": the map keeps which explored
+// The ask: "make explored areas seen by nightvision show grey too": the map keeps which explored
 // cells were seen in colour (by day, or in a light); the rest show in black and white.
 describe("explored places seen only by nightvision", () => {
   const key = exploreGrid(scene).key;

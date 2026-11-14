@@ -1,8 +1,8 @@
 // The Worker: every request comes here first. It sends plain-HTTP visitors to
 // HTTPS, serves the JSON API under /api/ (GM sign-in, rooms, the WebSocket entry
 // point, image upload and download backed by R2), and hands everything else to the
-// static client (staticFiles.ts). Dungeon's Worker signs the GM in through it too
-// (dungeon.ts).
+// static client (staticFiles.ts). A table with a Dungeon (the map maker) has Dungeon's
+// Worker sign the GM in through it too (dungeon.ts).
 
 import { BUILD_ID } from "../shared/build";
 import { randomId } from "../shared/ids";
@@ -22,6 +22,7 @@ import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
 import { fileKey } from "./room";
 import { staticFile } from "./staticFiles";
+import { tableSettings } from "./table";
 import { MAX_UPLOAD_BYTES, uploadKind, uploadType } from "./uploads";
 
 export { BackupJob } from "./backupJob";
@@ -121,7 +122,7 @@ export default {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 308);
     }
-    if (!url.pathname.startsWith("/api/")) return staticFile(request, env.ASSETS);
+    if (!url.pathname.startsWith("/api/")) return staticFile(request, env.ASSETS, tableSettings(env));
     try {
       return await route(request, env, url);
     } catch (err) {
@@ -145,7 +146,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (pathname === "/api/me" && method === "GET") {
-    return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD), google: googleConfigured(env) });
+    // dungeon: where this table's Dungeon is, or null for a table without one (shared/table.ts).
+    return json({ gm: await isGm(request, env), configured: Boolean(env.GM_PASSWORD), google: googleConfigured(env), dungeon: tableSettings(env).dungeon });
   }
 
   // Which Tabletop this is, for a page whose files have gone (src/client/updated.ts).
@@ -180,7 +182,7 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
 
   // Dungeon's sign-in passes through here, and comes back with a one-time code (dungeon.ts).
   if (pathname === "/api/dungeon/hop" && method === "GET") {
-    return dungeonHop(request, env, url);
+    return (await dungeonHop(request, env, url)) ?? fail(404, "This table has no Dungeon.");
   }
 
   if (pathname === "/api/logout" && method === "POST") {

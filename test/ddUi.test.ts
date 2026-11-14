@@ -324,7 +324,7 @@ describe("the Season box's controls", () => {
     expect(bareDefault("green")).toBe("dead");
   });
 
-  it("shows Bare trees only when the data has bare trees, and Par's pack option only with pack items", () => {
+  it("shows Bare trees only when the data has bare trees, and the pack option only with pack items", () => {
     expect(hasBareTrees(meta())).toBe(false);
     expect(hasBareTrees(meta({ names: ["vegetation/trees/dead_tree_01", "terrain_grass"] }))).toBe(true);
     expect(hasBareTrees(meta({ names: [] }))).toBe(false);
@@ -336,7 +336,7 @@ describe("the Season box's controls", () => {
     expect(hasPackItems(meta({ packItems: 3 }), objects())).toBe(false);
   });
 
-  it("names the pack option as Par asked, and says what it does without jargon", () => {
+  it("names the pack option as asked, and says what it does without jargon", () => {
     expect(DD_UI.packsTitle).toMatch(/Leave as drawn/);
     expect(DD_UI.packsTitle).toMatch(/Guess from the picture/);
     expect(DD_UI.packsTitle).not.toMatch(/sidecar|raster|kernel|mask/i);
@@ -453,19 +453,19 @@ describe("the New scene window's pending pair (2.1 A)", () => {
     const tavernPng = img("Tavern.png", 2160, 1440);
     const crypt = img("Crypt.png", 2000, 1000);
     const cave = img("Cave.png", 1000, 1000);
-    const kdir = dd("Kdir.dungeondraft_map", 48, 27);
-    const p = await plan(NO_PENDING, [tavern, tavernPng, crypt, cave, kdir]);
-    // Neither free picture fits Kdir's shape (rule 3), so all three wait.
+    const town = dd("Town.dungeondraft_map", 48, 27);
+    const p = await plan(NO_PENDING, [tavern, tavernPng, crypt, cave, town]);
+    // Neither free picture fits the town map's shape (rule 3), so all three wait.
     expect(p.now).toEqual([tavern, tavernPng]);
-    expect(p.pending).toEqual({ dds: [kdir], pictures: [crypt, cave] });
+    expect(p.pending).toEqual({ dds: [town], pictures: [crypt, cave] });
     // One free picture with one project file left pairs by rule 2 (the only picture), whatever its size.
-    const r = await plan(NO_PENDING, [tavern, tavernPng, crypt, kdir]);
-    expect(r.now).toEqual([tavern, tavernPng, crypt, kdir]);
+    const r = await plan(NO_PENDING, [tavern, tavernPng, crypt, town]);
+    expect(r.now).toEqual([tavern, tavernPng, crypt, town]);
     expect(r.pending).toEqual(NO_PENDING);
     // The backup never waits.
-    const q = await plan(NO_PENDING, [kdir, ob2]);
+    const q = await plan(NO_PENDING, [town, ob2]);
     expect(q.now).toEqual([ob2]);
-    expect(q.pending).toEqual({ dds: [kdir], pictures: [] });
+    expect(q.pending).toEqual({ dds: [town], pictures: [] });
   });
 
   it("takes a pending file out when it's skipped", () => {
@@ -542,7 +542,7 @@ describe("the components carry the texts and controls the design names", () => {
     expect(room).toContain("vtt={req.vtt}");
   });
 
-  it("SeasonPicker: the notes, the three controls with Par's names, and no grid note with data in use", async () => {
+  it("SeasonPicker: the notes, the three controls with their names, and no grid note with data in use", async () => {
     const picker = await source("../src/client/ui/SeasonPicker.tsx");
     expect(picker).toContain("This map is drawn in");
     expect(picker).toContain("Bare trees");
@@ -601,7 +601,7 @@ describe("the guide (6.2)", () => {
     expect(whatsNew.parts.map((p) => p.title)).toContain("Dungeondraft project files explained (30 September 2026)");
   });
 
-  it("has the Seasons part with 6.2's steps and notes, adjusted for Par's pack option", () => {
+  it("has the Seasons part with 6.2's steps and notes, adjusted for the pack option", () => {
     const p = part("Exact seasons for Dungeondraft maps");
     expect(seasons.parts).toContain(p);
     expect(p.steps).toHaveLength(3);

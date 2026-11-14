@@ -2,8 +2,8 @@
 // (2.2), the compiled sidecar against WP9's hand-built one and the map text (roles, crop, wall
 // loops, drawn path widths, roofs, water by the picture, pack share), privacy (3.5), measurement
 // through the extractor (2.5), the automatic shift (2.4), caps, and the preview. Real files:
-// waterfall (committed) on a fake export and on Vern's 1.2 export when DD_VERN has it; the
-// public samples when DD_FIXTURES has them. Both skip cleanly when absent.
+// waterfall (a GM's own map, when DD_PRIVATE has it) on a fake export and on its real 1.2
+// export; the public samples when DD_FIXTURES has them. All skip cleanly when absent.
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
 import { GRID, MS_EDGE_BUFFER, type DDMap, type MapObject, type WaterNode } from "../src/client/dd/model";
@@ -26,7 +26,7 @@ import {
 } from "./fixtures/ddSynthetic";
 import { FAKE_COLOURS, fakeExportFromMap, type FakeMapOptions } from "./fixtures/fakeExport";
 import {
-  SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, havePair, haveVernExport, readPicture, sampleText, vernPicture, waterfallText,
+  SAMPLE_PAIRS, SWAPPED_PAIRS, atPxPerSquare, havePair, havePrivateExport, haveWaterfall, readPicture, sampleText, privatePicture, waterfallText,
   type SamplePair,
 } from "./helpers/ddFixtures";
 
@@ -291,7 +291,7 @@ describe("privacy: what a player's browser could read", () => {
     expect(r.sidecar.objects.n).toBe(14);
   });
 
-  it("waterfall (Vern's map): no pack, file or level names", () => {
+  it.skipIf(!haveWaterfall)("waterfall (a real map): no pack, file or level names", () => {
     const map = parseDungeondraftMap(waterfallText());
     const pic = fakeExportFromMap(map, "0", 12);
     const r = extractSidecar(map, "0", wholeMap(map), pic, SPRITE_SIZES, { levels: [] });
@@ -1000,7 +1000,9 @@ describe("caps and the preview", () => {
 
 // ------------------------------------------------------------------ waterfall
 
-describe("waterfall (Vern's map, committed)", () => {
+describe("waterfall (a GM's own map, in DD_PRIVATE)", () => {
+  // Nothing to read without the map: one skipped test says so.
+  if (!haveWaterfall) return void it.skip("needs the waterfall map (DD_PRIVATE)", () => {});
   const map = parseDungeondraftMap(waterfallText());
   const pic = fakeExportFromMap(map, "0", 16, { water: ["KEEP"] });
   const { sidecar: sc, report } = extractSidecar(map, "0", wholeMap(map), pic, SPRITE_SIZES, { levels: [] });
@@ -1041,15 +1043,15 @@ describe("waterfall (Vern's map, committed)", () => {
     expect(sc.bitmaps.some((b) => b.role === AR.CAVE && b.step === 64)).toBe(true);
   });
 
-  it.skipIf(!haveVernExport("waterfall.vtt"))("on Vern's 1.2 export: the same, with its yellow-orange water KEEP and nothing dropped", () => {
-    const full = vernPicture("waterfall.vtt");
+  it.skipIf(!havePrivateExport("waterfall.vtt"))("on its real 1.2 export: the same, with its yellow-orange water KEEP and nothing dropped", () => {
+    const full = privatePicture("waterfall.vtt");
     const rect = pictureRect(map, full.w, full.h, full.vtt) as PictureRect;
     expect(rect.rect).toEqual([0, 0, 12800, 8960]);
     const p = atPxPerSquare(full, 50, 35, 32);
     const t0 = performance.now();
     const r = extractSidecar(map, "0", rect, p, SPRITE_SIZES, { levels: [], picSize: [full.w, full.h] });
     const ms = performance.now() - t0;
-    console.log(`waterfall on Vern's export at 32 px a square: ${ms.toFixed(0)} ms, fit ${r.report.fit.verdict} (lead ${r.report.fit.lead.toFixed(2)}, sharp ${r.report.fit.sharp.toFixed(2)}), ` +
+    console.log(`waterfall on its real export at 32 px a square: ${ms.toFixed(0)} ms, fit ${r.report.fit.verdict} (lead ${r.report.fit.lead.toFixed(2)}, sharp ${r.report.fit.sharp.toFixed(2)}), ` +
       `dropped ${r.report.dropped}, water ${r.report.water}, packShare ${r.report.packShare}, ${encodeSidecar(r.sidecar).length} bytes`);
     expect(r.report.water).toEqual(["KEEP"]);
     expect(r.report.dropped).toBe(0);

@@ -228,7 +228,7 @@ export function dateOf(c: Pick<Calendar, "months" | "yearZero" | "weekdays" | "f
   return { year, month, day: rest + 1, yearDay: epoch - years * len + 1, weekday: mod(epoch + c.firstDay - 1, W) + 1 };
 }
 
-/** "Nineday 29 Vanyir, Year 2". */
+/** "Nineday 29 Third, Year 2". */
 export function dateText(c: Calendar, epoch: number): string {
   const d = dateOf(c, epoch);
   return `${c.weekdays[d.weekday - 1] ?? ""} ${d.day} ${c.months[d.month]?.name ?? ""}, Year ${d.year}`.trim();
@@ -1059,7 +1059,7 @@ export function weatherHere(scene: WeatherScene | null | undefined, outdoorShare
   return { on: true, auto: true, why: "it's outdoors" };
 }
 
-/** The chat's line for a day the GM moved to: "A new day: Tenday 30 Vanyir, Year 2. Cold and clear, -6 to 6 °C." */
+/** The chat's line for a day the GM moved to: "A new day: Tenday 30 Third, Year 2. Cold and clear, -6 to 6 °C." */
 export function dayLine(c: Calendar): string {
   return `A new day: ${dateText(c, c.today)}. ${c.weatherNotes[String(c.today)] ?? weatherOf(c, c.today).text}`;
 }

@@ -10,8 +10,9 @@
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
-    "deploy": "npm run typecheck && npm test && npm run smoke:layout && npm run build && wrangler deploy",
-    "smoke:layout": "node scripts/layout-smoke.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "smoke:layout": "node scripts/layout-smoke.mjs",
+    "check:private": "node scripts/private-words.mjs"
   },
   "dependencies": {
     "@3d-dice/dice-box-threejs": "^0.0.12",

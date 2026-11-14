@@ -53,7 +53,7 @@ export const DD_TEXT = {
   noExact: "Exact seasons couldn't be worked out for this map, so they'll be guessed from the picture.",
   dungeonDamaged: (name: string) => `${name} has map data from Dungeon in it, but it's damaged.`,
   dungeonOld: (name: string) =>
-    `${name} was exported by an older version of Dungeon. Export it again from dungeon.parhome.ca for exact seasons.`,
+    `${name} was exported by an older version of Dungeon. Export it again from Dungeon for exact seasons.`,
   dungeonNew: (name: string) => `${name} was exported by a newer version of Dungeon than this copy of Tabletop knows: reload Tabletop and try again.`,
 } as const;
 

@@ -4,6 +4,7 @@ import { GUIDE } from "../src/client/guide";
 import { withMapName } from "../src/client/importScenes";
 import type { MapFile } from "../src/client/mapImport";
 import { NO_PENDING, planSkip } from "../src/client/ui/ddText";
+import { siteCsp } from "../src/worker/staticFiles";
 
 const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
 const source = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -195,11 +196,22 @@ describe("New scene › From Dungeon", () => {
     expect(maps.map((m) => m.name)).toEqual(["Tower: top (grid)", "Tower: top (grid): Cellar", "Other"]);
   });
 
-  it("lets the page frame Dungeon (and itself, which Dungeon's sign-in passes through), and nothing else", () => {
-    const csp = headers.split("\n").find((l: string) => l.includes("Content-Security-Policy"))!;
+  it("lets the page frame its table's Dungeon (and itself, which Dungeon's sign-in passes through), and nothing else", () => {
+    // public/_headers names no host: the server adds this table's Dungeon, where it has one (staticFiles.ts).
+    const written = headers.split(/\r?\n/).find((l: string) => l.includes("Content-Security-Policy"))!.replace(/^\s*Content-Security-Policy:\s*/, "");
+    expect(written).toContain("frame-src 'self';");
+    const csp = siteCsp(written, new URL("https://table.example.test/r/abcdefABCDEF"), "https://dungeon.example.test/");
     // Dungeon's frame comes by Table's own /api/dungeon/hop when it needs to sign in.
-    expect(csp).toContain("frame-src 'self' https://dungeon.parhome.ca;");
+    expect(csp).toContain("frame-src 'self' https://dungeon.example.test;");
     expect(csp).toContain("frame-ancestors 'none'");
+    // A table with no Dungeon frames only itself.
+    expect(siteCsp(written, new URL("https://table.example.test/"), null)).toContain("frame-src 'self';");
+  });
+
+  it("offers Dungeon's maps only on a table that has a Dungeon", () => {
+    expect(scenesSource).toContain("{hasDungeon && (");
+    expect(scenesSource).toContain("{hasDungeon && isDungeonScene(s) && (");
+    expect(bridgeSource).toContain('if (!dungeon) throw new BridgeError("This table has no Dungeon.");');
   });
 
   it("says when Dungeon saved each map", () => {

@@ -49,7 +49,7 @@ describe("the dice the sheet works out for each class", () => {
     // The highest level they cast, as casting from the card has it: spells the sheet says can't be cast yet don't count.
     const c = cleanCharacter({
       id: SHEET,
-      name: "Nancael",
+      name: "Nessa",
       magicRest: true,
       spells: [
         { name: "Cure Wounds", level: 2, sp: "2", prayer: "Free", note: "" },
@@ -61,9 +61,9 @@ describe("the dice the sheet works out for each class", () => {
   });
 
   it("come through cleanCharacter with body points and the choice, and nothing for an older script", () => {
-    const c = cleanCharacter({ id: SHEET, name: "Grimmdark", hp: "30", maxHp: "37", combatRest: "d3 + d2 · F-level 4", bodyPoints: "4", magicRest: true })!;
+    const c = cleanCharacter({ id: SHEET, name: "Gorran", hp: "30", maxHp: "37", combatRest: "d3 + d2 · F-level 4", bodyPoints: "4", magicRest: true })!;
     expect(c).toMatchObject({ combatRest: "1d3+1d2", bodyPoints: 4, magicRest: true });
-    const old = cleanCharacter({ id: SHEET, name: "Grimmdark", hp: "30", maxHp: "37" })!;
+    const old = cleanCharacter({ id: SHEET, name: "Gorran", hp: "30", maxHp: "37" })!;
     expect("combatRest" in old || "bodyPoints" in old || "magicRest" in old).toBe(false);
     expect(SCRIPT_VERSION).toBe(10);
     expect(code).toContain("const VERSION = 10;");
@@ -170,7 +170,7 @@ describe("taking a combat rest from Table", () => {
       directory: { charactersSource: async () => source, characterFigures: async () => ({}), characterStrMatched: async () => ({}), characterPlayers: async () => ({}), characterPrayed: async () => ({}), characterDice: async () => ({}) },
       files: { head: async () => null },
     };
-    const fetcher = vi.fn(async () => Response.json({ version: 10, characters: [{ id: SHEET, name: "Grimmdark", hp: "30", maxHp: "37", combatRest: "d3 + d2 · F-level 4", bodyPoints: "4" }] }));
+    const fetcher = vi.fn(async () => Response.json({ version: 10, characters: [{ id: SHEET, name: "Gorran", hp: "30", maxHp: "37", combatRest: "d3 + d2 · F-level 4", bodyPoints: "4" }] }));
     expect((await party.readParty(env, cache, fetcher as unknown as typeof fetch, 1000)).characters[0].hp).toBe(30);
     await party.keepHp(env, cache, SHEET, 34, 40_000);
     const after = await party.readParty(env, cache, fetcher as unknown as typeof fetch, 45_000);
@@ -181,7 +181,7 @@ describe("taking a combat rest from Table", () => {
 
   it("from the card: the kind of rest asked for, and their HP shown here at once", async () => {
     const me: Player = { connId: "c2", userId: "player1abcdef", name: "P", color: "#00ff00", role: "player" };
-    const c: Character = { ...cleanCharacter({ id: SHEET, name: "Grimmdark", hp: 30, maxHp: 37, combatRest: "d3 + d2", bodyPoints: 4, magicRest: true })!, players: [{ userId: me.userId, name: "P" }] };
+    const c: Character = { ...cleanCharacter({ id: SHEET, name: "Gorran", hp: 30, maxHp: 37, combatRest: "d3 + d2", bodyPoints: 4, magicRest: true })!, players: [{ userId: me.userId, name: "P" }] };
     const room = new RoomClient("AbCdEf123456", { uid: me.userId, name: me.name, color: me.color });
     room.store.set({ me, room: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } }, party: { configured: true, readAt: 1, characters: [c] } });
     const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, hp: 34, was: 30, total: 4 }));

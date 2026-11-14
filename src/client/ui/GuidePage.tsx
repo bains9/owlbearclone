@@ -13,14 +13,20 @@ const AUDIENCE: Record<GuideSection["audience"], string> = {
   everyone: "For everyone",
 };
 
-/** Text with **bold** (UI labels), `code` (things to type) and [links](https://…) marked up. */
+/** The guide's {here}: this table's own address, as the page was opened ("table.example.com"). */
+export function withAddress(text: string, host: string): string {
+  return text.replaceAll("{here}", host);
+}
+
+/** Text with **bold** (UI labels), `code` (things to type) and [links](https://…) marked up, and this table's address put in. */
 function Rich(props: { text: string }): ComponentChildren {
   const out: ComponentChildren[] = [];
   const re = /\*\*(.+?)\*\*|`(.+?)`|\[(.+?)\]\((https:\/\/[^)\s]+)\)/g;
+  const text = withAddress(props.text, location.host);
   let last = 0;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(props.text))) {
-    if (m.index > last) out.push(props.text.slice(last, m.index));
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
     if (m[1] !== undefined) out.push(<strong key={m.index}>{m[1]}</strong>);
     else if (m[2] !== undefined) out.push(<code key={m.index}>{m[2]}</code>);
     else {
@@ -32,7 +38,7 @@ function Rich(props: { text: string }): ComponentChildren {
     }
     last = m.index + m[0].length;
   }
-  if (last < props.text.length) out.push(props.text.slice(last));
+  if (last < text.length) out.push(text.slice(last));
   return <>{out}</>;
 }
 

@@ -5220,7 +5220,7 @@ class SnowFrame {
 // paving), a pixel at a time; a prop's snow to its own colour; every tree's clumps keep within its
 // measured reach; a leafy crown drawn green (K_BROAD) is an evergreen until autumn turns its own
 // leaves; a dead tree (K_DEAD) grows none; water freezes by its exact distance to the shore; and
-// there's no overall grade (Par).
+// there's no overall grade.
 
 /** Light for the leaf clumps: from the top left, a little above. */
 const LX = -0.5 / 0.9955;
@@ -5825,7 +5825,7 @@ class Melt {
     this.bil = ppsq > gt.res * 1.3;
     this.sproutK = this.budding ? P.spring.sprout[0] : 0;
     // The look's colour grade (as its kernel grades any map), on what the melt leaves as drawn.
-    // (Par: no overall grade on what's left as drawn. With Dungeondraft data that's known: rock,
+    // (The rule: no overall grade on what's left as drawn. With Dungeondraft data that's known: rock,
     // paving, trunks and props keep their colours.)
     this.gradeK = this.ex ? 0 : (spring ? P.spring.grade[L] : summer ? P.summer.grade[L] : P.autumn.grade[L]) * (0.3 + 0.7 * ramp(sn.frac, 0.04, 0.35));
     this.gR = spring ? 0.3 : 0.5;
@@ -6260,7 +6260,7 @@ class Melt {
   /**
    * A leafy crown drawn green (Dungeondraft data, K_BROAD; tree t at tp offset q, the pixel at
    * (du, dw) squares from its centre, li its colour's index, evr how much it's the crown's): in
-   * autumn its own leaves recoloured clump by clump in the tree's mix (Par's rule: tp[q + 6..9]),
+   * autumn its own leaves recoloured clump by clump in the tree's mix (the autumn rule: tp[q + 6..9]),
    * at their own brightness; in spring, on a tree in blossom, blossom clumps over them. Works on
    * nr, ng, nb.
    */

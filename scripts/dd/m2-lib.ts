@@ -20,7 +20,7 @@ import { analyse, bake, type SeasonAnalysis } from "../../src/client/room/season
 import { analyseExact } from "../../src/client/room/seasonExact";
 import { parseUniversalVtt } from "../../src/client/mapImport";
 import type { SeasonLook } from "../../src/shared/types";
-import { PAIRS, RENDERS, VERN, samplePath, sharp, type Pair } from "./lib";
+import { PAIRS, RENDERS, PRIVATE, samplePath, sharp, type Pair } from "./lib";
 
 export const OUT = `${RENDERS}/m2`;
 mkdirSync(OUT, { recursive: true });
@@ -75,9 +75,9 @@ export async function loadFull(p: Pair): Promise<Full> {
   return { pair: p, map, mapText, file, full, vtt, exportPps: full.w / sqW, sqW, sqH };
 }
 
-/** Vern's export of a map that has no project file (Kdir, the swamp bridges). */
-export async function loadVern(name: string): Promise<{ full: PictureSample; vtt: VttMeta | undefined; pps: number }> {
-  const text = readFileSync(`${VERN}/${name}.dd2vtt`, "utf8");
+/** An export, from DD_PRIVATE, of a map that has no project file (the town, the swamp bridges). */
+export async function loadPrivate(name: string): Promise<{ full: PictureSample; vtt: VttMeta | undefined; pps: number }> {
+  const text = readFileSync(`${PRIVATE}/${name}.dd2vtt`, "utf8");
   const mf = parseUniversalVtt(text, `${name}.dd2vtt`);
   const { data, info } = await sharp()(Buffer.from(await mf.image.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const full: PictureSample = { rgba: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), w: info.width, h: info.height };

@@ -4,10 +4,10 @@
   "main": "./src/worker/index.ts",
   "compatibility_date": "2026-09-01",
 
-  // One front door: the custom domain. The workers.dev hostname would be a
-  // second public address for the same app that nobody is watching.
-  "workers_dev": false,
-  "routes": [{ "pattern": "table.parhome.ca", "custom_domain": true }],
+  // Nothing here says where a table is served, or anything else that is one table's own: that
+  // goes in local.jsonc, which is never committed and is laid over this file whenever the app is
+  // built (local.example.jsonc shows how; `npm run deploy` won't go without it). With no address
+  // given there, a table is served at its account's workers.dev address.
 
   // The client is a single-page app. Every request reaches the Worker first, so it
   // can send plain-HTTP visitors to HTTPS; it answers /api/ itself and passes the
@@ -39,17 +39,12 @@
   ],
 
   // Uploaded map and token images. Keys are rooms/<roomId>/<assetId>.
-  // DUNGEON_MAPS is Dungeon's maps, in its own bucket: only for backing them up and putting them back.
-  "r2_buckets": [
-    { "binding": "FILES", "bucket_name": "tabletop-files" },
-    { "binding": "DUNGEON_MAPS", "bucket_name": "dungeon-maps" }
-  ],
+  // (A table with a Dungeon also binds Dungeon's bucket of maps, as DUNGEON_MAPS, in local.jsonc:
+  // only for backing them up and putting them back.)
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "tabletop-files" }],
 
-  // The nightly backup into the GM's Google Drive (backupJob.ts): 3:30 AM Atlantic in winter, 4:30 in summer.
+  // The nightly backup into the GM's Google Drive (backupJob.ts), at 07:30 UTC.
   "triggers": { "crons": ["30 7 * * *"] },
-
-  // Where a signed-in GM is sent back to after Dungeon's sign-in hop (src/worker/dungeon.ts).
-  "vars": { "DUNGEON_URL": "https://dungeon.parhome.ca" },
 
   "observability": { "enabled": true }
 }

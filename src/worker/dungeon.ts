@@ -1,6 +1,6 @@
-// Dungeon (dungeon.parhome.ca, the map maker) signs in with Table's GM sign-in. Table's
-// cookie stays on table.parhome.ca, so Dungeon keeps a session of its own, and only Table
-// can make or check one:
+// Dungeon (the map maker; a table that has one says where it is in DUNGEON_URL) signs in with
+// Table's GM sign-in. Table's cookie stays on Table's own address, so Dungeon keeps a session
+// of its own, and only Table can make or check one:
 // 1. Dungeon, with no session, sends the browser to /api/dungeon/hop here.
 // 2. The signed-in GM is sent straight back to Dungeon's /auth/table with a one-time code:
 //    signed, good for a minute, and spent the first time it's used. Anyone else is sent to
@@ -15,6 +15,7 @@
 import { randomId } from "../shared/ids";
 import { b64urlText, fromB64urlText, gmEmails, gmWho, sessionValue, sessionWho, signWith, verifyWith } from "./auth";
 import type { GmWho } from "./auth";
+import { tableSettings } from "./table";
 
 const SITE = "dungeon|";
 const HOP_MS = 60_000;
@@ -75,12 +76,14 @@ function redirect(location: string): Response {
   });
 }
 
-/** GET /api/dungeon/hop?to=<path on Dungeon>: step 2 above. */
-export async function dungeonHop(request: Request, env: Env, url: URL): Promise<Response> {
+/** GET /api/dungeon/hop?to=<path on Dungeon>: step 2 above. Null on a table with no Dungeon: there's nowhere to send anyone. */
+export async function dungeonHop(request: Request, env: Env, url: URL): Promise<Response | null> {
+  const { dungeon } = tableSettings(env);
+  if (!dungeon) return null;
   const to = dungeonPath(url.searchParams.get("to"));
   const who = await gmWho(request, env);
   if (!who) return redirect(`/?then=dungeon${to === "/" ? "" : `&to=${encodeURIComponent(to)}`}`);
-  const back = new URL("/auth/table", env.DUNGEON_URL);
+  const back = new URL("/auth/table", dungeon);
   back.searchParams.set("code", await hopCode(env, who));
   if (to !== "/") back.searchParams.set("to", to);
   return redirect(back.toString());

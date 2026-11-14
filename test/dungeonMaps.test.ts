@@ -1,4 +1,4 @@
-// Maps made in Dungeon (dungeon.parhome.ca) get exact seasons the way Dungeondraft maps do: the
+// Maps made in Dungeon (the map maker) get exact seasons the way Dungeondraft maps do: the
 // export's "dungeon" payload is picked up as the picture's project file (mapImport.ts), read as a
 // Dungeondraft map (dd/fromDungeon.ts) and compiled by the unchanged extractor. Fixture: Dungeon's
 // own sample map, the Old Keep, exported with payload version 2 and a 1 x 1 stand-in picture (the

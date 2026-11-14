@@ -1,6 +1,7 @@
 // The words of the user guide (/guide). Steps are one action each; **bold** marks a
 // label exactly as the app shows it, `code` marks something to type. Written from the
-// app's code and checked against it, area by area.
+// app's code and checked against it, area by area. {here} stands for this table's own
+// address, which the code doesn't know: the page puts in the address it was opened at.
 
 export interface GuideSection {
   id: string;
@@ -499,7 +500,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "All of Dungeon's objects and textures in the Build tool (26 October 2026)",
         "steps": [
-          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker at dungeon.parhome.ca.",
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker.",
           "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match.",
           "Floors work the same way: in **Building** and **Terrain**, click the floor shown in the bar to choose from Tabletop's own and Dungeon's textures: marble, mosaics, carpets and parquet for rooms; meadows, moss, heather, sand, gravel, snow, ice, caves, water and lava for the ground.",
           "In **Walls**, the walls' look for the whole scene: plain, or one of Dungeon's 16, from brick and logs to marble and ice."
@@ -517,7 +518,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Maps from Dungeon get exact seasons (26 October 2026)",
         "steps": [
-          "In Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**.",
+          "In Dungeon, click **Export**, then **Universal VTT (.dd2vtt)**.",
           "GM: bring the file into Tabletop as you would any map: **New scene**, or drop it on the map."
         ],
         "notes": [
@@ -701,8 +702,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [],
         "notes": [
           "While a scene's map is still on its way, the board says **Loading map…** in the middle. It only shows when the map takes more than a moment, so a map your browser already has just appears, and it goes as soon as the map is there.",
-          "Every loading map comes with a word about Baldr, a different one each time. It doesn't make the map any faster, but Baldr insists.",
-          "If the map can't load, the board says \"Couldn't load the map, trying again…\" while it tries again by itself (no Baldr then: that's a real problem). If it still can't, it says \"Couldn't load the map. Check the connection, then try again.\", with a **Try again** button.",
+          "A table can have lines of its own for the wait: one shows under **Loading map…**, a different one each time. It doesn't make the map any faster.",
+          "If the map can't load, the board says \"Couldn't load the map, trying again…\" while it tries again by itself (no line then: that's a real problem). If it still can't, it says \"Couldn't load the map. Check the connection, then try again.\", with a **Try again** button.",
           "While a season is being made for the map, a small note in a corner says **Making the season…** until the seasonal look appears. A device with seasons turned off never shows it.",
           "Everyone sees these, the table display too (in bigger letters). None of them gets in the way: the board under them works as usual.",
           "See \"The map doesn't appear\" in **Troubleshooting**."
@@ -872,7 +873,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Paste the link on the start page instead",
         "steps": [
-          "Go to table.parhome.ca.",
+          "Go to {here}.",
           "Paste the room link into the box under **Join a game**.",
           "Click **Join**.",
           "Choose your name and colour as above."
@@ -2531,7 +2532,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Sign in with Google",
         "steps": [
-          "Go to table.parhome.ca.",
+          "Go to {here}.",
           "In the **GM sign in** box, click **Sign in with Google**.",
           "On Google's page, choose the Google account the GM uses.",
           "If Google shows a page of its own before sending you back, such as a warning that it hasn't verified the app, follow Google's prompts to carry on (see the next part).",
@@ -2562,7 +2563,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Sign in with the GM password",
         "steps": [
-          "Go to table.parhome.ca.",
+          "Go to {here}.",
           "In the **GM sign in** box, type the password into the **GM password** box.",
           "Click **Sign in**, or press Enter."
         ],
@@ -2580,10 +2581,11 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Dungeon uses this sign-in",
         "steps": [
-          "Go to dungeon.parhome.ca, or click **Dungeon** on your list of rooms.",
+          "Click **Dungeon** on your list of rooms, or go straight to Dungeon's own address.",
           "If you're signed in here, Dungeon opens. If you aren't, you come to the start page: sign in as the GM, and Dungeon opens once you have."
         ],
         "notes": [
+          "Dungeon, the map maker, is an app of its own. A table that doesn't have one shows no **Dungeon** button, and none of this applies.",
           "While Dungeon is waiting for you, the **GM sign in** box says \"Sign in as the GM to open Dungeon, the map maker.\"",
           "Google sign-in works too: after Google, you carry on to Dungeon. Sign in within 10 minutes, or you stay on your list of rooms instead (click **Dungeon** there).",
           "Dungeon checks your sign-in with Tabletop again after 12 hours. While you're still signed in here, you won't notice.",
@@ -2891,7 +2893,7 @@ export const GUIDE: GuideSection[] = [
           "The picture and the grid are used, and its walls, doors and lights for **Lighting and line of sight** (with a Dungeondraft project file, they also help tell which level the picture shows).",
           "Universal VTT files saved with a .json ending work too.",
           "Dungeondraft's own project file (.dungeondraft_map) isn't a map picture, so on its own it can't make a scene, and Tabletop tells you so. Bring it in together with the export, though, and seasons use the map's own terrain, water, buildings and trees: see **Exact seasons for Dungeondraft maps** under **Seasons**.",
-          "A map made in Dungeon (dungeon.parhome.ca) carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**.",
+          "A map made in Dungeon carries its own data inside its .dd2vtt, so seasons know its ground, water, rooms and trees with nothing else to bring in: see **Exact seasons for maps from Dungeon** under **Seasons**.",
           "A map from Dungeon with levels, exported with every level in one file, makes a scene for each level, in order, named after the map and the level (\"Old Keep: Cellar\"), and listed as one map in **Scenes**. See **A map with levels** under **Scenes**."
         ]
       },
@@ -3509,7 +3511,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Exact seasons for maps from Dungeon",
         "steps": [
           "In Tabletop, open **Scenes**, click **New scene**, then **From Dungeon**, and click the map.",
-          "Or, in Dungeon (dungeon.parhome.ca), click **Export**, then **Universal VTT (.dd2vtt)**, and bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
+          "Or, in Dungeon, click **Export**, then **Universal VTT (.dd2vtt)**, and bring the file in as you would any map: **Scenes**, **New scene**, **Upload a map**, or drop it onto the map."
         ],
         "notes": [
           "That's all. The map's data is inside the file, lined up with the picture by Dungeon itself, so there's no project file to add, no level to pick and nothing to check. The **Maps brought in** report says \"map data from Dungeon attached\".",
@@ -4358,7 +4360,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "I'm the GM, but the room treats me as a player",
         "steps": [
-          "Go to table.parhome.ca in the same browser.",
+          "Go to {here} in the same browser.",
           "Sign in.",
           "Open the room again from **Your rooms**."
         ],

@@ -1,6 +1,6 @@
 // Campaign notes from Google Drive (4 November 2026): the GM's vault script (scripts/vault-drive.gs)
 // in their Google account, its address kept by Table; a sync brings each vault it reaches in through
-// it (FOLDER_ID one vault, or the folder of Vern's several), pictures fetched only when they've
+// it (FOLDER_ID one vault, or the folder of several), pictures fetched only when they've
 // changed in Drive. The script only reads, answers only the Table whose key it kept, and hands over
 // only notes and pictures inside the vaults.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,7 +62,7 @@ describe("syncing from Google Drive", () => {
         return Response.json({
           version: 2,
           vaults: [
-            { name: "Eastport", notes: [{ path: "NPCs/Hilda.md", modified: 1, bytes: 9 }, { path: "../evil.md", modified: 1, bytes: 1 }], files: [{ path: "Attachments/h.png", modified, bytes: PNG.length }] },
+            { name: "Elmhaven", notes: [{ path: "NPCs/Hanna.md", modified: 1, bytes: 9 }, { path: "../evil.md", modified: 1, bytes: 1 }], files: [{ path: "Attachments/h.png", modified, bytes: PNG.length }] },
             { name: "K'dir Khan", notes: [{ path: "Topside.md", modified: 1, bytes: 9 }], files: [] },
             { name: "bad/name", notes: [{ path: "x.md", modified: 1, bytes: 1 }], files: [] },
           ],
@@ -98,7 +98,7 @@ describe("syncing from Google Drive", () => {
       const vaults = listed.data.vaults as { name: string; notes: string[]; files: unknown[] }[];
       // A path out of a vault, and a vault named with a slash, are left out.
       expect(vaults.map((v) => [v.name, v.notes])).toEqual([
-        ["Eastport", ["NPCs/Hilda.md"]],
+        ["Elmhaven", ["NPCs/Hanna.md"]],
         ["K'dir Khan", ["Topside.md"]],
       ]);
       let pics: Record<string, unknown> = {};
@@ -111,7 +111,7 @@ describe("syncing from Google Drive", () => {
       return pics;
     };
     expect(await sync()).toEqual({ fetched: 1, skipped: 0 });
-    expect(d.vaultNote("Eastport", "NPCs/Hilda.md")).toBe("# Eastport NPCs/Hilda.md");
+    expect(d.vaultNote("Elmhaven", "NPCs/Hanna.md")).toBe("# Elmhaven NPCs/Hanna.md");
     expect(d.vaultNote("K'dir Khan", "Topside.md")).toBe("# K'dir Khan Topside.md");
     expect([...files.keys()]).toHaveLength(1);
     const fetches = () => asked.filter((a) => a.file).length;
@@ -119,7 +119,7 @@ describe("syncing from Google Drive", () => {
     // Again, nothing changed in Drive: no picture fetched.
     expect(await sync()).toEqual({ fetched: 0, skipped: 0 });
     expect(fetches()).toBe(1);
-    expect(d.vaultIndex().files.map((f) => [f.vault, f.path])).toEqual([["Eastport", "Attachments/h.png"]]);
+    expect(d.vaultIndex().files.map((f) => [f.vault, f.path])).toEqual([["Elmhaven", "Attachments/h.png"]]);
     // Changed in Drive: fetched again.
     setModified(2000);
     expect(await sync()).toEqual({ fetched: 1, skipped: 0 });
@@ -136,7 +136,7 @@ describe("syncing from Google Drive", () => {
         if (url === "/api/vault/drive/list") {
           return Response.json({
             vaults: [
-              { name: "Eastport", notes: Array.from({ length: 150 }, (_, i) => `n${i}.md`), files: Array.from({ length: 10 }, (_, i) => ({ path: `p${i}.png`, modified: 1, bytes: 1 })) },
+              { name: "Elmhaven", notes: Array.from({ length: 150 }, (_, i) => `n${i}.md`), files: Array.from({ length: 10 }, (_, i) => ({ path: `p${i}.png`, modified: 1, bytes: 1 })) },
               { name: "K'dir Khan", notes: ["t.md"], files: [] },
             ],
           });
@@ -149,11 +149,11 @@ describe("syncing from Google Drive", () => {
       }),
     );
     const said: string[] = [];
-    expect(await syncFromDrive(room, (t) => said.push(t))).toMatchObject({ vaults: ["Eastport", "K'dir Khan"] });
-    expect(calls.filter((c) => c.url === "/api/vault/import").map((c) => c.body.vault)).toEqual(["Eastport", "K'dir Khan"]);
+    expect(await syncFromDrive(room, (t) => said.push(t))).toMatchObject({ vaults: ["Elmhaven", "K'dir Khan"] });
+    expect(calls.filter((c) => c.url === "/api/vault/import").map((c) => c.body.vault)).toEqual(["Elmhaven", "K'dir Khan"]);
     expect(calls.filter((c) => c.url === "/api/vault/drive/notes")).toHaveLength(3);
     expect(calls.filter((c) => c.url === "/api/vault/drive/files")).toHaveLength(2);
-    expect(said).toContain("Eastport: your pictures, 10 of 10…");
+    expect(said).toContain("Elmhaven: your pictures, 10 of 10…");
   });
 });
 
@@ -207,18 +207,18 @@ describe("the vault script in Google Drive", () => {
   }
 
   it("reads one vault: notes and pictures, not Obsidian's own folders", async () => {
-    const ask = await script({ "Temple.md": "# T", "NPCs/Hilda.md": "# H", "Att/h.png": "png", ".obsidian/app.json": "{}", "Att/map.pdf": "pdf" });
+    const ask = await script({ "Temple.md": "# T", "NPCs/Hanna.md": "# H", "Att/h.png": "png", ".obsidian/app.json": "{}", "Att/map.pdf": "pdf" });
     const listed = ask({ key: "k1", list: true }) as { vaults: { name: string; notes: { path: string }[]; files: { path: string }[] }[] };
     expect(listed.vaults.map((v) => v.name)).toEqual(["Vaults"]);
-    expect(listed.vaults[0].notes.map((n) => n.path).sort()).toEqual(["NPCs/Hilda.md", "Temple.md"]);
+    expect(listed.vaults[0].notes.map((n) => n.path).sort()).toEqual(["NPCs/Hanna.md", "Temple.md"]);
     expect(listed.vaults[0].files.map((f) => f.path)).toEqual(["Att/h.png"]);
   });
 
-  it("reads a folder of vaults (Vern's several), each by its folder's name", async () => {
-    const ask = await script({ "Eastport/.obsidian/app.json": "{}", "Eastport/Red Tide.md": "# R", "K'dir Khan/Places/Topside.md": "# T" });
+  it("reads a folder of vaults, each by its folder's name", async () => {
+    const ask = await script({ "Elmhaven/.obsidian/app.json": "{}", "Elmhaven/Red Sash.md": "# R", "K'dir Khan/Places/Topside.md": "# T" });
     const listed = ask({ key: "k1", list: true }) as { vaults: { name: string; notes: { path: string }[] }[] };
     expect(listed.vaults.map((v) => [v.name, v.notes.map((n) => n.path)])).toEqual([
-      ["Eastport", ["Red Tide.md"]],
+      ["Elmhaven", ["Red Sash.md"]],
       ["K'dir Khan", ["Places/Topside.md"]],
     ]);
     expect(ask({ key: "k1", vault: "K'dir Khan", notes: ["Places/Topside.md"] })).toEqual({ notes: [{ path: "Places/Topside.md", body: "# T" }] });
@@ -226,13 +226,13 @@ describe("the vault script in Google Drive", () => {
   });
 
   it("answers only the Table whose key it kept first, and only for what's in the vault", async () => {
-    const ask = await script({ ".obsidian/app.json": "{}", "NPCs/Hilda.md": "# H", "Att/h.png": "png" });
-    expect(ask({ key: "k1", vault: "Vaults", notes: ["NPCs/Hilda.md"] })).toEqual({ notes: [{ path: "NPCs/Hilda.md", body: "# H" }] });
+    const ask = await script({ ".obsidian/app.json": "{}", "NPCs/Hanna.md": "# H", "Att/h.png": "png" });
+    expect(ask({ key: "k1", vault: "Vaults", notes: ["NPCs/Hanna.md"] })).toEqual({ notes: [{ path: "NPCs/Hanna.md", body: "# H" }] });
     expect(ask({ key: "someone-else", list: true }).error).toMatch(/another Table/);
     expect(ask({ list: true }).error).toMatch(/key/);
     // A way out of the vault, or a note asked for as a picture: nothing.
     expect(ask({ key: "k1", vault: "Vaults", notes: ["../secret.md", ".obsidian/x.md"] })).toEqual({ notes: [] });
-    expect(ask({ key: "k1", vault: "Vaults", file: "NPCs/Hilda.md" }).error).toMatch(/isn't in the vault/);
+    expect(ask({ key: "k1", vault: "Vaults", file: "NPCs/Hanna.md" }).error).toMatch(/isn't in the vault/);
     expect(ask({ key: "k1", vault: "Vaults", file: "Att/h.png" })).toEqual({ path: "Att/h.png", data: btoa("png") });
   });
 });

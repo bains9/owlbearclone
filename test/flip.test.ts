@@ -4,7 +4,7 @@ import { inverseOps } from "../src/shared/ops";
 import { sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
 import type { Item, TokenItem } from "../src/shared/types";
 
-// Flipping a token: its picture mirrored left to right, so it faces the other way (Par: "a flip
+// Flipping a token: its picture mirrored left to right, so it faces the other way (the ask: "a flip
 // for tokens to get mirror ... in case I want my token facing the other way").
 
 const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };

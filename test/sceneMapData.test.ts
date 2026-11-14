@@ -56,7 +56,7 @@ describe("sanitizeMapData", () => {
   });
 
   it("strips extra keys", () => {
-    const out = sanitizeMapData({ ...MD, file: "kdir.dungeondraft_map", level: "Ground", __proto__: { x: 1 } });
+    const out = sanitizeMapData({ ...MD, file: "town.dungeondraft_map", level: "Ground", __proto__: { x: 1 } });
     expect(out).toEqual(MD);
     expect(Object.keys(out!)).toEqual(["assetId", "forAssetId"]);
   });

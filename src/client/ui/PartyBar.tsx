@@ -1,14 +1,14 @@
-// GM, looking at a scene players aren't on (Par: "How can Vern drag people to different maps?"):
+// GM, looking at a scene players aren't on (the ask: "How can the GM drag people to different maps?"):
 // Take the party here, then a click on the map where they arrive. Their tokens go there as they
 // stood, with the spells on them, and players see this scene (levels.ts takeParty; the click is the
 // board's). A map's levels have Take the party Up and Down as well (LevelBar), to the same squares.
 //
-// The party split (Par, 2026-11-14: "DM being able to choose who to move from map to map"): Send
+// The party split (asked for on 2026-11-14: "DM being able to choose who to move from map to map"): Send
 // here, on any scene, lists the party's characters elsewhere, with who plays them. The ones ticked
 // (from one map at a time) arrive where the map is clicked next, and the people who play them see
 // this scene from then on, apart from the party; nobody else is told. Sent to the live scene, they're
 // back with the party. Show to players puts everyone together again. A character with no token where
-// anyone is (Tomas, new) is listed too, and put down where the map's clicked. The list also opens
+// anyone is (a new character, say) is listed too, and put down where the map's clicked. The list also opens
 // from the Scenes panel (Send someone here), since nothing shows here until another map is open.
 
 import { useState } from "preact/hooks";

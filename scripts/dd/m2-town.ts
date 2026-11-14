@@ -1,22 +1,22 @@
-// M2, item 8: Kdir Topside's export (Vern's kdir-vtt.dd2vtt, no project file): the 48 x 27 grid at
+// M2, item 8: a town map's export (a GM's own: town-vtt.dd2vtt in DD_PRIVATE, no project file): the 48 x 27 grid at
 // 72 px a square confirmed against the picture's own baked dotted grid, found by autocorrelation
 // of the darkness of the picture's columns and rows (the period) and the phase of the darkest
 // column and row (the offset). Observations only; what the pixel path would need is in the report.
 //
-//   node --import ./scripts/dd/register.mjs scripts/dd/m2-kdir.ts
+//   node --import ./scripts/dd/register.mjs scripts/dd/m2-town.ts
 
 import { existsSync } from "node:fs";
-import { OUT, baseTile, fmt, loadVern, sheet, writeText } from "./m2-lib";
-import { VERN } from "./lib";
+import { OUT, baseTile, fmt, loadPrivate, sheet, writeText } from "./m2-lib";
+import { PRIVATE } from "./lib";
 import { colourTable, lutIndex } from "../../src/client/room/seasonPixels";
 import { resample } from "../../src/client/dd/ddWorker";
 
-if (!existsSync(`${VERN}/kdir-vtt.dd2vtt`)) { console.log("kdir-vtt.dd2vtt missing: skipped"); process.exit(0); }
+if (!existsSync(`${PRIVATE}/town-vtt.dd2vtt`)) { console.log("town-vtt.dd2vtt missing: skipped"); process.exit(0); }
 const lines: string[] = [];
 const say = (s: string) => { console.log(s); lines.push(s); };
-const k = await loadVern("kdir-vtt");
+const k = await loadPrivate("town-vtt");
 const { full, vtt } = k;
-say(`kdir-vtt.dd2vtt: picture ${full.w}x${full.h}; resolution map_size ${vtt!.resolution.map_size.x}x${vtt!.resolution.map_size.y}, pixels_per_grid ${vtt!.resolution.pixels_per_grid}, origin ${vtt!.resolution.map_origin.x},${vtt!.resolution.map_origin.y} -> ${fmt(full.w / vtt!.resolution.map_size.x, 2)} px/sq across, ${fmt(full.h / vtt!.resolution.map_size.y, 2)} down`);
+say(`town-vtt.dd2vtt: picture ${full.w}x${full.h}; resolution map_size ${vtt!.resolution.map_size.x}x${vtt!.resolution.map_size.y}, pixels_per_grid ${vtt!.resolution.pixels_per_grid}, origin ${vtt!.resolution.map_origin.x},${vtt!.resolution.map_origin.y} -> ${fmt(full.w / vtt!.resolution.map_size.x, 2)} px/sq across, ${fmt(full.h / vtt!.resolution.map_size.y, 2)} down`);
 
 // Column and row darkness: the mean luma of each column (and row), high-pass filtered over 9 px.
 const luma = (i: number) => 0.299 * full.rgba[i * 4] + 0.587 * full.rgba[i * 4 + 1] + 0.114 * full.rgba[i * 4 + 2];
@@ -95,8 +95,8 @@ say(`so the picture holds ${fmt(full.w / px.best, 2)} x ${fmt(full.h / py.best, 
   const over = { rgba: tile.rgba.slice(), w: tile.w, h: tile.h };
   for (let gx = phx.at; gx < 4 * px.best; gx += px.best) for (let y = 0; y < over.h; y++) { const o = (y * over.w + gx * Z) * 4; over.rgba[o] = 255; over.rgba[o + 1] = 40; over.rgba[o + 2] = 40; }
   for (let gy = phy.at; gy < 3 * py.best; gy += py.best) for (let x = 0; x < over.w; x++) { const o = (gy * Z * over.w + x) * 4; over.rgba[o] = 255; over.rgba[o + 1] = 40; over.rgba[o + 2] = 40; }
-  await sheet(`${OUT}/kdir-grid.png`, `Kdir Topside (export only): squares 0,0 to 4,3 at ${px.best * Z} px a square; right: the grid found in the picture (period ${px.best} x ${py.best} px) in red`,
+  await sheet(`${OUT}/town-grid.png`, `The town map (export only): squares 0,0 to 4,3 at ${px.best * Z} px a square; right: the grid found in the picture (period ${px.best} x ${py.best} px) in red`,
     [[{ pic: tile, label: "As exported" }, { pic: over, label: "found grid" }]]);
-  say(`crop: ${OUT}/kdir-grid.png`);
+  say(`crop: ${OUT}/town-grid.png`);
 }
-writeText(`${OUT}/kdir.txt`, lines.join("\n"));
+writeText(`${OUT}/town.txt`, lines.join("\n"));

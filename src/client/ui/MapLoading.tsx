@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { CloudOff, LoaderCircle } from "lucide-preact";
-import { BALDR_LINES, nextLine } from "../room/loadingLines";
+import { nextLine } from "../room/loadingLines";
 import { overlayAt, overlayDue, seasonNoteAt, seasonNoteDue, seasonNoteTop, trackLoad, trackSeason, withLine } from "../room/mapLoading";
 import type { LoadTrack, MapLoad, Overlay, SeasonTrack } from "../room/mapLoading";
 import { cx, useRoom, useRoomState } from "./common";
 
 /**
- * Over the board: "Loading map…" (and a line about Baldr) while the scene's map picture
- * downloads, after a moment so a map the browser already has never flickers it; "Couldn't
+ * Over the board: "Loading map…" (and one of the table's own lines, when it has any) while
+ * the scene's map picture downloads, after a moment so a map the browser already has never
+ * flickers it; "Couldn't
  * load the map…" while it's tried again and once it's been given up on; and "Making the
  * season…" in a corner while its seasonal look is made. Only Try again takes a click: the
  * board under it works as usual.
@@ -15,6 +16,8 @@ import { cx, useRoom, useRoomState } from "./common";
 export function MapLoading() {
   const room = useRoom();
   const load = useRoomState((s) => s.mapLoad);
+  // The table's own loading lines (shared/table.ts); none on a table that hasn't set any.
+  const lines = useRoomState((s) => s.table.lines);
   const [, setTick] = useState(0);
   const seen = useRef<MapLoad | null>(null);
   const track = useRef<LoadTrack | null>(null);
@@ -29,7 +32,7 @@ export function MapLoading() {
     season.current = trackSeason(season.current, load.season, now);
   }
   // The line is picked (and remembered on the device) only once someone can see it.
-  track.current = withLine(track.current, now, nextLine);
+  if (lines.length) track.current = withLine(track.current, now, () => nextLine(lines.length));
   const overlay = overlayAt(track.current, now);
   const note = seasonNoteAt(season.current, now);
   if (overlay.kind !== "hidden") last.current = overlay;
@@ -84,7 +87,7 @@ export function MapLoading() {
           <div class="map-loading-card">
             <LoaderCircle class="map-loading-icon spin" size={28} aria-hidden="true" />
             <strong>Loading map…</strong>
-            <span class="map-loading-line">{BALDR_LINES[card.line] ?? ""}</span>
+            {lines[card.line] && <span class="map-loading-line">{lines[card.line]}</span>}
           </div>
         )}
         {card?.kind === "retrying" && (

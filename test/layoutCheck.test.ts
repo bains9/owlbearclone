@@ -1,5 +1,5 @@
 // The bars round the map keep out of each other's way at any screen size (31 October 2026, from
-// Par's "do all": smoke tests at phone and tablet sizes). The check that found what overlapped,
+// that day's "do all": smoke tests at phone and tablet sizes). The check that found what overlapped,
 // and the fix: the map's bars stack as a phone's whenever the map is as narrow as a phone's (a
 // tablet beside the side panel too), not only when the window is.
 import { describe, expect, it } from "vitest";

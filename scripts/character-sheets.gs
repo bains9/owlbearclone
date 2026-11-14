@@ -1,4 +1,4 @@
-// Tabletop's window on the party's character sheets (table.parhome.ca: tokens' cards, HP bars,
+// Tabletop's window on the party's character sheets (tokens' cards, HP bars,
 // initiative and attack rolls; see src/worker/characters.ts and src/shared/characters.ts).
 //
 // A Google Apps Script web app, run as its owner (the GM), that reads only the spreadsheets in

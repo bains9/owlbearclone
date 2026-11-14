@@ -1,4 +1,4 @@
-// The party split (Par, 2026-11-14: "DM being able to choose who to move from map to map ... the
+// The party split (asked for on 2026-11-14: "DM being able to choose who to move from map to map ... the
 // tokens of players will be doing some solo work"): the GM sends people to a scene apart from the
 // party. Each person sees only their own scene, and nothing of another: its tokens, its pings and
 // its initiative rows never reach them. Only the GM is told who's where. Show to players puts
@@ -113,7 +113,7 @@ function sock(conn: Conn): Sock {
 
 const conn = (id: string, userId: string, over: Partial<Conn> = {}): Conn => ({ connId: id, userId, name: userId, color: "#00ff00", role: "player", sid: `${id}sid`, v: 20, ...over });
 
-/** A room with Town (live), Cave and Keep; Grimmdark in Town, Tomas and a goblin (and a hidden ogre) in the Cave. */
+/** A room with Town (live), Cave and Keep; Gorran in Town, Torin and a goblin (and a hidden ogre) in the Cave. */
 function setup() {
   const gm = sock(conn("gmc", GM_OWNER, { role: "gm", name: "GM" }));
   const bram = sock(conn("bramc", "bram"));
@@ -144,7 +144,7 @@ function setup() {
     assets: new Map(),
     initiative: {
       entries: [
-        { id: "i1", name: "Grimmdark", value: 12, color: "#fff", tokenId: "grimm" },
+        { id: "i1", name: "Gorran", value: 12, color: "#fff", tokenId: "gorran" },
         { id: "i2", name: "Goblin", value: 9, color: "#fff", tokenId: "goblin" },
         { id: "i3", name: "Typed in", value: 5, color: "#fff", tokenId: null },
       ],
@@ -156,7 +156,7 @@ function setup() {
     tokenStats: new Map(),
     explored: new Map(),
   });
-  for (const i of [token("grimm", "party", { character: "sheetG" }), token("tomas", "solo", { character: "sheetT" }), token("goblin", "solo"), token("ogre", "solo", { hidden: true })]) {
+  for (const i of [token("gorran", "party", { character: "sheetG" }), token("torin", "solo", { character: "sheetT" }), token("goblin", "solo"), token("ogre", "solo", { hidden: true })]) {
     r.items.set(i.id, i);
     r.itemBytes.set(i.id, 100);
     r.countBytes(i.owner, 100);
@@ -179,7 +179,7 @@ describe("the party split at the Room", () => {
       expect(msg.id).toBe("solo");
       expect(msg.scene?.id).toBe("solo");
       // The Cave's tokens, never the hidden ogre, and nothing from Town.
-      expect(msg.items?.map((i) => i.id).sort()).toEqual(["goblin", "tomas"]);
+      expect(msg.items?.map((i) => i.id).sort()).toEqual(["goblin", "torin"]);
     }
     // Ula and the table display stay with the party, and aren't told anything.
     expect(t.actives(t.ula)).toEqual([]);
@@ -198,11 +198,11 @@ describe("the party split at the Room", () => {
     const t = setup();
     await t.say(t.gm, { t: "scene.send", id: "solo", users: ["bram"] });
     t.clear();
-    t.r.handleItems(t.gm, t.gm.conn, { t: "items", patch: [{ id: "goblin", set: { x: 300 } }, { id: "grimm", set: { x: 300 } }] }, 2);
+    t.r.handleItems(t.gm, t.gm.conn, { t: "items", patch: [{ id: "goblin", set: { x: 300 } }, { id: "gorran", set: { x: 300 } }] }, 2);
     const changed = (s: Sock) => s.sent.filter((m) => m.t === "items").flatMap((m) => [...(m.patch ?? []).map((p) => p.id), ...(m.upsert ?? []).map((i) => i.id)]);
     expect(changed(t.bram)).toEqual(["goblin"]);
-    expect(changed(t.ula)).toEqual(["grimm"]);
-    expect(changed(t.display)).toEqual(["grimm"]);
+    expect(changed(t.ula)).toEqual(["gorran"]);
+    expect(changed(t.display)).toEqual(["gorran"]);
     t.clear();
     t.r.handleEph(t.gm, t.gm.conn, { k: "pointer", sceneId: "solo", x: 1, y: 1, ping: true });
     t.r.handleEph(t.gm, t.gm.conn, { k: "pointer", sceneId: "party", x: 1, y: 1, ping: true });
@@ -214,7 +214,7 @@ describe("the party split at the Room", () => {
     const hello = t.r.hello(t.bram.conn);
     expect(hello.activeSceneId).toBe("solo");
     expect(hello.scenes.map((s) => s.id)).toEqual(["solo"]);
-    expect(hello.items.map((i) => i.id).sort()).toEqual(["goblin", "tomas"]);
+    expect(hello.items.map((i) => i.id).sort()).toEqual(["goblin", "torin"]);
     expect(hello.placed).toBeUndefined();
     expect(hello.initiative.entries.map((e) => e.id)).toEqual(["i2", "i3"]);
     expect(t.r.hello(t.ula.conn).initiative.entries.map((e) => e.id)).toEqual(["i1", "i3"]);
@@ -295,9 +295,9 @@ describe("the party split at the Room", () => {
 
 describe("Send here, on the GM's page", () => {
   const characters = [
-    { id: "sheetT", name: "Tomas Verek", players: [{ userId: "bram", name: "Bram" }] },
-    { id: "sheetG", name: "Grimmdark", players: [{ userId: "bram", name: "Bram" }] },
-    { id: "sheetN", name: "Nancael", players: [{ userId: "ula", name: "Ula" }] },
+    { id: "sheetT", name: "Torin Vale", players: [{ userId: "bram", name: "Bram" }] },
+    { id: "sheetG", name: "Gorran", players: [{ userId: "bram", name: "Bram" }] },
+    { id: "sheetN", name: "Nessa", players: [{ userId: "ula", name: "Ula" }] },
   ] as unknown as Character[];
   const state = (placed: Record<string, string>, items: TokenItem[]) => ({
     items: Object.fromEntries(items.map((i) => [i.id, i])),
@@ -309,57 +309,57 @@ describe("Send here, on the GM's page", () => {
 
   it("lists the party's tokens on maps people are on, with who plays them, and not ones left on old maps", () => {
     const items = [
-      token("tomas", "party", { character: "sheetT", label: "Tomas Verek" }),
-      token("nan", "party", { character: "sheetN", label: "Nancael" }),
-      token("grimm-old", "old", { character: "sheetG", label: "Grimmdark" }),
+      token("torin", "party", { character: "sheetT", label: "Torin Vale" }),
+      token("nessa", "party", { character: "sheetN", label: "Nessa" }),
+      token("gorran-old", "old", { character: "sheetG", label: "Gorran" }),
       token("goblin", "party", { label: "Goblin" }),
       token("pet", "party", { owner: "ula", label: "Ula's cat" }),
     ];
     const list = sendables(state({}, items), "solo");
-    expect(list.map((o) => o.token.id).sort()).toEqual(["nan", "pet", "tomas"]);
-    expect(list.find((o) => o.token.id === "tomas")?.people).toEqual([{ userId: "bram", name: "Bram" }]);
+    expect(list.map((o) => o.token.id).sort()).toEqual(["nessa", "pet", "torin"]);
+    expect(list.find((o) => o.token.id === "torin")?.people).toEqual([{ userId: "bram", name: "Bram" }]);
     expect(playersOf(items[4], characters)).toEqual([{ userId: "ula", name: "" }]);
   });
 
   it("lists a token already here whose player is elsewhere, first; and not once they're here", () => {
-    const items = [token("tomas", "solo", { character: "sheetT", label: "Tomas Verek" }), token("nan", "party", { character: "sheetN", label: "Nancael" })];
+    const items = [token("torin", "solo", { character: "sheetT", label: "Torin Vale" }), token("nessa", "party", { character: "sheetN", label: "Nessa" })];
     const list = sendables(state({}, items), "solo");
-    expect(list.map((o) => [o.token.id, o.here])).toEqual([["tomas", true], ["nan", false]]);
-    expect(sendables(state({ bram: "solo" }, items), "solo").map((o) => o.token.id)).toEqual(["nan"]);
-    // From the Cave, bringing them back: Tomas is on a map Bram's on, so he's listed for Town.
-    expect(sendables(state({ bram: "solo" }, items), "party").map((o) => o.token.id)).toEqual(["tomas"]);
+    expect(list.map((o) => [o.token.id, o.here])).toEqual([["torin", true], ["nessa", false]]);
+    expect(sendables(state({ bram: "solo" }, items), "solo").map((o) => o.token.id)).toEqual(["nessa"]);
+    // From the Cave, bringing them back: Torin is on a map Bram's on, so he's listed for Town.
+    expect(sendables(state({ bram: "solo" }, items), "party").map((o) => o.token.id)).toEqual(["torin"]);
   });
 
   it("lists a character with no token where anyone is, whose player is elsewhere, to be put down here", () => {
-    const items = [token("nan", "party", { character: "sheetN", label: "Nancael" }), token("grimm-old", "old", { character: "sheetG", label: "Grimmdark" })];
-    // Tomas has no token at all, and Grimmdark only one on an old map: both can be put down on the solo map.
+    const items = [token("nessa", "party", { character: "sheetN", label: "Nessa" }), token("gorran-old", "old", { character: "sheetG", label: "Gorran" })];
+    // Torin has no token at all, and Gorran only one on an old map: both can be put down on the solo map.
     const list = unplaced(state({}, items), "solo");
-    expect(list.map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    expect(list.map((o) => o.character.name)).toEqual(["Gorran", "Torin Vale"]);
     expect(list[1].people).toEqual([{ userId: "bram", name: "Bram" }]);
     // Not on the party's map, where Bram is (Tokens & images places them there), nor once Bram's on the solo map.
     expect(unplaced(state({}, items), "party")).toEqual([]);
     expect(unplaced(state({ bram: "solo" }, items), "solo")).toEqual([]);
     // From there, the party's map lists them, to bring Bram back.
-    expect(unplaced(state({ bram: "solo" }, items), "party").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    expect(unplaced(state({ bram: "solo" }, items), "party").map((o) => o.character.name)).toEqual(["Gorran", "Torin Vale"]);
     // A token on a map someone's on counts, hidden ones not; a character nobody plays isn't listed.
-    const more = { ...state({}, [...items, token("tomas", "party", { character: "sheetT", label: "Tomas Verek", hidden: true })]) };
+    const more = { ...state({}, [...items, token("torin", "party", { character: "sheetT", label: "Torin Vale", hidden: true })]) };
     more.party = { ...more.party, characters: [...characters, { id: "sheetH", name: "Hireling", players: [] } as unknown as Character] };
-    expect(unplaced(more, "solo").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
-    expect(unplaced(state({}, [...items, token("grimm", "party", { character: "sheetG", label: "Grimmdark" })]), "solo").map((o) => o.character.name)).toEqual(["Tomas Verek"]);
+    expect(unplaced(more, "solo").map((o) => o.character.name)).toEqual(["Gorran", "Torin Vale"]);
+    expect(unplaced(state({}, [...items, token("gorran", "party", { character: "sheetG", label: "Gorran" })]), "solo").map((o) => o.character.name)).toEqual(["Torin Vale"]);
     // A token on this map, or on one someone was sent to, counts too: Send here lists those as they are, once.
-    const here = [...items, token("tomas", "solo", { character: "sheetT", label: "Tomas Verek" })];
-    expect(unplaced(state({}, here), "solo").map((o) => o.character.name)).toEqual(["Grimmdark"]);
-    expect(sendables(state({}, here), "solo").map((o) => o.token.id)).toContain("tomas");
-    expect(unplaced(state({ bram: "solo" }, here), "party").map((o) => o.character.name)).toEqual(["Grimmdark"]);
+    const here = [...items, token("torin", "solo", { character: "sheetT", label: "Torin Vale" })];
+    expect(unplaced(state({}, here), "solo").map((o) => o.character.name)).toEqual(["Gorran"]);
+    expect(sendables(state({}, here), "solo").map((o) => o.token.id)).toContain("torin");
+    expect(unplaced(state({ bram: "solo" }, here), "party").map((o) => o.character.name)).toEqual(["Gorran"]);
   });
 
   it("tells the GM who went where and who sees it", () => {
     expect(listNames(["Bram"])).toBe("Bram");
     expect(listNames(["Bram", "Cora", "Ula"])).toBe("Bram, Cora and Ula");
-    expect(sentGone([token("tomas", "solo", { label: "Tomas Verek" })], "“Cave”", ["Bram"])).toBe("Tomas Verek to “Cave”: Bram sees it now.");
+    expect(sentGone([token("torin", "solo", { label: "Torin Vale" })], "“Cave”", ["Bram"])).toBe("Torin Vale to “Cave”: Bram sees it now.");
     expect(sentGone([], "“Town”", ["Bram", "Ula"])).toBe("Bram and Ula see “Town” now.");
     // A character put down (no token where anyone was), by their token's name.
-    expect(sentGone([{ label: "Tomas" }], "“Cave”", ["Bram"])).toBe("Tomas to “Cave”: Bram sees it now.");
+    expect(sentGone([{ label: "Torin" }], "“Cave”", ["Bram"])).toBe("Torin to “Cave”: Bram sees it now.");
   });
 
   it("has Send here on the party bar, a click to place them, and the Scenes panel and top bar saying who sees what", () => {

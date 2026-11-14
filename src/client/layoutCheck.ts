@@ -1,5 +1,5 @@
 // A check that the bars round the map keep out of each other's way at any screen size (31 October
-// 2026, from Par's "do all": smoke tests at phone and tablet sizes). Development builds put it on
+// 2026, from that day's "do all": smoke tests at phone and tablet sizes). Development builds put it on
 // the page as window.__layoutCheck(): it measures what's on screen now, and names any two pieces
 // that overlap and any piece that runs off the screen.
 

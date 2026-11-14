@@ -58,8 +58,9 @@ function scriptAddressOk(source: string, url: URL): boolean {
   return SCRIPT_URL.test(source) || (url.hostname === "localhost" && /^http:\/\/localhost:\d+\/exec$/.test(source));
 }
 
-function bucketOf(env: Env, name: BackupBucket): R2Bucket {
-  return name === "dungeon-maps" ? env.DUNGEON_MAPS : env.FILES;
+/** The bucket by its backup name; null for Dungeon's maps on a table with no Dungeon. */
+function bucketOf(env: Env, name: BackupBucket): R2Bucket | null {
+  return name === "dungeon-maps" ? (env.DUNGEON_MAPS ?? null) : env.FILES;
 }
 
 /** The response for a backup route, or null when the path isn't one. */
@@ -226,6 +227,11 @@ export async function backupRoute(request: Request, env: Env, url: URL, method: 
     let missing = 0;
     for (const { file, to } of list.slice(start, start + FILES_AT_ONCE)) {
       const bucket = bucketOf(env, file.bucket);
+      // A file from a bucket this table doesn't have (Dungeon's maps, on a table with no Dungeon) can't come back.
+      if (!bucket) {
+        missing++;
+        continue;
+      }
       if ((await bucket.head(to))?.etag === file.etag) continue;
       try {
         // A note's picture is encrypted in Drive: one that opens here is the picture, or this throws and it's missing.

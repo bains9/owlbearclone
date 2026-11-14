@@ -1,4 +1,4 @@
-// Dungeon's floor and ground textures (dungeon.parhome.ca) on built maps. A painted cell keeps
+// Dungeon's floor and ground textures (the map maker's) on built maps. A painted cell keeps
 // a character saying what it is (terrain.ts: a room's floor, a patch, grass, water, lava), so
 // walls, doors, outdoors and Seasons go on working; the texture is only how it looks. Which
 // character a texture paints comes from its name, by the same keyword tables as Dungeondraft's

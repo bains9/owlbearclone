@@ -168,6 +168,11 @@ export type ServerMsg =
       tokenNotes?: Record<string, string>;
       /** GM only: monsters' and NPCs' stats, entered by hand (tokenStats.ts), token id to stats. */
       tokenStats?: Record<string, TokenStats>;
+      /**
+       * This table's own settings, when it has any (shared/table.ts): the lines it shows under
+       * "Loading map…", and, to the GM only, where its Dungeon is.
+       */
+      table?: { lines?: string[]; dungeon?: string };
       /** GM only: the people sent to a scene apart from the party, userId to scene id. */
       placed?: Record<string, string>;
     }

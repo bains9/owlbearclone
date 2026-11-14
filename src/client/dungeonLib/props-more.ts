@@ -1,8 +1,8 @@
-// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon 9bae40f. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
 import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
 
-// The larger prop library (26 October 2026). Ids are plain words because table.parhome.ca's
+// The larger prop library (26 October 2026). Ids are plain words because Table's
 // Seasons read a role from them (tree, pine, fir, dead tree, stump, log, bush, hedge, fern,
 // flower, reeds, lily, mushroom, rock, boulder, rubble, snowdrift, campfire…). So a man-made
 // thing never carries a nature word in its id ("bench-carved", not "stone-bench"), and a
