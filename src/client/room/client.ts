@@ -247,9 +247,12 @@ export interface RoomState {
   /**
    * GM: Take the party here was clicked, on a scene players aren't on: the next click on that
    * scene's map is where the party arrives (levels.ts takeParty). With `tokens` (Send here, the
-   * party split), only those arrive, and `users`, the people who play them, see that scene.
+   * party split), only those arrive, and `users`, the people who play them, see that scene; with
+   * `characters`, those characters' tokens are put down there too (they had none where anyone is).
    */
-  partyTake: { sceneId: string; tokens?: string[]; users?: string[] } | null;
+  partyTake: { sceneId: string; tokens?: string[]; users?: string[]; characters?: string[] } | null;
+  /** GM: the scene whose Send here list is open (from the party bar, or the Scenes panel's Send someone here). */
+  sendPick: string | null;
   /** GM: the people sent to a scene apart from the party (userId to scene id); everyone else is on the live one. */
   placed: Record<string, string>;
   /**
@@ -576,6 +579,7 @@ export class RoomClient {
       lightPick: null,
       lightAdd: null,
       partyTake: null,
+      sendPick: null,
       placed: {},
       stageNarrow: false,
       newDayUndo: null,

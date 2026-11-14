@@ -203,6 +203,29 @@ export function sendables(
 }
 
 /**
+ * A party character Send here can put down on `to`: one with no token on a scene anyone's on (a new
+ * character, such as Tomas before his first outing, or one left only on old maps), whose player
+ * sees another scene. Their token is put down where the GM clicks (party.ts putDownCharacters).
+ * Characters nobody plays aren't listed: Tokens & images places them.
+ */
+export interface Unplaced {
+  character: Character;
+  people: CharacterPlayer[];
+}
+
+export function unplaced(s: Pick<RoomState, "items" | "scenes" | "placed" | "activeSceneId" | "party">, to: string): Unplaced[] {
+  const occupied = new Set<string | null>([s.activeSceneId, ...Object.values(s.placed), to]);
+  const onMaps = new Set<string>();
+  for (const i of Object.values(s.items)) {
+    if (i.kind === "token" && i.character && isSightToken(i) && s.scenes[i.sceneId] && occupied.has(i.sceneId)) onMaps.add(i.character);
+  }
+  return (s.party?.characters ?? [])
+    .filter((c) => !onMaps.has(c.id) && (c.players ?? []).some((p) => sceneOfPerson(p.userId, s.placed, s.activeSceneId, s.scenes) !== to))
+    .map((c) => ({ character: c, people: c.players ?? [] }))
+    .sort((a, b) => a.character.name.localeCompare(b.character.name));
+}
+
+/**
  * GM: chosen tokens (all from one scene) to `to`, around where the GM clicked, with the spells on
  * them; the people who play them see `to` from now on. How many tokens went.
  */
@@ -214,8 +237,8 @@ export function sendTokens(room: RoomClient, from: Scene, to: Scene, tokens: rea
   return going.length;
 }
 
-/** What the GM's told when people are sent: whose tokens, where, and who sees it. */
-export function sentGone(tokens: readonly TokenItem[], where: string, names: readonly string[]): string {
+/** What the GM's told when people are sent: whose tokens (or characters put down), where, and who sees it. */
+export function sentGone(tokens: readonly Pick<TokenItem, "label">[], where: string, names: readonly string[]): string {
   const who = tokens.length === 1 ? tokens[0].label || "1 token" : tokens.length ? `${tokens.length} tokens` : "";
   const see = names.length ? `${listNames(names)} ${names.length === 1 ? "sees" : "see"} it now` : "nobody plays them, so nobody else sees it";
   return who ? `${who} to ${where}: ${see}.` : `${listNames(names)} ${names.length === 1 ? "sees" : "see"} ${where} now.`;

@@ -7,12 +7,14 @@
 // here, on any scene, lists the party's characters elsewhere, with who plays them. The ones ticked
 // (from one map at a time) arrive where the map is clicked next, and the people who play them see
 // this scene from then on, apart from the party; nobody else is told. Sent to the live scene, they're
-// back with the party. Show to players puts everyone together again.
+// back with the party. Show to players puts everyone together again. A character with no token where
+// anyone is (Tomas, new) is listed too, and put down where the map's clicked. The list also opens
+// from the Scenes panel (Send someone here), since nothing shows here until another map is open.
 
 import { useState } from "preact/hooks";
 import { Footprints, Split } from "lucide-preact";
-import { listNames, partyOn, sendables, sentGone } from "../levels";
-import type { Sendable } from "../levels";
+import { listNames, partyOn, sendables, sentGone, unplaced } from "../levels";
+import type { Sendable, Unplaced } from "../levels";
 import { useRoom, useRoomState } from "./common";
 
 export function PartyBar() {
@@ -27,34 +29,49 @@ export function PartyBar() {
   // Names come from who's here (room.namesOf): shown again when that changes.
   useRoomState((s) => s.players);
   const take = useRoomState((s) => (s.partyTake && s.partyTake.sceneId === s.viewSceneId ? s.partyTake : null));
-  const [picking, setPicking] = useState<string | null>(null);
-  const [ticked, setTicked] = useState<string[]>([]);
+  // Open from here or from the Scenes panel; what's ticked is this scene's.
+  const open = useRoomState((s) => !!s.viewSceneId && s.sendPick === s.viewSceneId);
+  const [ticks, setTicks] = useState<{ sceneId: string; ids: string[] }>({ sceneId: "", ids: [] });
   if (!gm || !view) return null;
+  const ticked = ticks.sceneId === view.id ? ticks.ids : [];
+  const setTicked = (ids: string[]) => setTicks({ sceneId: view.id, ids });
   const whole = from && from.id !== view.id ? partyOn(items, from.id, []) : [];
-  const options = sendables({ items, scenes, placed, activeSceneId: from?.id ?? null, party }, view.id);
-  if (!whole.length && !options.length && !take) return null;
+  const state = { items, scenes, placed, activeSceneId: from?.id ?? null, party };
+  const options = sendables(state, view.id);
+  const loose = unplaced(state, view.id);
+  if (!whole.length && !options.length && !loose.length && !take) return null;
   const who = whole.length === 1 ? whole[0].label || "1 token" : `${whole.length} tokens`;
-  const open = picking === view.id;
   const close = () => {
-    setPicking(null);
+    room.store.set({ sendPick: null });
     setTicked([]);
   };
-  const tick = (o: Sendable, on: boolean) => {
-    if (!on) return setTicked(ticked.filter((id) => id !== o.token.id));
-    // From one map at a time: they arrive together, around one click.
+  // What's ticked: a token's id, or "c:" and the sheet's for a character with no token.
+  const keyOf = (o: Sendable | Unplaced) => ("token" in o ? o.token.id : `c:${o.character.id}`);
+  // Where each comes from: this scene's go with anyone, the rest from one map at a time (they
+  // arrive together, around one click), and the ones with no token are a map of their own.
+  const fromOf = (key: string): string | null => {
+    const o = options.find((p) => p.token.id === key);
+    return o ? (o.here ? null : o.token.sceneId) : "";
+  };
+  const tick = (o: Sendable | Unplaced, on: boolean) => {
+    const key = keyOf(o);
+    if (!on) return setTicked(ticked.filter((id) => id !== key));
+    const mine = fromOf(key);
     const other = (id: string) => {
-      const x = options.find((p) => p.token.id === id);
-      return !!x && !x.here && !o.here && x.token.sceneId !== o.token.sceneId;
+      const theirs = fromOf(id);
+      return mine !== null && theirs !== null && theirs !== mine;
     };
-    setTicked([...ticked.filter((id) => !other(id)), o.token.id]);
+    setTicked([...ticked.filter((id) => !other(id)), key]);
   };
   const send = () => {
     const chosen = options.filter((o) => ticked.includes(o.token.id));
-    const users = [...new Set(chosen.flatMap((o) => o.people.map((p) => p.userId)))];
+    const placing = loose.filter((o) => ticked.includes(keyOf(o)));
+    const users = [...new Set([...chosen, ...placing].flatMap((o) => o.people.map((p) => p.userId)))];
     const moving = chosen.filter((o) => !o.here).map((o) => o.token.id);
+    const characters = placing.map((o) => o.character.id);
     close();
-    if (moving.length) {
-      room.store.set({ partyTake: { sceneId: view.id, tokens: moving, users }, lightAdd: null });
+    if (moving.length || characters.length) {
+      room.store.set({ partyTake: { sceneId: view.id, tokens: moving, users, characters }, lightAdd: null });
     } else if (users.length) {
       room.sendToScene(view.id, users);
       room.toast(sentGone([], `“${view.name}”`, room.namesOf(users)));
@@ -67,6 +84,16 @@ export function PartyBar() {
     if (g) g.list.push(o);
     else groups.push({ sceneId: o.token.sceneId, list: [o] });
   }
+  const row = (o: Sendable | Unplaced, name: string) => {
+    const people = room.namesOf(o.people.map((p) => p.userId));
+    return (
+      <label key={keyOf(o)} class="check party-pick-row">
+        <input type="checkbox" checked={ticked.includes(keyOf(o))} onChange={(e) => tick(o, e.currentTarget.checked)} />
+        <span class="party-pick-name">{name}</span>
+        <span class="party-pick-who">{people.length ? listNames(people) : "nobody plays them"}</span>
+      </label>
+    );
+  };
   return (
     <div class="level-bar party-bar" onPointerDown={(e) => e.stopPropagation()}>
       {take ? (
@@ -90,12 +117,12 @@ export function PartyBar() {
               <Footprints size={14} aria-hidden="true" /> Take the party here
             </button>
           )}
-          {options.length > 0 && (
+          {options.length + loose.length > 0 && (
             <button
               class={`btn btn-sm${open ? " active" : ""}`}
               aria-expanded={open}
               title="Choose who comes to this scene: their tokens move, and only the people who play them see it"
-              onClick={() => (open ? close() : setPicking(view.id))}
+              onClick={() => (open ? close() : room.store.set({ sendPick: view.id }))}
             >
               <Split size={14} aria-hidden="true" /> Send here
             </button>
@@ -106,18 +133,15 @@ export function PartyBar() {
               {groups.map((g) => (
                 <div key={g.sceneId} class="party-pick-group">
                   <div class="party-pick-from">{g.sceneId === view.id ? "Here already, but their players are elsewhere" : `On “${scenes[g.sceneId]?.name ?? ""}”`}</div>
-                  {g.list.map((o) => {
-                    const people = room.namesOf(o.people.map((p) => p.userId));
-                    return (
-                      <label key={o.token.id} class="check party-pick-row">
-                        <input type="checkbox" checked={ticked.includes(o.token.id)} onChange={(e) => tick(o, e.currentTarget.checked)} />
-                        <span class="party-pick-name">{o.token.label || "A token"}</span>
-                        <span class="party-pick-who">{people.length ? listNames(people) : "nobody plays them"}</span>
-                      </label>
-                    );
-                  })}
+                  {g.list.map((o) => row(o, o.token.label || "A token"))}
                 </div>
               ))}
+              {loose.length > 0 && (
+                <div class="party-pick-group">
+                  <div class="party-pick-from">No token where anyone is: theirs is put down here</div>
+                  {loose.map((o) => row(o, o.character.name))}
+                </div>
+              )}
               <div class="party-pick-actions">
                 <button class="btn btn-sm" onClick={close}>
                   Cancel

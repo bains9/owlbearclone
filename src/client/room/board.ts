@@ -83,7 +83,7 @@ import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../.
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
 import { drawZone, rgba, seedOf, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
-import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
+import { cantCast, castRaise, castRounds, castingAs, payForCast, putDownCharacters } from "../party";
 import { partyGone, partyLanding, partyOn, sendTokens, sentGone, takeParty } from "../levels";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
@@ -2286,10 +2286,12 @@ export class Board implements BoardApi {
     this.uiLayer.batchDraw();
     const place = { at: world, snap: snap && this.room.tokenSnaps(scene) };
     if (take?.tokens) {
-      // Send here: only the chosen tokens, and the people who play them see this scene.
+      // Send here: only the chosen tokens (and characters with none where anyone is, put down here),
+      // and the people who play them see this scene.
       const users = take.users ?? [];
       const n = going ? sendTokens(this.room, going.from, scene, going.party, users, place) : (this.room.sendToScene(scene.id, users), 0);
-      this.room.toast(sentGone(going?.party.slice(0, n) ?? [], `“${scene.name}”`, this.room.namesOf(users)));
+      const put = putDownCharacters(this.room, take.characters ?? [], place, scene.grid.size);
+      this.room.toast(sentGone([...(going?.party.slice(0, n) ?? []), ...put], `“${scene.name}”`, this.room.namesOf(users)));
       return;
     }
     if (!going) return;

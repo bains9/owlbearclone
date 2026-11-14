@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
 import type { Character } from "../src/shared/characters";
 import type { InitEntry, Item, Player, Scene, TokenItem } from "../src/shared/types";
-import { listNames, playersOf, sendables, sentGone } from "../src/client/levels";
+import { listNames, playersOf, sendables, sentGone, unplaced } from "../src/client/levels";
 import { GUIDE } from "../src/client/guide";
 
 vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
@@ -330,23 +330,62 @@ describe("Send here, on the GM's page", () => {
     expect(sendables(state({ greg: "solo" }, items), "party").map((o) => o.token.id)).toEqual(["tomas"]);
   });
 
+  it("lists a character with no token where anyone is, whose player is elsewhere, to be put down here", () => {
+    const items = [token("nan", "party", { character: "sheetN", label: "Nancael" }), token("grimm-old", "old", { character: "sheetG", label: "Grimmdark" })];
+    // Tomas has no token at all, and Grimmdark only one on an old map: both can be put down on the solo map.
+    const list = unplaced(state({}, items), "solo");
+    expect(list.map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    expect(list[1].people).toEqual([{ userId: "greg", name: "Greg" }]);
+    // Not on the party's map, where Greg is (Tokens & images places them there), nor once Greg's on the solo map.
+    expect(unplaced(state({}, items), "party")).toEqual([]);
+    expect(unplaced(state({ greg: "solo" }, items), "solo")).toEqual([]);
+    // From there, the party's map lists them, to bring Greg back.
+    expect(unplaced(state({ greg: "solo" }, items), "party").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    // A token on a map someone's on counts, hidden ones not; a character nobody plays isn't listed.
+    const more = { ...state({}, [...items, token("tomas", "party", { character: "sheetT", label: "Tomas Verek", hidden: true })]) };
+    more.party = { ...more.party, characters: [...characters, { id: "sheetH", name: "Hireling", players: [] } as unknown as Character] };
+    expect(unplaced(more, "solo").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    expect(unplaced(state({}, [...items, token("grimm", "party", { character: "sheetG", label: "Grimmdark" })]), "solo").map((o) => o.character.name)).toEqual(["Tomas Verek"]);
+    // A token on this map, or on one someone was sent to, counts too: Send here lists those as they are, once.
+    const here = [...items, token("tomas", "solo", { character: "sheetT", label: "Tomas Verek" })];
+    expect(unplaced(state({}, here), "solo").map((o) => o.character.name)).toEqual(["Grimmdark"]);
+    expect(sendables(state({}, here), "solo").map((o) => o.token.id)).toContain("tomas");
+    expect(unplaced(state({ greg: "solo" }, here), "party").map((o) => o.character.name)).toEqual(["Grimmdark"]);
+  });
+
   it("tells the GM who went where and who sees it", () => {
     expect(listNames(["Greg"])).toBe("Greg");
     expect(listNames(["Greg", "Jamie", "Tanya"])).toBe("Greg, Jamie and Tanya");
     expect(sentGone([token("tomas", "solo", { label: "Tomas Verek" })], "“Cave”", ["Greg"])).toBe("Tomas Verek to “Cave”: Greg sees it now.");
     expect(sentGone([], "“Town”", ["Greg", "Tanya"])).toBe("Greg and Tanya see “Town” now.");
+    // A character put down (no token where anyone was), by their token's name.
+    expect(sentGone([{ label: "Tomas" }], "“Cave”", ["Greg"])).toBe("Tomas to “Cave”: Greg sees it now.");
   });
 
   it("has Send here on the party bar, a click to place them, and the Scenes panel and top bar saying who sees what", () => {
     const bar = read("src/client/ui/PartyBar.tsx");
-    for (const words of ["Send here", "Send them here", "Click where they arrive.", "room.store.set({ partyTake: { sceneId: view.id, tokens: moving, users }, lightAdd: null });", "room.sendToScene(view.id, users);", "From one map at a time"]) {
+    for (const words of [
+      "Send here",
+      "Send them here",
+      "Click where they arrive.",
+      "room.store.set({ partyTake: { sceneId: view.id, tokens: moving, users, characters }, lightAdd: null });",
+      "room.sendToScene(view.id, users);",
+      "the rest from one map at a time",
+      "No token where anyone is: theirs is put down here",
+      "const open = useRoomState((s) => !!s.viewSceneId && s.sendPick === s.viewSceneId);",
+    ]) {
       expect(bar).toContain(words);
     }
     const board = read("src/client/room/board.ts");
     expect(board).toContain("sendTokens(this.room, going.from, scene, going.party, users, place)");
+    expect(board).toContain("const put = putDownCharacters(this.room, take.characters ?? [], place, scene.grid.size);");
     const scenes = read("src/client/ui/ScenesPanel.tsx");
     expect(scenes).toContain("onClick={() => room.activateScene(s.id, true)}");
     expect(scenes).toContain('{split ? "The party sees this" : "Players see this"}');
+    // Send someone here, on each scene someone could be sent to: it opens that scene with the list open.
+    for (const words of ['aria-label="Send someone here"', "sendables(s, id).length > 0 || unplaced(s, id).length > 0", "room.store.set({ sendPick: id });", "{sendable.has(s.id) && ("]) {
+      expect(scenes).toContain(words);
+    }
     expect(read("src/client/room/client.ts")).toContain('this.submit({ t: "scene.send", id, users });');
   });
 
@@ -354,6 +393,6 @@ describe("Send here, on the GM's page", () => {
     const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Split the party: send some to another map");
     expect(part).toBeTruthy();
     const text = [...part!.steps, ...part!.notes].join("\n");
-    for (const words of ["**Send here**", "**Send them here**", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "Tomas"]) expect(text).toContain(words);
+    for (const words of ["**Send someone here**", "**Send here**", "**Send them here**", "put down where you click", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "Tomas"]) expect(text).toContain(words);
   });
 });

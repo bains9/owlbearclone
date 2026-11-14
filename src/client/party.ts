@@ -114,6 +114,21 @@ export async function placeCharacter(room: RoomClient, c: Character, at?: Point,
   return room.addToken({ assetId, label: characterLabel(c), size: npcSquares(raceOf(c)), color: classesOf(c)[0].color, character: c.id }, at, free);
 }
 
+/**
+ * GM, Send here (the party split): characters with no token where anyone is, put down on the scene
+ * in view where the map was clicked, in a row a square apart. Their labels, for the GM's message:
+ * the tokens come a moment later (the first time in a room, their picture is uploaded).
+ */
+export function putDownCharacters(room: RoomClient, ids: readonly string[], place: { at: Point; snap: boolean }, grid: number): { label: string }[] {
+  const characters = room.state.party?.characters ?? [];
+  const going = ids.map((id) => characters.find((c) => c.id === id)).filter((c): c is Character => !!c);
+  going.forEach((c, n) => {
+    const at = { x: place.at.x + n * grid, y: place.at.y };
+    void placeCharacter(room, c, at, !place.snap).catch(() => room.toast(`${characterLabel(c)} couldn't be put down here. Place them from Tokens & images.`, "error"));
+  });
+  return going.map((c) => ({ label: characterLabel(c) }));
+}
+
 /** GM: gives a character a picture of the GM's own for their token, in every room, instead of their figure. */
 export async function setCharacterPicture(room: RoomClient, c: Character, file: File): Promise<void> {
   const { blob } = await prepareImage(file, "token");

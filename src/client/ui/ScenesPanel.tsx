@@ -1,5 +1,5 @@
 import { useRef, useState } from "preact/hooks";
-import { Check, ChevronDown, ChevronRight, ImagePlus, Play, Plus, RefreshCw, SquarePen, Trash } from "lucide-preact";
+import { Check, ChevronDown, ChevronRight, ImagePlus, Play, Plus, RefreshCw, Split, SquarePen, Trash } from "lucide-preact";
 import { INDOORS } from "../../shared/calendar";
 import { cellSpacing, guessGridSize, isHex } from "../../shared/geometry";
 import { randomId } from "../../shared/ids";
@@ -18,9 +18,9 @@ import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
 import { FromDungeon } from "./FromDungeon";
-import { levelOf, listNames, sceneEntries } from "../levels";
+import { levelOf, listNames, sceneEntries, sendables, unplaced } from "../levels";
 import { UpdateFromDungeonDialog } from "./UpdateFromDungeon";
-import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
+import { CommitInput, ConfirmDialog, Modal, NARROW, cx, useRoom, useRoomState } from "./common";
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
 import type { Pending } from "./ddText";
 import { SeasonPicker } from "./SeasonPicker";
@@ -75,6 +75,21 @@ export function ScenesPanel() {
   useRoomState((s) => s.players);
   const sentTo = (id: string) => room.namesOf(Object.keys(placed).filter((u) => placed[u] === id));
   const split = Object.values(placed).some((id) => !!scenes[id]);
+  // Send someone here (Par, 2026-11-14, as the party bar's Send here shows only once a map's open):
+  // on each scene someone could be sent to. One string, so the panel redraws only when it changes.
+  const sendable = new Set(
+    useRoomState((s) =>
+      Object.keys(s.scenes)
+        .filter((id) => sendables(s, id).length > 0 || unplaced(s, id).length > 0)
+        .join(" "),
+    ).split(" "),
+  );
+  const sendHere = (id: string) => {
+    room.viewSceneLocally(id);
+    room.store.set({ sendPick: id });
+    // On a phone the panel covers the map, where the list opens.
+    if (window.matchMedia(NARROW).matches) room.setPanel(null);
+  };
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Scene | null>(null);
@@ -123,6 +138,16 @@ export function ScenesPanel() {
             onClick={() => room.activateScene(s.id, true)}
           >
             <Play size={16} />
+          </button>
+        )}
+        {sendable.has(s.id) && (
+          <button
+            class="icon-btn"
+            title="Send someone here: choose who, and only the people who play them see this map"
+            aria-label="Send someone here"
+            onClick={() => sendHere(s.id)}
+          >
+            <Split size={16} />
           </button>
         )}
         {isDungeonScene(s) && (
