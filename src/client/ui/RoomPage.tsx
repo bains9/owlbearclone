@@ -20,6 +20,7 @@ import { InitiativePanel } from "./InitiativePanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { Logo } from "./Logo";
 import { MapLoading } from "./MapLoading";
+import { View3dLayer } from "./View3dLayer";
 import { dotClasses, presenceCounts } from "./presence";
 import { NewSceneDialog, ScenesPanel } from "./ScenesPanel";
 import { SpeakingOverlay, VoiceHeldNotice } from "./VoicePanel";
@@ -349,13 +350,23 @@ function RoomShell() {
 export function BoardView() {
   const room = useRoom();
   const ref = useRef<HTMLDivElement>(null);
+  const [board, setBoard] = useState<Board | null>(null);
   useEffect(() => {
-    const board = new Board(ref.current!, room);
-    return () => board.destroy();
+    const b = new Board(ref.current!, room);
+    setBoard(b);
+    return () => {
+      setBoard(null);
+      b.destroy();
+    };
   }, [room]);
   return (
     <>
       <div class="board" ref={ref} />
+      {board && (
+        <Guard name="the 3D view" retry={(s) => s.view3d}>
+          <View3dLayer board={board} boardEl={ref.current} />
+        </Guard>
+      )}
       <MapLoading />
     </>
   );
@@ -888,6 +899,7 @@ function NoteForm(props: { at: NonNullable<RoomState["textPrompt"]> }) {
 export function ProfileDialog(props: { onClose: () => void }) {
   const room = useRoom();
   const [dice3d, setDice3d] = useState(loadDice3d);
+  const map3d = useRoomState((s) => s.map3d);
   const seasonsOff = useRoomState((s) => s.seasonsOff);
   const gm = useRoomState((s) => s.me?.role === "gm");
   const wheelTurns = useRoomState((s) => s.wheelTurns);
@@ -924,6 +936,14 @@ export function ProfileDialog(props: { onClose: () => void }) {
           Throw the dice on the map (3D)
         </label>
         <p class="small muted">Untick it if rolls make this device slow: they still show in the chat. Everyone else still sees them thrown.</p>
+        <label class="check">
+          <input type="checkbox" checked={map3d} onChange={(e) => room.setMap3d(e.currentTarget.checked)} />
+          Offer a 3D view of the map (new)
+        </label>
+        <p class="small muted">
+          Adds a <b>3D</b> button by the zoom buttons: the map tilted like a table, walls standing up and tokens as figures. Only on this
+          device, and it shows only what you'd see on the flat map.
+        </p>
         {gm && (
           <>
             <label class="field">

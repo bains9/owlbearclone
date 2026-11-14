@@ -106,6 +106,7 @@ import {
 import type { Placed } from "./stampGeom";
 import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
+import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type Standee, type Walls3d } from "./view3dModel";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
@@ -117,7 +118,8 @@ import type { SceneDataState } from "./mapData";
 import { seedFrom } from "./seasonKeys";
 import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImport";
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
-import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
+import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
+
 import { LIBRARY_DRAG_TYPE, placeFromLibrary, readLibraryDrag } from "../library";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -353,12 +355,7 @@ function textColorFor(hex: string): string {
   return lum > 160 ? "#111" : "#fff";
 }
 
-function initials(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return "";
-  if (words.length === 1) return Array.from(words[0]).slice(0, 2).join("").toUpperCase();
-  return (Array.from(words[0])[0] + Array.from(words[1])[0]).toUpperCase();
-}
+const initials = initialsOf;
 
 /** The raw 2D context behind a Konva context (for composite operations Konva doesn't wrap). */
 function native(ctx: Konva.Context): CanvasRenderingContext2D {
@@ -774,6 +771,182 @@ export class Board implements BoardApi {
     return out;
   }
 
+  // ---------------------------------------------------------------- the 3D view (view3d.ts)
+
+  /** Who's watching for the 3D view: told when the floor, the tokens or the 2D view change. */
+  private listeners3d = new Set<(what: Change3d) => void>();
+  /** The 3D floor is being drawn: the layers drawn for it are no news to it. */
+  private making3d = false;
+  private floor3dCanvas: HTMLCanvasElement | null = null;
+  private cover3dCanvas: HTMLCanvasElement | null = null;
+
+  /** The scene as this page shows it, for the 3D view: the board stays the one place that decides what a page sees. */
+  source3d(): Board3dSource {
+    return {
+      floor: (maxPx) => this.floor3d(maxPx),
+      standees: () => this.standees3d(),
+      walls: () => this.walls3d(),
+      gmView: () => this.isGm && !this.room.state.fogOpts.preview,
+      view: () => {
+        if (!this.renderedScene) return null;
+        const tl = this.toWorld({ x: 0, y: 0 });
+        const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
+        return { x: (tl.x + br.x) / 2, y: (tl.y + br.y) / 2, w: br.x - tl.x, h: br.y - tl.y };
+      },
+      subscribe: (fn) => {
+        if (!this.listeners3d.size) {
+          // The map, the drawings, the dark and the fog are the floor; the token layer is the tokens.
+          const floor = () => {
+            if (!this.making3d) this.tell3d("floor");
+          };
+          for (const layer of [this.bgLayer, this.drawLayer, this.sightLayer, this.fogLayer]) layer.on("draw.view3d", floor);
+          this.tokenLayer.on("draw.view3d", () => {
+            if (!this.making3d) this.tell3d("tokens");
+          });
+        }
+        this.listeners3d.add(fn);
+        return () => {
+          this.listeners3d.delete(fn);
+          if (this.listeners3d.size) return;
+          for (const layer of [this.bgLayer, this.drawLayer, this.sightLayer, this.fogLayer, this.tokenLayer]) layer.off("draw.view3d");
+        };
+      },
+    };
+  }
+
+  private tell3d(what: Change3d): void {
+    for (const fn of this.listeners3d) fn(what);
+  }
+
+  /**
+   * The 3D view's floor: the scene's whole area as this page draws it, but for the tokens and what's
+   * drawn over them (pings, rulers, spells playing): the map (in its season), the built map, the
+   * grid, the lights' glow, the drawings, and over them the dark and the fog, dimmed for the GM as
+   * in 2D. And what covers it, small, for which walls the 3D view raises.
+   */
+  private floor3d(maxPx: number): Floor3d | null {
+    const scene = this.renderedScene;
+    if (!scene) return null;
+    const area = sceneBounds(scene);
+    const w = area.x1 - area.x0, h = area.y1 - area.y0;
+    if (!(w > 0 && h > 0)) return null;
+    const k = floorScale(w, h, maxPx);
+    const canvas = (this.floor3dCanvas ??= document.createElement("canvas"));
+    const cw = Math.max(1, Math.round(w * k)), ch = Math.max(1, Math.round(h * k));
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+    const c = canvas.getContext("2d")!;
+    const gmView = this.isGm && !this.room.state.fogOpts.preview;
+    this.making3d = true;
+    try {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalAlpha = 1;
+      c.globalCompositeOperation = "source-over";
+      c.clearRect(0, 0, cw, ch);
+      c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
+      c.fillStyle = scene.background;
+      c.fillRect(area.x0, area.y0, w, h);
+      const img = this.mapNode.visible() ? this.mapNode.image() : undefined;
+      if (img) c.drawImage(img as CanvasImageSource, 0, 0, scene.width, scene.height);
+      if (!isHex(scene.grid)) this.build.draw(c, scene, area, k, k, gmView);
+      this.drawGridOver(c, area, k);
+      this.drawLightGlows(c);
+      // The drawings, as Konva draws them, over the scene's whole area (on screen or not).
+      if (this.drawLayer.getChildren().length) {
+        const s = this.stage.scaleX();
+        const drawn = this.drawLayer.toCanvas({
+          x: this.stage.x() + area.x0 * s,
+          y: this.stage.y() + area.y0 * s,
+          width: w * s,
+          height: h * s,
+          pixelRatio: cw / (w * s),
+        });
+        c.drawImage(drawn, area.x0, area.y0, w, h);
+      }
+      // What covers it: once small, to read back, then over the floor.
+      const ck = coverScale(w, h, scene.grid.size);
+      const small = (this.cover3dCanvas ??= document.createElement("canvas"));
+      const sw = Math.max(1, Math.ceil(w * ck)), sh = Math.max(1, Math.ceil(h * ck));
+      if (small.width !== sw || small.height !== sh) {
+        small.width = sw;
+        small.height = sh;
+      }
+      const sc = small.getContext("2d", { willReadFrequently: true })!;
+      sc.setTransform(1, 0, 0, 1, 0, 0);
+      sc.clearRect(0, 0, sw, sh);
+      sc.setTransform(ck, 0, 0, ck, -area.x0 * ck, -area.y0 * ck);
+      let cover: CoverMap | null = null;
+      if (this.drawCover3d(sc, scene, gmView)) {
+        const data = sc.getImageData(0, 0, sw, sh).data;
+        const alpha = new Uint8ClampedArray(sw * sh);
+        for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+        cover = { x0: area.x0, y0: area.y0, k: ck, w: sw, h: sh, alpha };
+        this.drawCover3d(c, scene, gmView);
+      }
+      return { scene, canvas, cover, area };
+    } finally {
+      this.making3d = false;
+    }
+  }
+
+  /** The dark and the fog over the scene, as dimmed as this page shows them; false when there's neither. */
+  private drawCover3d(c: CanvasRenderingContext2D, scene: Scene, gmView: boolean): boolean {
+    const dark = this.ensureSight();
+    const fog = scene.fogCover || this.fogItems.length > 0;
+    if (!dark && !fog) return false;
+    c.save();
+    // The GM sees both at half (their layers' opacity in 2D). The fog's image is drawn here, not with
+    // drawFog, which draws it whole.
+    c.globalAlpha = gmView ? 0.5 : 1;
+    if (dark) this.sight.draw(c, dark);
+    if (fog) {
+      if (this.fogDirty || !this.fogCanvas) this.renderFogImage(scene);
+      const a = sceneBounds(scene);
+      c.imageSmoothingEnabled = true;
+      c.drawImage(this.fogCanvas!, a.x0, a.y0, a.x1 - a.x0, a.y1 - a.y0);
+    }
+    c.restore();
+    return true;
+  }
+
+  /** The tokens this page shows now, where they are now (being dragged too), as the 3D view stands them up. */
+  private standees3d(): Standee[] {
+    const scene = this.renderedScene;
+    const out: Standee[] = [];
+    if (!scene) return out;
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      // Compasses are the GM's guide to the 2D map, not something standing on it.
+      if (!t || n.gone || !n.group.visible() || isCompass(t)) continue;
+      const img = n.picture?.img;
+      out.push({
+        id: t.id,
+        x: n.group.x(),
+        y: n.group.y(),
+        size: (t.size * n.cell) / scene.grid.size,
+        picture: img instanceof HTMLImageElement ? img : null,
+        flip: !!t.flipped,
+        color: t.color,
+        label: t.label,
+        opacity: n.group.opacity(),
+        flat: t.layer === "prop",
+        rotation: t.rotation,
+        lifted: !!n.lifted,
+      });
+    }
+    return out;
+  }
+
+  /** The scene's walls and doors: the map file's and the Build tool's. */
+  private walls3d(): Walls3d {
+    const scene = this.renderedScene;
+    if (!scene) return { walls: [], doors: [] };
+    const built = isHex(scene.grid) ? { walls: [], doors: [] } : this.build.model.sightLines();
+    return wallsOf(scene.vision, built, scene.grid);
+  }
+
   destroy(): void {
     if (this.viewTimer) clearTimeout(this.viewTimer);
     this.seasons.dispose();
@@ -797,6 +970,7 @@ export class Board implements BoardApi {
     this.stage.scale({ x: s, y: s });
     if (this.renderedSceneId) this.cameras.set(this.renderedSceneId, { x, y, scale: s });
     if (this.steering) this.sendViewSoon();
+    if (this.listeners3d.size) this.tell3d("view");
     this.renderRulers();
     if (this.poly) this.poly.start.radius(6 / s);
     this.stage.batchDraw();
@@ -1605,20 +1779,24 @@ export class Board implements BoardApi {
   }
 
   private drawGrid(c: CanvasRenderingContext2D): void {
+    // Only the part of the grid that's on screen.
+    const tl = this.toWorld({ x: 0, y: 0 });
+    const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
+    this.drawGridOver(c, { x0: tl.x, y0: tl.y, x1: br.x, y1: br.y }, this.stage.scaleX());
+  }
+
+  /** The grid over the part `view` of the scene, drawn `scale` pixels to a scene unit (the 3D floor's too). */
+  private drawGridOver(c: CanvasRenderingContext2D, view: SceneArea, scale: number): void {
     const scene = this.renderedScene;
     if (!scene || !scene.grid.show) return;
     const g = scene.grid;
     const size = g.size;
-    const scale = this.stage.scaleX();
     if (size * scale < 5) return; // too dense to be useful; skip rather than draw a grey smear
-    // Only the part of the grid that's on screen.
-    const tl = this.toWorld({ x: 0, y: 0 });
-    const br = this.toWorld({ x: this.stage.width(), y: this.stage.height() });
     const area = sceneBounds(scene);
-    const minX = Math.max(area.x0, tl.x);
-    const maxX = Math.min(area.x1, br.x);
-    const minY = Math.max(area.y0, tl.y);
-    const maxY = Math.min(area.y1, br.y);
+    const minX = Math.max(area.x0, view.x0);
+    const maxX = Math.min(area.x1, view.x1);
+    const minY = Math.max(area.y0, view.y0);
+    const maxY = Math.min(area.y1, view.y1);
     if (minX >= maxX || minY >= maxY) return;
     if (isHex(g)) {
       if (size * scale < 10) return;
@@ -5881,14 +6059,17 @@ export class Board implements BoardApi {
         return;
       case "+":
       case "=":
-        this.zoomBy(1.25);
+        if (room.view3d) room.view3d.zoomBy(1.25);
+        else this.zoomBy(1.25);
         return;
       case "-":
       case "_":
-        this.zoomBy(0.8);
+        if (room.view3d) room.view3d.zoomBy(0.8);
+        else this.zoomBy(0.8);
         return;
       case "0":
-        this.fit();
+        if (room.view3d) room.view3d.fit();
+        else this.fit();
         return;
     }
   };

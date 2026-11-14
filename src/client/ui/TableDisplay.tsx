@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Copy, ExternalLink, WifiOff } from "lucide-preact";
 import { randomId } from "../../shared/ids";
 import { api, displayUrl } from "../api";
+import { display3dLink } from "../map3d";
 import { RoomClient } from "../room/client";
 import { toggleFullscreen } from "./common";
 import { Modal, RoomContext, copyText, cx, useRoom, useRoomState } from "./common";
@@ -16,14 +17,18 @@ export function TableDisplayDialog(props: { onClose: () => void }) {
   const room = useRoom();
   const follow = useRoomState((s) => s.displayFollow);
   const displays = useRoomState((s) => s.players.filter((p) => p.display).length);
-  const [link, setLink] = useState<string | null>(null);
+  const [plain, setPlain] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // The display in 3D: offered once this device offers the 3D view (it's new, and off to begin with).
+  const offer3d = useRoomState((s) => s.map3d);
+  const [in3d, setIn3d] = useState(false);
+  const link = plain && display3dLink(plain, offer3d && in3d);
 
   useEffect(() => {
     api
       .displayKey(room.roomId)
-      .then(({ key }) => setLink(displayUrl(room.roomId, key)))
+      .then(({ key }) => setPlain(displayUrl(room.roomId, key)))
       .catch((e: Error) => setError(e.message));
   }, [room]);
 
@@ -81,6 +86,17 @@ export function TableDisplayDialog(props: { onClose: () => void }) {
           What I'm looking at, while I'm on the live scene
         </label>
       </div>
+      {offer3d && (
+        <>
+          <label class="check">
+            <input type="checkbox" checked={in3d} onChange={(e) => setIn3d(e.currentTarget.checked)} /> Show the map in 3D on the display (new)
+          </label>
+          <p class="small muted">
+            Open the display window, or copy its link, after ticking this: the link carries it. The display shows what players see, tilted,
+            with walls standing up and tokens as figures.
+          </p>
+        </>
+      )}
       <p class="small">
         {displays === 0 ? "No display is connected." : displays === 1 ? "1 display is connected." : `${displays} displays are connected.`}
       </p>
@@ -136,7 +152,10 @@ function DisplayRoom(props: { roomId: string; displayKey: string }) {
 
 
 function DisplayShell() {
+  const room = useRoom();
   const status = useRoomState((s) => s.status);
+  const map3d = useRoomState((s) => s.map3d);
+  const view3d = useRoomState((s) => s.view3d);
   const hasHello = useRoomState((s) => s.me !== null);
   const hasScene = useRoomState((s) => !!(s.viewSceneId && s.scenes[s.viewSceneId]));
   const [idle, setIdle] = useState(false);
@@ -182,6 +201,11 @@ function DisplayShell() {
         </div>
       )}
       {hint && hasHello && <div class="display-hint">Double-click for full screen</div>}
+      {hasHello && map3d && !idle && (
+        <button class="btn btn-sm display-3d" onClick={() => room.setView3d(!view3d)} onDblClick={(e) => e.stopPropagation()}>
+          {view3d ? "Flat map (2D)" : "3D"}
+        </button>
+      )}
     </div>
   );
 }

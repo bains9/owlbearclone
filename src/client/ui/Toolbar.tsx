@@ -1236,19 +1236,37 @@ export function ZoomControls() {
   const full = useFullscreen();
   const room = useRoom();
   const zoom = useRoomState((s) => s.zoom);
+  const map3d = useRoomState((s) => s.map3d);
+  const in3d = useRoomState((s) => s.view3d && s.map3d);
+  // In 3D the buttons work the 3D view's camera; the 2D map keeps its own zoom for coming back.
+  const zoomBy = (f: number) => (room.view3d ? room.view3d.zoomBy(f) : room.board?.zoomBy(f));
+  const fit = () => (room.view3d ? room.view3d.fit() : room.board?.fit());
   return (
     <div class="zoom">
       <VoiceMicButton />
-      <button class="tool" title="Zoom out (−)" aria-label="Zoom out" onClick={() => room.board?.zoomBy(0.8)}>
+      {map3d && (
+        <button
+          class={cx("tool", "view3d-toggle", in3d && "active")}
+          title={in3d ? "Back to the flat map (2D)" : "Show the map in 3D"}
+          aria-label={in3d ? "Back to the flat map" : "Show the map in 3D"}
+          aria-pressed={in3d}
+          onClick={() => room.setView3d(!in3d)}
+        >
+          3D
+        </button>
+      )}
+      <button class="tool" title="Zoom out (−)" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
         <Minus size={18} />
       </button>
-      <button class="zoom-level" title="Fit the scene (0)" onClick={() => room.board?.fit()}>
-        {Math.round(zoom * 100)}%
-      </button>
-      <button class="tool" title="Zoom in (+)" aria-label="Zoom in" onClick={() => room.board?.zoomBy(1.25)}>
+      {!in3d && (
+        <button class="zoom-level" title="Fit the scene (0)" onClick={fit}>
+          {Math.round(zoom * 100)}%
+        </button>
+      )}
+      <button class="tool" title="Zoom in (+)" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
         <Plus size={18} />
       </button>
-      <button class="tool" title="Fit the scene (0)" aria-label="Fit the scene" onClick={() => room.board?.fit()}>
+      <button class="tool" title="Fit the scene (0)" aria-label="Fit the scene" onClick={fit}>
         <Maximize size={18} />
       </button>
       {canFullscreen() && (

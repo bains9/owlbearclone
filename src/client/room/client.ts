@@ -52,6 +52,8 @@ import type { VttMeta } from "../dd/extract";
 import { saveProfile } from "../identity";
 import type { Profile } from "../identity";
 import { Store } from "../store";
+import { displayWants3d, loadMap3d, loadView3d, saveMap3d, saveView3d } from "../map3d";
+import type { Board3dSource, View3dControls } from "./view3dModel";
 import { composeBuildUndo } from "./build";
 import { canFold, canFoldPlain, pressX } from "./buildInput";
 import { COMPASS_COLOR, COMPASS_LABEL, COMPASS_SIZE } from "./compass";
@@ -219,6 +221,10 @@ export interface RoomState {
   outdated: boolean;
   /** This device shows maps as drawn, without their season (a slow device, say). */
   seasonsOff: boolean;
+  /** This device offers the map in 3D (a 3D button by the zoom buttons; off to begin with). A table display: its link asks for it. */
+  map3d: boolean;
+  /** The map is showing in 3D on this device now (only while map3d is on). */
+  view3d: boolean;
   /** How much of each map (by asset id) is open ground, once a season has analysed it. */
   mapOutdoor: Record<string, number>;
   /** Each scene's Dungeondraft data state on this device (by scene id), for the Season notes (6.1). */
@@ -339,6 +345,8 @@ export interface BoardApi {
   retryMap(): void;
   /** How long the board's layers took to draw since this was last asked, and how many draws (for ?fps). */
   drawStats(): { ms: number; draws: number };
+  /** The scene as this page shows it, for the 3D view. */
+  source3d(): Board3dSource;
 }
 
 /** Our changes to one item that the server hasn't confirmed yet. */
@@ -442,6 +450,11 @@ const WHEEL_TURNS_KEY = "tabletop-wheel-turns";
 const OBJECT_SNAP_KEY = "tabletop-object-snap";
 const TOKEN_SNAP_KEY = "tabletop-token-snap";
 
+/** A table display's link asks for the map in 3D. */
+function wants3d(): boolean {
+  return typeof location !== "undefined" && displayWants3d(location.search);
+}
+
 /** Whether this device has seasonal looks turned off (remembered in the browser). */
 function loadSeasonsOff(): boolean {
   try {
@@ -504,6 +517,8 @@ function toMap<T extends { id: string }>(list: T[]): Record<string, T> {
 export class RoomClient {
   readonly store: Store<RoomState>;
   board: BoardApi | null = null;
+  /** The 3D view, while the map's showing in 3D (the zoom buttons and keys work it then). */
+  view3d: View3dControls | null = null;
 
   private ws: WebSocket | null = null;
   private ready = false;
@@ -599,6 +614,8 @@ export class RoomClient {
       // A table display always shows the season, like any player's screen: one opened in the
       // GM's own browser mustn't take on the GM's "seasons off" for this device.
       seasonsOff: displayKey === null && loadSeasonsOff(),
+      map3d: displayKey === null ? loadMap3d() : wants3d(),
+      view3d: displayKey === null ? loadMap3d() && loadView3d() : wants3d(),
       mapOutdoor: {},
       mapDataState: {},
       mapLoad: NO_MAP_LOAD,
@@ -1835,6 +1852,21 @@ export class RoomClient {
       // Not remembered, but still applies until the page reloads.
     }
     this.store.set({ seasonsOff: off });
+  }
+
+  /** Offers the map in 3D on this device, or stops offering it (and goes back to 2D). */
+  setMap3d(on: boolean): void {
+    if (this.display) return;
+    saveMap3d(on);
+    if (!on) saveView3d(false);
+    this.store.set((s) => ({ map3d: on, view3d: on && s.view3d }));
+  }
+
+  /** Shows the map in 3D or in 2D on this device (3D only where it's offered). */
+  setView3d(on: boolean): void {
+    const shown = on && this.state.map3d;
+    if (!this.display) saveView3d(shown);
+    this.store.set({ view3d: shown });
   }
 
   /** What this device's mouse wheel does over objects in the Build tool. */
