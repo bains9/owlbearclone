@@ -88,7 +88,10 @@ export type ClientAction =
   /** Without create, a scene that no longer exists isn't brought back. */
   | { t: "scene.upsert"; scene: ScenePatch; create?: boolean }
   | { t: "scene.delete"; id: string }
-  | { t: "scene.activate"; id: string }
+  /** Shows the scene to players. all: everyone, even those the GM sent elsewhere (the party together again). */
+  | { t: "scene.activate"; id: string; all?: true }
+  /** GM: these people (userIds) see this scene apart from the party; the live scene puts them back with it. */
+  | { t: "scene.send"; id: string; users: string[] }
   | { t: "asset.rename"; id: string; name: string }
   | { t: "asset.delete"; id: string }
   | { t: "room.update"; name?: string; settings?: Partial<RoomSettings> }
@@ -165,7 +168,11 @@ export type ServerMsg =
       tokenNotes?: Record<string, string>;
       /** GM only: monsters' and NPCs' stats, entered by hand (tokenStats.ts), token id to stats. */
       tokenStats?: Record<string, TokenStats>;
+      /** GM only: the people sent to a scene apart from the party, userId to scene id. */
+      placed?: Record<string, string>;
     }
+  /** GM only: who's been sent where, apart from the party (userId to scene id), whenever it changes. */
+  | { t: "placed"; placed: Record<string, string> }
   /** The room's handouts, newest first; `shown`: the one just shown. */
   | { t: "handouts"; handouts: Handout[]; shown?: string }
   /** GM only: the tokens linked to campaign notes. */

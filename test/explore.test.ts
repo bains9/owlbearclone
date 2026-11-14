@@ -222,7 +222,7 @@ describe("explored places seen only by nightvision", () => {
     const room = await source("src/worker/room.ts");
     expect(room).toContain("ALTER TABLE explored_maps ADD COLUMN lit TEXT");
     expect(room).toContain("const next = addExplored(had, cells, lit, total);");
-    expect(room).toContain("cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });");
+    expect(room).toContain("cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) }, (c) => this.onScene(c, sceneId));");
     expect(room).toContain("for (const m of maps) this.addExplored(scene.id, m, grid, msg.cells, lit);");
     const sight = await source("src/client/room/boardSight.ts");
     expect(sight).toContain("const grey = known ? this.greyPicture(known, grid) : null;");
@@ -245,7 +245,9 @@ describe("the Room", () => {
     // Sent with hello, to players when the live scene changes, and let go with a deleted scene.
     expect(room).toContain("explored,");
     expect(room).toContain("for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));");
-    expect(room).toContain("bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) }, (c) => c.role !== \"gm\")");
+    // To each player as they come to a scene: what's been explored of that one (the party split).
+    expect(room).toContain("bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) } satisfies ServerMsg);");
+    expect(room).toContain("const id = this.sceneOf(ws.deserializeAttachment() as Conn);");
     expect(room).toContain("DELETE FROM explored_maps WHERE scene_id = ?");
     const deleted = room.slice(room.indexOf('case "scene.delete": {'));
     expect(deleted.slice(0, 1200)).toContain("this.forgetExplored(scene.id);");

@@ -4,10 +4,12 @@
 // from one level to the next: their tokens, and the spells on them, to the same squares there, and
 // that level shown to players.
 
+import type { Character, CharacterPlayer } from "../shared/characters";
 import { isOnGrid, snapTokenCenter, type Point } from "../shared/geometry";
 import type { ItemMap } from "../shared/ops";
+import { GM_OWNER } from "../shared/sanitize";
 import type { GridSettings, Item, Scene, TokenItem } from "../shared/types";
-import type { RoomClient } from "./room/client";
+import type { RoomClient, RoomState } from "./room/client";
 import { isSightToken } from "./room/vision";
 
 /** A scene's level in its map: the levels' group, its place among them, and its name. */
@@ -112,6 +114,18 @@ export function takeParty(room: RoomClient, from: Scene, to: Scene, place?: { at
   const s = room.state;
   const party = partyOn(s.items, from.id, place ? [] : s.selection);
   if (!party.length) return 0;
+  moveTokens(room, from, to, party, place);
+  room.activateScene(to.id);
+  room.select(party.map((t) => t.id));
+  return party.length;
+}
+
+/**
+ * Tokens from one scene to another, with the spells on them: to the same squares on another level,
+ * or with `place`, around where the GM clicked (partyLanding).
+ */
+function moveTokens(room: RoomClient, from: Scene, to: Scene, party: readonly TokenItem[], place?: { at: Point; snap: boolean }): void {
+  const s = room.state;
   const where = place
     ? partyLanding(party, from.grid, to.grid, place.at, place.snap)
     : new Map(party.map((t) => [t.id, onLevel(t, from.grid, to.grid)]));
@@ -130,13 +144,84 @@ export function takeParty(room: RoomClient, from: Scene, to: Scene, place?: { at
     upsert.push({ ...i, sceneId: to.id, points });
   }
   room.change({ upsert });
-  room.activateScene(to.id);
-  room.select(party.map((t) => t.id));
-  return party.length;
 }
 
 /** What the GM's told when the party's gone: who, where, and that players see it. */
 export function partyGone(party: readonly TokenItem[], where: string): string {
   const who = party.length === 1 ? party[0].label || "1 token" : `${party.length} tokens`;
   return `${who} to ${where}: players see it now.`;
+}
+
+// ------------------------------------------------------------------ the party split
+// (Par, 2026-11-14: "DM being able to choose who to move from map to map ... the tokens of players
+// will be doing some solo work.") Each person sees one scene: the live one, unless the GM sent them
+// to another (Room's `placed`). Send here takes chosen characters' tokens to the scene the GM is
+// looking at, and the people who play them see it. Show to players puts everyone together again.
+
+/** The people who play a party token: its character's players (from the party list), or whoever put it down. */
+export function playersOf(t: TokenItem, characters: readonly Character[]): CharacterPlayer[] {
+  if (t.character) return characters.find((c) => c.id === t.character)?.players ?? [];
+  return t.owner !== GM_OWNER ? [{ userId: t.owner, name: "" }] : [];
+}
+
+/** The scene a person sees: where the GM sent them, or the live one. */
+export function sceneOfPerson(userId: string, placed: Readonly<Record<string, string>>, live: string | null, scenes: Readonly<Record<string, Scene>>): string | null {
+  const own = placed[userId];
+  return own && scenes[own] ? own : live;
+}
+
+/** A party token the GM can send to a scene: where it is now, and the people who play it. */
+export interface Sendable {
+  token: TokenItem;
+  /** Already on the scene: only its people are sent (they're elsewhere). */
+  here: boolean;
+  people: CharacterPlayer[];
+}
+
+/**
+ * The party's tokens the GM can send to `to`: on another scene someone is on (the live one, or one
+ * people were sent to: not tokens left on old maps), or on this one while someone who plays them is
+ * elsewhere. This scene's first, then by the order of their scenes, then by name.
+ */
+export function sendables(
+  s: Pick<RoomState, "items" | "scenes" | "placed" | "activeSceneId" | "party">,
+  to: string,
+): Sendable[] {
+  const characters = s.party?.characters ?? [];
+  const occupied = new Set<string | null>([s.activeSceneId, ...Object.values(s.placed)]);
+  const out: Sendable[] = [];
+  for (const i of Object.values(s.items)) {
+    if (i.kind !== "token" || !isSightToken(i) || !s.scenes[i.sceneId]) continue;
+    const here = i.sceneId === to;
+    if (!here && !occupied.has(i.sceneId)) continue;
+    const people = playersOf(i, characters);
+    if (here && !people.some((p) => sceneOfPerson(p.userId, s.placed, s.activeSceneId, s.scenes) !== to)) continue;
+    out.push({ token: i, here, people });
+  }
+  const order = (x: Sendable) => s.scenes[x.token.sceneId]?.order ?? 0;
+  return out.sort((a, b) => Number(b.here) - Number(a.here) || order(a) - order(b) || a.token.label.localeCompare(b.token.label));
+}
+
+/**
+ * GM: chosen tokens (all from one scene) to `to`, around where the GM clicked, with the spells on
+ * them; the people who play them see `to` from now on. How many tokens went.
+ */
+export function sendTokens(room: RoomClient, from: Scene, to: Scene, tokens: readonly TokenItem[], users: readonly string[], place: { at: Point; snap: boolean }): number {
+  const going = tokens.filter((t) => t.sceneId === from.id);
+  if (going.length) moveTokens(room, from, to, going, place);
+  room.sendToScene(to.id, [...users]);
+  if (going.length) room.select(going.map((t) => t.id));
+  return going.length;
+}
+
+/** What the GM's told when people are sent: whose tokens, where, and who sees it. */
+export function sentGone(tokens: readonly TokenItem[], where: string, names: readonly string[]): string {
+  const who = tokens.length === 1 ? tokens[0].label || "1 token" : tokens.length ? `${tokens.length} tokens` : "";
+  const see = names.length ? `${listNames(names)} ${names.length === 1 ? "sees" : "see"} it now` : "nobody plays them, so nobody else sees it";
+  return who ? `${who} to ${where}: ${see}.` : `${listNames(names)} ${names.length === 1 ? "sees" : "see"} ${where} now.`;
+}
+
+/** "Greg", "Greg and Jamie", "Greg, Jamie and Tanya". */
+export function listNames(names: readonly string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }

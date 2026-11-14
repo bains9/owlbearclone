@@ -231,8 +231,8 @@ describe("taking the party to another map (8 November 2026)", () => {
   it("is a bar for the GM at the top right of a map players aren't on, and the board takes the click", () => {
     const bar = fs.readFileSync(new URL("../src/client/ui/PartyBar.tsx", import.meta.url), "utf8");
     for (const words of [
-      "if (!gm || !view || !from || view.id === from.id) return null;",
-      "const party = partyOn(items, from.id, []);",
+      "if (!gm || !view) return null;",
+      "const whole = from && from.id !== view.id ? partyOn(items, from.id, []) : [];",
       "Take the party here",
       "Click where the party arrives.",
       "room.store.set({ partyTake: { sceneId: view.id }, lightAdd: null })",
@@ -242,7 +242,7 @@ describe("taking the party to another map (8 November 2026)", () => {
     const right = page.slice(page.indexOf("<TopRight>"), page.indexOf("</TopRight>"));
     expect(right.indexOf("<PartyBar />")).toBeGreaterThan(right.indexOf("<LevelBar />"));
     const client = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");
-    expect(client).toContain('this.store.set({ viewSceneId: id, selection: [], partyTake: null });\n    this.refreshUndoFlags();\n    this.submit({ t: "scene.activate", id });'.replace(/\n/g, client.includes("\r\n") ? "\r\n" : "\n"));
+    expect(client).toContain('this.store.set({ viewSceneId: id, selection: [], partyTake: null });\n    this.refreshUndoFlags();\n    this.submit({ t: "scene.activate", id, ...(all ? { all: true as const } : {}) });'.replace(/\n/g, client.includes("\r\n") ? "\r\n" : "\n"));
     const board = fs.readFileSync(new URL("../src/client/room/board.ts", import.meta.url), "utf8");
     for (const words of [
       "if (s.partyTake && this.isGm && scene && s.partyTake.sceneId === scene.id) {",

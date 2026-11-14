@@ -3211,7 +3211,27 @@ export const GUIDE: GuideSection[] = [
           "**Cancel**, or Escape, stops without moving anyone. On a phone or tablet there are no circles: tap where they arrive.",
           "Initiative carries on as it was.",
           "On a map with levels, **Take the party** ▲ **Up** or ▼ **Down** takes them to the same squares on the next level instead (see **A map with levels**).",
-          "Everyone is always on the same scene: Tabletop can't put some players on one map and the rest on another."
+          "Anyone you sent off on their own stays where they are when the party moves (see **Split the party: send some to another map**)."
+        ]
+      },
+      {
+        "title": "Split the party: send some to another map",
+        "steps": [
+          "Open **Scenes** and click the map they're going to.",
+          "At the top right of the map, click **Send here**. It lists the party's characters on the other maps, with who plays each one.",
+          "Tick who's going (from one map at a time), and click **Send them here**.",
+          "Point where they arrive and click. Their tokens move there, and the people who play them see this map from now on. Everyone else stays where they were."
+        ],
+        "notes": [
+          "Each person sees one map: the party's, or the one you last sent them to. They see nothing of any other map, and nobody else is told where they went. Only you, the GM, see where everyone is.",
+          "A player with two characters, such as Greg with Grimmdark in the party and Tomas off on his own: tick Tomas, and Greg sees Tomas's map. Greg plays Tomas there until you bring him back.",
+          "To bring them back, look at the party's map and use **Send here** again: tick them, click **Send them here**, then click where they arrive.",
+          "A character whose token is already on this map, but whose player is elsewhere, is listed first: ticking them sends only the player.",
+          "The **Scenes** panel says who's on each map: \"The party sees this\" on the party's, and who sees each of the others.",
+          "**Show to players** on any map brings everyone together there again. **Take the party here**, and the levels' **Up** and **Down**, move the party only: anyone off on their own stays where they are.",
+          "While you look at someone's map, the top bar says who else can see it, such as \"Only you and Greg can see this scene.\"",
+          "Chat, dice and the initiative list are shared, but each player sees initiative only for tokens on their own map. Private rolls and voice chat's **Whisper** keep secrets.",
+          "The table display stays with the party."
         ]
       },
       {

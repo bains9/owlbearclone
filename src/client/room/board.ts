@@ -84,7 +84,7 @@ import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../sh
 import { drawZone, rgba, seedOf, zoneOf, type Zone } from "./zonefx";
 import { AFTER_IMAGE_MS, blinkFade, drawTokenLook, flyLift, tokenLookLayer, type OnToken } from "./tokenfx";
 import { cantCast, castRaise, castRounds, castingAs, payForCast } from "../party";
-import { partyGone, partyLanding, partyOn, takeParty } from "../levels";
+import { partyGone, partyLanding, partyOn, sendTokens, sentGone, takeParty } from "../levels";
 import { drawFx, fxDuration, type FxPlay } from "./spellfx";
 import { foldOf } from "../ui/objectGroups";
 import {
@@ -2264,6 +2264,13 @@ export class Board implements BoardApi {
   /** Where the party's coming from to `scene` (the scene players are on), and who: none if it's this one. */
   private partyFor(scene: Scene): { from: Scene; party: TokenItem[] } | null {
     const s = this.room.state;
+    // Send here (the party split): the tokens chosen, all from one scene.
+    const chosen = s.partyTake?.sceneId === scene.id ? s.partyTake.tokens : undefined;
+    if (chosen) {
+      const tokens = chosen.map((id) => s.items[id]).filter((i): i is TokenItem => i?.kind === "token" && i.sceneId !== scene.id);
+      const source = tokens[0] ? s.scenes[tokens[0].sceneId] : undefined;
+      return source ? { from: source, party: tokens.filter((t) => t.sceneId === source.id) } : null;
+    }
     const from = s.activeSceneId ? s.scenes[s.activeSceneId] : undefined;
     if (!from || from.id === scene.id) return null;
     const party = partyOn(s.items, from.id, []);
@@ -2272,12 +2279,20 @@ export class Board implements BoardApi {
 
   /** GM: the party here, where the map was clicked (Take the party here), and this scene shown to players. */
   private takePartyTo(scene: Scene, world: Point, snap: boolean): void {
+    const take = this.room.state.partyTake;
+    const going = this.partyFor(scene);
     this.room.store.set({ partyTake: null });
     this.partyHover = null;
     this.uiLayer.batchDraw();
-    const going = this.partyFor(scene);
-    if (!going) return;
     const place = { at: world, snap: snap && this.room.tokenSnaps(scene) };
+    if (take?.tokens) {
+      // Send here: only the chosen tokens, and the people who play them see this scene.
+      const users = take.users ?? [];
+      const n = going ? sendTokens(this.room, going.from, scene, going.party, users, place) : (this.room.sendToScene(scene.id, users), 0);
+      this.room.toast(sentGone(going?.party.slice(0, n) ?? [], `“${scene.name}”`, this.room.namesOf(users)));
+      return;
+    }
+    if (!going) return;
     if (takeParty(this.room, going.from, scene, place)) this.room.toast(partyGone(going.party, `“${scene.name}”`));
   }
 

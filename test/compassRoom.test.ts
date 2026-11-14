@@ -91,6 +91,7 @@ function room(items: Item[], socks: Sock[]): RoomInside {
     env: {},
     info: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
     activeSceneId: "scene1",
+    placed: new Map(),
     scenes: new Map([
       ["scene1", scene("scene1")],
       ["scene2", scene("scene2")],
@@ -101,7 +102,7 @@ function room(items: Item[], socks: Sock[]): RoomInside {
     ownerBytes: new Map(),
     playerItemBytes: 0,
     tombstones: new Map(),
-    lastPlayerInitiative: "",
+    lastPlayerInitiative: new Map(),
     assets: new Map(),
     initiative: { entries: [], turn: 0, round: 1 },
     displayView: null,

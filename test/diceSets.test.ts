@@ -230,6 +230,7 @@ function room(
     env: { DIRECTORY: { getByName: () => ({ diceFor, gmDice }) } },
     info: { id: "AbCdEf123456", name: "Room", createdAt: 0, settings: { ...DEFAULT_SETTINGS } },
     activeSceneId: "scene1",
+    placed: new Map(),
     scenes: new Map([["scene1", { id: "scene1", name: "s", order: 0, mapAssetId: null, width: 100, height: 100, background: "#000000", grid: { ...DEFAULT_GRID }, fogCover: false, createdAt: 0 }]]),
     items: new Map(),
     initiative: { entries: [], turn: 0, round: 1 },

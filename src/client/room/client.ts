@@ -246,9 +246,12 @@ export interface RoomState {
   lightAdd: { sceneId: string } | null;
   /**
    * GM: Take the party here was clicked, on a scene players aren't on: the next click on that
-   * scene's map is where the party arrives (levels.ts takeParty).
+   * scene's map is where the party arrives (levels.ts takeParty). With `tokens` (Send here, the
+   * party split), only those arrive, and `users`, the people who play them, see that scene.
    */
-  partyTake: { sceneId: string } | null;
+  partyTake: { sceneId: string; tokens?: string[]; users?: string[] } | null;
+  /** GM: the people sent to a scene apart from the party (userId to scene id); everyone else is on the live one. */
+  placed: Record<string, string>;
   /**
    * The map's area is as narrow as a phone's (a phone, or a tablet beside the side panel): its
    * bars stack as on a phone, the character card in the selection bar's stack (useStageNarrow).
@@ -573,6 +576,7 @@ export class RoomClient {
       lightPick: null,
       lightAdd: null,
       partyTake: null,
+      placed: {},
       stageNarrow: false,
       newDayUndo: null,
       problems: [],
@@ -942,6 +946,7 @@ export class RoomClient {
           messages: msg.messages,
           initiative: msg.initiative,
           handouts: msg.handouts ?? [],
+          placed: msg.placed ?? {},
           tokenNotes: msg.tokenNotes ?? {},
           tokenStats: msg.tokenStats ?? {},
           players: msg.players,
@@ -1113,6 +1118,10 @@ export class RoomClient {
 
       case "tokenNotes":
         this.store.set({ tokenNotes: msg.notes });
+        return;
+
+      case "placed":
+        this.store.set({ placed: msg.placed });
         return;
 
       case "tokenStats": {
@@ -1955,10 +1964,29 @@ export class RoomClient {
     this.submit({ t: "scene.delete", id });
   }
 
-  activateScene(id: string): void {
+  /**
+   * Shows a scene to the party. `all` (Show to players): to everyone, those the GM sent elsewhere
+   * too, so the party is together again; without it (the party's tokens taken there), whoever's
+   * on their own elsewhere stays there.
+   */
+  activateScene(id: string, all = false): void {
     this.store.set({ viewSceneId: id, selection: [], partyTake: null });
     this.refreshUndoFlags();
-    this.submit({ t: "scene.activate", id });
+    this.submit({ t: "scene.activate", id, ...(all ? { all: true as const } : {}) });
+  }
+
+  /** GM: these people see this scene, apart from the party (the live scene: back with the party). */
+  sendToScene(id: string, users: string[]): void {
+    if (users.length) this.submit({ t: "scene.send", id, users });
+  }
+
+  /** People's names by userId (each once): as they're here now, or as a character's players list has them. */
+  namesOf(users: readonly string[]): string[] {
+    const s = this.state;
+    const known = new Map<string, string>();
+    for (const c of s.party?.characters ?? []) for (const p of c.players ?? []) known.set(p.userId, p.name);
+    for (const p of s.players) if (p.role !== "gm" && !p.display) known.set(p.userId, p.name);
+    return [...new Set(users.map((u) => known.get(u) ?? "a player"))];
   }
 
   viewSceneLocally(id: string): void {

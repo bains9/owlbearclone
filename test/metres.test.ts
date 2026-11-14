@@ -304,6 +304,7 @@ function server(info: RoomInfo | null) {
     env: {},
     info,
     activeSceneId: info ? "scene1" : null,
+    placed: new Map(),
     scenes: new Map(info ? [["scene1", oldScene]] : []),
     items: new Map(),
     assets: new Map(),

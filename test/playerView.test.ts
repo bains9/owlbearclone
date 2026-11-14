@@ -85,10 +85,12 @@ describe("which scenes a connection is sent", () => {
     const room = await source("../src/worker/room.ts");
     expect(room).toContain('from "./playerView"');
     expect(room).not.toMatch(/private canSeeAsset/);
-    expect(room).toContain("const scenes = helloScenes(this.scenes.values(), conn, this.activeSceneId)");
+    // Each connection by the scene it's on (the party split): sceneOf, not the live scene.
+    expect(room).toContain("const scenes = helloScenes(this.scenes.values(), conn, this.sceneOf(conn))");
     expect(room).toContain("assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn))");
-    expect(room).toContain("sceneFor(scene, c, this.activeSceneId)");
-    expect(room).toContain("const scene = live ? playerScene(live) : null;");
+    expect(room).toContain("sceneFor(scene, c, mine)");
+    expect(room).not.toContain("sceneFor(scene, c, this.activeSceneId)");
+    expect(room).toContain("const scene = s ? playerScene(s) : null;");
     expect(room).toContain("this.broadcastScene(scene, conn.connId, seq)");
     // Every scene.upsert to more than the sender goes through broadcastScene, and every asset
     // broadcast through canSeeAsset.

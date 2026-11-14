@@ -148,6 +148,8 @@ interface Change {
 const HISTORY_KEEP = 300;
 const HELLO_MESSAGES = 150;
 const MAX_SCENES = 100;
+/** People the GM may send to a scene in one go (the party split): far more than sit at a table. */
+const MAX_SENT = 30;
 /** Each tab may tell of this many problems (shared/problems.ts) in PROBLEM_WINDOW_MS, so one stuck page can't flood the list. */
 const MAX_PROBLEMS_PER_WINDOW = 5;
 const PROBLEM_WINDOW_MS = 10 * 60 * 1000;
@@ -205,6 +207,11 @@ export class Room extends DurableObject<Env> {
   private sql: SqlStorage;
   private info: RoomInfo | null = null;
   private activeSceneId: string | null = null;
+  /**
+   * The party split: people the GM has sent to a scene other than the live one, by userId. Each
+   * sees only that scene; everyone else, and every table display, sees the live one (sceneOf).
+   */
+  private placed = new Map<string, string>();
   private scenes = new Map<string, Scene>();
   /** Explored cells, by exploreSlot (the party's or a character's of a scene), as read from the explored_maps table (exploredOf). */
   private explored = new Map<string, KeptExplored>();
@@ -222,7 +229,8 @@ export class Room extends DurableObject<Env> {
    */
   private tombstones = new Map<string, string>();
   /** The initiative view players last received, so an unchanged view isn't resent. */
-  private lastPlayerInitiative = "";
+  /** What players on each scene were last sent of the initiative list (it depends on the scene they're on). */
+  private lastPlayerInitiative = new Map<string | null, string>();
   private assets = new Map<string, Asset>();
   private initiative: Initiative = { entries: [], turn: 0, round: 1 };
   /** What failed on people's devices, newest first, for the GM (shared/problems.ts). */
@@ -344,7 +352,7 @@ export class Room extends DurableObject<Env> {
       bitsToText(kept.bits),
       kept.lit ? bitsToText(kept.lit) : null,
     );
-    this.broadcast({ t: "explore", sceneId, key: kept.key, ...(who ? { who } : {}), cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) });
+    this.broadcast({ t: "explore", sceneId, key: kept.key, ...(who ? { who } : {}), cells: next.fresh, ...(lit ? { lit: next.freshLit } : {}) }, (c) => this.onScene(c, sceneId));
   }
 
   /** Forgets every explored map of a scene (in storage too). */
@@ -371,6 +379,7 @@ export class Room extends DurableObject<Env> {
     );
     this.info = meta.has("info") ? (JSON.parse(meta.get("info")!) as RoomInfo) : null;
     this.activeSceneId = meta.has("active") ? (JSON.parse(meta.get("active")!) as string | null) : null;
+    this.placed = new Map(Object.entries(meta.has("placed") ? (JSON.parse(meta.get("placed")!) as Record<string, string>) : {}));
     if (meta.has("initiative")) this.initiative = JSON.parse(meta.get("initiative")!) as Initiative;
     this.problems = meta.has("problems") ? (JSON.parse(meta.get("problems")!) as Problem[]) : [];
     this.handouts = meta.has("handouts") ? (JSON.parse(meta.get("handouts")!) as Handout[]) : [];
@@ -645,6 +654,7 @@ export class Room extends DurableObject<Env> {
     } while (cursor);
     await this.ctx.storage.deleteAll();
     this.activeSceneId = null;
+    this.placed.clear();
     this.scenes.clear();
     this.items.clear();
     this.itemBytes.clear();
@@ -653,7 +663,7 @@ export class Room extends DurableObject<Env> {
     this.playerItemBytes = 0;
     this.tombstones.clear();
     this.sessionSeqs.clear();
-    this.lastPlayerInitiative = "";
+    this.lastPlayerInitiative.clear();
     this.assets.clear();
     this.initiative = { entries: [], turn: 0, round: 1 };
   }
@@ -890,11 +900,16 @@ export class Room extends DurableObject<Env> {
           const rest = [...this.scenes.values()].filter((s) => s.id !== scene.id).sort((a, b) => a.order - b.order);
           nextActive = rest[0]?.id ?? null;
         }
+        const before = this.viewerScenes();
+        // People sent to it go back to the party.
+        const unplaced = [...this.placed].filter(([, id]) => id === scene.id).map(([user]) => user);
+        for (const user of unplaced) this.placed.delete(user);
         this.ctx.storage.transactionSync(() => {
           this.sql.exec(`DELETE FROM items WHERE scene_id = ?`, scene.id);
           this.sql.exec(`DELETE FROM scenes WHERE id = ?`, scene.id);
           this.forgetExplored(scene.id);
           if (nextActive !== this.activeSceneId) this.setMeta("active", nextActive);
+          if (unplaced.length) this.savePlaced();
         });
         for (const [id, item] of this.items) {
           if (item.sceneId !== scene.id) continue;
@@ -904,9 +919,12 @@ export class Room extends DurableObject<Env> {
         }
         this.scenes.delete(scene.id);
         this.broadcast({ t: "scene.delete", id: scene.id, by: conn.connId, seq }, (c) => c.role === "gm");
+        if (unplaced.length) this.broadcastPlaced();
         if (nextActive !== this.activeSceneId) {
           this.activeSceneId = nextActive;
-          this.broadcastActive();
+          this.broadcastActive(before);
+        } else if (unplaced.length) {
+          this.broadcastActive(before, false);
         } else {
           this.broadcastInitiative();
         }
@@ -916,9 +934,37 @@ export class Room extends DurableObject<Env> {
       case "scene.activate": {
         if (!gm) return this.deny(ws);
         if (!this.scenes.has(msg.id)) return;
-        this.setMeta("active", msg.id);
+        const before = this.viewerScenes();
+        // Show to players (all): everyone together there. The party's tokens taken there (Take the
+        // party): whoever had been sent there on their own is with the party again.
+        const unplaced = [...this.placed].filter(([, id]) => msg.all === true || id === msg.id).map(([user]) => user);
+        for (const user of unplaced) this.placed.delete(user);
+        this.ctx.storage.transactionSync(() => {
+          this.setMeta("active", msg.id);
+          if (unplaced.length) this.savePlaced();
+        });
+        const moved = this.activeSceneId !== msg.id;
         this.activeSceneId = msg.id;
-        this.broadcastActive();
+        if (unplaced.length) this.broadcastPlaced();
+        // Only those whose scene changed are sent it: someone on their own elsewhere stays undisturbed.
+        this.broadcastActive(before, moved);
+        return;
+      }
+
+      case "scene.send": {
+        // GM: these people (by userId) see this scene, apart from the party; to the live scene, back with it.
+        if (!gm) return this.deny(ws);
+        if (!this.scenes.has(msg.id) || !Array.isArray(msg.users)) return;
+        const users = [...new Set(msg.users.filter(isId))].slice(0, MAX_SENT);
+        if (!users.length) return;
+        const before = this.viewerScenes();
+        for (const user of users) {
+          if (msg.id === this.activeSceneId) this.placed.delete(user);
+          else this.placed.set(user, msg.id);
+        }
+        this.savePlaced();
+        this.broadcastPlaced();
+        this.broadcastActive(before, false);
         return;
       }
 
@@ -1023,7 +1069,7 @@ export class Room extends DurableObject<Env> {
         const scene = typeof msg.sceneId === "string" ? this.scenes.get(msg.sceneId) : undefined;
         if (!scene) return;
         this.forgetExplored(scene.id);
-        this.broadcast({ t: "explore", sceneId: scene.id, key: exploreGrid(scene).key, reset: true });
+        this.broadcast({ t: "explore", sceneId: scene.id, key: exploreGrid(scene).key, reset: true }, (c) => this.onScene(c, scene.id));
         return;
       }
 
@@ -1195,7 +1241,7 @@ export class Room extends DurableObject<Env> {
     const stagedBytes = new Map<string, number>();
     const current = (id: string): Item | null => (staged.has(id) ? staged.get(id)! : (this.items.get(id) ?? null));
     const sizeOf = (id: string): number => (stagedBytes.has(id) ? stagedBytes.get(id)! : (this.itemBytes.get(id) ?? 0));
-    const hiddenFromSender = (item: Item) => !isGm && !visibleToPlayer(item, this.activeSceneId);
+    const hiddenFromSender = (item: Item) => !isGm && !visibleToPlayer(item, this.sceneOf(conn));
     const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
     const idOf = (v: unknown): unknown => (typeof v === "string" ? v : (v as { id?: unknown } | null)?.id);
     const ops = { upsert: list(msg.upsert), patch: list(msg.patch), delete: list(msg.delete) };
@@ -1434,7 +1480,8 @@ export class Room extends DurableObject<Env> {
       const c = target.deserializeAttachment() as Conn | null;
       if (!c) continue;
       const isSender = target === ws;
-      const sceneOut = (scene && sceneFor(scene, c, this.activeSceneId)) ?? (isSender ? sceneCorrection : null);
+      const mine = this.sceneOf(c);
+      const sceneOut = (scene && sceneFor(scene, c, mine)) ?? (isSender ? sceneCorrection : null);
       const upsert: Item[] = [];
       const patch: ItemPatch[] = [];
       const del: string[] = [];
@@ -1449,8 +1496,8 @@ export class Room extends DurableObject<Env> {
           else if (ch.set) patch.push({ id: ch.id, set: ch.set });
           else upsert.push(ch.after);
         } else {
-          const vb = !!ch.before && visibleToPlayer(ch.before, this.activeSceneId);
-          const va = !!ch.after && visibleToPlayer(ch.after, this.activeSceneId);
+          const vb = !!ch.before && visibleToPlayer(ch.before, mine);
+          const va = !!ch.after && visibleToPlayer(ch.after, mine);
           if (va && vb && ch.set) patch.push({ id: ch.id, set: ch.set });
           else if (va) upsert.push(ch.after!);
           else if (vb) del.push(ch.id);
@@ -1497,8 +1544,9 @@ export class Room extends DurableObject<Env> {
     // Initiative entries follow their tokens' visibility, so a token appearing or
     // vanishing for players changes the list they see.
     const tracked = new Set(this.initiative.entries.map((e) => e.tokenId).filter((id): id is string => !!id));
-    const visible = (i: Item | null) => !!i && visibleToPlayer(i, this.activeSceneId);
-    if (changes.some((ch) => tracked.has(ch.id) && visible(ch.before) !== visible(ch.after))) {
+    const shown = [...this.shownScenes()];
+    const visible = (i: Item | null, sceneId: string | null) => !!i && visibleToPlayer(i, sceneId);
+    if (changes.some((ch) => tracked.has(ch.id) && shown.some((id) => visible(ch.before, id) !== visible(ch.after, id)))) {
       this.broadcastInitiative();
     }
   }
@@ -1560,7 +1608,8 @@ export class Room extends DurableObject<Env> {
     }
 
     let forGm: string | null = null;
-    let forPlayers: string | null | undefined;
+    // Players (and displays) get what happens on the scene they're on, and nothing of another.
+    const forScene = new Map<string | null, string | null>();
     for (const target of this.ctx.getWebSockets()) {
       if (target === ws) continue;
       const c = target.deserializeAttachment() as Conn | null;
@@ -1572,41 +1621,44 @@ export class Room extends DurableObject<Env> {
         this.sendRaw(target, forGm);
         continue;
       }
-      if (forPlayers === undefined) {
-        forPlayers = null;
-        if (clean.sceneId === this.activeSceneId) {
+      const mine = this.sceneOf(c);
+      let out = forScene.get(mine);
+      if (out === undefined) {
+        out = null;
+        if (clean.sceneId === mine) {
           if (clean.k === "drag") {
             const moves = clean.moves.filter((m) => {
               const item = this.items.get(m.id);
-              return !!item && visibleToPlayer(item, this.activeSceneId);
+              return !!item && visibleToPlayer(item, mine);
             });
-            if (moves.length) {
-              forPlayers = JSON.stringify({ t: "eph", from: conn.connId, e: { ...clean, moves } } satisfies ServerMsg);
-            }
+            if (moves.length) out = JSON.stringify({ t: "eph", from: conn.connId, e: { ...clean, moves } } satisfies ServerMsg);
           } else {
-            forPlayers = JSON.stringify({ t: "eph", from: conn.connId, e: clean } satisfies ServerMsg);
+            out = JSON.stringify({ t: "eph", from: conn.connId, e: clean } satisfies ServerMsg);
           }
         }
+        forScene.set(mine, out);
       }
-      if (forPlayers) this.sendRaw(target, forPlayers);
+      if (out) this.sendRaw(target, out);
     }
   }
 
   // ---------------------------------------------------------------- initiative
 
   /** Whether players may see an initiative entry: not one the GM keeps to themself, nor one for a token they can't see. */
-  private entryVisible(e: InitEntry): boolean {
+  private entryVisible(e: InitEntry, sceneId: string | null): boolean {
     if (e.hidden) return false;
     if (!e.tokenId) return true;
     const token = this.items.get(e.tokenId);
-    return !!token && visibleToPlayer(token, this.activeSceneId);
+    return !!token && visibleToPlayer(token, sceneId);
   }
 
+  /** The initiative list as this connection may see it: one list, with entries for tokens on their own scene only. */
   private initiativeFor(c: Player): Initiative {
     if (c.role === "gm") return this.initiative;
-    const entries = this.initiative.entries.filter((e) => this.entryVisible(e));
+    const mine = this.sceneOf(c);
+    const entries = this.initiative.entries.filter((e) => this.entryVisible(e, mine));
     const current = this.initiative.entries[this.initiative.turn];
-    const turn = current && this.entryVisible(current) ? entries.findIndex((e) => e.id === current.id) : -1;
+    const turn = current && this.entryVisible(current, mine) ? entries.findIndex((e) => e.id === current.id) : -1;
     return { entries, turn, round: this.initiative.round };
   }
 
@@ -1619,9 +1671,10 @@ export class Room extends DurableObject<Env> {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
     const gm = conn.role === "gm";
+    const mine = this.sceneOf(conn);
     const mayTouch = (id: unknown): id is string => {
       const e = isId(id) ? this.initiative.entries.find((x) => x.id === id) : undefined;
-      return !!e && (gm || this.entryVisible(e));
+      return !!e && (gm || this.entryVisible(e, mine));
     };
     switch (r.op) {
       case "add": {
@@ -1631,7 +1684,7 @@ export class Room extends DurableObject<Env> {
         // A taken id (perhaps a hidden entry's) gets a fresh one rather than an error.
         if (this.initiative.entries.some((e) => e.id === entry.id)) entry.id = randomId(10);
         if (!gm) delete entry.hidden;
-        if (entry.tokenId && !gm && !this.entryVisible(entry)) entry.tokenId = null;
+        if (entry.tokenId && !gm && !this.entryVisible(entry, mine)) entry.tokenId = null;
         return { op: "add", entry };
       }
       case "update": {
@@ -1650,7 +1703,7 @@ export class Room extends DurableObject<Env> {
         if (r.dir !== 1 && r.dir !== -1) return null;
         if (r.from !== undefined) {
           const cur = this.initiative.entries[this.initiative.turn];
-          const expected = cur && (gm || this.entryVisible(cur)) ? cur.id : null;
+          const expected = cur && (gm || this.entryVisible(cur, mine)) ? cur.id : null;
           if (r.from !== expected) return "stale";
         }
         return { op: "step", dir: r.dir };
@@ -1684,12 +1737,13 @@ export class Room extends DurableObject<Env> {
     const token = isId(tokenId) ? this.items.get(tokenId) : undefined;
     if (token?.kind !== "token" || isCompass(token)) return;
     const gm = conn.role === "gm";
-    if (!gm && !visibleToPlayer(token, this.activeSceneId)) return;
+    const mine = this.sceneOf(conn);
+    if (!gm && !visibleToPlayer(token, mine)) return;
     // A d10 and a bonus past the handbook's most is the most.
     const value = Math.max(-10000, Math.min(INITIATIVE_MAX, total));
     const have = this.initiative.entries.find((e) => e.tokenId === token.id);
     if (have) {
-      if (gm || this.entryVisible(have)) this.applyInitiative({ op: "update", id: have.id, value });
+      if (gm || this.entryVisible(have, mine)) this.applyInitiative({ op: "update", id: have.id, value });
       return;
     }
     if (this.initiative.entries.length >= LIMITS.initiativeEntries) return;
@@ -1699,21 +1753,30 @@ export class Room extends DurableObject<Env> {
     });
   }
 
-  private broadcastInitiative(by?: string, seq?: number): void {
+  /** `also`: tabs that get their view whether or not it changed (they've just moved to another scene). */
+  private broadcastInitiative(by?: string, seq?: number, also?: Set<WebSocket>): void {
     const forGm = JSON.stringify({ t: "initiative", initiative: this.initiative, by, seq } satisfies ServerMsg);
-    // Every player sees the same view. When a change only touched entries hidden from
-    // them, their view is the same as before: sending it anyway would tell them
+    // Every player on a scene sees the same view. When a change only touched entries hidden
+    // from them, their view is the same as before: sending it anyway would tell them
     // something happened. Only the player who made the change gets their echo.
-    const view = JSON.stringify(this.initiativeFor({ connId: "", userId: "", name: "", color: "", role: "player" }));
-    const changed = view !== this.lastPlayerInitiative;
-    this.lastPlayerInitiative = view;
     const echo = by ? `,"by":${JSON.stringify(by)}${seq !== undefined ? `,"seq":${seq}` : ""}` : "";
-    const forPlayers = `{"t":"initiative","initiative":${view}${echo}}`;
+    const views = new Map<string | null, { msg: string; changed: boolean }>();
     for (const ws of this.ctx.getWebSockets()) {
       const c = ws.deserializeAttachment() as Player | null;
       if (!c) continue;
-      if (c.role === "gm") this.sendRaw(ws, forGm);
-      else if (changed || c.connId === by) this.sendRaw(ws, forPlayers);
+      if (c.role === "gm") {
+        this.sendRaw(ws, forGm);
+        continue;
+      }
+      const mine = this.sceneOf(c);
+      let v = views.get(mine);
+      if (!v) {
+        const view = JSON.stringify(this.initiativeFor(c));
+        v = { msg: `{"t":"initiative","initiative":${view}${echo}}`, changed: view !== this.lastPlayerInitiative.get(mine) };
+        this.lastPlayerInitiative.set(mine, view);
+        views.set(mine, v);
+      }
+      if (v.changed || c.connId === by || also?.has(ws)) this.sendRaw(ws, v.msg);
     }
   }
 
@@ -1793,13 +1856,56 @@ export class Room extends DurableObject<Env> {
 
   private sees(c: Conn, item: Item): boolean {
     if ((c.v ?? 1) < versionFor(item)) return false;
-    return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
+    return c.role === "gm" || visibleToPlayer(item, this.sceneOf(c));
   }
 
   /** An item this connection may see but isn't sent, because its code is too old to show it. */
   private withheld(c: Conn, item: Item | null): boolean {
     if (!item || (c.v ?? 1) >= versionFor(item)) return false;
-    return c.role === "gm" || visibleToPlayer(item, this.activeSceneId);
+    return c.role === "gm" || visibleToPlayer(item, this.sceneOf(c));
+  }
+
+  // ---------------------------------------------------------------- the party split
+
+  /**
+   * The scene a connection is shown: a player's own, when the GM sent them somewhere apart from
+   * the party, else the live one, as for every table display. (The GM is sent every scene.)
+   */
+  private sceneOf(c: Pick<Player, "role" | "userId" | "display">): string | null {
+    if (c.role !== "gm" && !c.display) {
+      const own = this.placed.get(c.userId);
+      if (own && this.scenes.has(own)) return own;
+    }
+    return this.activeSceneId;
+  }
+
+  /** Whether a connection is sent what happens on this scene: the GM always, anyone else only on it. */
+  private onScene(c: Pick<Player, "role" | "userId" | "display">, sceneId: string): boolean {
+    return c.role === "gm" || this.sceneOf(c) === sceneId;
+  }
+
+  /** Every scene some player or display is on: the live one, and wherever the GM sent people. */
+  private shownScenes(): Set<string | null> {
+    return new Set<string | null>([this.activeSceneId, ...[...this.placed.values()].filter((id) => this.scenes.has(id))]);
+  }
+
+  /** The scene each player's and display's tab is on now, so a change goes only to those it moves. */
+  private viewerScenes(): Map<WebSocket, string | null> {
+    const out = new Map<WebSocket, string | null>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const c = ws.deserializeAttachment() as Conn | null;
+      if (c && c.role !== "gm") out.set(ws, this.sceneOf(c));
+    }
+    return out;
+  }
+
+  private savePlaced(): void {
+    this.setMeta("placed", Object.fromEntries(this.placed));
+  }
+
+  /** Who's where, for the GM: only the GM is ever told. */
+  private broadcastPlaced(): void {
+    this.broadcast({ t: "placed", placed: Object.fromEntries(this.placed) }, (c) => c.role === "gm");
   }
 
   /** Once per connection: its code is out of date and it's missing part of the map. */
@@ -1825,7 +1931,7 @@ export class Room extends DurableObject<Env> {
   }
 
   private hello(conn: Conn): ServerMsg {
-    const scenes = helloScenes(this.scenes.values(), conn, this.activeSceneId);
+    const scenes = helloScenes(this.scenes.values(), conn, this.sceneOf(conn));
     // What the party and its characters have explored of those scenes (with lighting on).
     const explored: Record<string, { key: string; bits: string }> = {};
     for (const s of scenes) if (s.vision?.on) Object.assign(explored, this.exploredMaps(s.id));
@@ -1835,7 +1941,9 @@ export class Room extends DurableObject<Env> {
       room: this.info!,
       scenes,
       explored,
-      activeSceneId: this.activeSceneId,
+      // A player's is the scene they're on, which may be theirs alone; the GM also hears who's where.
+      activeSceneId: conn.role === "gm" ? this.activeSceneId : this.sceneOf(conn),
+      ...(conn.role === "gm" ? { placed: Object.fromEntries(this.placed) } : {}),
       items: [...this.items.values()].filter((i) => this.sees(conn, i)),
       assets: [...this.assets.values()].filter((a) => canSeeAsset(a, conn)),
       messages: this.recentMessages(conn),
@@ -1923,58 +2031,95 @@ export class Room extends DurableObject<Env> {
     for (const ws of this.ctx.getWebSockets()) if (ws !== exclude) this.sendRaw(ws, msg);
   }
 
-  private broadcastActive(): void {
+  /**
+   * Each player and display the scene they're on, as they may see it (playerView.ts): everyone, or
+   * with `before` (viewerScenes), only those whose scene isn't what it was then. `liveMoved`: the
+   * live scene itself changed, so the GM hears it and displays show all of it again.
+   */
+  private broadcastActive(before?: Map<WebSocket, string | null>, liveMoved = true): void {
     // A new live scene: displays show all of it until the GM points them somewhere.
-    this.displayView = null;
-    // Players and displays get the live scene as they may see it (playerView.ts).
-    const live = this.activeSceneId ? this.scenes.get(this.activeSceneId) : undefined;
-    const scene = live ? playerScene(live) : null;
-    const items = [...this.items.values()].filter((i) => visibleToPlayer(i, this.activeSceneId));
+    if (liveMoved) this.displayView = null;
     const forGm = JSON.stringify({ t: "scene.active", id: this.activeSceneId } satisfies ServerMsg);
-    const forPlayers = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items } satisfies ServerMsg);
-    // Tabs too old for some of it (built maps, compasses) get the rest, and are asked to reload.
-    const newest = items.reduce((v, i) => Math.max(v, versionFor(i)), 1);
-    const forOld = new Map<number, string>();
+    // Each scene sent once however many are on it; tabs too old for some of it (built maps,
+    // compasses) get the rest, and are asked to reload.
+    const views = new Map<string | null, { scene: Scene | null; items: Item[]; newest: number; msg: string; forOld: Map<number, string> }>();
+    const viewOf = (id: string | null) => {
+      let view = views.get(id);
+      if (!view) {
+        const s = id ? this.scenes.get(id) : undefined;
+        const scene = s ? playerScene(s) : null;
+        const items = [...this.items.values()].filter((i) => visibleToPlayer(i, id));
+        const msg = JSON.stringify({ t: "scene.active", id, scene, items } satisfies ServerMsg);
+        view = { scene, items, newest: items.reduce((n, i) => Math.max(n, versionFor(i)), 1), msg, forOld: new Map() };
+        views.set(id, view);
+      }
+      return view;
+    };
+    const moved = new Set<WebSocket>();
     for (const ws of this.ctx.getWebSockets()) {
       const c = ws.deserializeAttachment() as Conn | null;
       if (!c) continue;
-      const v = c.v ?? 1;
       if (c.role === "gm") {
-        this.sendRaw(ws, forGm);
-      } else if (v < newest) {
-        let msg = forOld.get(v);
+        if (liveMoved) this.sendRaw(ws, forGm);
+        continue;
+      }
+      const id = this.sceneOf(c);
+      if (before && before.get(ws) === id) continue;
+      moved.add(ws);
+      const view = viewOf(id);
+      const v = c.v ?? 1;
+      if (v < view.newest) {
+        let msg = view.forOld.get(v);
         if (msg === undefined) {
-          const shown = items.filter((i) => v >= versionFor(i));
-          msg = JSON.stringify({ t: "scene.active", id: this.activeSceneId, scene, items: shown } satisfies ServerMsg);
-          forOld.set(v, msg);
+          const shown = view.items.filter((i) => v >= versionFor(i));
+          msg = JSON.stringify({ t: "scene.active", id, scene: view.scene, items: shown } satisfies ServerMsg);
+          view.forOld.set(v, msg);
         }
         this.sendRaw(ws, msg);
         this.warnOutdated(ws, c);
       } else {
-        this.sendRaw(ws, forPlayers);
+        this.sendRaw(ws, view.msg);
       }
     }
-    // What the party and its characters have explored of the live scene (players had only the last one's).
-    if (live?.vision?.on) {
-      for (const [slot, m] of Object.entries(this.exploredMaps(live.id))) {
-        const who = slot.slice(live.id.length + 1);
-        this.broadcast({ t: "explore", sceneId: live.id, key: m.key, ...(who ? { who } : {}), bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) }, (c) => c.role !== "gm");
+    // What the party and its characters have explored of the scene each is now on (they had only the last one's).
+    const explored = new Map<string, string[]>();
+    for (const ws of moved) {
+      const id = this.sceneOf(ws.deserializeAttachment() as Conn);
+      const s = id ? this.scenes.get(id) : undefined;
+      if (!s?.vision?.on) continue;
+      let msgs = explored.get(s.id);
+      if (!msgs) {
+        msgs = Object.entries(this.exploredMaps(s.id)).map(([slot, m]) => {
+          const who = slot.slice(s.id.length + 1);
+          return JSON.stringify({ t: "explore", sceneId: s.id, key: m.key, ...(who ? { who } : {}), bits: m.bits, ...(m.lit ? { litBits: m.lit } : {}) } satisfies ServerMsg);
+        });
+        explored.set(s.id, msgs);
       }
+      for (const msg of msgs) this.sendRaw(ws, msg);
     }
-    // Which initiative entries players may see depends on the live scene.
-    this.broadcastInitiative();
+    // Which initiative entries players may see depends on the scene they're on.
+    this.broadcastInitiative(undefined, undefined, moved);
   }
 
-  /** A changed scene: to the GM as stored, to players and displays only when it's live, as they may see it. */
+  /** A changed scene: to the GM as stored, to players and displays only when they're on it, as they may see it. */
   private broadcastScene(scene: Scene, by: string, seq: number | undefined): void {
     const forGm = JSON.stringify({ t: "scene.upsert", scene, by, seq } satisfies ServerMsg);
-    const shown = sceneFor(scene, { role: "player" }, this.activeSceneId);
-    const forPlayers = shown === scene ? forGm : shown ? JSON.stringify({ t: "scene.upsert", scene: shown, by, seq } satisfies ServerMsg) : null;
+    const forScene = new Map<string | null, string | null>();
     for (const ws of this.ctx.getWebSockets()) {
       const c = ws.deserializeAttachment() as Player | null;
       if (!c) continue;
-      if (c.role === "gm") this.sendRaw(ws, forGm);
-      else if (forPlayers) this.sendRaw(ws, forPlayers);
+      if (c.role === "gm") {
+        this.sendRaw(ws, forGm);
+        continue;
+      }
+      const mine = this.sceneOf(c);
+      let out = forScene.get(mine);
+      if (out === undefined) {
+        const shown = sceneFor(scene, c, mine);
+        out = shown === scene ? forGm : shown ? JSON.stringify({ t: "scene.upsert", scene: shown, by, seq } satisfies ServerMsg) : null;
+        forScene.set(mine, out);
+      }
+      if (out) this.sendRaw(ws, out);
     }
   }
 

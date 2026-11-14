@@ -82,7 +82,9 @@ describe("the notice's place on the page", () => {
     expect(players).toMatch(/text-overflow:\s*ellipsis/);
     // A touch screen has no tooltip: the eye is a button that says the whole notice, and what the
     // arrow does when there is one.
-    expect(page).toMatch(/class="preview-chip-eye"[\s\S]{0,160}room\.toast\(`Only you can see this scene\. \$\{players\}\$\{active \? " The arrow takes you back to them\." : ""\}`\)/);
+    expect(page).toMatch(/class="preview-chip-eye"[\s\S]{0,160}room\.toast\(`\$\{who\} \$\{players\}\$\{active \? " The arrow takes you back to them\." : ""\}`\)/);
+    // Who else sees it: only you, or you and the people the GM sent there (the party split).
+    expect(page).toContain('who: here.length ? `Only you and ${listNames(here)} can see this scene.` : "Only you can see this scene.",');
   });
 
   it("gives way in its words, not its buttons, when the top bar is short of room", () => {
@@ -106,9 +108,10 @@ describe("the notice's place on the page", () => {
 
   it("shows while previewing, with its tooltip and buttons that do what they say", () => {
     const chip = page.slice(page.indexOf("function PreviewChip()"), page.indexOf("function PreviewBanner()"));
-    expect(chip).toMatch(/const \{ view, active, players \} = usePreview\(\);\n  if \(!view\) return null;/);
-    expect(chip).toContain('<div class="preview-chip" title={`Only you can see this scene. ${players}`}>');
-    expect(chip).toContain("onClick={() => room.activateScene(view)}");
+    expect(chip).toMatch(/const \{ view, active, who, players \} = usePreview\(\);\r?\n  if \(!view\) return null;/);
+    expect(chip).toContain('<div class="preview-chip" title={`${who} ${players}`}>');
+    // Show to players: everyone, those sent elsewhere too.
+    expect(chip).toContain("onClick={() => room.activateScene(view, true)}");
     expect(chip).toContain("onClick={() => room.viewSceneLocally(active)}");
     expect(page).toContain("const previewing = usePreview().view !== null;");
   });

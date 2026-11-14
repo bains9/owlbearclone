@@ -18,7 +18,7 @@ import type { AttachEntry, ImportResult } from "../importScenes";
 import { MAP_FILE_ACCEPT, loneProjectFileNote, pairDungeondraft } from "../mapImport";
 import { useSidecar } from "./AttachDungeondraft";
 import { FromDungeon } from "./FromDungeon";
-import { levelOf, sceneEntries } from "../levels";
+import { levelOf, listNames, sceneEntries } from "../levels";
 import { UpdateFromDungeonDialog } from "./UpdateFromDungeon";
 import { CommitInput, ConfirmDialog, Modal, cx, useRoom, useRoomState } from "./common";
 import { DD_UI, NO_PENDING, dataRow, hasPending, localDataState, planDrop, planSkip, withoutPending } from "./ddText";
@@ -70,6 +70,11 @@ export function ScenesPanel() {
   const scenes = useRoomState((s) => s.scenes);
   const active = useRoomState((s) => s.activeSceneId);
   const view = useRoomState((s) => s.viewSceneId);
+  // The party split: who the GM sent to each scene (names shown again when who's here changes).
+  const placed = useRoomState((s) => s.placed);
+  useRoomState((s) => s.players);
+  const sentTo = (id: string) => room.namesOf(Object.keys(placed).filter((u) => placed[u] === id));
+  const split = Object.values(placed).some((id) => !!scenes[id]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Scene | null>(null);
@@ -98,12 +103,25 @@ export function ScenesPanel() {
       <div class="scene-info">
         <span class="scene-title">{label ?? s.name}</span>
         <span class="small muted">
-          {active === s.id ? <span class="live-tag">Players see this</span> : view === s.id ? "Previewing" : ""}
+          {active === s.id ? (
+            <span class="live-tag">{split ? "The party sees this" : "Players see this"}</span>
+          ) : sentTo(s.id).length ? (
+            <span class="live-tag split">{`${listNames(sentTo(s.id))} ${sentTo(s.id).length === 1 ? "sees" : "see"} this`}</span>
+          ) : view === s.id ? (
+            "Previewing"
+          ) : (
+            ""
+          )}
         </span>
       </div>
       <div class="scene-actions" onClick={(e) => e.stopPropagation()}>
-        {active !== s.id && (
-          <button class="icon-btn" title="Show to players" aria-label="Show to players" onClick={() => room.activateScene(s.id)}>
+        {(active !== s.id || split) && (
+          <button
+            class="icon-btn"
+            title={split ? "Show to players: everyone, together here" : "Show to players"}
+            aria-label="Show to players"
+            onClick={() => room.activateScene(s.id, true)}
+          >
             <Play size={16} />
           </button>
         )}

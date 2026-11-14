@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { BookOpen, CalendarDays, Castle, CircleQuestionMark, CornerUpLeft, Ellipsis, EyeOff, House, Images, Layers, Link, Maximize2, MessageSquare, Minimize2, Monitor, Music, RotateCw, ScrollText, Settings, Swords, TriangleAlert, WifiOff, X } from "lucide-preact";
 import { roomUrl } from "../api";
 import { layoutCheck } from "../layoutCheck";
+import { listNames } from "../levels";
 import { watchPageErrors } from "../pageErrors";
 import { ProblemsDialog } from "./ProblemsDialog";
 import { CalendarPanel, DateChip, DateOverlay, WeatherFx } from "./CalendarPanel";
@@ -687,14 +688,20 @@ function GridAlignBanner() {
 
 /** The GM's "Only you can see this scene": while the GM looks at a scene players aren't on. */
 function usePreview() {
+  const room = useRoom();
   const gm = useRoomState((s) => s.me?.role === "gm");
   const view = useRoomState((s) => s.viewSceneId);
   const active = useRoomState((s) => s.activeSceneId);
   const activeName = useRoomState((s) => (s.activeSceneId ? (s.scenes[s.activeSceneId]?.name ?? "") : ""));
+  // The party split: people the GM sent to this scene see it too.
+  const placed = useRoomState((s) => s.placed);
+  useRoomState((s) => s.players);
+  const here = view ? room.namesOf(Object.keys(placed).filter((u) => placed[u] === view)) : [];
   return {
     view: gm && view && view !== active ? view : null,
     active,
-    players: activeName ? `Players are on “${activeName}”.` : "Players have no scene.",
+    who: here.length ? `Only you and ${listNames(here)} can see this scene.` : "Only you can see this scene.",
+    players: activeName ? `${here.length ? "The party is" : "Players are"} on “${activeName}”.` : "Players have no scene.",
   };
 }
 
@@ -705,21 +712,21 @@ function usePreview() {
  */
 function PreviewChip() {
   const room = useRoom();
-  const { view, active, players } = usePreview();
+  const { view, active, who, players } = usePreview();
   if (!view) return null;
   return (
-    <div class="preview-chip" title={`Only you can see this scene. ${players}`}>
+    <div class="preview-chip" title={`${who} ${players}`}>
       {/* A touch screen has no tooltip: a tap on the eye says it all. */}
       <button
         class="preview-chip-eye"
         aria-label="Read the whole notice"
-        onClick={() => room.toast(`Only you can see this scene. ${players}${active ? " The arrow takes you back to them." : ""}`)}
+        onClick={() => room.toast(`${who} ${players}${active ? " The arrow takes you back to them." : ""}`)}
       >
         <EyeOff size={15} aria-hidden="true" />
       </button>
-      <span class="preview-chip-text">Only you can see this scene.</span>
+      <span class="preview-chip-text">{who}</span>
       <span class="preview-chip-players">{players}</span>
-      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
+      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view, true)}>
         Show to players
       </button>
       {active && (
@@ -740,12 +747,14 @@ function PreviewChip() {
 /** The same, on a phone: a banner near the bottom of the map, clear of the tools' bars at the top. */
 function PreviewBanner() {
   const room = useRoom();
-  const { view, active, players } = usePreview();
+  const { view, active, who, players } = usePreview();
   if (!view) return null;
   return (
     <div class="preview-banner preview-phone">
-      <span>Only you can see this scene. {players}</span>
-      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view)}>
+      <span>
+        {who} {players}
+      </span>
+      <button class="btn btn-primary btn-sm" onClick={() => room.activateScene(view, true)}>
         Show to players
       </button>
       {active && (
