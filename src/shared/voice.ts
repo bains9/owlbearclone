@@ -38,10 +38,14 @@ export interface IceServer {
   credential?: string;
 }
 
-/** One step of setting up a call between two tabs: an offer or answer, or a route to try. */
+/**
+ * One step of setting up a call between two tabs: an offer or answer, or a route to try; or
+ * whether this tab is whispering to the other (only they hear it, and only they are told).
+ */
 export type RtcSignal =
   | { sdp: { type: "offer" | "answer"; sdp: string } }
-  | { ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null; usernameFragment?: string | null } };
+  | { ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null; usernameFragment?: string | null } }
+  | { whisper: boolean };
 
 /** What a tab sends the table's voice chat (worker/voiceHub.ts). */
 export type VoiceClientMsg =
@@ -93,6 +97,7 @@ export function cleanSignal(raw: unknown): RtcSignal | null {
     if (ufrag !== null && (typeof ufrag !== "string" || ufrag.length > 256)) return null;
     return { ice: { candidate: c.candidate, sdpMid: mid, sdpMLineIndex: index, usernameFragment: ufrag } };
   }
+  if (r.whisper !== undefined) return typeof r.whisper === "boolean" ? { whisper: r.whisper } : null;
   return null;
 }
 

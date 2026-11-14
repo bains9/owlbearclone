@@ -2288,6 +2288,21 @@ export const GUIDE: GuideSection[] = [
           "It changes how loud they are for you only, and it's remembered in this browser.",
           "An iPhone or iPad has no sliders, because those devices set the volume themselves: use the device's volume buttons."
         ]
+      },
+      {
+        "title": "Whisper to one person",
+        "steps": [
+          "While you're in voice chat, click **Whisper** beside someone's name in the list under **Voice chat**.",
+          "Talk as usual (with push to talk, hold your key or the button). Only they hear you. Beside your name, their list says **whispering to you**.",
+          "To talk to everyone again, click **Talk to everyone**, or **Stop** beside their name."
+        ],
+        "notes": [
+          "Nobody else can tell, the GM included: everyone else hears nothing and sees your microphone as off while you whisper.",
+          "To answer, click **Whisper** beside their name and talk back.",
+          "Whispering to someone else ends the first whisper. Leaving voice chat ends it too.",
+          "If they leave voice chat while you're whispering, nobody hears you until you click **Talk to everyone**: a whisper never goes back to everyone by itself.",
+          "Over the map, a whisper shows as \"You, to\" and their name on yours, and as your name \"to you\" on theirs."
+        ]
       }
     ]
   },

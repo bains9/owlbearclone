@@ -39,6 +39,13 @@ export interface VoiceState {
   volumes: Record<string, number>;
   /** The browser wouldn't play the others' sound until the page is clicked. */
   blocked: boolean;
+  /**
+   * Whispering: only this person (all their tabs) hears this tab, until it stops. Kept when
+   * they leave, so nobody hears it then: a whisper never goes back to everyone by itself.
+   */
+  whisperTo: { userId: string; name: string } | null;
+  /** The tabs whispering to this one right now (connIds). Only the one whispered to is told. */
+  whisperFrom: string[];
 }
 
 /** What a Voice needs from the room it's in. */
@@ -82,6 +89,8 @@ export function voiceInitial(): VoiceState {
     links: {},
     volumes: loadVolumes(),
     blocked: false,
+    whisperTo: null,
+    whisperFrom: [],
   };
 }
 
@@ -101,6 +110,10 @@ interface Link {
   chain: Promise<void>;
   audio: HTMLAudioElement;
   restarts: number;
+  /** This call's own copy of the microphone, so a whisper can leave this call silent and not the others. */
+  track: MediaStreamTrack | null;
+  /** The other tab was last told this one is whispering to it. */
+  toldWhisper: boolean;
 }
 
 interface Meter {
@@ -215,7 +228,46 @@ export class Voice {
     if (this.host.get().status === "off") return;
     this.host.send({ t: "voice", on: false });
     this.shutdown();
-    this.host.set({ status: "off", muted: false, talking: false, links: {}, speaking: [], blocked: false });
+    this.host.set({ status: "off", muted: false, talking: false, links: {}, speaking: [], blocked: false, whisperTo: null, whisperFrom: [] });
+  }
+
+  /**
+   * Whispers to one person (by userId): only their tabs hear this one, only they are told, and
+   * everyone else sees this microphone as off. Null talks to everyone again.
+   */
+  whisper(userId: string | null): void {
+    const v = this.host.get();
+    if (v.status !== "on" || (v.whisperTo?.userId ?? null) === userId) return;
+    if (userId === null) {
+      this.host.set({ whisperTo: null });
+    } else {
+      const peer = v.peers.find((p) => p.userId === userId);
+      if (!peer || userId === this.myUserId()) return;
+      this.host.set({ whisperTo: { userId, name: peer.name } });
+    }
+    // The others' calls go quiet first; then whoever's whispered to (or no longer) is told.
+    this.applyMic();
+    this.tellWhispers();
+  }
+
+  /** Whether this person hears this tab: everyone does, unless it's whispering to someone else. */
+  private hears(userId: string): boolean {
+    const to = this.host.get().whisperTo;
+    return !to || to.userId === userId;
+  }
+
+  private myUserId(): string | null {
+    const me = this.host.myId();
+    return this.host.get().peers.find((p) => p.connId === me)?.userId ?? null;
+  }
+
+  /** Tells each call's other tab whether this one is whispering to it, where that changed. */
+  private tellWhispers(): void {
+    const to = this.host.get().whisperTo;
+    for (const [id, link] of this.links) {
+      const yes = !!to && link.userId === to.userId;
+      if (link.toldWhisper !== yes && this.host.send({ t: "rtc", to: id, d: { whisper: yes } })) link.toldWhisper = yes;
+    }
   }
 
   /** With an open microphone: mutes it, or turns it back on. */
@@ -252,9 +304,13 @@ export class Voice {
     const v = this.host.get();
     const live = v.status === "on" && (voiceMode(v, this.host.isGm()) === "open" ? !v.muted : v.talking);
     for (const track of this.mic?.getAudioTracks() ?? []) track.enabled = live;
+    // Each call has its own copy: while whispering, only the chosen person's carries sound.
+    for (const link of this.links.values()) if (link.track) link.track.enabled = live && this.hears(link.userId);
     if (v.status !== "on") return;
-    if (!force && this.told === !live) return;
-    if (this.host.send({ t: "voice", on: true, muted: !live })) this.told = !live;
+    // A whisperer's microphone shows as off to everyone, so nobody can tell they're talking.
+    const heard = live && !v.whisperTo;
+    if (!force && this.told === !heard) return;
+    if (this.host.send({ t: "voice", on: true, muted: !heard })) this.told = !heard;
   }
 
   /** One person's volume, from 0 to 1, for every tab of theirs, remembered in this browser. */
@@ -296,7 +352,8 @@ export class Voice {
   /** A new connection: the old one's calls belong to connIds that are gone, so start again. */
   onHello(): void {
     for (const id of [...this.links.keys()]) this.drop(id);
-    this.host.set({ peers: [], links: {}, speaking: [] });
+    // A whisper carries on: the new calls are told again as they start.
+    this.host.set({ peers: [], links: {}, speaking: [], whisperFrom: [] });
     this.told = null;
     this.snapshot = true;
     if (this.host.get().status === "on") this.applyMic(true);
@@ -307,6 +364,15 @@ export class Voice {
     const v = this.host.get();
     const ids = new Set(peers.map((p) => p.connId));
     this.host.set({ peers });
+    // The person whispered to: their name as it is now, or, when they've left, nobody hears this tab.
+    const to = v.whisperTo;
+    if (to && v.status === "on") {
+      const now = peers.find((p) => p.userId === to.userId);
+      if (now && now.name !== to.name) this.host.set({ whisperTo: { userId: to.userId, name: now.name } });
+      if (!now && v.peers.some((p) => p.userId === to.userId)) {
+        this.host.toast(`${to.name} left voice chat, so nobody hears you. Click Talk to everyone to be heard again.`);
+      }
+    }
     // Someone not in voice hears that it's on: once when the page connects, then whenever it starts.
     const snapshot = this.snapshot;
     this.snapshot = false;
@@ -365,7 +431,7 @@ export class Voice {
 
   onRefused(message: string): void {
     this.shutdown();
-    this.host.set({ status: "off", muted: false, talking: false, links: {}, speaking: [], blocked: false });
+    this.host.set({ status: "off", muted: false, talking: false, links: {}, speaking: [], blocked: false, whisperTo: null, whisperFrom: [] });
     this.host.toast(message);
   }
 
@@ -393,11 +459,20 @@ export class Voice {
       chain: Promise.resolve(),
       audio,
       restarts: 0,
+      track: null,
+      toldWhisper: false,
     };
     const id = peer.connId;
     this.links.set(id, link);
     this.setLink(id, "connecting");
-    if (this.mic) for (const track of this.mic.getAudioTracks()) pc.addTrack(track, this.mic);
+    const mine = this.mic?.getAudioTracks()[0];
+    if (this.mic && mine) {
+      // Silent from the start when this tab is whispering to someone else.
+      link.track = mine.clone();
+      link.track.enabled = mine.enabled && this.hears(peer.userId);
+      pc.addTrack(link.track, this.mic);
+    }
+    this.tellWhispers();
     pc.onnegotiationneeded = async () => {
       try {
         link.makingOffer = true;
@@ -431,6 +506,8 @@ export class Voice {
       if (s === "connected") {
         link.restarts = 0;
         this.setLink(id, "connected");
+        // Said again now both ends have the call: the first may have come before the other had it.
+        if (link.toldWhisper) this.host.send({ t: "rtc", to: id, d: { whisper: true } });
       } else if (s === "failed") {
         // The route stopped working (a network change, say): look for another, a few times.
         if (link.restarts < MAX_RESTARTS) {
@@ -451,6 +528,11 @@ export class Voice {
   private async apply(from: string, link: Link, d: RtcSignal): Promise<void> {
     if (this.links.get(from) !== link) return;
     const pc = link.pc;
+    if ("whisper" in d) {
+      const others = this.host.get().whisperFrom.filter((x) => x !== from);
+      this.host.set({ whisperFrom: d.whisper ? [...others, from].sort() : others });
+      return;
+    }
     if ("sdp" in d) {
       const desc = d.sdp;
       const ready = !link.makingOffer && (pc.signalingState === "stable" || link.answerPending);
@@ -492,11 +574,13 @@ export class Voice {
     pc.ontrack = null;
     pc.onconnectionstatechange = null;
     pc.close();
+    link.track?.stop();
     link.audio.srcObject = null;
     link.audio.remove();
     this.unmeter(id);
-    const { [id]: _gone, ...links } = this.host.get().links;
-    this.host.set({ links });
+    const v = this.host.get();
+    const { [id]: _gone, ...links } = v.links;
+    this.host.set({ links, ...(v.whisperFrom.includes(id) ? { whisperFrom: v.whisperFrom.filter((x) => x !== id) } : {}) });
   }
 
   private setLink(id: string, state: LinkState): void {

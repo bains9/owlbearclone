@@ -178,6 +178,21 @@ describe("the table's voice chat", () => {
     expect(b.sent).toHaveLength(1);
   });
 
+  it("passes a whisper on to the one tab it's for and nobody else, the GM included", async () => {
+    const [a, b, gm] = [sock(), sock(), sock({ role: "gm" })];
+    const r = room([a, b, gm]);
+    for (const s of [a, b, gm]) await say(r, s, { t: "voice", on: true });
+    for (const s of [a, b, gm]) s.sent.length = 0;
+    await say(r, a, { t: "rtc", to: b.conn.connId, d: { whisper: true, to: "everyone" } });
+    expect(b.sent).toEqual([{ t: "rtc", from: a.conn.connId, d: { whisper: true } }]);
+    await say(r, a, { t: "rtc", to: b.conn.connId, d: { whisper: "yes" } });
+    await say(r, a, { t: "rtc", to: b.conn.connId, d: { whisper: false } });
+    expect(b.sent.at(-1)).toEqual({ t: "rtc", from: a.conn.connId, d: { whisper: false } });
+    expect(b.sent).toHaveLength(2);
+    expect(gm.sent).toEqual([]);
+    expect(a.sent).toEqual([]);
+  });
+
   it("drops a flood of signals from one tab", async () => {
     const [a, b] = [sock(), sock()];
     const r = room([a, b]);
@@ -374,7 +389,13 @@ describe("cleaning signals and servers", () => {
       ice: { candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0, usernameFragment: "ab" },
     });
     expect(cleanSignal({ ice: { candidate: "c" } })).toEqual({ ice: { candidate: "c", sdpMid: null, sdpMLineIndex: null, usernameFragment: null } });
+    // A whisper: yes or no, and nothing else rides along.
+    expect(cleanSignal({ whisper: true, to: "everyone" })).toEqual({ whisper: true });
+    expect(cleanSignal({ whisper: false })).toEqual({ whisper: false });
     for (const bad of [
+      { whisper: "yes" },
+      { whisper: 1 },
+      { whisper: null },
       null,
       "x",
       {},
@@ -440,8 +461,46 @@ describe("the browser side", () => {
       },
       removeEventListener: (type: string, fn: (e: unknown) => void) => listeners.get(type)?.delete(fn),
     };
-    const track = { enabled: true, stopped: false, onended: null as null | (() => void), stop() { this.stopped = true; } };
+    // Each call's own copy of the microphone, in the order the calls started.
+    const clones: { enabled: boolean; stopped: boolean; stop(): void }[] = [];
+    const track = {
+      enabled: true,
+      stopped: false,
+      onended: null as null | (() => void),
+      stop() {
+        this.stopped = true;
+      },
+      clone() {
+        const c = { enabled: true, stopped: false, stop() { this.stopped = true; } };
+        clones.push(c);
+        return c;
+      },
+    };
     const mic = { getAudioTracks: () => [track], getTracks: () => [track] };
+    // Calls that never connect: enough to see what each one carries.
+    const pcs: { tracks: unknown[]; closed: boolean }[] = [];
+    vi.stubGlobal(
+      "RTCPeerConnection",
+      class {
+        tracks: unknown[] = [];
+        closed = false;
+        constructor() {
+          pcs.push(this);
+        }
+        addTrack(t: unknown) {
+          this.tracks.push(t);
+        }
+        setConfiguration() {}
+        restartIce() {}
+        close() {
+          this.closed = true;
+        }
+      },
+    );
+    Object.assign(target, {
+      createElement: () => ({ autoplay: false, volume: 1, srcObject: null, paused: true, append() {}, remove() {}, play: () => Promise.resolve() }),
+      body: { append() {} },
+    });
     vi.stubGlobal("window", target);
     vi.stubGlobal("document", target);
     vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: async () => mic } });
@@ -466,8 +525,98 @@ describe("the browser side", () => {
       for (const fn of listeners.get(type) ?? []) fn(e);
       return e;
     };
-    return { voice, track, sent, toasts, key, get state() { return state; }, listeners };
+    return { voice, track, clones, pcs, sent, toasts, key, get state() { return state; }, listeners };
   }
+
+  const person = (connId: string, userId: string, name: string, role: "gm" | "player" = "player"): VoicePeer => ({ connId, userId, name, color: "#fff", role, muted: false });
+  const me = person("me", "u0", "Me");
+  const jamie = person("j1", "uj", "Jamie");
+  const jamieTablet = person("j2", "uj", "Jamie");
+  const vern = person("v1", "uv", "Vern", "gm");
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it("whispering: only the chosen person's tabs hear it, only they're told, and everyone sees the microphone off", async () => {
+    const t = setup(true);
+    await t.voice.join();
+    t.voice.onPeers([me, jamie, jamieTablet, vern]);
+    expect(t.pcs).toHaveLength(3);
+    expect(t.clones.map((c) => c.enabled)).toEqual([true, true, true]);
+    t.sent.length = 0;
+    t.voice.whisper("uj");
+    expect(t.state.whisperTo).toEqual({ userId: "uj", name: "Jamie" });
+    expect(t.clones.map((c) => c.enabled)).toEqual([true, true, false]);
+    // Your own meter still hears you, so the map shows you talking.
+    expect(t.track.enabled).toBe(true);
+    expect(t.sent).toEqual([
+      { t: "voice", on: true, muted: true },
+      { t: "rtc", to: "j1", d: { whisper: true } },
+      { t: "rtc", to: "j2", d: { whisper: true } },
+    ]);
+    // Not to yourself, or to someone who isn't there.
+    t.voice.whisper("u0");
+    t.voice.whisper("nobody");
+    expect(t.state.whisperTo?.userId).toBe("uj");
+    // Someone joining meanwhile gets a silent call, and isn't told.
+    t.sent.length = 0;
+    const tanya = person("t1", "ut", "Tanya");
+    t.voice.onPeers([me, jamie, jamieTablet, vern, tanya]);
+    expect(t.clones.at(-1)?.enabled).toBe(false);
+    expect(t.sent).toEqual([]);
+    // Jamie leaves: nobody hears you, and it never goes back to everyone by itself.
+    t.voice.onPeers([me, vern, tanya]);
+    expect(t.toasts.at(-1)).toBe("Jamie left voice chat, so nobody hears you. Click Talk to everyone to be heard again.");
+    expect(t.clones[0].stopped && t.clones[1].stopped).toBe(true);
+    expect(t.clones.slice(2).map((c) => c.enabled)).toEqual([false, false]);
+    expect(t.state.whisperTo?.userId).toBe("uj");
+    expect(t.sent).toEqual([]);
+    // Talk to everyone.
+    t.voice.whisper(null);
+    expect(t.clones.slice(2).map((c) => c.enabled)).toEqual([true, true]);
+    expect(t.sent).toEqual([{ t: "voice", on: true, muted: false }]);
+  });
+
+  it("whispering with push to talk: the server never hears the key, and switching tells both people", async () => {
+    const t = setup(false);
+    await t.voice.join();
+    t.voice.onPeers([me, jamie, vern]);
+    t.voice.whisper("uj");
+    t.sent.length = 0;
+    t.key("keydown", "ShiftLeft");
+    expect(t.clones.map((c) => c.enabled)).toEqual([true, false]);
+    t.key("keyup", "ShiftLeft");
+    expect(t.clones.map((c) => c.enabled)).toEqual([false, false]);
+    expect(t.sent).toEqual([]);
+    t.voice.whisper("uv");
+    expect(t.sent).toEqual([
+      { t: "rtc", to: "j1", d: { whisper: false } },
+      { t: "rtc", to: "v1", d: { whisper: true } },
+    ]);
+    // After a reconnect, the new calls are told again as they start.
+    t.voice.onHello();
+    t.sent.length = 0;
+    t.voice.onPeers([me, jamie, person("v9", "uv", "Vern", "gm")]);
+    expect(t.sent).toContainEqual({ t: "rtc", to: "v9", d: { whisper: true } });
+    expect(t.sent.filter((m) => m.t === "rtc" && m.to === "j1")).toEqual([]);
+    // Leaving ends it.
+    t.voice.leave();
+    expect(t.state.whisperTo).toBeNull();
+  });
+
+  it("being whispered to: shown on this tab alone, and gone when they stop or leave", async () => {
+    const t = setup(false);
+    await t.voice.join();
+    t.voice.onPeers([me, vern]);
+    t.voice.onSignal("v1", { whisper: true });
+    await flush();
+    expect(t.state.whisperFrom).toEqual(["v1"]);
+    t.voice.onSignal("v1", { whisper: false });
+    await flush();
+    expect(t.state.whisperFrom).toEqual([]);
+    t.voice.onSignal("v1", { whisper: true });
+    await flush();
+    t.voice.onPeers([me]);
+    expect(t.state.whisperFrom).toEqual([]);
+  });
 
   it("push to talk: silent until the key is held, typing in a box never talks, and letting go is silent again", async () => {
     const t = setup(false);
@@ -675,6 +824,14 @@ describe("the guide", () => {
     expect(panel).toContain('`Hold to talk (${key})`');
     expect(panel).toContain('"You"');
     expect(keyName(DEFAULT_TALK_KEY)).toBe("Left Shift");
+  });
+
+  it("says how to whisper, that nobody else can tell, and that it never goes back to everyone by itself", () => {
+    const part = voice.parts.find((p) => p.title === "Whisper to one person")!;
+    const text = all([part]);
+    for (const what of ["**Whisper**", "**whispering to you**", "**Talk to everyone**", "**Stop**", "the GM included", "never goes back to everyone by itself"]) {
+      expect(text).toContain(what);
+    }
   });
 
   it("has a Voice chat section saying what the panel says, and a Troubleshooting entry", () => {

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 import type { JSX } from "preact";
-import { Headphones, Mic, MicOff, PhoneOff, VolumeX } from "lucide-preact";
+import { Headphones, Lock, Mic, MicOff, PhoneOff, VolumeX } from "lucide-preact";
 import type { VoicePeer } from "../../shared/voice";
 import { keyName, usableTalkKey, voiceMode } from "../room/voice";
 import type { VoiceState } from "../room/voice";
@@ -119,10 +119,23 @@ export function VoiceSection() {
           Your browser is holding back the others' sound. Click here, or anywhere, to hear them.
         </button>
       )}
+      {on && v.whisperTo && (
+        <div class="voice-whisper-note">
+          <Lock size={14} aria-hidden="true" />
+          <span>
+            {v.peers.some((p) => p.userId === v.whisperTo?.userId)
+              ? `Whispering to ${v.whisperTo.name}: only they hear you.`
+              : `${v.whisperTo.name} left voice chat, so nobody hears you.`}
+          </span>
+          <button class="btn btn-sm" onClick={() => voice.whisper(null)}>
+            Talk to everyone
+          </button>
+        </div>
+      )}
       {n > 0 && (
         <ul class="voice-people">
           {v.peers.map((p) => (
-            <VoicePerson key={p.connId} peer={p} me={p.connId === me?.connId} on={on} />
+            <VoicePerson key={p.connId} peer={p} me={p.connId === me?.connId} on={on} mine={p.userId === myUserId(v)} />
           ))}
         </ul>
       )}
@@ -130,13 +143,22 @@ export function VoiceSection() {
   );
 }
 
-function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
-  const { peer, me, on } = props;
+/** This tab's person in voice chat (by userId), once the server has it in. */
+function myUserId(v: VoiceState): string | null {
+  return v.peers.find((p) => p.connId === v.self?.connId)?.userId ?? null;
+}
+
+function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean; mine: boolean }) {
+  const { peer, me, on, mine } = props;
   const speaking = useVoice((s) => s.speaking.includes(peer.connId));
   const link = useVoice((s) => s.links[peer.connId]);
   const volume = useVoice((s) => s.volumes[peer.userId] ?? 1);
+  const toThem = useVoice((s) => s.whisperTo?.userId === peer.userId);
+  const toMe = useVoice((s) => s.whisperFrom.includes(peer.connId));
+  // Your own row while whispering: the others see your microphone as off, but it isn't.
+  const meWhispering = useVoice((s) => me && !!s.whisperTo);
   return (
-    <li class={cx("voice-person", speaking && "speaking")}>
+    <li class={cx("voice-person", speaking && "speaking", (toThem || toMe) && "whisper")}>
       <span class="voice-avatar" style={{ background: peer.color }}>
         {initial(peer.name)}
       </span>
@@ -145,10 +167,26 @@ function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
         {me && <span class="voice-you"> (you)</span>}
       </span>
       {peer.role === "gm" && <span class="gm-tag">GM</span>}
-      {peer.muted && (
+      {toMe && (
+        <span class="voice-whisper-tag" title="Only you hear them">
+          <Lock size={11} aria-hidden="true" /> whispering to you
+        </span>
+      )}
+      {/* Someone whispering to you shows as muted to everyone, you included: you hear them anyway. */}
+      {peer.muted && !toMe && !meWhispering && (
         <span class="voice-muted" title="Microphone off">
           <MicOff size={13} aria-label="Microphone off" />
         </span>
+      )}
+      {on && !mine && (
+        <button
+          class={cx("link-btn voice-whisper", toThem && "active")}
+          aria-pressed={toThem}
+          title={toThem ? "Talk to everyone again" : `Only ${peer.name} hears you, and nobody else can tell`}
+          onClick={() => voice.whisper(toThem ? null : peer.userId)}
+        >
+          {toThem ? "Stop" : "Whisper"}
+        </button>
       )}
       {on && !me && link === "connecting" && <span class="voice-link">connecting…</span>}
       {on && !me && link === "failed" && (
@@ -177,9 +215,11 @@ function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean }) {
 function TalkButton() {
   const talking = useVoice((s) => s.talking);
   const key = useVoice((s) => keyName(s.talkKey));
+  const whisper = useVoice((s) => !!s.whisperTo);
+  const idle = whisper ? `Hold to whisper (${key})` : `Hold to talk (${key})`;
   return (
     <button class={cx("btn btn-sm voice-talk", talking && "talking")} {...holdToTalk()}>
-      {talking ? <Mic size={14} /> : <MicOff size={14} />} {talking ? "Talking" : `Hold to talk (${key})`}
+      {talking ? <Mic size={14} /> : <MicOff size={14} />} {talking ? (whisper ? "Whispering" : "Talking") : idle}
     </button>
   );
 }
@@ -220,12 +260,13 @@ export function VoiceMicButton() {
   const muted = useVoice((s) => s.muted);
   const talking = useVoice((s) => s.talking);
   const key = useVoice((s) => keyName(s.talkKey));
+  const to = useVoice((s) => s.whisperTo?.name);
   if (!on) return null;
   if (mode === "ptt") {
     return (
       <button
-        class={cx("tool voice-mic", talking && "talking")}
-        title={`Hold to talk (or hold ${key})`}
+        class={cx("tool voice-mic", talking && "talking", to && "whisper")}
+        title={to ? `Hold to whisper to ${to} (or hold ${key})` : `Hold to talk (or hold ${key})`}
         aria-label="Hold to talk"
         aria-pressed={talking}
         {...holdToTalk()}
@@ -236,8 +277,8 @@ export function VoiceMicButton() {
   }
   return (
     <button
-      class={cx("tool voice-mic", muted ? "muted" : "live")}
-      title={muted ? "Unmute your microphone" : "Mute your microphone"}
+      class={cx("tool voice-mic", muted ? "muted" : "live", to && "whisper")}
+      title={muted ? "Unmute your microphone" : to ? `Whispering to ${to}: mute your microphone` : "Mute your microphone"}
       aria-label={muted ? "Unmute" : "Mute"}
       onClick={() => voice.setMuted(!muted)}
     >
@@ -268,16 +309,23 @@ export function SpeakingOverlay() {
   const speaking = useVoice((s) => s.speaking);
   const peers = useVoice((s) => s.peers);
   const myId = useVoice((s) => s.self?.connId);
+  const to = useVoice((s) => s.whisperTo?.name);
+  const from = useVoice((s) => s.whisperFrom);
   const list = on ? peers.filter((p) => speaking.includes(p.connId)) : [];
   if (!list.length) return null;
+  // A whisper says so, on the whisperer's map and the one whispered to: nobody else sees it.
+  const label = (p: VoicePeer) => {
+    if (p.connId === myId) return to ? `You, to ${to}` : "You";
+    return from.includes(p.connId) ? `${p.name}, to you` : p.name;
+  };
   return (
     <div class="speaking-overlay" aria-hidden="true">
       {list.map((p) => (
-        <div key={p.connId} class="speaking-chip" style={{ borderColor: p.color }}>
+        <div key={p.connId} class={cx("speaking-chip", (from.includes(p.connId) || (p.connId === myId && to)) && "whisper")} style={{ borderColor: p.color }}>
           <span class="voice-avatar" style={{ background: p.color }}>
             {initial(p.name)}
           </span>
-          <span class="speaking-name">{p.connId === myId ? "You" : p.name}</span>
+          <span class="speaking-name">{label(p)}</span>
           <span class="speaking-bars">
             <i />
             <i />

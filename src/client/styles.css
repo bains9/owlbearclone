@@ -1888,6 +1888,47 @@ button:disabled {
   width: 64px;
   accent-color: var(--accent);
 }
+/* Whispering: only the two people in it see any of this. */
+.voice-whisper-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-size: 12px;
+}
+.voice-whisper-note span {
+  flex: 1 1 160px;
+}
+.voice-person.whisper .voice-name {
+  color: var(--accent);
+}
+.voice-whisper-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.voice-whisper {
+  flex: none;
+  font-size: 11px;
+}
+.voice-whisper.active {
+  font-weight: 700;
+}
+.speaking-chip.whisper {
+  border-style: dashed;
+}
+.zoom .voice-mic.whisper {
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
 
 /* The mic in the zoom box, while in voice chat. */
 .zoom .voice-mic {
