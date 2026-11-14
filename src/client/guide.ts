@@ -3224,14 +3224,14 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Each person sees one map: the party's, or the one you last sent them to. They see nothing of any other map, and nobody else is told where they went. Only you, the GM, see where everyone is.",
-          "A player with two characters, such as Greg with Grimmdark in the party and Tomas off on his own: tick Tomas, and Greg sees Tomas's map. Greg plays Tomas there until you bring him back.",
+          "A player with two characters, one with the party and one off on their own: tick the one going, and that player sees its map, not the party's, until you bring them back. They see one map at a time.",
           "To bring them back, look at the party's map and use **Send here** again: tick them, click **Send them here**, then click where they arrive.",
           "A character whose token is already on this map, but whose player is elsewhere, is listed first: ticking them sends only the player.",
           "A character with no token on any map someone's on, such as a new one, is listed last: their token is put down where you click.",
           "**Send someone here** shows only on maps someone could be sent to. On the party's map it shows once someone is away, to bring them back.",
           "The **Scenes** panel says who's on each map: \"The party sees this\" on the party's, and who sees each of the others.",
           "**Show to players** on any map brings everyone together there again. **Take the party here**, and the levels' **Up** and **Down**, move the party only: anyone off on their own stays where they are.",
-          "While you look at someone's map, the top bar says who else can see it, such as \"Only you and Greg can see this scene.\"",
+          "While you look at someone's map, the top bar says who else can see it, such as \"Only you and Sam can see this scene.\"",
           "Chat, dice and the initiative list are shared, but each player sees initiative only for tokens on their own map. Private rolls and voice chat's **Whisper** keep secrets.",
           "The table display stays with the party."
         ]

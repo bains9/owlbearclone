@@ -244,7 +244,7 @@ export function sentGone(tokens: readonly Pick<TokenItem, "label">[], where: str
   return who ? `${who} to ${where}: ${see}.` : `${listNames(names)} ${names.length === 1 ? "sees" : "see"} ${where} now.`;
 }
 
-/** "Greg", "Greg and Jamie", "Greg, Jamie and Tanya". */
+/** "Bram", "Bram and Cora", "Bram, Cora and Ula". */
 export function listNames(names: readonly string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }

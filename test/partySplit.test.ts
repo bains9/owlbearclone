@@ -116,11 +116,11 @@ const conn = (id: string, userId: string, over: Partial<Conn> = {}): Conn => ({ 
 /** A room with Town (live), Cave and Keep; Grimmdark in Town, Tomas and a goblin (and a hidden ogre) in the Cave. */
 function setup() {
   const gm = sock(conn("gmc", GM_OWNER, { role: "gm", name: "GM" }));
-  const greg = sock(conn("gregc", "greg"));
-  const gregPhone = sock(conn("greg2c", "greg"));
-  const tanya = sock(conn("tanyac", "tanya"));
+  const bram = sock(conn("bramc", "bram"));
+  const bramPhone = sock(conn("bram2c", "bram"));
+  const ula = sock(conn("ulac", "ula"));
   const display = sock(conn("dispc", "disp", { display: true }));
-  const socks = [gm, greg, gregPhone, tanya, display];
+  const socks = [gm, bram, bramPhone, ula, display];
   const r = Object.create(RoomClass.prototype) as RoomInside;
   Object.assign(r, {
     sql: { exec: () => ({ toArray: () => [] }) },
@@ -166,116 +166,116 @@ function setup() {
   };
   const say = (s: Sock, msg: object) => r.handle(s, s.conn, msg, 1);
   const actives = (s: Sock) => s.sent.filter((m) => m.t === "scene.active");
-  return { r, gm, greg, gregPhone, tanya, display, socks, clear, say, actives };
+  return { r, gm, bram, bramPhone, ula, display, socks, clear, say, actives };
 }
 
 describe("the party split at the Room", () => {
   it("sends chosen people to another scene: every tab of theirs gets it alone, and only the GM hears who's where", async () => {
     const t = setup();
     t.clear();
-    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["greg"] });
-    for (const s of [t.greg, t.gregPhone]) {
+    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["bram"] });
+    for (const s of [t.bram, t.bramPhone]) {
       const [msg] = t.actives(s);
       expect(msg.id).toBe("solo");
       expect(msg.scene?.id).toBe("solo");
       // The Cave's tokens, never the hidden ogre, and nothing from Town.
       expect(msg.items?.map((i) => i.id).sort()).toEqual(["goblin", "tomas"]);
     }
-    // Tanya and the table display stay with the party, and aren't told anything.
-    expect(t.actives(t.tanya)).toEqual([]);
+    // Ula and the table display stay with the party, and aren't told anything.
+    expect(t.actives(t.ula)).toEqual([]);
     expect(t.actives(t.display)).toEqual([]);
-    for (const s of [t.greg, t.tanya, t.display]) expect(s.sent.some((m) => m.t === "placed")).toBe(false);
+    for (const s of [t.bram, t.ula, t.display]) expect(s.sent.some((m) => m.t === "placed")).toBe(false);
     // The GM's own view stays put, and the GM hears who's where.
     expect(t.actives(t.gm)).toEqual([]);
-    expect(t.gm.sent.find((m) => m.t === "placed")?.placed).toEqual({ greg: "solo" });
-    // Greg's initiative list: his scene's rows (the goblin's, its turn) and the typed-in one.
-    const init = t.greg.sent.find((m) => m.t === "initiative")?.initiative;
+    expect(t.gm.sent.find((m) => m.t === "placed")?.placed).toEqual({ bram: "solo" });
+    // Bram's initiative list: his scene's rows (the goblin's, its turn) and the typed-in one.
+    const init = t.bram.sent.find((m) => m.t === "initiative")?.initiative;
     expect(init?.entries.map((e) => e.id)).toEqual(["i2", "i3"]);
     expect(init?.turn).toBe(0);
   });
 
   it("then each sees only their own scene: its changes, its pings, its initiative rows, and on connecting", async () => {
     const t = setup();
-    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["greg"] });
+    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["bram"] });
     t.clear();
     t.r.handleItems(t.gm, t.gm.conn, { t: "items", patch: [{ id: "goblin", set: { x: 300 } }, { id: "grimm", set: { x: 300 } }] }, 2);
     const changed = (s: Sock) => s.sent.filter((m) => m.t === "items").flatMap((m) => [...(m.patch ?? []).map((p) => p.id), ...(m.upsert ?? []).map((i) => i.id)]);
-    expect(changed(t.greg)).toEqual(["goblin"]);
-    expect(changed(t.tanya)).toEqual(["grimm"]);
+    expect(changed(t.bram)).toEqual(["goblin"]);
+    expect(changed(t.ula)).toEqual(["grimm"]);
     expect(changed(t.display)).toEqual(["grimm"]);
     t.clear();
     t.r.handleEph(t.gm, t.gm.conn, { k: "pointer", sceneId: "solo", x: 1, y: 1, ping: true });
     t.r.handleEph(t.gm, t.gm.conn, { k: "pointer", sceneId: "party", x: 1, y: 1, ping: true });
     const pings = (s: Sock) => s.sent.filter((m) => m.t === "eph").map((m) => m.e?.sceneId);
-    expect(pings(t.greg)).toEqual(["solo"]);
-    expect(pings(t.tanya)).toEqual(["party"]);
+    expect(pings(t.bram)).toEqual(["solo"]);
+    expect(pings(t.ula)).toEqual(["party"]);
     expect(pings(t.display)).toEqual(["party"]);
-    // Connecting (again): Greg gets the Cave as his scene, and only it.
-    const hello = t.r.hello(t.greg.conn);
+    // Connecting (again): Bram gets the Cave as his scene, and only it.
+    const hello = t.r.hello(t.bram.conn);
     expect(hello.activeSceneId).toBe("solo");
     expect(hello.scenes.map((s) => s.id)).toEqual(["solo"]);
     expect(hello.items.map((i) => i.id).sort()).toEqual(["goblin", "tomas"]);
     expect(hello.placed).toBeUndefined();
     expect(hello.initiative.entries.map((e) => e.id)).toEqual(["i2", "i3"]);
-    expect(t.r.hello(t.tanya.conn).initiative.entries.map((e) => e.id)).toEqual(["i1", "i3"]);
-    expect(t.r.hello(t.gm.conn).placed).toEqual({ greg: "solo" });
+    expect(t.r.hello(t.ula.conn).initiative.entries.map((e) => e.id)).toEqual(["i1", "i3"]);
+    expect(t.r.hello(t.gm.conn).placed).toEqual({ bram: "solo" });
     // A player can't move a token on a scene they're not on.
     t.clear();
-    t.r.handleItems(t.tanya, t.tanya.conn, { t: "items", patch: [{ id: "goblin", set: { x: 5 } }] }, 3);
+    t.r.handleItems(t.ula, t.ula.conn, { t: "items", patch: [{ id: "goblin", set: { x: 5 } }] }, 3);
     expect(t.r.items.get("goblin")?.kind === "token" && (t.r.items.get("goblin") as TokenItem).x).toBe(300);
   });
 
   it("the party moving on leaves someone on their own where they are, and Show to players brings everyone together", async () => {
     const t = setup();
-    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["greg"] });
+    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["bram"] });
     t.clear();
-    // The party to the Keep (Take the party here): Greg stays in the Cave, undisturbed.
+    // The party to the Keep (Take the party here): Bram stays in the Cave, undisturbed.
     await t.say(t.gm, { t: "scene.activate", id: "keep" });
-    expect(t.actives(t.tanya).map((m) => m.id)).toEqual(["keep"]);
+    expect(t.actives(t.ula).map((m) => m.id)).toEqual(["keep"]);
     expect(t.actives(t.display).map((m) => m.id)).toEqual(["keep"]);
-    expect(t.actives(t.greg)).toEqual([]);
+    expect(t.actives(t.bram)).toEqual([]);
     expect(t.actives(t.gm).map((m) => m.id)).toEqual(["keep"]);
-    // The party taken to the Cave: Greg's with the party again, and isn't sent it twice.
+    // The party taken to the Cave: Bram's with the party again, and isn't sent it twice.
     t.clear();
     await t.say(t.gm, { t: "scene.activate", id: "solo" });
     expect(t.r.placed.size).toBe(0);
-    expect(t.actives(t.greg)).toEqual([]);
-    expect(t.actives(t.tanya).map((m) => m.id)).toEqual(["solo"]);
+    expect(t.actives(t.bram)).toEqual([]);
+    expect(t.actives(t.ula).map((m) => m.id)).toEqual(["solo"]);
     expect(t.gm.sent.find((m) => m.t === "placed")?.placed).toEqual({});
     // Sent away again, then Show to players (everyone) on the Keep.
-    await t.say(t.gm, { t: "scene.send", id: "party", users: ["greg", "tanya"] });
-    expect(Object.fromEntries(t.r.placed)).toEqual({ greg: "party", tanya: "party" });
+    await t.say(t.gm, { t: "scene.send", id: "party", users: ["bram", "ula"] });
+    expect(Object.fromEntries(t.r.placed)).toEqual({ bram: "party", ula: "party" });
     t.clear();
     await t.say(t.gm, { t: "scene.activate", id: "keep", all: true });
     expect(t.r.placed.size).toBe(0);
-    for (const s of [t.greg, t.tanya, t.display]) expect(t.actives(s).map((m) => m.id)).toEqual(["keep"]);
+    for (const s of [t.bram, t.ula, t.display]) expect(t.actives(s).map((m) => m.id)).toEqual(["keep"]);
   });
 
   it("sent to the live scene, someone's back with the party; their scene deleted, they're back too", async () => {
     const t = setup();
-    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["greg"] });
+    await t.say(t.gm, { t: "scene.send", id: "solo", users: ["bram"] });
     t.clear();
-    await t.say(t.gm, { t: "scene.send", id: "party", users: ["greg"] });
+    await t.say(t.gm, { t: "scene.send", id: "party", users: ["bram"] });
     expect(t.r.placed.size).toBe(0);
-    expect(t.actives(t.greg).map((m) => m.id)).toEqual(["party"]);
-    await t.say(t.gm, { t: "scene.send", id: "keep", users: ["greg"] });
+    expect(t.actives(t.bram).map((m) => m.id)).toEqual(["party"]);
+    await t.say(t.gm, { t: "scene.send", id: "keep", users: ["bram"] });
     t.clear();
     await t.say(t.gm, { t: "scene.delete", id: "keep" });
     expect(t.r.placed.size).toBe(0);
-    expect(t.actives(t.greg).map((m) => m.id)).toEqual(["party"]);
-    expect(t.actives(t.tanya)).toEqual([]);
+    expect(t.actives(t.bram).map((m) => m.id)).toEqual(["party"]);
+    expect(t.actives(t.ula)).toEqual([]);
   });
 
   it("only the GM sends people, only to a scene that exists, and only names that could be people", async () => {
     const t = setup();
     t.clear();
-    await t.say(t.greg, { t: "scene.send", id: "solo", users: ["greg"] });
-    expect(t.greg.sent.at(-1)).toEqual({ t: "error", message: "Only the GM can do that." });
-    await t.say(t.gm, { t: "scene.send", id: "nowhere", users: ["greg"] });
-    await t.say(t.gm, { t: "scene.send", id: "solo", users: "greg" });
+    await t.say(t.bram, { t: "scene.send", id: "solo", users: ["bram"] });
+    expect(t.bram.sent.at(-1)).toEqual({ t: "error", message: "Only the GM can do that." });
+    await t.say(t.gm, { t: "scene.send", id: "nowhere", users: ["bram"] });
+    await t.say(t.gm, { t: "scene.send", id: "solo", users: "bram" });
     await t.say(t.gm, { t: "scene.send", id: "solo", users: [42, "", "a b", "__proto__"] });
     expect(t.r.placed.size).toBe(0);
-    expect(t.actives(t.greg)).toEqual([]);
+    expect(t.actives(t.bram)).toEqual([]);
   });
 
   it("is kept with the room, and every scene change, ping and explored cell goes by each person's scene", () => {
@@ -295,9 +295,9 @@ describe("the party split at the Room", () => {
 
 describe("Send here, on the GM's page", () => {
   const characters = [
-    { id: "sheetT", name: "Tomas Verek", players: [{ userId: "greg", name: "Greg" }] },
-    { id: "sheetG", name: "Grimmdark", players: [{ userId: "greg", name: "Greg" }] },
-    { id: "sheetN", name: "Nancael", players: [{ userId: "tanya", name: "Tanya" }] },
+    { id: "sheetT", name: "Tomas Verek", players: [{ userId: "bram", name: "Bram" }] },
+    { id: "sheetG", name: "Grimmdark", players: [{ userId: "bram", name: "Bram" }] },
+    { id: "sheetN", name: "Nancael", players: [{ userId: "ula", name: "Ula" }] },
   ] as unknown as Character[];
   const state = (placed: Record<string, string>, items: TokenItem[]) => ({
     items: Object.fromEntries(items.map((i) => [i.id, i])),
@@ -313,21 +313,21 @@ describe("Send here, on the GM's page", () => {
       token("nan", "party", { character: "sheetN", label: "Nancael" }),
       token("grimm-old", "old", { character: "sheetG", label: "Grimmdark" }),
       token("goblin", "party", { label: "Goblin" }),
-      token("pet", "party", { owner: "tanya", label: "Tanya's cat" }),
+      token("pet", "party", { owner: "ula", label: "Ula's cat" }),
     ];
     const list = sendables(state({}, items), "solo");
     expect(list.map((o) => o.token.id).sort()).toEqual(["nan", "pet", "tomas"]);
-    expect(list.find((o) => o.token.id === "tomas")?.people).toEqual([{ userId: "greg", name: "Greg" }]);
-    expect(playersOf(items[4], characters)).toEqual([{ userId: "tanya", name: "" }]);
+    expect(list.find((o) => o.token.id === "tomas")?.people).toEqual([{ userId: "bram", name: "Bram" }]);
+    expect(playersOf(items[4], characters)).toEqual([{ userId: "ula", name: "" }]);
   });
 
   it("lists a token already here whose player is elsewhere, first; and not once they're here", () => {
     const items = [token("tomas", "solo", { character: "sheetT", label: "Tomas Verek" }), token("nan", "party", { character: "sheetN", label: "Nancael" })];
     const list = sendables(state({}, items), "solo");
     expect(list.map((o) => [o.token.id, o.here])).toEqual([["tomas", true], ["nan", false]]);
-    expect(sendables(state({ greg: "solo" }, items), "solo").map((o) => o.token.id)).toEqual(["nan"]);
-    // From the Cave, bringing them back: Tomas is on a map Greg's on, so he's listed for Town.
-    expect(sendables(state({ greg: "solo" }, items), "party").map((o) => o.token.id)).toEqual(["tomas"]);
+    expect(sendables(state({ bram: "solo" }, items), "solo").map((o) => o.token.id)).toEqual(["nan"]);
+    // From the Cave, bringing them back: Tomas is on a map Bram's on, so he's listed for Town.
+    expect(sendables(state({ bram: "solo" }, items), "party").map((o) => o.token.id)).toEqual(["tomas"]);
   });
 
   it("lists a character with no token where anyone is, whose player is elsewhere, to be put down here", () => {
@@ -335,12 +335,12 @@ describe("Send here, on the GM's page", () => {
     // Tomas has no token at all, and Grimmdark only one on an old map: both can be put down on the solo map.
     const list = unplaced(state({}, items), "solo");
     expect(list.map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
-    expect(list[1].people).toEqual([{ userId: "greg", name: "Greg" }]);
-    // Not on the party's map, where Greg is (Tokens & images places them there), nor once Greg's on the solo map.
+    expect(list[1].people).toEqual([{ userId: "bram", name: "Bram" }]);
+    // Not on the party's map, where Bram is (Tokens & images places them there), nor once Bram's on the solo map.
     expect(unplaced(state({}, items), "party")).toEqual([]);
-    expect(unplaced(state({ greg: "solo" }, items), "solo")).toEqual([]);
-    // From there, the party's map lists them, to bring Greg back.
-    expect(unplaced(state({ greg: "solo" }, items), "party").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
+    expect(unplaced(state({ bram: "solo" }, items), "solo")).toEqual([]);
+    // From there, the party's map lists them, to bring Bram back.
+    expect(unplaced(state({ bram: "solo" }, items), "party").map((o) => o.character.name)).toEqual(["Grimmdark", "Tomas Verek"]);
     // A token on a map someone's on counts, hidden ones not; a character nobody plays isn't listed.
     const more = { ...state({}, [...items, token("tomas", "party", { character: "sheetT", label: "Tomas Verek", hidden: true })]) };
     more.party = { ...more.party, characters: [...characters, { id: "sheetH", name: "Hireling", players: [] } as unknown as Character] };
@@ -350,16 +350,16 @@ describe("Send here, on the GM's page", () => {
     const here = [...items, token("tomas", "solo", { character: "sheetT", label: "Tomas Verek" })];
     expect(unplaced(state({}, here), "solo").map((o) => o.character.name)).toEqual(["Grimmdark"]);
     expect(sendables(state({}, here), "solo").map((o) => o.token.id)).toContain("tomas");
-    expect(unplaced(state({ greg: "solo" }, here), "party").map((o) => o.character.name)).toEqual(["Grimmdark"]);
+    expect(unplaced(state({ bram: "solo" }, here), "party").map((o) => o.character.name)).toEqual(["Grimmdark"]);
   });
 
   it("tells the GM who went where and who sees it", () => {
-    expect(listNames(["Greg"])).toBe("Greg");
-    expect(listNames(["Greg", "Jamie", "Tanya"])).toBe("Greg, Jamie and Tanya");
-    expect(sentGone([token("tomas", "solo", { label: "Tomas Verek" })], "“Cave”", ["Greg"])).toBe("Tomas Verek to “Cave”: Greg sees it now.");
-    expect(sentGone([], "“Town”", ["Greg", "Tanya"])).toBe("Greg and Tanya see “Town” now.");
+    expect(listNames(["Bram"])).toBe("Bram");
+    expect(listNames(["Bram", "Cora", "Ula"])).toBe("Bram, Cora and Ula");
+    expect(sentGone([token("tomas", "solo", { label: "Tomas Verek" })], "“Cave”", ["Bram"])).toBe("Tomas Verek to “Cave”: Bram sees it now.");
+    expect(sentGone([], "“Town”", ["Bram", "Ula"])).toBe("Bram and Ula see “Town” now.");
     // A character put down (no token where anyone was), by their token's name.
-    expect(sentGone([{ label: "Tomas" }], "“Cave”", ["Greg"])).toBe("Tomas to “Cave”: Greg sees it now.");
+    expect(sentGone([{ label: "Tomas" }], "“Cave”", ["Bram"])).toBe("Tomas to “Cave”: Bram sees it now.");
   });
 
   it("has Send here on the party bar, a click to place them, and the Scenes panel and top bar saying who sees what", () => {
@@ -393,6 +393,6 @@ describe("Send here, on the GM's page", () => {
     const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Split the party: send some to another map");
     expect(part).toBeTruthy();
     const text = [...part!.steps, ...part!.notes].join("\n");
-    for (const words of ["**Send someone here**", "**Send here**", "**Send them here**", "put down where you click", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "Tomas"]) expect(text).toContain(words);
+    for (const words of ["**Send someone here**", "**Send here**", "**Send them here**", "put down where you click", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "A player with two characters", "They see one map at a time"]) expect(text).toContain(words);
   });
 });

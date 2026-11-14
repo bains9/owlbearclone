@@ -530,20 +530,20 @@ describe("the browser side", () => {
 
   const person = (connId: string, userId: string, name: string, role: "gm" | "player" = "player"): VoicePeer => ({ connId, userId, name, color: "#fff", role, muted: false });
   const me = person("me", "u0", "Me");
-  const jamie = person("j1", "uj", "Jamie");
-  const jamieTablet = person("j2", "uj", "Jamie");
+  const cora = person("j1", "uj", "Cora");
+  const coraTablet = person("j2", "uj", "Cora");
   const vern = person("v1", "uv", "Vern", "gm");
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it("whispering: only the chosen person's tabs hear it, only they're told, and everyone sees the microphone off", async () => {
     const t = setup(true);
     await t.voice.join();
-    t.voice.onPeers([me, jamie, jamieTablet, vern]);
+    t.voice.onPeers([me, cora, coraTablet, vern]);
     expect(t.pcs).toHaveLength(3);
     expect(t.clones.map((c) => c.enabled)).toEqual([true, true, true]);
     t.sent.length = 0;
     t.voice.whisper("uj");
-    expect(t.state.whisperTo).toEqual({ userId: "uj", name: "Jamie" });
+    expect(t.state.whisperTo).toEqual({ userId: "uj", name: "Cora" });
     expect(t.clones.map((c) => c.enabled)).toEqual([true, true, false]);
     // Your own meter still hears you, so the map shows you talking.
     expect(t.track.enabled).toBe(true);
@@ -558,13 +558,13 @@ describe("the browser side", () => {
     expect(t.state.whisperTo?.userId).toBe("uj");
     // Someone joining meanwhile gets a silent call, and isn't told.
     t.sent.length = 0;
-    const tanya = person("t1", "ut", "Tanya");
-    t.voice.onPeers([me, jamie, jamieTablet, vern, tanya]);
+    const ula = person("t1", "ut", "Ula");
+    t.voice.onPeers([me, cora, coraTablet, vern, ula]);
     expect(t.clones.at(-1)?.enabled).toBe(false);
     expect(t.sent).toEqual([]);
-    // Jamie leaves: nobody hears you, and it never goes back to everyone by itself.
-    t.voice.onPeers([me, vern, tanya]);
-    expect(t.toasts.at(-1)).toBe("Jamie left voice chat, so nobody hears you. Click Talk to everyone to be heard again.");
+    // Cora leaves: nobody hears you, and it never goes back to everyone by itself.
+    t.voice.onPeers([me, vern, ula]);
+    expect(t.toasts.at(-1)).toBe("Cora left voice chat, so nobody hears you. Click Talk to everyone to be heard again.");
     expect(t.clones[0].stopped && t.clones[1].stopped).toBe(true);
     expect(t.clones.slice(2).map((c) => c.enabled)).toEqual([false, false]);
     expect(t.state.whisperTo?.userId).toBe("uj");
@@ -578,7 +578,7 @@ describe("the browser side", () => {
   it("whispering with push to talk: the server never hears the key, and switching tells both people", async () => {
     const t = setup(false);
     await t.voice.join();
-    t.voice.onPeers([me, jamie, vern]);
+    t.voice.onPeers([me, cora, vern]);
     t.voice.whisper("uj");
     t.sent.length = 0;
     t.key("keydown", "ShiftLeft");
@@ -594,7 +594,7 @@ describe("the browser side", () => {
     // After a reconnect, the new calls are told again as they start.
     t.voice.onHello();
     t.sent.length = 0;
-    t.voice.onPeers([me, jamie, person("v9", "uv", "Vern", "gm")]);
+    t.voice.onPeers([me, cora, person("v9", "uv", "Vern", "gm")]);
     expect(t.sent).toContainEqual({ t: "rtc", to: "v9", d: { whisper: true } });
     expect(t.sent.filter((m) => m.t === "rtc" && m.to === "j1")).toEqual([]);
     // Leaving ends it.
