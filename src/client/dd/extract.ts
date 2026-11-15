@@ -42,7 +42,7 @@ import {
   type BitmapLayer, type CliffLine, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid,
 } from "./sidecar";
 import {
-  AR, NAMED_ROLES, OR, TR, defaultName, isCliffPath, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
+  AR, NAMED_ROLES, OR, TR, defaultName, isCliffTexture, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
   type AreaRole, type ObjectRole, type TerrainRole,
 } from "./roles";
 import { REACH_DIRS, rasterSidecar } from "./raster";
@@ -571,8 +571,8 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     if (s) shapes.push(s);
   }
 
-  // Paths: the drawn width of default trails and roads, the whole ribbon of the rest. Dungeondraft's
-  // own cliffs are kept apart too, as their centre lines, for the 3D view (cliffLines).
+  // Paths: the drawn width of default trails and roads, the whole ribbon of the rest. Cliffs, Dungeondraft's
+  // own and asset packs', are kept apart too, as their centre lines, for the 3D view (cliffLines).
   const cliffs: CliffLine[] = [];
   for (const p of L.paths) {
     const rb = pathRibbon(p);
@@ -588,7 +588,7 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     for (const r of ribbonRings(rb, false, role === AR.PATH_KEEP ? 1 : pathDrawn(nm), EXTRACT.pathTol)) sb.ring(r);
     const s = sb.build();
     if (s) shapes.push(s);
-    if (isCliffPath(nm)) cliffs.push(...cliffLines(rb, crop));
+    if (isCliffTexture(p.texture)) cliffs.push(...cliffLines(rb, crop));
   }
 
   // Pack objects, and the objects' share of the area.

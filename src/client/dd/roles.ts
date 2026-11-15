@@ -3,7 +3,7 @@
 //
 // Every function takes a DEFAULT short name (see defaultName) or null. Null stands for an asset
 // pack's item, an embedded texture or anything unrecognised, and always gives the "as drawn"
-// role: a pack's file name is never looked at. The runtime re-derives roles from stored names,
+// role: a pack's file name is never looked at (but by isCliffTexture, for one word). The runtime re-derives roles from stored names,
 // so a fix to these tables reaches old attachments without a re-attach (bump EXACT_VERSION).
 //
 // Matching: a table of Dungeondraft's default paths first, then keywords on whole words of the
@@ -210,12 +210,26 @@ export function pathRole(name: string | null): AreaRole {
 }
 
 /**
- * Whether a path is one of Dungeondraft's own cliffs ("paths/cliffs_snow"): kept apart (sidecar
- * CLIF) so the 3D view can stand it up as a rock face. Seasons treat it as before (PATH_KEEP). A
- * pack's cliff has no name kept, so it isn't one.
+ * Whether a default path name is a cliff ("cliffs_snow"): kept apart (sidecar CLIF) so the 3D view
+ * can stand it up as a rock face. Seasons treat it as before (PATH_KEEP).
  */
 export function isCliffPath(name: string | null): boolean {
   return usable(name) && has(splitName(name), "cliff");
+}
+
+/**
+ * Whether a path's texture is a cliff, Dungeondraft's own or an asset pack's
+ * ("res://packs/<id>/textures/paths/cliff.png"). Most cliffs come from packs, so here, and only
+ * here, a pack's file path is looked at: for the one word, never kept (the CLIF section holds the
+ * cliff's line and width alone), and nothing of the pack is read but the map file's own text.
+ */
+export function isCliffTexture(ref: AssetRef | null): boolean {
+  if (!ref) return false;
+  if (ref.source === "default") return isCliffPath(defaultName(ref));
+  if (ref.source !== "pack" || !ref.path.startsWith("res://packs/")) return false;
+  // What follows the pack's id, without the extension: "textures/paths/cliff".
+  const rest = ref.path.split("/").slice(4).join("/").replace(/\.[a-z0-9]+$/i, "");
+  return rest.length > 0 && rest.length <= MAX_NAME && NAME_RE.test(rest) && has(splitName(rest), "cliff");
 }
 
 /**

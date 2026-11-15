@@ -31,7 +31,7 @@
 //           (a full turn / 256, clockwise), flags u8 (OBJ_FLAG), name u16 (0xFFFF none),
 //           then reach u16[16n] (1/4 world unit, 16 per object in REACH_DIRS order). 47 bytes an object
 //   6 CLIF  u32 nLines, then per line u16 halfWidth (world units), u32 nPts, nPts * (i32 x, i32 y)
-//           in 1/16 world unit: Dungeondraft's own cliff paths, their centre lines, for the 3D view's
+//           in 1/16 world unit: the map's cliff paths (Dungeondraft's own and packs'), their centre lines, for the 3D view's
 //           rock faces (at most once; only written when there are some, so a map without cliffs
 //           encodes as before, and a reader older than it skips it as an unknown section)
 //
@@ -49,7 +49,7 @@ export const SIDECAR_HEADER_BYTES = 16;
 /** Section tags. */
 export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6 } as const;
 
-/** A cliff's centre line and how wide it's drawn: one of Dungeondraft's own cliff paths, cropped as the rest is. */
+/** A cliff's centre line and how wide it's drawn: one of the map's cliff paths (Dungeondraft's own or a pack's), cropped as the rest is. */
 export interface CliffLine {
   /** Half its drawn width, in world units. */
   halfWidth: number;

@@ -1,4 +1,4 @@
-// Cliffs in the 3D view (view3d.ts): a Dungeondraft map's own cliff paths, from its map data (the
+// Cliffs in the 3D view (view3d.ts): a Dungeondraft map's cliff paths (its own or an asset pack's), from its map data (the
 // sidecar's CLIF: dd/sidecar.ts), stand up as rock faces along where the picture paints them: a
 // ridge as wide as the cliff is drawn, its height going up and down a little like rock, in the
 // colour the picture paints it. As with walls, a stretch a player hasn't seen doesn't stand up.

@@ -4,12 +4,13 @@
 import { describe, expect, it } from "vitest";
 import { parseDungeondraftMap } from "../src/client/dd/parse";
 import { GRID } from "../src/client/dd/model";
-import { isCliffPath, AR } from "../src/client/dd/roles";
+import { isCliffPath, isCliffTexture, AR } from "../src/client/dd/roles";
+import { parseAssetRef } from "../src/client/dd/assets";
 import { SECTION, SIDECAR_UNITS, decodeSidecar, encodeSidecar, type SeasonSidecar } from "../src/client/dd/sidecar";
 import { cliffLines, extractSidecar, pictureRect } from "../src/client/dd/extract";
 import { WALL_SEEN, type CoverMap } from "../src/client/room/view3dModel";
 import { CLIFF_HIGHEST, CLIFF_LOWEST, cliffHeight, cliffMesh, mapCliffs, resample } from "../src/client/room/view3dCliffs";
-import { FIXTURE_SPRITES, mapText } from "./fixtures/ddSynthetic";
+import { FIXTURE_SPRITES, PACK_PREFIX, mapText } from "./fixtures/ddSynthetic";
 import { fakeExportFromMap } from "./fixtures/fakeExport";
 
 const CELL = 100;
@@ -37,12 +38,24 @@ function withPath(texture: string) {
 }
 
 describe("cliffs in the map data", () => {
-  it("knows Dungeondraft's own cliffs by name, and not ropes, chains or a pack's", () => {
+  it("knows a cliff by its picture's file name, Dungeondraft's own or an asset pack's, and not ropes or chains", () => {
     expect(isCliffPath("cliff_snow")).toBe(true);
     expect(isCliffPath("cliffs/cliffs_02")).toBe(true);
     expect(isCliffPath("rope")).toBe(false);
     expect(isCliffPath("chain_iron")).toBe(false);
     expect(isCliffPath(null)).toBe(false);
+    const ref = (path: string) => parseAssetRef(path, new Map());
+    expect(isCliffTexture(ref("res://textures/paths/cliffs_snow.png"))).toBe(true);
+    // Most cliffs come from asset packs: a pack's paths are known by their file name too.
+    expect(isCliffTexture(ref("res://packs/AbCd1234/textures/paths/cliff.png"))).toBe(true);
+    expect(isCliffTexture(ref("res://packs/AbCd1234/textures/paths/Snowy_Cliffs_02.png"))).toBe(true);
+    expect(isCliffTexture(ref("res://packs/AbCd1234/textures/paths/rope_thick.png"))).toBe(false);
+    expect(isCliffTexture(ref("res://packs/AbCd1234/textures/paths/clifftop_grass.png"))).toBe(false);
+    expect(isCliffTexture(ref("res://packs/AbCd1234/textures/paths/cliff edge?.png"))).toBe(false);
+    expect(isCliffTexture(ref("res://packs/AbCd1234/cliff.png"))).toBe(true);
+    expect(isCliffTexture(ref("res://packs/AbCd1234"))).toBe(false);
+    expect(isCliffTexture(ref("cliff_embedded_key"))).toBe(false);
+    expect(isCliffTexture(null)).toBe(false);
   });
 
   it("keeps a cliff path's centre line and width when a map is attached", () => {
@@ -63,6 +76,14 @@ describe("cliffs in the map data", () => {
 
   it("keeps nothing apart for a path that isn't a cliff", () => {
     expect(withPath("rope").cliffs).toBeUndefined();
+    expect(withPath(`${PACK_PREFIX}frozen_rope`).cliffs).toBeUndefined();
+  });
+
+  it("keeps an asset pack's cliff too, keeping none of the pack's names", () => {
+    const sc = withPath(`${PACK_PREFIX}icy_cliff`);
+    expect(sc.cliffs).toHaveLength(1);
+    expect(sc.cliffs![0].halfWidth).toBeCloseTo(GRID / 2, -1);
+    expect(JSON.stringify(sc.meta)).not.toContain("icy_cliff");
   });
 
   it("carries cliffs through the sidecar's bytes and back", () => {

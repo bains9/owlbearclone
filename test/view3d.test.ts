@@ -512,7 +512,7 @@ describe("the guide", () => {
   });
 
   it("says a Dungeondraft map's cliffs stand up, and that a project file attached before needs attaching again", () => {
-    expect(text).toContain("A Dungeondraft map's cliffs (Dungeondraft's own cliff paths) stand up as rock");
+    expect(text).toContain("A Dungeondraft map's cliffs (its cliff paths, Dungeondraft's own or an asset pack's) stand up as rock");
     expect(text).toContain("attach it again (**Dungeondraft data** › **Change…**)");
   });
 
