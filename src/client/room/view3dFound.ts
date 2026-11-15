@@ -185,7 +185,7 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
 }
 
 /**
- * Cliffs: a ledge's rock face is drawn blue-grey (cool, hardly coloured, neither dark nor white),
+ * Cliffs: a ledge's rock face is drawn blue-grey (cool, hardly coloured, neither dark nor white; water is more coloured),
  * apart from the ground; dirt and scree beside it are warmer, so they don't join it. Its pieces two
  * pixels apart are one band; a band long and narrow enough is a cliff (cliffOf).
  */
@@ -196,7 +196,7 @@ function findCliffs(rgba: Uint8ClampedArray, inside: Uint8Array, ground: Float32
     const r = rgba[p * 4], g = rgba[p * 4 + 1], b = rgba[p * 4 + 2];
     const d = Math.max(Math.abs(r - ground[p * 3]), Math.abs(g - ground[p * 3 + 1]), Math.abs(b - ground[p * 3 + 2]));
     const lum = 0.3 * r + 0.59 * g + 0.11 * b;
-    if (d > 30 && b - r >= 4 && Math.max(r, g, b) - Math.min(r, g, b) < 60 && lum >= 70 && lum <= 215) rock[p] = 1;
+    if (d > 30 && b - r >= 4 && Math.max(r, g, b) - Math.min(r, g, b) < 35 && lum >= 70 && lum <= 215) rock[p] = 1;
   }
   const joined = grown(grown(rock, w, h), w, h);
   const seen = new Uint8Array(w * h);
@@ -237,7 +237,9 @@ function findCliffs(rgba: Uint8ClampedArray, inside: Uint8Array, ground: Float32
 /** A cliff's band is this wide (squares), and at least this long. */
 const CLIFF_WIDEST = 1.6;
 const CLIFF_NARROWEST = 0.3;
-const CLIFF_SHORTEST = 3;
+const CLIFF_SHORTEST = 6;
+/** A cliff's ends are at least this much of its length apart (a ring's are about 0.64). */
+const CLIFF_OPEN = 0.75;
 
 /**
  * A long band (a ledge's rock face) as a cliff: its middle line, from one end to the other (each
@@ -281,8 +283,11 @@ function cliffOf(members: readonly number[], path: readonly number[], width: num
   };
   const end = path[farthest(walk(members[0]))];
   const d = walk(end);
+  const far = path[farthest(d)];
   const length = d[farthest(d)];
   if (length < CLIFF_SHORTEST * s) return null;
+  // A band's ends lie about its length apart; a ring's (a rock's outline) much less: it's closed.
+  if (Math.hypot((end % w) - (far % w), Math.floor(end / w) - Math.floor(far / w)) < CLIFF_OPEN * length) return null;
   // The middle of each half square along it.
   const step = Math.max(2, s * 0.5);
   const bins = Math.floor(length / step) + 1;
