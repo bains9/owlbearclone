@@ -3004,7 +3004,7 @@ export const GUIDE: GuideSection[] = [
           "Labels ticked \"Only the GM sees this\" in Dungeon aren't in the picture. Each comes in as a secret note that only you see, on its level's scene, where the label is, in its colour and size (level, and in Tabletop's lettering: notes here don't turn). Players never receive it. Hide or show it later as any note, with the eye button.",
           "**Update from Dungeon** keeps those notes in step, with no copies: a label changed in Dungeon changes its note (where it is, its words, colour and size), a new label adds a note, and one deleted or unticked there takes its note away. Whether players see a note stays as you set it here, and a note you've deleted here stays deleted. Notes of your own are never touched.",
           "A Universal VTT file exported from Dungeon and dropped on the map brings its secret notes too, but they aren't kept in step: there's no Dungeon map to update them from.",
-          "Tabletop has no lighting or line of sight, so the walls, doors and lights Dungeon draws are only in the picture. Dungeon's map data does come with it, for exact seasons.",
+          "The map's walls, doors and lights come with it too, for lighting and line of sight: tick **On for this scene** under **Lighting and line of sight** in **Edit scene** to use them (see **Lighting and line of sight**). Dungeon's map data comes with it as well, for exact seasons.",
           "Your other maker's files still come in with **Upload a map**."
         ]
       },
@@ -3120,7 +3120,7 @@ export const GUIDE: GuideSection[] = [
           "In Tabletop, click **Import Dungeondraft map** in the Build tool's bar, or drop the file on the map. The **New scene** window opens with it. For exact seasons, pick or drop the map's .dungeondraft_map file along with it."
         ],
         "notes": [
-          "The picture and its grid come across exactly. The walls, doors and lights in the file aren't used: Tabletop has no lighting or line of sight.",
+          "The picture and its grid come across exactly, and so do the file's walls (those round objects too), doors and lights, for lighting and line of sight: tick **On for this scene** under **Lighting and line of sight** in **Edit scene** to use them (see **Lighting and line of sight**).",
           "Keep the .dungeondraft_map file Dungeondraft saves: attached to its scene, it makes seasons exact (see **Exact seasons for Dungeondraft maps** under **Seasons**). On its own it has no picture in it, so it can't make a scene, and Tabletop tells you so if you try.",
           "About 100 to 150 pixels per square is plenty. Tabletop shrinks map pictures to 6,144 pixels on their long side, so a big map at Dungeondraft's usual 256 pixels per square is scaled down anyway, and a very big one can be too large for the browser to open.",
           "Tools: Dungeondraft's Building tool is **Building** here (its Cave brush is Building's brush with dirt), the Wall tool is **Walls**, the Portal tool is **Doors**, the Terrain and Water brushes are **Terrain**, the Object tool is **Objects**, and the Select tool is **Select** (press **X**, and **X** again to go back).",

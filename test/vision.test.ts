@@ -336,3 +336,19 @@ describe("in the guide", () => {
     expect(JSON.stringify(section)).toContain("**Look as**");
   });
 });
+
+describe("the guide on map files' walls, doors and lights", () => {
+  it("says they come with a map from Dungeon or Dungeondraft and are used for lighting, and never that Tabletop has none", async () => {
+    const { GUIDE } = await import("../src/client/guide");
+    const part = (section: string, title: string) => {
+      const p = GUIDE.find((s) => s.id === section)!.parts.find((x) => x.title === title)!;
+      return [...p.steps, ...p.notes].join("\n");
+    };
+    for (const text of [part("adding-maps", "Maps from Dungeon"), part("building-maps", "Coming from Dungeondraft")]) {
+      expect(text).toContain("for lighting and line of sight: tick **On for this scene** under **Lighting and line of sight** in **Edit scene**");
+    }
+    // Only a dated What's new entry may still tell how things were.
+    const now = GUIDE.filter((s) => s.id !== "whats-new");
+    expect(JSON.stringify(now)).not.toMatch(/no lighting or line of sight|walls, doors and lights in the file aren't used/);
+  });
+});
