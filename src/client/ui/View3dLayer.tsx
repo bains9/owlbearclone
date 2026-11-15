@@ -5,6 +5,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Board } from "../room/board";
 import { useRoom, useRoomState } from "./common";
+import { useMapWeather } from "./CalendarPanel";
+import type { View3dControls } from "../room/view3dModel";
 
 export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }) {
   const room = useRoom();
@@ -12,12 +14,15 @@ export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }
   const tool = useRoomState((s) => s.tool);
   const ref = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"loading" | "ready">("loading");
+  const weather = useMapWeather();
+  const weatherKey = JSON.stringify(weather);
+  const view3d = useRef<View3dControls | null>(null);
 
   useEffect(() => {
     if (!on || !ref.current) return;
     const el = ref.current;
     let dead = false;
-    let view: { dispose(): void; zoomBy(f: number): void; fit(): void } | null = null;
+    let view: (View3dControls & { dispose(): void }) | null = null;
     setState("loading");
     const back = (message: string) => {
       room.toast(message, "error");
@@ -33,6 +38,7 @@ export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }
           onLost: () => back("The 3D view stopped: this device needed its graphics back. The map is in 2D again."),
         });
         room.view3d = view;
+        view3d.current = view;
         setState("ready");
       })
       .catch((err: unknown) => {
@@ -42,9 +48,15 @@ export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }
     return () => {
       dead = true;
       if (room.view3d === view) room.view3d = null;
+      view3d.current = null;
       view?.dispose();
     };
   }, [on, room, props.board]);
+
+  // The day's weather, once the view is there and whenever it changes.
+  useEffect(() => {
+    if (state === "ready") view3d.current?.setWeather(weather);
+  }, [state, weatherKey]);
 
   // The 2D board is under the 3D view: it needn't be shown (the browser draws less).
   useEffect(() => {

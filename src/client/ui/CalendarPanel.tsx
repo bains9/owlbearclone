@@ -211,13 +211,20 @@ export function WeatherSoundButton() {
 }
 
 /** Rain or snow falling over the map on a wet day (CSS, styles.css .weather-fx), unless the GM keeps the map dry. */
-export function WeatherFx() {
+/** The day's weather where it shows on the map on show: null with no calendar, weather off the maps, or the map indoors. */
+export function useMapWeather(): Weather | null {
   const cal = useRoomState((s) => s.calendar);
   const region = useSceneRegion();
   const indoors = useIndoors();
   if (!cal || cal.weatherOnMap === false || indoors) return null;
-  const w = weatherOf(cal, cal.today, region);
-  if (w.precipitation === "none") return null;
+  return weatherOf(cal, cal.today, region);
+}
+
+export function WeatherFx() {
+  const w = useMapWeather();
+  // The 3D view has its own rain and snow (room/view3dWeatherFx.ts).
+  const in3d = useRoomState((s) => s.view3d && s.map3d);
+  if (!w || w.precipitation === "none" || in3d) return null;
   return <div class={`weather-fx ${w.kind === "rain" ? "rain" : "snow"} ${w.precipitation}`} aria-hidden="true" />;
 }
 

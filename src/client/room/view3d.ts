@@ -53,6 +53,9 @@ import {
   type View3dControls,
 } from "./view3dModel";
 import { objectMesh } from "./view3dObjects";
+import { weatherLook } from "./view3dWeather";
+import { WeatherFx3d } from "./view3dWeatherFx";
+import type { Weather } from "../../shared/calendar";
 
 /** The floor picture's long side at most: on a touch screen (phones and tablets), and elsewhere. */
 const FLOOR_PX_TOUCH = 2048;
@@ -120,6 +123,9 @@ export class View3D implements View3dControls {
   private stop: () => void;
   private observer: ResizeObserver;
   private disposed = false;
+  /** The day's weather: rain, snow, mist and lightning (view3dWeatherFx.ts). */
+  private weather: WeatherFx3d;
+  private flashEl: HTMLDivElement;
 
   constructor(
     private el: HTMLElement,
@@ -134,6 +140,13 @@ export class View3D implements View3dControls {
     canvas.className = "view3d-canvas";
     el.appendChild(canvas);
     canvas.addEventListener("webglcontextlost", this.onLost);
+    this.flashEl = document.createElement("div");
+    this.flashEl.className = "view3d-flash";
+    el.appendChild(this.flashEl);
+    this.weather = new WeatherFx3d(this.world, this.flashEl, (sky) => {
+      this.renderer.setClearColor(sky ?? BACKGROUND, 1);
+      this.redraw();
+    });
 
     // The floor and figures are drawn as they are in 2D (unlit); the walls are lit, so their sides show.
     this.world.add(new HemisphereLight(0xffffff, 0x4a443c, 0.75));
@@ -176,8 +189,17 @@ export class View3D implements View3dControls {
     this.aim((a.x0 + a.x1) / 2 / this.cell, (a.y0 + a.y1) / 2 / this.cell, w, h, false, false);
   }
 
+  /** The day's weather on this map (null: none, or it doesn't fall here). */
+  setWeather(w: Weather | null): void {
+    const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.weather.set(weatherLook(w, { reducedMotion, touch: this.opts.touch }));
+    this.redraw();
+  }
+
   dispose(): void {
     this.disposed = true;
+    this.weather.dispose();
+    this.flashEl.remove();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.floorTimer) clearTimeout(this.floorTimer);
     this.stop();
@@ -585,14 +607,15 @@ export class View3D implements View3dControls {
     const moved = this.controls.update();
     this.keepOnScene();
     const sliding = this.stepFigs();
-    if (moved || aiming || sliding || this.dirty) {
+    const weathering = this.weather.step(performance.now(), this.controls.target, this.camera.position.distanceTo(this.controls.target));
+    if (moved || aiming || sliding || weathering || this.dirty) {
       // Every figure's card faces the camera's way.
       const turn = this.controls.getAzimuthalAngle();
       for (const f of this.figs.values()) if (f.face) f.face.rotation.y = turn;
       this.renderer.render(this.world, this.camera);
       this.dirty = false;
     }
-    if ((moved || aiming || sliding || this.held) && !this.raf) this.raf = requestAnimationFrame(this.frame);
+    if ((moved || aiming || sliding || this.held || this.weather.active) && !this.raf) this.raf = requestAnimationFrame(this.frame);
   };
 
   private onStart = (): void => {

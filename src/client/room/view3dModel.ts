@@ -10,6 +10,7 @@
 import type { GridSettings, Scene, SceneArea, SceneVision } from "../../shared/types";
 import { segmentsOf, type Seg } from "./vision";
 import type { Object3d } from "./view3dObjects";
+import type { Weather } from "../../shared/calendar";
 
 /** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
 export const WALL_HEIGHT = 1.1;
@@ -339,6 +340,8 @@ export interface Board3dSource {
 /** What the page's buttons and keys ask of the 3D view while it's showing. */
 export interface View3dControls {
   zoomBy(factor: number): void;
+  /** The day's weather on this map (null: none, or it doesn't fall here). */
+  setWeather(w: Weather | null): void;
   /** Back to the whole scene, from the south, tilted. */
   fit(): void;
 }

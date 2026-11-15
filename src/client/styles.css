@@ -803,6 +803,19 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
 }
+/* Lightning in a storm, in the 3D view (room/view3dWeatherFx.ts): a quick white flash, a slower fade. */
+.view3d-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #eef3ff;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.view3d-flash.on {
+  opacity: 0.32;
+  transition: opacity 0.04s;
+}
 /* The 2D board runs on under the 3D view, unseen. */
 .board.under3d {
   visibility: hidden;

@@ -1097,7 +1097,7 @@ export const GUIDE: GuideSection[] = [
     "id": "map-3d",
     "title": "The map in 3D",
     "audience": "everyone",
-    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it, and tokens stand on it as cardboard figures. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
+    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it, a built map's trees, rocks and furniture stand up too, tokens stand on it as cardboard figures, and the day's rain and snow fall on it. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
     "parts": [
       {
         "title": "Turn it on",
@@ -1130,12 +1130,16 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "The floor is the map exactly as the flat map shows it: the picture, a built map, the grid, drawings, and the fog and darkness over them.",
           "Walls and shut doors stand up: walls from a map brought in from Dungeon or a Universal VTT file, and walls built with the Build tool. Open doors are gaps.",
-          "Tokens stand up as figures, their pictures turned towards you, on a stand in their colour. Props (furniture, doors and other objects) lie flat.",
-          "When someone moves a token on the flat map, its figure slides there in 3D."
+          "On a built map (made with the Build tool, or brought in from Dungeon), its objects stand up too, each in the colours of its drawing: trees with trunks and leafy tops, evergreens as tall cones, bushes and rocks as lumps, columns and statues, barrels and urns, tables on legs, and crates, chests, shelves, beds, counters and fences as blocks. Rugs, stains and other things lying on the floor stay painted, as do small things such as cups and candles.",
+          "Tokens stand up as figures, their pictures turned towards you, on a stand in their colour. Props (furniture, doors and other objects put down as tokens) lie flat.",
+          "When someone moves a token on the flat map, its figure slides there in 3D.",
+          "The day's weather falls on the map: rain slanting with the wind, snow drifting down, mist over the far end of the map in heavy weather or under an overcast sky, and now and then lightning in a storm (heavy rain with a strong wind)."
         ],
         "notes": [
           "Players never see more in 3D than on the flat map. Walls stand only where you've seen: under the fog, or in darkness the party hasn't explored, there's nothing to give a room's shape away. Walls in places explored earlier are darker.",
-          "A token under the fog doesn't stand up for players. The GM sees everything, with the fog and the dark dimmed, as on the flat map.",
+          "A token or a built map's object under the fog doesn't stand up for players either. The GM sees everything, with the fog and the dark dimmed, as on the flat map.",
+          "A map that's just a picture has nothing to stand up but its walls (from a map file): trees and houses painted in the picture stay flat. Build them with the Build tool, or bring the map in from Dungeon.",
+          "The weather is the calendar's, where rain and snow fall on this map: GM, see **Weather on this map** in **Calendar**. On a device set to reduce motion, nothing falls in 3D and there's no lightning: only the mist shows.",
           "It only shows the map. Moving tokens, drawing, measuring, the fog and the Build tool all work on the flat map: picking a tool goes back to it. The arrow keys still move a selected token.",
           "Pings, rulers, spell effects playing and compass roses show on the flat map only.",
           "On a phone or tablet the 3D view uses a smaller picture of the map, to stay quick. If it makes a device slow, click **3D** to go back to the flat map, or untick it under **This device**."

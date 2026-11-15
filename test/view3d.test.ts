@@ -420,8 +420,15 @@ describe("the guide", () => {
     expect(zoom).toContain('aria-label="Fit the scene" onClick={fit}');
   });
 
+  it("says what stands up on a built map, and that the weather falls", () => {
+    expect(text).toContain("trees with trunks and leafy tops");
+    expect(text).toContain("Rugs, stains and other things lying on the floor stay painted");
+    expect(text).toContain("The day's weather falls on the map");
+    expect(text).toContain("**Weather on this map**");
+  });
+
   it("says players see no more in 3D than on the flat map", () => {
     expect(text).toContain("Players never see more in 3D than on the flat map");
-    expect(text).toContain("A token under the fog doesn't stand up for players");
+    expect(text).toContain("A token or a built map's object under the fog doesn't stand up for players");
   });
 });

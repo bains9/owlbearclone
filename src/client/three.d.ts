@@ -47,6 +47,7 @@ declare module "three" {
     scale: Vector3;
     visible: boolean;
     renderOrder: number;
+    frustumCulled: boolean;
     children: Object3D[];
     add(...objects: Object3D[]): this;
     remove(...objects: Object3D[]): this;
@@ -55,7 +56,16 @@ declare module "three" {
 
   export class Group extends Object3D {}
 
-  export class Scene extends Object3D {}
+  export class Fog {
+    constructor(color: string | number, near?: number, far?: number);
+    color: Color;
+    near: number;
+    far: number;
+  }
+
+  export class Scene extends Object3D {
+    fog: Fog | null;
+  }
 
   export class Camera extends Object3D {}
 
@@ -70,6 +80,7 @@ declare module "three" {
 
   export class BufferAttribute {
     constructor(array: Float32Array, itemSize: number, normalized?: boolean);
+    needsUpdate: boolean;
   }
 
   export class BufferGeometry {
@@ -102,6 +113,8 @@ declare module "three" {
     vertexColors?: boolean;
     color?: string | number | Color;
     map?: Texture | null;
+    size?: number;
+    sizeAttenuation?: boolean;
   }
 
   export class Material {
@@ -120,6 +133,29 @@ declare module "three" {
   export class MeshLambertMaterial extends Material {
     constructor(parameters?: MaterialParameters);
     color: Color;
+  }
+
+  export class PointsMaterial extends Material {
+    constructor(parameters?: MaterialParameters);
+    color: Color;
+    size: number;
+  }
+
+  export class LineBasicMaterial extends Material {
+    constructor(parameters?: MaterialParameters);
+    color: Color;
+  }
+
+  export class Points extends Object3D {
+    constructor(geometry?: BufferGeometry, material?: Material);
+    geometry: BufferGeometry;
+    material: Material;
+  }
+
+  export class LineSegments extends Object3D {
+    constructor(geometry?: BufferGeometry, material?: Material);
+    geometry: BufferGeometry;
+    material: Material;
   }
 
   export class Mesh extends Object3D {
