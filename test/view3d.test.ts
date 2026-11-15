@@ -503,6 +503,14 @@ describe("the guide", () => {
     expect(text).not.toContain("built map (made with the Build tool, or brought in from Dungeon)");
   });
 
+  it("says spells show in 3D, where they hang, and that fog hides them as on the flat map", () => {
+    expect(text).toContain("Spells show too, moving as on the flat map");
+    expect(text).toContain("A spell being cast shows over the fog, as it does on the flat map");
+    expect(text).not.toContain("spell effects playing and compass roses show on the flat map only");
+    expect(text).toContain("So are rooms a map's walls close off");
+    expect(JSON.stringify(GUIDE)).toContain("Lighting and line of sight");
+  });
+
   it("says players see no more in 3D than on the flat map", () => {
     expect(text).toContain("Players never see more in 3D than on the flat map");
     expect(text).toContain("A token or a built map's object under the fog doesn't stand up for players");

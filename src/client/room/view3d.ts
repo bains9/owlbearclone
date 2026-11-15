@@ -55,6 +55,7 @@ import {
 } from "./view3dModel";
 import { objectMesh } from "./view3dObjects";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
+import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
 import { WeatherFx3d } from "./view3dWeatherFx";
 import type { Weather } from "../../shared/calendar";
@@ -114,6 +115,15 @@ export class View3D implements View3dControls {
    */
   private roofs = new Map<string, { mesh: Mesh; mat: MeshLambertMaterial; lift: number; to: number; opacity: number }>();
   private roofAt = 0;
+  /**
+   * The spells on the map (view3dEffects.ts), each drawn on a canvas of its own laid in the scene
+   * as one sheet or two, by its key.
+   */
+  private sheets = new Map<string, { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[]; k: number }>();
+  private sheetsAt = 0;
+  private sheetsListedAt = 0;
+  /** What covers the floor (the fog and the dark) as a picture, to take out of spells under it. */
+  private coverCanvas: HTMLCanvasElement | null = null;
   private figs = new Map<string, Fig>();
   /** Token pictures as textures, by picture (an image's address, or a disc's colour and initials). */
   private pictures = new Map<string, { tex: Texture; w: number; h: number }>();
@@ -243,6 +253,8 @@ export class View3D implements View3dControls {
         this.tokensQueued = true;
         this.wake();
       }
+    } else if (what === "effects") {
+      this.refreshSheets();
     } else if (what === "view" && this.opts.follow) {
       const v = this.src.view();
       if (v) this.aim(v.x / this.cell, v.y / this.cell, v.w / this.cell, v.h / this.cell, false, true);
@@ -313,7 +325,10 @@ export class View3D implements View3dControls {
     this.camera.far = reach * 4;
     this.camera.updateProjectionMatrix();
 
+    this.makeCoverCanvas();
     this.refreshStandees();
+    // What covers the floor may have changed: every spell is drawn again over it.
+    this.refreshSheets(true);
     if (newScene) {
       // A new scene: looking where the 2D map looks (the whole scene, for one just shown).
       const v = this.src.view();
@@ -582,6 +597,149 @@ export class View3D implements View3dControls {
     return going;
   }
 
+  // ---------------------------------------------------------------- spells
+
+  /** The fog and the dark over the floor as a picture (black where covered), from the cover map. */
+  private makeCoverCanvas(): void {
+    const cover = this.cover;
+    if (!cover) {
+      this.coverCanvas = null;
+      return;
+    }
+    const canvas = (this.coverCanvas ??= document.createElement("canvas"));
+    if (canvas.width !== cover.w || canvas.height !== cover.h) {
+      canvas.width = cover.w;
+      canvas.height = cover.h;
+    }
+    const c = canvas.getContext("2d")!;
+    const img = c.createImageData(cover.w, cover.h);
+    for (let i = 0; i < cover.alpha.length; i++) img.data[i * 4 + 3] = cover.alpha[i];
+    c.putImageData(img, 0, 0);
+  }
+
+  /**
+   * The spells as the board has them now: new ones laid down, moved ones moved, gone ones taken
+   * up. Only new and moved ones are drawn (moving ones are drawn on by stepSheets), or all with
+   * `all` (what covers the floor changed).
+   */
+  private refreshSheets(all = false): void {
+    this.sheetsListedAt = performance.now();
+    const seen = new Set<string>();
+    const now = performance.now();
+    for (const e of this.src.effects()) {
+      seen.add(e.key);
+      let s = this.sheets.get(e.key);
+      if (s && !(sameSize(s.e.bounds, e.bounds) && s.e.level === e.level)) {
+        this.dropSheet(s);
+        this.sheets.delete(e.key);
+        s = undefined;
+      }
+      let fresh = all;
+      if (!s) {
+        s = this.makeSheet(e);
+        this.sheets.set(e.key, s);
+        fresh = true;
+      } else {
+        if (s.e.bounds.x0 !== e.bounds.x0 || s.e.bounds.y0 !== e.bounds.y0) fresh = true;
+        s.e = e;
+      }
+      this.placeSheet(s);
+      if (fresh) this.drawSheet(s, now);
+    }
+    for (const [key, s] of this.sheets) {
+      if (seen.has(key)) continue;
+      this.dropSheet(s);
+      this.sheets.delete(key);
+    }
+    this.redraw();
+  }
+
+  private makeSheet(e: Effect3d): { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[]; k: number } {
+    const b = e.bounds;
+    const k = effectScale(b, this.cell, this.opts.touch);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round((b.x1 - b.x0) * k));
+    canvas.height = Math.max(1, Math.round((b.y1 - b.y0) * k));
+    const ctx = canvas.getContext("2d")!;
+    const tex = new CanvasTexture(canvas);
+    const look = EFFECT_SHEETS[e.level];
+    const mat = new MeshBasicMaterial({ map: tex, transparent: true, opacity: look.opacity, depthWrite: false, side: DoubleSide });
+    const geo = new PlaneGeometry((b.x1 - b.x0) / this.cell, (b.y1 - b.y0) / this.cell);
+    geo.rotateX(-Math.PI / 2);
+    const meshes = look.heights.map(() => {
+      const m = new Mesh(geo, mat);
+      m.renderOrder = 5;
+      this.world.add(m);
+      return m;
+    });
+    return { e, canvas, ctx, tex, mat, geo, meshes, k };
+  }
+
+  /** A sheet over its spell's place, at its level's heights. */
+  private placeSheet(s: { e: Effect3d; meshes: Mesh[] }): void {
+    const b = s.e.bounds;
+    const heights = EFFECT_SHEETS[s.e.level].heights;
+    s.meshes.forEach((m, i) => m.position.set((b.x0 + b.x1) / 2 / this.cell, heights[i], (b.y0 + b.y1) / 2 / this.cell));
+  }
+
+  /** Draws a spell onto its sheet as it is at `now`, and takes out what the fog and the dark cover. */
+  private drawSheet(s: { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; k: number }, now: number): void {
+    const { ctx: c, k, e } = s;
+    const b = e.bounds;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = "source-over";
+    c.globalAlpha = 1;
+    c.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    c.setTransform(k, 0, 0, k, -b.x0 * k, -b.y0 * k);
+    try {
+      e.draw(c, now, 1 / k);
+    } catch {
+      // One spell that can't be drawn doesn't stop the rest.
+    }
+    const cover = this.cover;
+    if (e.mask && cover && this.coverCanvas) {
+      c.save();
+      c.globalCompositeOperation = "destination-out";
+      c.imageSmoothingEnabled = true;
+      c.drawImage(this.coverCanvas, cover.x0, cover.y0, cover.w / cover.k, cover.h / cover.k);
+      c.restore();
+    }
+    s.tex.needsUpdate = true;
+  }
+
+  /** Whether any spell showing moves (the view keeps drawing while one does). */
+  private sheetsMove(): boolean {
+    for (const s of this.sheets.values()) if (s.e.moving) return true;
+    return false;
+  }
+
+  /** Moving spells drawn on (now and then, not every frame); spells cast that have ended taken up. True when something was drawn. */
+  private stepSheets(now: number): boolean {
+    if (!this.sheets.size || now - this.sheetsAt < EFFECT_STEP_MS) return false;
+    this.sheetsAt = now;
+    // Spells being cast end by themselves: look again twice a second.
+    if (now - this.sheetsListedAt > 500 && [...this.sheets.keys()].some((k) => k.startsWith("cast:"))) this.refreshSheets();
+    let drew = false;
+    for (const s of this.sheets.values()) {
+      if (!s.e.moving) continue;
+      this.drawSheet(s, now);
+      drew = true;
+    }
+    return drew;
+  }
+
+  private dropSheet(s: { tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[] }): void {
+    for (const m of s.meshes) this.world.remove(m);
+    s.geo.dispose();
+    s.mat.dispose();
+    s.tex.dispose();
+  }
+
+  private dropSheets(): void {
+    for (const s of this.sheets.values()) this.dropSheet(s);
+    this.sheets.clear();
+  }
+
   private dropRoofs(): void {
     for (const r of this.roofs.values()) {
       this.world.remove(r.mesh);
@@ -608,6 +766,7 @@ export class View3D implements View3dControls {
   private clearScene(): void {
     this.dropFloor();
     this.dropWalls();
+    this.dropSheets();
     this.wallTex?.tex.dispose();
     this.wallTex = null;
     for (const f of this.figs.values()) this.dropFig(f);
@@ -709,11 +868,12 @@ export class View3D implements View3dControls {
       this.tokensQueued = false;
       this.refreshStandees();
       this.liftRoofs();
+      this.refreshSheets();
     }
     const aiming = this.stepTween();
     const moved = this.controls.update();
     this.keepOnScene();
-    const sliding = this.stepFigs() || this.stepRoofs(performance.now());
+    const sliding = this.stepFigs() || this.stepRoofs(performance.now()) || this.stepSheets(performance.now());
     const weathering = this.weather.step(performance.now(), this.controls.target, this.camera.position.distanceTo(this.controls.target));
     if (moved || aiming || sliding || weathering || this.dirty) {
       // Every figure's card faces the camera's way.
@@ -722,7 +882,7 @@ export class View3D implements View3dControls {
       this.renderer.render(this.world, this.camera);
       this.dirty = false;
     }
-    if ((moved || aiming || sliding || this.held || this.weather.active) && !this.raf) this.raf = requestAnimationFrame(this.frame);
+    if ((moved || aiming || sliding || this.held || this.weather.active || this.sheetsMove()) && !this.raf) this.raf = requestAnimationFrame(this.frame);
   };
 
   private onStart = (): void => {

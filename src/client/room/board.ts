@@ -55,7 +55,7 @@ import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
 import { distanceSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
-import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, toggledDoor } from "./vision";
+import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, segmentsOf, toggledDoor } from "./vision";
 import { BoardSight, FOG_CACHE_MAX, drawGlows, type SceneArea, type SightGeometry } from "./boardSight";
 import { moonlightOf, weatherHere } from "../../shared/calendar";
 import type { Calendar } from "../../shared/calendar";
@@ -109,9 +109,10 @@ import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
-import { buildingsOf, samplesOf, type Building3d } from "./view3dRoofs";
+import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
 import { WORLD_SQUARE, floorCells, mapLooksOutdoors, mapObjects, toScene, toWorld, type MapPlacement } from "./view3dMapData";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
+import { castBounds, tokenLookBounds, zoneBounds, type Effect3d } from "./view3dEffects";
 import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
@@ -789,6 +790,8 @@ export class Board implements BoardApi {
   private floor3dCanvas: HTMLCanvasElement | null = null;
   private cover3dCanvas: HTMLCanvasElement | null = null;
   private paint3dCanvas: HTMLCanvasElement | null = null;
+  /** A picture map's rooms from its walls alone, as last worked out, and what from (its walls and grid). */
+  private walledRooms3dOf: { vision: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /** The built map's buildings as last worked out, and what from (they change only with the build). */
   private buildings3dOf: { index: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /**
@@ -826,6 +829,7 @@ export class Board implements BoardApi {
         return id && !isHex(this.renderedScene!.grid) ? textureTile(id) : null;
       },
       buildings: () => this.buildings3d(),
+      effects: () => this.effects3d(),
       gmView: () => this.isGm && !this.room.state.fogOpts.preview,
       view: () => {
         if (!this.renderedScene) return null;
@@ -1079,7 +1083,37 @@ export class Board implements BoardApi {
         : [],
     );
     const fromMap = rooms.map(({ b, keys }) => ({ ...b, inside: [...inMap].some((k) => keys.has(k)) }));
-    return [...this.builtBuildings3d(scene, party), ...fromMap];
+    const built = this.builtBuildings3d(scene, party);
+    // A map with walls but no floors known (its walls loaded from a map file, no project file):
+    // its rooms are where the walls close them off.
+    const walled = !fromMap.length && !built.length ? this.walledRooms3d(scene, party) : [];
+    return [...built, ...fromMap, ...walled];
+  }
+
+  /** A picture map's rooms from its map file's walls alone (see enclosedCells), and whether the party is inside each. */
+  private walledRooms3d(scene: Scene, party: { x: number; y: number }[]): Building3d[] {
+    const v = scene.vision;
+    if (!v?.walls.length) return [];
+    let made = this.walledRooms3dOf;
+    if (!made || made.vision !== v || made.scene !== scene) {
+      const g = scene.grid;
+      const segs = [...segmentsOf(v.walls), ...v.doors.map((d) => d.line)];
+      const X = (col: number) => g.offsetX + col * g.size;
+      const Y = (row: number) => g.offsetY + row * g.size;
+      const list = buildingsOf(enclosedCells(segs, sceneBounds(scene), g)).map((b) => ({
+        b: {
+          id: `walls:${b.cells[0][0]},${b.cells[0][1]}`,
+          rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
+          samples: samplesOf(b, X, Y, g.size),
+          inside: false,
+        },
+        keys: new Set(b.cells.map(([c, r]) => `${c},${r}`)),
+      }));
+      made = this.walledRooms3dOf = { vision: v, scene, list };
+    }
+    const g = scene.grid;
+    const at = new Set(party.map((p) => `${Math.floor((p.x - g.offsetX) / g.size)},${Math.floor((p.y - g.offsetY) / g.size)}`));
+    return made.list.map(({ b, keys }) => ({ ...b, inside: [...at].some((k) => keys.has(k)) }));
   }
 
   /** The built map's buildings, and whether the party (`party`, scene points) is inside each. */
@@ -1127,6 +1161,86 @@ export class Board implements BoardApi {
       out.push({ id: p.id, x, y, size: p.size, deg: p.deg, color: stampColour(p.id, look) });
     }
     return fromMap.length ? [...out, ...fromMap] : out;
+  }
+
+  /**
+   * The spells on the map for the 3D view (view3dEffects.ts): the spell areas (drawings with a
+   * zone's look), the looks of spells on the tokens this page shows, and the spells being cast,
+   * each drawn as the flat map draws it.
+   */
+  private effects3d(): Effect3d[] {
+    const scene = this.renderedScene;
+    if (!scene) return [];
+    const out: Effect3d[] = [];
+    const cell = scene.grid.size;
+    const gmView = this.isGm && !this.room.state.fogOpts.preview;
+    for (const n of this.drawings.values()) {
+      const d = n.item;
+      if (!isZoneLook(d?.fx) || !n.shape.visible() || (d.shape !== "ellipse" && d.shape !== "rect")) continue;
+      // Where it is now (being dragged too).
+      const p = n.shape.position();
+      const dx = p.x - n.base.x, dy = p.y - n.base.y;
+      const pts = [d.points[0] + dx, d.points[1] + dy, d.points[2] + dx, d.points[3] + dy];
+      const look = d.fx;
+      const zone = zoneOf(look, d.shape, pts, seedOf(d.id), d.color, d.spell);
+      out.push({
+        key: `zone:${d.id}:${look}`,
+        level: ZONE_LOOKS[look].layer === "ground" ? "ground" : "air",
+        bounds: zoneBounds(pts, cell),
+        mask: true,
+        moving: spellLookMoves(look),
+        draw: (c, now, px) => {
+          c.save();
+          if (d.hidden) c.globalAlpha = 0.5;
+          drawZone(c, zone, now, cell, px, gmView);
+          c.restore();
+        },
+      });
+    }
+    for (const [id, list] of this.spellsOn) {
+      const n = this.tokens.get(id);
+      const t = n?.item;
+      if (!n || !t || !n.group.visible()) continue;
+      const r = (t.size * n.cell) / 2;
+      const at = n.group.position();
+      for (const d of list) {
+        const look = d.fx as TokenLook;
+        out.push({
+          key: `look:${id}:${d.id}`,
+          level: tokenLookLayer(look) === "ground" ? "ground" : "mid",
+          bounds: tokenLookBounds(at.x, at.y, r, cell),
+          mask: true,
+          moving: true,
+          draw: (c, now, px) => {
+            const q = n.group.position();
+            const on: OnToken = { look, x: q.x, y: q.y, r, color: d.color, seed: seedOf(d.id) };
+            if (look === "spectral" || look === "haste") on.trail = this.ghostTrail(id, q, now);
+            if (look === "spectral" || look === "haste" || look === "mirror" || look === "blur") {
+              on.picture = n.picture;
+              on.disc = t.color;
+            }
+            c.save();
+            if (d.hidden) c.globalAlpha = 0.5;
+            drawTokenLook(c, on, now, px);
+            c.restore();
+          },
+        });
+      }
+    }
+    const now = performance.now();
+    for (const f of this.fxPlays) {
+      if (now - f.t0 >= fxDuration(f.look)) continue;
+      out.push({
+        key: `cast:${f.t0}:${f.seed}`,
+        level: "mid",
+        bounds: castBounds(f.a, f.b, f.r, cell),
+        // The flat map draws a spell being cast over the fog too.
+        mask: false,
+        moving: true,
+        draw: (c, t, px) => void drawFx(c, f, t, px),
+      });
+    }
+    return out;
   }
 
   /** The dark and the fog over the scene, as dimmed as this page shows them; false when there's neither. */
@@ -3350,6 +3464,7 @@ export class Board implements BoardApi {
       cell: grid.size,
     });
     this.startAnim();
+    if (this.listeners3d.size) this.tell3d("effects");
   }
 
   /** The effects playing, and (Spells tool) where the next one would go. */

@@ -80,6 +80,88 @@ export function rectsOf(cells: readonly (readonly [number, number])[]): CellRect
   return out;
 }
 
+/** A wall's stretch, [x0, y0, x1, y1], in scene units. */
+type Seg = readonly [number, number, number, number];
+
+/** Whether two stretches cross (touching at an end counts). */
+function crosses(a: Seg, b: Seg): boolean {
+  const d = (p: number, q: number, r: number, s: number, t: number, u: number) => (r - p) * (u - q) - (s - q) * (t - p);
+  const d1 = d(b[0], b[1], b[2], b[3], a[0], a[1]), d2 = d(b[0], b[1], b[2], b[3], a[2], a[3]);
+  const d3 = d(a[0], a[1], a[2], a[3], b[0], b[1]), d4 = d(a[0], a[1], a[2], a[3], b[2], b[3]);
+  return ((d1 <= 0 && d2 >= 0) || (d1 >= 0 && d2 <= 0)) && ((d3 <= 0 && d4 >= 0) || (d3 >= 0 && d4 <= 0));
+}
+
+/** Rooms smaller than this (squares) aren't buildings: a gap between two walls, a chimney. */
+const SMALLEST_ROOM = 2;
+
+/**
+ * The squares the walls close off from the map's edge: a map with only walls (a Dungeondraft or
+ * Universal VTT map's, with no project file to say where its floors are) has rooms where its
+ * walls (doors counted as walls, shut or open) leave no way out. Walking square to square from
+ * every square on the map's edge, a step between two squares is blocked where a wall crosses the
+ * line between their middles; the squares never reached are inside. A room whose wall has a
+ * gap (an archway) is part of the outside. As [col, row] on the scene's grid.
+ */
+export function enclosedCells(
+  walls: readonly Seg[],
+  area: { x0: number; y0: number; x1: number; y1: number },
+  grid: { size: number; offsetX: number; offsetY: number },
+): [number, number][] {
+  const { size, offsetX, offsetY } = grid;
+  if (!(size > 0) || !walls.length) return [];
+  const c0 = Math.floor((area.x0 - offsetX) / size), r0 = Math.floor((area.y0 - offsetY) / size);
+  const c1 = Math.ceil((area.x1 - offsetX) / size) - 1, r1 = Math.ceil((area.y1 - offsetY) / size) - 1;
+  const cols = c1 - c0 + 1, rows = r1 - r0 + 1;
+  if (cols <= 0 || rows <= 0 || cols * rows > 250_000) return [];
+  // Walls by the squares they pass over, so a step only tests the walls near it.
+  const buckets = new Map<number, Seg[]>();
+  for (const w of walls) {
+    const a0 = Math.floor((Math.min(w[0], w[2]) - offsetX) / size), a1 = Math.floor((Math.max(w[0], w[2]) - offsetX) / size);
+    const b0 = Math.floor((Math.min(w[1], w[3]) - offsetY) / size), b1 = Math.floor((Math.max(w[1], w[3]) - offsetY) / size);
+    for (let r = b0; r <= b1; r++) {
+      for (let c = a0; c <= a1; c++) {
+        if (c < c0 || c > c1 || r < r0 || r > r1) continue;
+        const k = (r - r0) * cols + (c - c0);
+        const list = buckets.get(k);
+        if (list) list.push(w);
+        else buckets.set(k, [w]);
+      }
+    }
+  }
+  const mid = (c: number, r: number): [number, number] => [offsetX + (c + 0.5) * size, offsetY + (r + 0.5) * size];
+  const blocked = (ca: number, ra: number, cb: number, rb: number) => {
+    const [ax, ay] = mid(ca, ra), [bx, by] = mid(cb, rb);
+    const step: Seg = [ax, ay, bx, by];
+    for (const [c, r] of [[ca, ra], [cb, rb]]) {
+      for (const w of buckets.get((r - r0) * cols + (c - c0)) ?? []) if (crosses(step, w)) return true;
+    }
+    return false;
+  };
+  const reached = new Uint8Array(cols * rows);
+  const queue: number[] = [];
+  for (let c = 0; c < cols; c++) for (const r of [0, rows - 1]) queue.push(r * cols + c);
+  for (let r = 0; r < rows; r++) for (const c of [0, cols - 1]) queue.push(r * cols + c);
+  for (const k of queue) reached[k] = 1;
+  for (let i = 0; i < queue.length; i++) {
+    const k = queue[i];
+    const c = k % cols, r = Math.floor(k / cols);
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+      const nk = nr * cols + nc;
+      if (reached[nk] || blocked(c + c0, r + r0, nc + c0, nr + r0)) continue;
+      reached[nk] = 1;
+      queue.push(nk);
+    }
+  }
+  const inside: [number, number][] = [];
+  for (let k = 0; k < reached.length; k++) if (!reached[k]) inside.push([(k % cols) + c0, Math.floor(k / cols) + r0]);
+  // Pockets too small to be rooms stay without a roof.
+  return buildingsOf(inside)
+    .filter((b) => b.cells.length >= SMALLEST_ROOM)
+    .flatMap((b) => b.cells);
+}
+
 /** A building as the 3D view gets it from the board (board.ts source3d), in scene units. */
 export interface Building3d {
   /** The same for the same building while it isn't changed: its first square. */

@@ -11,6 +11,7 @@ import type { GridSettings, Scene, SceneArea, SceneVision } from "../../shared/t
 import { segmentsOf, type Seg } from "./vision";
 import type { Object3d } from "./view3dObjects";
 import type { Building3d } from "./view3dRoofs";
+import type { Effect3d } from "./view3dEffects";
 import type { Weather } from "../../shared/calendar";
 
 /** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
@@ -394,7 +395,7 @@ export interface Floor3d {
 }
 
 /** What the board tells the 3D view has changed: the floor (and walls with it), the tokens, or where its 2D view is. */
-export type Change3d = "floor" | "tokens" | "view";
+export type Change3d = "floor" | "tokens" | "view" | "effects";
 
 /** The board, as the 3D view sees it (board.ts source3d): the scene exactly as this page shows it in 2D. */
 export interface Board3dSource {
@@ -410,6 +411,8 @@ export interface Board3dSource {
   wallTexture(): { canvas: HTMLCanvasElement; squares: number } | null;
   /** The built map's buildings, for roofs: none on a map with no open ground (a dungeon underground). */
   buildings(): Building3d[];
+  /** The spells on the map: areas, looks on tokens, spells being cast (view3dEffects.ts). */
+  effects(): Effect3d[];
   /** The GM, not looking as players: sees everything, the fog and the dark dimmed. */
   gmView(): boolean;
   /** The middle and size of the 2D view, in scene units (null: no scene). */
