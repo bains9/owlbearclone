@@ -21,6 +21,8 @@ import {
   clampTo,
   coverScale,
   flatSize,
+  nameTagFade,
+  nameTagSize,
   floorScale,
   frameDistance,
   initialsOf,
@@ -388,6 +390,28 @@ describe("figures", () => {
     expect(cardSize(2, 100, 200).h).toBeCloseTo(2 * CARD_WIDTH * 2);
     expect(cardSize(1, 10, 1000).h).toBeCloseTo(CARD_WIDTH * CARD_TALLEST);
     expect(cardSize(1, 0, 0)).toEqual({ w: CARD_WIDTH, h: CARD_WIDTH });
+  });
+
+  it("carry their name on a plate about a third of a square tall, a long one no wider than the stand's front", () => {
+    const short = nameTagSize(1, 3);
+    expect(short.h).toBeCloseTo(0.3);
+    expect(short.w).toBeCloseTo(0.9);
+    // A big token's plate is bigger, a tiny one's still readable.
+    expect(nameTagSize(3, 3).h).toBeGreaterThan(short.h);
+    expect(nameTagSize(0.5, 3).h).toBeGreaterThanOrEqual(0.24);
+    // A long name: narrower than its letters would make it, and shorter to match.
+    const long = nameTagSize(1, 20);
+    expect(long.w).toBeCloseTo(2.6);
+    expect(long.h).toBeLessThan(short.h);
+  });
+
+  it("fade the names out as the camera goes far off, so a crowded map isn't a wall of text", () => {
+    // A third of a square, on a 800-pixel-tall view at 40 degrees.
+    expect(nameTagFade(0.3, 5, 800, 40)).toBe(1);
+    expect(nameTagFade(0.3, 60, 800, 40)).toBe(0);
+    const mid = nameTagFade(0.3, 28, 800, 40);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
   });
 
   it("lie flat fitted into their size, as on the map", () => {

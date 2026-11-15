@@ -52,6 +52,7 @@ declare module "three" {
     add(...objects: Object3D[]): this;
     remove(...objects: Object3D[]): this;
     lookAt(x: number | Vector3, y?: number, z?: number): void;
+    getWorldPosition(target: Vector3): Vector3;
   }
 
   export class Group extends Object3D {}

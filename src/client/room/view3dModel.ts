@@ -411,6 +411,30 @@ export function cardSize(size: number, pw: number, ph: number): { w: number; h: 
   return { w, h: w * ratio };
 }
 
+/**
+ * A token's name plate on its stand, in squares, for a name drawn `aspect` times as wide as it's
+ * tall: about a third of a square tall on a medium token (as big as the flat map's name under a
+ * token), bigger on a big one; a long name narrower so it's no wider than the stand's front.
+ */
+export function nameTagSize(size: number, aspect: number): { w: number; h: number } {
+  const h = Math.min(0.6, Math.max(0.24, size * 0.3));
+  const most = Math.max(1.2, size * 2.6);
+  const w = h * Math.max(1, aspect);
+  return w > most ? { w: most, h: (h * most) / w } : { w, h };
+}
+
+/**
+ * How much a name plate `h` squares tall shows from `distance` away, on a screen `screenH` pixels
+ * tall with a `fov` degree view: whole while its letters are big enough to read, fading to nothing
+ * as they shrink past that, so a crowded map seen from far off isn't a wall of text.
+ */
+export function nameTagFade(h: number, distance: number, screenH: number, fov: number): number {
+  if (!(distance > 0)) return 1;
+  // The letters are about 0.6 of the plate.
+  const px = (0.6 * h * screenH) / (2 * distance * Math.tan((fov * Math.PI) / 360));
+  return Math.max(0, Math.min(1, (px - 5) / 4));
+}
+
 /** A flat token's picture on the floor, in squares: fitted into its size, as the board fits it. */
 export function flatSize(size: number, pw: number, ph: number): { w: number; h: number } {
   if (!(pw > 0 && ph > 0)) return { w: size, h: size };

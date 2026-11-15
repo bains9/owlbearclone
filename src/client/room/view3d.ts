@@ -44,6 +44,8 @@ import {
   cardSize,
   clampTo,
   flatSize,
+  nameTagFade,
+  nameTagSize,
   frameDistance,
   initialsOf,
   shadeOf,
@@ -93,6 +95,11 @@ interface Fig {
   /** Where it's going (it slides there). */
   to: Vector3;
   shade: number;
+  /**
+   * Its name, as the flat map shows it under the token: on a plate at the front of its stand,
+   * turned to the camera (a standing figure's), or on the floor below it (a flat one's).
+   */
+  tag: { name: string; turn: Group | null; plate: Mesh; mat: MeshBasicMaterial; h: number; opacity: number } | null;
   /**
    * Copies of it standing round it (Mirror Image, Blur), or after-images where it was a moment ago
    * (Haste, a spectral beast): each a card like its own, faint, moved each frame.
@@ -182,6 +189,8 @@ export class View3D implements View3dControls {
   private figs = new Map<string, Fig>();
   /** Token pictures as textures, by picture (an image's address, or a disc's colour and initials). */
   private pictures = new Map<string, { tex: Texture; w: number; h: number }>();
+  /** Name plates' pictures, one for each name, and how many figures show it. */
+  private names = new Map<string, { tex: CanvasTexture; aspect: number; uses: number }>();
   /** The stands under figures: one disc, scaled to each. */
   private disc = new CylinderGeometry(1, 1, 0.06, 32);
   private sceneId: string | null = null;
@@ -288,6 +297,8 @@ export class View3D implements View3dControls {
     this.clearScene();
     for (const p of this.pictures.values()) p.tex.dispose();
     this.pictures.clear();
+    for (const n of this.names.values()) n.tex.dispose();
+    this.names.clear();
     this.disc.dispose();
     const canvas = this.renderer.domElement;
     // Giving WebGL back on purpose isn't losing it.
@@ -486,7 +497,7 @@ export class View3D implements View3dControls {
 
   private makeFig(s: Standee, look: string): Fig {
     const group = new Group();
-    const fig: Fig = { group, face: null, tints: [], geometries: [], look, to: new Vector3(), shade: 1, copies: null };
+    const fig: Fig = { group, face: null, tints: [], geometries: [], look, to: new Vector3(), shade: 1, copies: null, tag: null };
     const pic = this.pictureOf(s);
     const faded = s.opacity < 0.999;
     const tint = (material: MeshBasicMaterial | MeshLambertMaterial, color: string | number) => {
@@ -517,6 +528,12 @@ export class View3D implements View3dControls {
       if (s.flip) mesh.scale.x = -1;
       mesh.renderOrder = 1;
       group.add(mesh);
+      const tag = this.nameTag(s, fig);
+      if (tag) {
+        tag.plate.rotation.x = -Math.PI / 2;
+        tag.plate.position.set(0, 0.012, h / 2 + 0.04);
+        group.add(tag.plate);
+      }
       return fig;
     }
     // A stand in the token's colour...
@@ -527,6 +544,16 @@ export class View3D implements View3dControls {
     stand.scale.set(r, 1, r);
     stand.position.y = 0.03;
     group.add(stand);
+    // Its name at the front of the stand, turned to the camera (frame).
+    const tag = this.nameTag(s, fig);
+    if (tag) {
+      const turn = new Group();
+      turn.position.y = 0.04;
+      tag.plate.position.z = r;
+      turn.add(tag.plate);
+      group.add(turn);
+      tag.turn = turn;
+    }
     if (s.tree) {
       // Treeform: a tree stands on the stand instead of its card, as one of the map's would.
       const tree = objectMesh([{ id: null, shape: { kind: "tree", h: 0 }, x: 0, y: 0, size: s.size * 1.25, deg: 0, color: null }], this.cell, null, true);
@@ -625,7 +652,94 @@ export class View3D implements View3dControls {
     return any;
   }
 
+  /**
+   * A figure's name plate, when its token has a name: the flat map's label, a dark rounded tag with
+   * white letters, one small picture per name shared by every figure with it (made again only for a
+   * new name), as faded as the figure.
+   */
+  private nameTag(s: Standee, fig: Fig): NonNullable<Fig["tag"]> | null {
+    const name = s.label.trim();
+    if (!name) return null;
+    let made = this.names.get(name);
+    if (!made) {
+      const canvas = document.createElement("canvas");
+      const c = canvas.getContext("2d");
+      if (!c) return null;
+      const font = (px: number) => `600 ${px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+      let px = 40;
+      c.font = font(px);
+      // A very long name in smaller letters, so its picture stays small.
+      const room = 600;
+      const textW = c.measureText(name).width;
+      if (textW > room) px = Math.max(16, Math.floor((px * room) / textW));
+      c.font = font(px);
+      const pad = 14, h = 64;
+      canvas.width = Math.ceil(Math.min(room, c.measureText(name).width) + pad * 2);
+      canvas.height = h;
+      c.font = font(px);
+      c.fillStyle = "rgba(15,17,21,0.82)";
+      // A rounded tag (by hand: older iPads have no roundRect).
+      const W = canvas.width, rr = 18;
+      c.beginPath();
+      c.moveTo(rr, 0);
+      c.arcTo(W, 0, W, h, rr);
+      c.arcTo(W, h, 0, h, rr);
+      c.arcTo(0, h, 0, 0, rr);
+      c.arcTo(0, 0, W, 0, rr);
+      c.closePath();
+      c.fill();
+      c.fillStyle = "#fff";
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillText(name, canvas.width / 2, h / 2 + 1, room);
+      const tex = new CanvasTexture(canvas);
+      tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+      made = { tex, aspect: canvas.width / h, uses: 0 };
+      this.names.set(name, made);
+    }
+    made.uses++;
+    const { w, h } = nameTagSize(s.size, made.aspect);
+    const geo = new PlaneGeometry(w, h);
+    // Standing on its bottom edge, so it tips back from there.
+    geo.translate(0, h / 2, 0);
+    fig.geometries.push(geo);
+    const mat = new MeshBasicMaterial({ map: made.tex, transparent: true, opacity: s.opacity, depthWrite: false, side: DoubleSide });
+    const plate = new Mesh(geo, mat);
+    plate.renderOrder = 3;
+    fig.tag = { name, turn: null, plate, mat, h, opacity: s.opacity };
+    return fig.tag;
+  }
+
+  /** Name plates turned to the camera, and faded as it goes far off. */
+  private turnTags(turn: number): void {
+    const tilt = this.controls.getPolarAngle();
+    // In CSS pixels: the letters as big as they look, whatever the screen's density.
+    const screenH = this.el.clientHeight || 1;
+    const p = new Vector3();
+    for (const f of this.figs.values()) {
+      const t = f.tag;
+      if (!t) continue;
+      if (t.turn) {
+        t.turn.rotation.y = turn;
+        // Tipped back to face the camera: upright from the side, lying flat from straight above.
+        t.plate.rotation.x = tilt - Math.PI / 2;
+      }
+      t.plate.getWorldPosition(p);
+      const fade = nameTagFade(t.h, this.camera.position.distanceTo(p), screenH, FOV);
+      t.mat.opacity = t.opacity * fade;
+      t.plate.visible = fade > 0.01;
+    }
+  }
+
   private dropFig(f: Fig): void {
+    if (f.tag) {
+      const n = this.names.get(f.tag.name);
+      if (n && --n.uses <= 0) {
+        n.tex.dispose();
+        this.names.delete(f.tag.name);
+      }
+      f.tag.mat.dispose();
+    }
     this.world.remove(f.group);
     for (const g of f.geometries) g.dispose();
     // Its copies' materials are among its tints.
@@ -1248,6 +1362,7 @@ export class View3D implements View3dControls {
         if (f.face) f.face.rotation.y = turn;
         for (const c of f.copies?.faces ?? []) c.rotation.y = turn;
       }
+      this.turnTags(turn);
       this.renderer.render(this.world, this.camera);
       this.dirty = false;
     }
