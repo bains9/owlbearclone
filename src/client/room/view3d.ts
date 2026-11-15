@@ -61,7 +61,9 @@ import {
   type Standee,
   type View3dControls,
 } from "./view3dModel";
-import { objectMesh } from "./view3dObjects";
+import { objectMesh, standMesh } from "./view3dObjects";
+import { topAt, topsOf, type Tops } from "./view3dStand";
+import { dungeonObjects } from "./dungeonStamps";
 import { cliffMesh } from "./view3dCliffs";
 import { rockMask, rockSides, rockTop } from "./view3dRock";
 import { groundOf, heightAt, onGround, type Ground } from "./view3dGround";
@@ -166,6 +168,9 @@ export class View3D implements View3dControls {
   private cave = false;
   /** High and low ground (view3dGround.ts): where cliffs cut land off, it lies a cliff's height lower. */
   private ground: Ground | null = null;
+  /** The tops of what a figure can stand on (view3dStand.ts): a pillar's cap, a crate, a table, a rock. */
+  private tops: Tops | null = null;
+  private topsKey = "";
   /** What the ground is, in brief: the floor and the scenery round it are made again when it changes. */
   private groundKey = "flat";
   /** The Build tool's walls in Dungeon's wall textures, a mesh a texture, and those textures (made from their pictures), by id. */
@@ -419,7 +424,19 @@ export class View3D implements View3dControls {
       // What's behind it still shows: it doesn't hide what's drawn after it.
       (glass.material as MeshLambertMaterial).depthWrite = false;
     }
-    const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.objectPaint);
+    const objs = this.src.objects();
+    const things = objectMesh(objs, this.cell, f.cover, all, f.objectPaint);
+    // What a figure can stand on among them, before they're put on the ground (a figure's put there
+    // too): made again only when they change, not each time the fog or the light does. Every one of
+    // them: a figure a player sees stands where they've seen, over what's there.
+    let sig = objs.length;
+    for (const o of objs) sig = (sig * 31 + Math.round(o.x) * 7 + Math.round(o.y) * 13 + Math.round(o.size * 100) + Math.round(o.deg) + (o.id?.length ?? 0)) | 0;
+    // (And again once Dungeon's library has loaded: its objects have no form before then.)
+    const topsKey = `${this.cell}:${sig}:${dungeonObjects() ? 1 : 0}`;
+    if (topsKey !== this.topsKey) {
+      this.topsKey = topsKey;
+      this.tops = topsOf(standMesh(objs, this.cell, null, true).position);
+    }
     grounded(things);
     grounded(things.glow);
     if (things.position.length) this.objects = this.lit(things);
@@ -476,8 +493,9 @@ export class View3D implements View3dControls {
         f = undefined;
       }
       const x = s.x / this.cell, z = s.y / this.cell;
-      // On the ground where it stands (below a cliff, a cliff's height down).
-      const y = heightAt(this.ground, s.x, s.y);
+      // On the ground where it stands (below a cliff, a cliff's height down), and on top of what's
+      // under its middle that it can stand on (a pillar, a crate, a table, a rock); a prop lies on the floor.
+      const y = heightAt(this.ground, s.x, s.y) + (s.flat ? 0 : topAt(this.tops, s.x / this.cell, s.y / this.cell));
       if (!f) {
         f = this.makeFig(s, look);
         f.group.position.set(x, y, z);
@@ -1089,7 +1107,8 @@ export class View3D implements View3dControls {
     const a = s.e.volume?.area ?? b;
     const ax = (a.x0 + a.x1) / 2 / this.cell, az = (a.y0 + a.y1) / 2 / this.cell;
     const bx = (b.x0 + b.x1) / 2 / this.cell, bz = (b.y0 + b.y1) / 2 / this.cell;
-    const base = heightAt(this.ground, ax * this.cell, az * this.cell);
+    // A spell on a token goes up with its figure onto what it stands on.
+    const base = heightAt(this.ground, ax * this.cell, az * this.cell) + (s.e.key.startsWith("look:") ? topAt(this.tops, ax, az) : 0);
     const layers = sheetLayers(s.e);
     s.meshes.forEach((m, i) => {
       const l = layers[i];

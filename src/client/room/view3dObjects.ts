@@ -166,6 +166,50 @@ function placedForm(o: Object3d): { form: S.Form; k: number; w: number; d: numbe
  * with walls, one a player hasn't seen (under the fog, in the dark not explored) isn't made at
  * all; the GM (`all`) sees every one. A tankard put on a table sits on its top.
  */
+/**
+ * The kinds of thing a map's own data or its picture gives that a figure doesn't stand on: trees
+ * (it stands under them) and bushes (in them). Everything else, a rock, a crate, a barrel, it can.
+ */
+const NOT_STOOD_ON = new Set<ShapeKind>(["tree", "spreading", "pine", "cypress", "palm", "bare", "bush"]);
+/** The sixteen objects' own that are the same: a tree, a bush, and a campfire (it stands beside one). */
+const NOT_STOOD_ON_IDS = new Set<string>(["tree", "bush", "campfire"]);
+
+/**
+ * Whether a figure can stand on an object: one of Dungeon's library, unless it's in the canopy (a
+ * tree's crown, a tent, a market stall's awning: a token under it stays under it), as Dungeon's
+ * library has it; one of the sixteen or of a map's own data, unless it's a tree or a bush.
+ */
+export function standsOn(o: Object3d): boolean {
+  if (o.id && isDungeonStamp(o.id)) return dungeonStampInfo(o.id)?.layer !== "canopy";
+  if (o.id) return !NOT_STOOD_ON_IDS.has(o.id);
+  if (o.shape) return !NOT_STOOD_ON.has(o.shape.kind);
+  return true;
+}
+
+/**
+ * What a figure can stand on among the objects (view3dStand.ts), as triangles in squares: the parts
+ * of the forms of those it can (standsOn) but for flames (parts that glow) and, in Dungeon's library,
+ * leaves, bushes and grass (the parts that take the drawing's own seasonal colour). As objectMesh, a
+ * player's has none they haven't seen.
+ */
+export function standMesh(objects: readonly Object3d[], cell: number, cover: CoverMap | null, all: boolean): { position: Float32Array } {
+  const placed: S.Placed[] = [];
+  for (const o of objects) {
+    if (!standsOn(o)) continue;
+    const p = placedForm(o);
+    if (!p || S.isFlat(p.form)) continue;
+    if (!all && objectLight(o, (Math.min(p.w, p.d) * cell) / 3, cover) < WALL_SEEN) continue;
+    // In Dungeon's library a part in the drawing's own colour is one that changes with the seasons
+    // (leaves, bushes, grass); the sixteen and a map's own things take their drawing's colour all
+    // over, and their trees and bushes are left out above.
+    const library = !!o.id && isDungeonStamp(o.id);
+    const parts = p.form.parts.filter((part) => !part.glow && !(library && typeof part.c === "object" && "paint" in part.c));
+    if (!parts.length) continue;
+    placed.push({ form: { ...p.form, parts }, x: o.x / cell, z: o.y / cell, k: p.k, deg: o.deg });
+  }
+  return { position: placed.length ? S.solidMeshes(placed).lit.position : new Float32Array(0) };
+}
+
 export function objectMesh(objects: readonly Object3d[], cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallMesh & { glow: WallMesh } {
   const placed: S.Placed[] = [];
   for (const o of objects) {
