@@ -2136,6 +2136,22 @@ button:disabled {
   font-size: 11px;
   color: var(--muted);
 }
+.msg-arrow {
+  color: var(--muted);
+}
+.msg-reply {
+  font-size: 11px;
+}
+.chip-btn {
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip-btn:hover {
+  background: var(--panel-3, var(--border));
+}
 .private-tag {
   display: inline-flex;
   align-items: center;

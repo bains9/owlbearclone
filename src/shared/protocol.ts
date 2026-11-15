@@ -100,7 +100,7 @@ export type ClientAction =
   /** GM only: sends everyone in this room to another of the GM's rooms (voice chat carries on). */
   | { t: "room.goto"; to: string }
   | { t: "initiative.op"; op: InitOp }
-  | { t: "chat"; text: string }
+  | { t: "chat"; text: string; to?: string; toGm?: boolean }
   /**
    * initiative: the token whose initiative this is; its total goes into the initiative list (in, or
    * its number changed). character: the sheet id of the character whose card it's rolled from, so

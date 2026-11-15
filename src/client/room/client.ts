@@ -1983,9 +1983,15 @@ export class RoomClient {
     this.store.set((s) => ({ panel, unread: panel === "chat" ? 0 : s.unread }));
   }
 
-  sendChat(text: string): void {
+  /**
+   * A chat message: `/r` rolls it; with `to` (a browser's id) a whisper only they see, with `toGm`
+   * one only the GM sees (shared/chat.ts). A private one is sent as it's typed, never rolled.
+   */
+  sendChat(text: string, opts: { to?: string; toGm?: boolean } = {}): void {
     const t = text.trim();
     if (!t) return;
+    if (opts.to) return this.submit({ t: "chat", text: t, to: opts.to });
+    if (opts.toGm) return this.submit({ t: "chat", text: t, toGm: true });
     const m = /^\/(?:r|roll)\s+(.+)$/i.exec(t);
     if (m) this.roll(m[1]);
     else this.submit({ t: "chat", text: t });

@@ -258,8 +258,8 @@ describe("in the guide", () => {
   it("leads What's new with taking the party to another map, and Scenes says how", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.intro).toContain("The latest updates came out on 15 November 2026.");
-    expect(news.parts[3].title).toBe("Take the party to another map (8 November 2026)");
-    const top = JSON.stringify(news.parts[3]);
+    expect(news.parts[4].title).toBe("Take the party to another map (8 November 2026)");
+    const top = JSON.stringify(news.parts[4]);
     for (const words of ["**Scenes**", "**Take the party here**", "Dashed circles", "**Alt**", "**Cancel**", "same scene", "**Take the party to another map** in **Scenes**"]) expect(top).toContain(words);
     const scenes = GUIDE.find((s) => s.id === "scenes")!;
     const part = JSON.stringify(scenes.parts.find((p) => p.title === "Take the party to another map"));
@@ -270,7 +270,7 @@ describe("in the guide", () => {
   });
 
   it("leads What's new, and Scenes says how to go up and down and take the party", () => {
-    expect(GUIDE[0].parts[19].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
+    expect(GUIDE[0].parts[20].title).toBe("A map's levels as one: up, down, and taking the party (31 October 2026)");
     const scenes = GUIDE.find((s) => s.id === "scenes")!;
     const part = scenes.parts.find((p) => p.title === "A map with levels");
     expect(part).toBeDefined();

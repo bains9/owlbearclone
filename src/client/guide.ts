@@ -19,6 +19,20 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Whisper in the chat (15 November 2026)",
+        "steps": [
+          "Type `/w`, a space, someone's name and your message, for example `/w Rowan meet me by the well`, and press Enter. Or click their name at the top of **Chat & dice** to start one.",
+          "To send a message to the GM only, type `/gm` and your message, for example `/gm I pocket the ring`.",
+          "To answer a whisper, click **Reply** beside it."
+        ],
+        "notes": [
+          "A whisper is seen only by the two of you: nobody else gets it, the GM included, nor a table display. A message sent with `/gm` is seen by you and the GM.",
+          "Both show shaded in the chat, marked **whisper** or **to GM**, as private rolls are.",
+          "You can whisper to anyone in the room right now. Names are matched in full and in any case, so `/w sir aldwyn` finds Sir Aldwyn.",
+          "See **Whisper in the chat** in **Chat and dice**."
+        ]
+      },
+      {
         "title": "Walls keep the look they're built in (15 November 2026)",
         "steps": [
           "GM: in the Build tool, pick **Walls**, then pick a look in **Plain walls** (it shows the look picked): the walls you build from then on have it.",
@@ -2262,6 +2276,23 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "The d20 that didn't count is shown faded and crossed out."
+        ]
+      },
+      {
+        "title": "Whisper in the chat",
+        "steps": [
+          "Type `/w`, a space, the person's name as it shows at the top of the panel, a space and your message, for example `/w Rowan meet me by the well`. Press Enter.",
+          "Or click their name at the top of the panel: `/w` and their name go in the message box, ready for your message.",
+          "To send a message to the GM only, type `/gm`, a space and your message.",
+          "To answer, click **Reply** beside a whisper or a message to the GM: `/w` and their name go in the message box."
+        ],
+        "notes": [
+          "A whisper is seen only by you and the one you whisper to. Nobody else gets it, the GM included, nor a table display. It stays in the chat for the two of you after a reload.",
+          "A message sent with `/gm` is seen only by you and the GM, as a roll sent **To GM** is.",
+          "In the chat they're shaded, marked **whisper** (with who it's to) or **to GM**.",
+          "You can whisper to anyone in the room right now, players and the GM. If nobody of that name is here, a message says so and nothing is sent.",
+          "Names are matched in full and in any case: `/w sir aldwyn` finds Sir Aldwyn, and Sir Aldwyn rather than someone called Sir.",
+          "For spoken whispers, see **Whisper to one person** under voice chat."
         ]
       },
       {

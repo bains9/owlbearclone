@@ -5,6 +5,7 @@ import { critOf } from "../../shared/characters";
 import { GM_DICE, GM_SETS, diceClass, diceSet, rollingSet, type DiceSetId } from "../../shared/diceSets";
 import { loadGmDice, setGmDice } from "../gmDice";
 import type { ChatMessage, RollTerm } from "../../shared/types";
+import { toGmOf, whisperOf } from "../../shared/chat";
 import { cx, useRoom, useRoomState } from "./common";
 import { ProfileDialog } from "./RoomPage";
 import { VoiceSection } from "./VoicePanel";
@@ -40,6 +41,12 @@ export function ChatPanel() {
   };
   const [editProfile, setEditProfile] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  /** Starts a whisper to someone: `/w Name ` in the message box, ready for the message. */
+  const whisperTo = (name: string) => {
+    setText(`/w ${name} `);
+    inputRef.current?.focus();
+  };
   const stick = useRef(true);
 
   useLayoutEffect(() => {
@@ -61,6 +68,21 @@ export function ChatPanel() {
   const send = (e: Event) => {
     e.preventDefault();
     if (!text.trim()) return;
+    // A whisper to someone in the room, or a message to the GM: seen only by them (shared/chat.ts).
+    const w = whisperOf(text, players, me?.userId ?? "");
+    if (w && "error" in w) return room.toast(w.error);
+    if (w) {
+      room.sendChat(w.text, { to: w.to });
+      setText("");
+      return;
+    }
+    const gmText = toGmOf(text);
+    if (gmText === "") return room.toast("Type your message after /gm.");
+    if (gmText !== null) {
+      room.sendChat(gmText, { toGm: true });
+      setText("");
+      return;
+    }
     const m = /^\/(?:r|roll)\s+(.+)$/i.exec(text.trim());
     if (m) room.roll(m[1], { private: secret });
     else room.sendChat(text);
@@ -70,13 +92,22 @@ export function ChatPanel() {
   return (
     <div class="chat">
       <div class="chat-players">
-        {players.map((p) => (
-          <span key={p.connId} class="chip">
-            <span class="dot" style={{ background: p.color }} />
-            {p.name}
-            {p.role === "gm" && <span class="gm-tag">GM</span>}
-          </span>
-        ))}
+        {players.map((p) =>
+          // Someone else in the room: a click starts a whisper to them.
+          p.userId !== me?.userId && !p.display ? (
+            <button key={p.connId} type="button" class="chip chip-btn" title={`Whisper to ${p.name}: only they see it`} onClick={() => whisperTo(p.name)}>
+              <span class="dot" style={{ background: p.color }} />
+              {p.name}
+              {p.role === "gm" && <span class="gm-tag">GM</span>}
+            </button>
+          ) : (
+            <span key={p.connId} class="chip">
+              <span class="dot" style={{ background: p.color }} />
+              {p.name}
+              {p.role === "gm" && <span class="gm-tag">GM</span>}
+            </span>
+          ),
+        )}
         <button class="icon-btn" title="Change your name or colour" aria-label="Change your name or colour" onClick={() => setEditProfile(true)}>
           <UserPen size={16} />
         </button>
@@ -95,8 +126,16 @@ export function ChatPanel() {
         {messages.length === 0 && <p class="muted small center">No messages yet. Say hi, or roll some dice.</p>}
         {messages.map((m, i) => {
           const prev = messages[i - 1];
-          const grouped = prev && prev.userId === m.userId && m.kind === "chat" && prev.kind === "chat" && m.ts - prev.ts < 120_000;
-          return <MessageView key={m.id} message={m} grouped={Boolean(grouped)} />;
+          // One after another from the same person, said the same way (aloud, to the GM, or whispered to the same one).
+          const grouped =
+            prev &&
+            prev.userId === m.userId &&
+            m.kind === "chat" &&
+            prev.kind === "chat" &&
+            m.ts - prev.ts < 120_000 &&
+            !!prev.private === !!m.private &&
+            prev.to?.userId === m.to?.userId;
+          return <MessageView key={m.id} message={m} grouped={Boolean(grouped)} me={me?.userId ?? ""} onReply={whisperTo} />;
         })}
       </div>
 
@@ -210,7 +249,8 @@ export function ChatPanel() {
         <input
           value={text}
           maxLength={1000}
-          placeholder="Message, or /r 2d6+3"
+          ref={inputRef}
+          placeholder="Message, /w Name to whisper, /r 2d6+3"
           onInput={(e) => setText(e.currentTarget.value)}
           aria-label="Message"
         />
@@ -238,21 +278,42 @@ export function ChatPanel() {
   );
 }
 
-function MessageView(props: { message: ChatMessage; grouped: boolean }) {
+function MessageView(props: { message: ChatMessage; grouped: boolean; me: string; onReply: (name: string) => void }) {
   const m = props.message;
   const time = new Date(m.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const mine = m.userId === props.me;
+  // A whisper, or a message to the GM: who to answer (the other one of the two), when there's someone.
+  const replyTo = m.kind !== "chat" ? null : m.to ? (mine ? m.to.name : m.name) : m.private && !mine ? m.name : null;
   return (
-    <div class={cx("msg", props.grouped && "grouped", m.private && "private")}>
+    <div class={cx("msg", props.grouped && "grouped", (m.private || m.to) && "private")}>
       {!props.grouped && (
         <div class="msg-head">
           <span class="msg-name" style={{ color: m.color }}>
             {m.name}
           </span>
           {m.role === "gm" && <span class="gm-tag">GM</span>}
+          {m.to && (
+            <>
+              <span class="msg-arrow" aria-label="to">
+                →
+              </span>
+              <span class="msg-name" style={{ color: m.to.color }}>
+                {m.to.userId === props.me ? "you" : m.to.name}
+              </span>
+              <span class="private-tag" title={`Only ${mine ? "you" : m.name} and ${m.to.userId === props.me ? "you" : m.to.name} see this`}>
+                <EyeOff size={12} /> whisper
+              </span>
+            </>
+          )}
           {m.private && (
-            <span class="private-tag" title="Only the roller and the GM see this">
-              <EyeOff size={12} /> private
+            <span class="private-tag" title={m.kind === "chat" ? (m.role === "gm" ? "Only the GM sees this" : "Only the sender and the GM see this") : "Only the roller and the GM see this"}>
+              <EyeOff size={12} /> {m.kind === "chat" && m.role !== "gm" ? "to GM" : "private"}
             </span>
+          )}
+          {replyTo && (
+            <button type="button" class="link-btn msg-reply" title={`Whisper back to ${replyTo}`} onClick={() => props.onReply(replyTo)}>
+              Reply
+            </button>
           )}
           <span class="msg-time">{time}</span>
         </div>

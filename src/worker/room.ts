@@ -7,6 +7,7 @@
 // every change is validated and permission-checked here, and the sender always
 // gets back either the accepted change or a correction.
 
+import { canSeeMessage } from "../shared/chat";
 import { sanitizeTokenStats, type TokenStats } from "../shared/tokenStats";
 import { openJson, sealJson } from "./seal";
 import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
@@ -1047,7 +1048,17 @@ export class Room extends DurableObject<Env> {
 
       case "chat": {
         const text = cleanText(msg.text, LIMITS.chat);
-        if (!text) return;
+        if (!text || conn.display) return;
+        // A whisper: to someone in the room now (by their browser's id, as the player list has it).
+        let to: ChatMessage["to"];
+        if (typeof msg.to === "string" && msg.to) {
+          const them = this.players().find((p) => p.userId === msg.to && !p.display);
+          if (!them) {
+            this.send(ws, { t: "error", message: "They've left the room, so your whisper wasn't sent." });
+            return;
+          }
+          to = { userId: them.userId, name: them.name, color: them.color, role: them.role };
+        }
         this.postMessage({
           id: randomId(12),
           ts: Date.now(),
@@ -1057,6 +1068,7 @@ export class Room extends DurableObject<Env> {
           role: conn.role,
           kind: "chat",
           text,
+          ...(to ? { to } : msg.toGm === true ? { private: true } : {}),
         });
         return;
       }
@@ -1990,10 +2002,9 @@ export class Room extends DurableObject<Env> {
     return out.reverse();
   }
 
-  /** Private rolls: the GM sees all of them; a player sees only their own (never the GM's). */
+  /** Private rolls and messages to the GM, the GM and their sender; whispers, the two people they're between (shared/chat.ts). */
   private canSeeMessage(m: ChatMessage, c: Player): boolean {
-    if (!m.private || c.role === "gm") return true;
-    return m.role === "player" && c.userId === m.userId;
+    return canSeeMessage(m, c);
   }
 
   /**

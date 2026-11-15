@@ -526,8 +526,10 @@ export interface ChatMessage {
   roll?: RollResult;
   /** The dice set it was rolled in (shared/diceSets.ts); missing: Classic. */
   dice?: DiceSetId;
-  /** Visible only to the sender and the GM. */
+  /** Visible only to the sender and the GM (a roll sent To GM, a message sent with /gm). */
   private?: boolean;
+  /** A whisper (/w Name): visible only to the sender and this person, the GM included (shared/chat.ts). */
+  to?: { userId: string; name: string; color: string; role: Role };
 }
 
 export interface InitEntry {
