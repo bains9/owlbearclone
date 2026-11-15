@@ -5,13 +5,27 @@
 //
 // The talking goes straight between browsers (WebRTC, shared/voice.ts): this only says who's
 // in voice, passes on the messages that set calls up, and hands out STUN and TURN servers.
+// It also keeps a short record for the GM (voice_log): who joined, left or lost their
+// connection, and how each call connected or dropped, so dropouts can be looked into.
 
 import { DurableObject } from "cloudflare:workers";
 import { randomId } from "../shared/ids";
 import { GM_OWNER, LIMITS, cleanColor, cleanText, isId } from "../shared/sanitize";
 import type { Role } from "../shared/types";
-import { MAX_VOICE, RTC_BURST, RTC_WINDOW_MS, STUN_ONLY, VOICE_BURST, cleanSignal, usableIceServers } from "../shared/voice";
-import type { IceServer, VoiceClientMsg, VoicePeer, VoiceServerMsg } from "../shared/voice";
+import {
+  MAX_VOICE,
+  REPORT_BURST,
+  RTC_BURST,
+  RTC_WINDOW_MS,
+  STUN_ONLY,
+  VOICE_BURST,
+  VOICE_LOG_KEEP,
+  browserOf,
+  cleanReport,
+  cleanSignal,
+  usableIceServers,
+} from "../shared/voice";
+import type { IceServer, VoiceClientMsg, VoiceLogEntry, VoicePeer, VoiceServerMsg } from "../shared/voice";
 
 /** What a WebSocket carries: the person, their browser tab, and whether they're in voice. */
 interface Conn {
@@ -24,6 +38,8 @@ interface Conn {
   sid: string;
   /** The room the tab is in: deleting it takes the tab off voice chat (roomDeleted). */
   room: string;
+  /** Its browser in a few words, from the User-Agent, for the record. */
+  browser?: string;
   /** In voice chat, and whether its microphone is muted. */
   voice?: { muted: boolean };
 }
@@ -56,6 +72,10 @@ export class VoiceHub extends DurableObject<Env> {
   /** The STUN and TURN servers handed to tabs joining voice, until they're due for renewal. */
   private ice: { servers: IceServer[]; until: number } | null = null;
   private icePending: Promise<IceServer[]> | null = null;
+  /** The record's table is made (once each time this wakes). */
+  private logReady = false;
+  /** Entries added since this woke: every so often the oldest past VOICE_LOG_KEEP go. */
+  private logged = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -79,6 +99,7 @@ export class VoiceHub extends DurableObject<Env> {
       sid: isId(sid) ? sid : randomId(16),
       // The Worker let it in with this room's id.
       room: url.searchParams.get("room") ?? "",
+      browser: browserOf(request.headers.get("User-Agent") ?? ""),
     };
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -114,18 +135,83 @@ export class VoiceHub extends DurableObject<Env> {
         case "room":
           await this.moveRoom(ws, conn, msg);
           return;
+        case "voice.report":
+          this.callReport(conn, msg);
+          return;
+        case "voice.ice":
+          await this.freshIce(ws, conn);
+          return;
       }
     } catch (err) {
       console.error(JSON.stringify({ message: "voice message failed", t: (msg as { t?: unknown }).t, error: String(err) }));
     }
   }
 
-  async webSocketClose(ws: WebSocket): Promise<void> {
+  async webSocketClose(ws: WebSocket, code?: number): Promise<void> {
+    this.lost(ws, code);
     this.leaveVoice(ws);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
+    this.lost(ws);
     this.leaveVoice(ws);
+  }
+
+  /** The voice chat's record, newest first: for the GM (index.ts, GET /api/voice/log). */
+  async voiceLog(limit = VOICE_LOG_KEEP): Promise<VoiceLogEntry[]> {
+    const n = Math.max(1, Math.min(VOICE_LOG_KEEP, Math.floor(limit) || VOICE_LOG_KEEP));
+    const rows = this.log()
+      .exec<{ at: number; data: string }>("SELECT at, data FROM voice_log ORDER BY id DESC LIMIT ?", n)
+      .toArray();
+    return rows.map((r) => ({ ...(JSON.parse(r.data) as Omit<VoiceLogEntry, "at">), at: r.at }));
+  }
+
+  private log(): SqlStorage {
+    const sql = this.ctx.storage.sql;
+    if (!this.logReady) {
+      sql.exec("CREATE TABLE IF NOT EXISTS voice_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, data TEXT NOT NULL)");
+      this.logReady = true;
+    }
+    return sql;
+  }
+
+  /** Adds to the record. It never gets in voice chat's way: one that can't be written is left out. */
+  private record(c: Conn | null, entry: Omit<VoiceLogEntry, "at" | "who" | "user" | "conn" | "browser">): void {
+    try {
+      const full: Omit<VoiceLogEntry, "at"> = c ? { who: c.name, user: c.userId, conn: c.connId, browser: c.browser, ...entry } : entry;
+      const sql = this.log();
+      sql.exec("INSERT INTO voice_log (at, data) VALUES (?, ?)", Date.now(), JSON.stringify(full));
+      this.logged = (this.logged || 0) + 1;
+      if (this.logged % 50 === 1) sql.exec("DELETE FROM voice_log WHERE id <= (SELECT MAX(id) FROM voice_log) - ?", VOICE_LOG_KEEP);
+    } catch (err) {
+      console.error(JSON.stringify({ message: "voice log failed", error: String(err) }));
+    }
+  }
+
+  /** A tab's connection closed (or broke) while it was in voice chat: it lost voice with it. */
+  private lost(ws: WebSocket, code?: number): void {
+    const c = ws.deserializeAttachment() as Conn | null;
+    if (c?.voice) this.record(c, code === undefined ? { ev: "gone" } : { ev: "gone", code });
+  }
+
+  /** One end's news about a call, with the other person's name. */
+  private callReport(conn: Conn, msg: { r?: unknown }): void {
+    if (!conn.voice || !this.allowed(`p:${conn.connId}`, REPORT_BURST)) return;
+    const r = cleanReport(msg.r);
+    if (!r) return;
+    const peer = this.ctx
+      .getWebSockets()
+      .map((w) => w.deserializeAttachment() as Conn | null)
+      .find((c) => c?.connId === r.peer);
+    this.record(conn, { ev: "call", call: peer ? { ...r, peerName: peer.name } : r });
+  }
+
+  /** Relay passwords again, for a tab in voice whose call is looking for another route. */
+  private async freshIce(ws: WebSocket, conn: Conn): Promise<void> {
+    if (!conn.voice || !this.allowed(`v:${conn.connId}`, VOICE_BURST)) return;
+    const servers = await this.iceServers();
+    const now = ws.deserializeAttachment() as Conn | null;
+    if (now?.voice && this.ctx.getWebSockets().includes(ws)) this.send(ws, { t: "ice", servers });
   }
 
   /**
@@ -173,6 +259,7 @@ export class VoiceHub extends DurableObject<Env> {
       if (!conn.voice) return;
       const { voice: _voice, ...rest } = conn;
       ws.serializeAttachment(rest);
+      this.record(conn, { ev: "leave" });
       this.broadcastVoice();
       return;
     }
@@ -199,6 +286,7 @@ export class VoiceHub extends DurableObject<Env> {
         if (full()) return this.refuseVoice(ws);
         ws.serializeAttachment({ ...now, voice: { muted } });
         this.send(ws, { t: "ice", servers });
+        this.record(now, { ev: "join" });
         this.broadcastVoice();
         return;
       }
@@ -219,6 +307,7 @@ export class VoiceHub extends DurableObject<Env> {
       if (!c?.voice || c.sid !== conn.sid || c.userId !== conn.userId) continue;
       const { voice: _voice, ...rest } = c;
       other.serializeAttachment(rest);
+      this.record(c, { ev: "replaced" });
       dropped = true;
     }
     return dropped;
@@ -317,6 +406,7 @@ export class VoiceHub extends DurableObject<Env> {
       return servers;
     } catch (err) {
       console.error(JSON.stringify({ message: "TURN passwords failed", error: String(err) }));
+      this.record(null, { ev: "turn-failed", error: String(err).slice(0, 200) });
       this.ice = { servers: STUN_ONLY, until: Date.now() + TURN_RETRY_MS };
       return STUN_ONLY;
     }

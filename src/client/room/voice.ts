@@ -4,10 +4,15 @@
 // Room passes on the messages that set those up (shared/voice.ts). Both tabs of a pair start
 // their call as soon as they see each other in voice, and "perfect negotiation" settles it
 // when their offers cross: the tab with the higher connId is the polite one, which gives way.
+//
+// A call that drops, or never gets through, looks for another route (an ICE restart, with
+// fresh relay passwords) again and again for as long as both tabs are in voice, waiting a
+// little longer each time. Each end tells the server how its calls go (CallReport), for the
+// voice chat's record: never what's said, just whether and how the call got through.
 
 import type { Role } from "../../shared/types";
 import { STUN_ONLY } from "../../shared/voice";
-import type { IceServer, RtcSignal, VoiceClientMsg, VoicePeer } from "../../shared/voice";
+import type { CallKind, IceServer, RtcSignal, VoiceClientMsg, VoicePeer } from "../../shared/voice";
 
 export type VoiceStatus = "off" | "starting" | "on";
 export type LinkState = "connecting" | "connected" | "failed";
@@ -64,8 +69,17 @@ export interface VoiceHost {
 const SPEAKING_LEVEL = 0.015;
 /** How long someone stays lit after they were last heard, so the light doesn't flicker between words. */
 const SPEAKING_HOLD_MS = 350;
-/** How many times a call that failed looks for another route before it gives up. */
+/** Tries at another route before a call shows as can't connect (it keeps trying after). */
 const MAX_RESTARTS = 3;
+/** How long a call may be cut off before it looks for another route (it often comes back by itself). */
+export const DISCONNECTED_MS = 5_000;
+/** The wait before each try at another route: doubling from this, up to RETRY_MAX_MS. */
+export const RETRY_MS = 1_000;
+export const RETRY_MAX_MS = 30_000;
+/** A call not through this long after starting (or a try) tries again: nothing has said it failed. */
+export const STUCK_MS = 25_000;
+/** At most this often, ask the server for fresh relay passwords. */
+const FRESH_ICE_MS = 60_000;
 /** This tab's own microphone among the speaking meters. */
 const SELF = "self";
 /** Push to talk's key unless another is chosen: left Shift. */
@@ -110,6 +124,13 @@ interface Link {
   chain: Promise<void>;
   audio: HTMLAudioElement;
   restarts: number;
+  /** The next try at another route, or the check on a call that's taking too long. */
+  wait: ReturnType<typeof setTimeout> | null;
+  /** When the call started, when it last connected (null while it isn't), and when it was lost. */
+  opened: number;
+  upAt: number | null;
+  downAt: number | null;
+  everUp: boolean;
   /** This call's own copy of the microphone, so a whisper can leave this call silent and not the others. */
   track: MediaStreamTrack | null;
   /** The other tab was last told this one is whispering to it. */
@@ -123,11 +144,66 @@ interface Meter {
   heard: number;
 }
 
+/** A call's route, as a kind of address and how it carries at each end, and every kind each end found. */
+export interface Route {
+  local?: string;
+  remote?: string;
+  mine?: string[];
+  theirs?: string[];
+}
+
+/** One entry of a call's statistics (RTCPeerConnection.getStats), as far as the route goes. */
+type StatsEntry = {
+  id?: unknown;
+  type?: unknown;
+  candidateType?: unknown;
+  protocol?: unknown;
+  relayProtocol?: unknown;
+  selectedCandidatePairId?: unknown;
+  localCandidateId?: unknown;
+  remoteCandidateId?: unknown;
+  nominated?: unknown;
+  selected?: unknown;
+  state?: unknown;
+};
+
+/**
+ * A call's route from its statistics: the candidate pair in use (the transport's selected one,
+ * or Firefox's selected or nominated one), as each end's kind of address ("host", "srflx" through
+ * a router, "relay" through TURN) and how it carries ("udp", "tcp", "tls" for a relay over 443).
+ */
+export function routeFrom(stats: Iterable<StatsEntry>): Route {
+  const all = [...stats];
+  const byId = new Map(all.map((s) => [s.id, s]));
+  const kind = (s: StatsEntry | undefined): string | undefined => {
+    if (!s || typeof s.candidateType !== "string") return undefined;
+    const how = typeof s.relayProtocol === "string" ? s.relayProtocol : typeof s.protocol === "string" ? s.protocol : "?";
+    return `${s.candidateType}/${how}`.toLowerCase();
+  };
+  const transport = all.find((s) => s.type === "transport" && typeof s.selectedCandidatePairId === "string");
+  const pair =
+    (transport && byId.get(transport.selectedCandidatePairId)) ||
+    all.find((s) => s.type === "candidate-pair" && s.selected === true) ||
+    all.find((s) => s.type === "candidate-pair" && s.nominated === true && s.state === "succeeded");
+  const kinds = (type: string) => [...new Set(all.filter((s) => s.type === type).map(kind).filter((k): k is string => !!k))].sort();
+  const out: Route = {};
+  const local = kind(pair ? byId.get(pair.localCandidateId) : undefined);
+  const remote = kind(pair ? byId.get(pair.remoteCandidateId) : undefined);
+  if (local) out.local = local;
+  if (remote) out.remote = remote;
+  const mine = kinds("local-candidate");
+  const theirs = kinds("remote-candidate");
+  if (mine.length) out.mine = mine;
+  if (theirs.length) out.theirs = theirs;
+  return out;
+}
+
 export class Voice {
   private mic: MediaStream | null = null;
   private stopFakeMic: (() => void) | null = null;
   private links = new Map<string, Link>();
   private servers: IceServer[] = STUN_ONLY;
+  private askedIce = 0;
   private audio: AudioContext | null = null;
   private meters = new Map<string, Meter>();
   private meterTimer: ReturnType<typeof setInterval> | null = null;
@@ -459,12 +535,18 @@ export class Voice {
       chain: Promise.resolve(),
       audio,
       restarts: 0,
+      wait: null,
+      opened: Date.now(),
+      upAt: null,
+      downAt: null,
+      everUp: false,
       track: null,
       toldWhisper: false,
     };
     const id = peer.connId;
     this.links.set(id, link);
     this.setLink(id, "connecting");
+    this.watch(id, link, STUCK_MS);
     const mine = this.mic?.getAudioTracks()[0];
     if (this.mic && mine) {
       // Silent from the start when this tab is whispering to someone else.
@@ -500,28 +582,116 @@ export class Voice {
       });
       this.meter(id, stream);
     };
-    pc.onconnectionstatechange = () => {
-      if (this.links.get(id) !== link) return;
-      const s = pc.connectionState;
-      if (s === "connected") {
-        link.restarts = 0;
-        this.setLink(id, "connected");
-        // Said again now both ends have the call: the first may have come before the other had it.
-        if (link.toldWhisper) this.host.send({ t: "rtc", to: id, d: { whisper: true } });
-      } else if (s === "failed") {
-        // The route stopped working (a network change, say): look for another, a few times.
-        if (link.restarts < MAX_RESTARTS) {
-          link.restarts++;
-          pc.restartIce();
-          this.setLink(id, "connecting");
-        } else {
-          this.setLink(id, "failed");
-        }
-      } else if (s === "disconnected" || s === "connecting") {
-        this.setLink(id, "connecting");
-      }
-    };
+    pc.onconnectionstatechange = () => this.onState(id, link);
     return link;
+  }
+
+  /** A call's connection changed: connected, cut off for now, or with no way through. */
+  private onState(id: string, link: Link): void {
+    if (this.links.get(id) !== link) return;
+    const s = link.pc.connectionState;
+    const now = Date.now();
+    if (s === "connected") {
+      this.unwatch(link);
+      this.report(id, link, link.everUp ? "back" : "up", now - (link.downAt ?? link.opened));
+      link.restarts = 0;
+      link.everUp = true;
+      link.upAt = now;
+      link.downAt = null;
+      this.setLink(id, "connected");
+      // Said again now both ends have the call: the first may have come before the other had it.
+      if (link.toldWhisper) this.host.send({ t: "rtc", to: id, d: { whisper: true } });
+      return;
+    }
+    if ((s === "disconnected" || s === "failed") && link.upAt !== null) {
+      this.report(id, link, "lost", now - link.upAt);
+      link.upAt = null;
+      link.downAt = now;
+    }
+    if (s === "failed") {
+      // No way through (or the route stopped working: a network change, say): look for another.
+      if (link.restarts < 4 || link.restarts % 10 === 0) this.report(id, link, "failed", now - (link.downAt ?? link.opened));
+      this.retry(id, link);
+    } else if (s === "disconnected") {
+      // Often back by itself in a moment; if not, look for another route.
+      this.setLink(id, link.restarts >= MAX_RESTARTS ? "failed" : "connecting");
+      this.watch(id, link, DISCONNECTED_MS);
+    } else if (s === "connecting" && link.restarts < MAX_RESTARTS) {
+      this.setLink(id, "connecting");
+    }
+  }
+
+  /** Looks for another route after a wait that grows with each try, for as long as the call lasts. */
+  private retry(id: string, link: Link): void {
+    if (this.links.get(id) !== link) return;
+    this.unwatch(link);
+    const n = link.restarts++;
+    // After a few tries it shows as can't connect, but keeps trying.
+    this.setLink(id, link.restarts > MAX_RESTARTS ? "failed" : "connecting");
+    this.freshIce();
+    const delay = Math.min(RETRY_MAX_MS, RETRY_MS * 2 ** n);
+    link.wait = setTimeout(() => {
+      link.wait = null;
+      if (this.links.get(id) !== link || link.pc.connectionState === "connected") return;
+      try {
+        link.pc.restartIce();
+      } catch (err) {
+        console.warn("voice: a restart failed", err);
+      }
+      // If nothing says how that went, try again.
+      this.watch(id, link, STUCK_MS);
+    }, delay);
+  }
+
+  /** Tries another route if the call isn't connected after this long. */
+  private watch(id: string, link: Link, ms: number): void {
+    this.unwatch(link);
+    link.wait = setTimeout(() => {
+      link.wait = null;
+      if (this.links.get(id) !== link || link.pc.connectionState === "connected") return;
+      // Reported a few times, then every tenth try, so a call that never gets through doesn't fill the record.
+      if (link.pc.connectionState !== "disconnected" && (link.restarts < 4 || link.restarts % 10 === 0)) {
+        this.report(id, link, "slow", Date.now() - (link.downAt ?? link.opened));
+      }
+      this.retry(id, link);
+    }, ms);
+  }
+
+  private unwatch(link: Link): void {
+    if (link.wait) clearTimeout(link.wait);
+    link.wait = null;
+  }
+
+  /** Fresh relay passwords from the server (they last hours, and a long game can outlast them). */
+  private freshIce(): void {
+    if (!this.servers.some((s) => s.urls.some((u) => u.startsWith("turn")))) return;
+    const now = Date.now();
+    if (now - this.askedIce < FRESH_ICE_MS) return;
+    if (this.host.send({ t: "voice.ice" })) this.askedIce = now;
+  }
+
+  /** Tells the server how this call is going, with the route it's on (or the routes it found). */
+  private report(id: string, link: Link, kind: CallKind, ms: number): void {
+    const base = { kind, peer: id, ms: Math.max(0, Math.round(ms)), tries: link.restarts, turn: this.servers.some((s) => s.urls.some((u) => u.startsWith("turn"))) };
+    const send = (route: Route) => this.host.send({ t: "voice.report", r: { ...base, ...route } });
+    let stats: Promise<RTCStatsReport> | undefined;
+    try {
+      stats = link.pc.getStats?.();
+    } catch {
+      stats = undefined;
+    }
+    if (!stats) {
+      send({});
+      return;
+    }
+    stats.then(
+      (r) => {
+        const entries: StatsEntry[] = [];
+        r.forEach((s: StatsEntry) => entries.push(s));
+        send(routeFrom(entries));
+      },
+      () => send({}),
+    );
   }
 
   /** An offer, answer or route from the other tab of a call. */
@@ -568,6 +738,7 @@ export class Voice {
     const link = this.links.get(id);
     if (!link) return;
     this.links.delete(id);
+    this.unwatch(link);
     const pc = link.pc;
     pc.onnegotiationneeded = null;
     pc.onicecandidate = null;

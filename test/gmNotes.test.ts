@@ -261,8 +261,8 @@ describe("the guide", () => {
 
   it("says what's new, on top", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[3].title).toBe("Secret notes from Dungeon (15 November 2026)");
-    const entry = text(news.parts[3]);
+    expect(news.parts[4].title).toBe("Secret notes from Dungeon (15 November 2026)");
+    const entry = text(news.parts[4]);
     expect(entry).toContain('tick "Only the GM sees this" on a label');
     expect(entry).toContain("players never receive it");
     expect(entry).toContain("with no copies");

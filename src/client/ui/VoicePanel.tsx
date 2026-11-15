@@ -190,7 +190,7 @@ function VoicePerson(props: { peer: VoicePeer; me: boolean; on: boolean; mine: b
       )}
       {on && !me && link === "connecting" && <span class="voice-link">connecting…</span>}
       {on && !me && link === "failed" && (
-        <span class="voice-link failed" title="Your networks couldn't find a way through to each other. Leaving voice and joining again may help.">
+        <span class="voice-link failed" title="Your networks haven't found a way through to each other yet. It keeps trying; leaving voice and joining again may help.">
           can't connect
         </span>
       )}

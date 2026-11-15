@@ -19,6 +19,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Voice chat reconnects by itself (15 November 2026)",
+        "steps": [
+          "Nothing to do: join voice chat from **Chat & dice** as before."
+        ],
+        "notes": [
+          "When a call to someone drops, it looks for another way through by itself within seconds, with fresh passwords for the relay, and keeps trying for as long as you're both in voice chat. Before, it gave up after three quick tries, until one of you left and joined again.",
+          "**can't connect** beside a name still shows after a few tries, but now it keeps trying.",
+          "To find out why calls drop, Table keeps a record for the GM: who joined and left voice chat, when each call connected or dropped and how long that took, each person's browser, and what kind of route their calls found (straight through, or through a relay). Never what's said: the talking goes between browsers and never through Table. The newest 2,000 entries are kept.",
+          "See **Voice chat**."
+        ]
+      },
+      {
         "title": "Everyone has the 3D button (15 November 2026)",
         "steps": [
           "Click **3D** by the zoom buttons to see the map in 3D, and again for the flat map."
@@ -2422,6 +2434,8 @@ export const GUIDE: GuideSection[] = [
           "Wear headphones if you can. Your browser cancels echo, but headphones stop the others hearing themselves through your speakers.",
           "If a message says Tabletop isn't allowed to use your microphone, allow it for this site: click the icon at the left of the address bar, turn on the microphone, then click **Join voice** again.",
           "If you lose your connection for a moment, Tabletop puts you back in voice chat when it comes back.",
+          "If your call to someone drops (a network hiccup, a laptop waking up), it looks for another way through by itself within seconds, and keeps trying for as long as you're both in voice chat.",
+          "To find out why calls drop, Table keeps a record for the GM: who joined and left voice chat, when each call connected or dropped and how long that took, each person's browser, and what kind of route their calls found (straight through, or through a relay). Never what's said: the talking goes between browsers and never through Table. The newest 2,000 entries are kept.",
           "A table display doesn't join voice chat.",
           "It's one voice chat for all the GM's rooms: anyone with a link to any of them can see who's in it and join. When the GM deletes a room, the people who came in through it are taken off voice chat too."
         ]
@@ -4522,13 +4536,13 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "Check you're both in voice chat: both names are in the list under **Voice chat**.",
           "If their name has a crossed-out microphone, they're muted, or not holding their push-to-talk key.",
-          "If it says **can't connect** beside their name, both of you click **Leave**, then **Join voice** again.",
+          "If it says **can't connect** beside their name, wait a moment: it keeps trying by itself. If it's still there after a minute, both of you click **Leave**, then **Join voice** again.",
           "If a message says your browser is holding back voice chat's sound, click it, or anywhere on the page."
         ],
         "notes": [
           "Check the slider beside their name, and your device's volume.",
           "In Brave, if you still hear nobody: click the icon at the left of the address bar, open **Site settings**, and allow **Sound** and **Autoplay** for this site, then reload.",
-          "Calls go straight from browser to browser. Some networks (some workplaces, some mobile data) block that, and voice chat then can't connect: try another network, such as home Wi-Fi."
+          "Calls go straight from browser to browser where they can, and through a relay where a network won't let them. A network that blocks even the relay (some workplaces) can't connect: try another, such as home Wi-Fi."
         ]
       },
       {

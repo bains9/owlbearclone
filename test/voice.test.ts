@@ -6,9 +6,32 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/sanitize";
 import type { Player } from "../src/shared/types";
-import { MAX_SDP, MAX_VOICE, RTC_BURST, STUN_ONLY, VOICE_BURST, cleanSignal, usableIceServers } from "../src/shared/voice";
-import type { IceServer, VoiceClientMsg, VoicePeer } from "../src/shared/voice";
-import { DEFAULT_TALK_KEY, Voice, keyName, micError, voiceInitial, voiceMode } from "../src/client/room/voice";
+import {
+  MAX_SDP,
+  MAX_VOICE,
+  REPORT_BURST,
+  RTC_BURST,
+  STUN_ONLY,
+  VOICE_BURST,
+  VOICE_LOG_KEEP,
+  browserOf,
+  cleanReport,
+  cleanSignal,
+  usableIceServers,
+} from "../src/shared/voice";
+import type { IceServer, VoiceClientMsg, VoiceLogEntry, VoicePeer } from "../src/shared/voice";
+import {
+  DEFAULT_TALK_KEY,
+  DISCONNECTED_MS,
+  RETRY_MAX_MS,
+  STUCK_MS,
+  Voice,
+  keyName,
+  micError,
+  routeFrom,
+  voiceInitial,
+  voiceMode,
+} from "../src/client/room/voice";
 import type { VoiceState } from "../src/client/room/voice";
 import { GUIDE } from "../src/client/guide";
 
@@ -17,6 +40,7 @@ vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
 interface Conn extends Player {
   sid: string;
   voice?: { muted: boolean };
+  browser?: string;
 }
 
 interface Sent {
@@ -38,8 +62,37 @@ interface Sock {
 
 interface RoomInside {
   webSocketMessage(ws: Sock, message: string): Promise<void>;
-  webSocketClose(ws: Sock): Promise<void>;
+  webSocketClose(ws: Sock, code?: number): Promise<void>;
+  voiceLog(limit?: number): Promise<VoiceLogEntry[]>;
   env: Record<string, string>;
+}
+
+/** Just enough of a Durable Object's SQLite for the voice chat's record. */
+function fakeSql() {
+  const rows: { id: number; at: number; data: string }[] = [];
+  let next = 1;
+  return {
+    rows,
+    exec(q: string, ...args: unknown[]) {
+      let out: unknown[] = [];
+      if (q.startsWith("INSERT")) rows.push({ id: next++, at: args[0] as number, data: args[1] as string });
+      else if (q.startsWith("DELETE")) {
+        const cut = next - 1 - (args[0] as number);
+        for (let i = rows.length - 1; i >= 0; i--) if (rows[i].id <= cut) rows.splice(i, 1);
+      } else if (q.startsWith("SELECT")) out = [...rows].sort((a, b) => b.id - a.id).slice(0, args[0] as number);
+      return { toArray: () => out };
+    },
+  };
+}
+
+/** The browser side's pretend call. */
+interface FakePc {
+  tracks: unknown[];
+  closed: boolean;
+  connectionState: string;
+  restarted: number;
+  stats: object[];
+  onconnectionstatechange: (() => void) | null;
 }
 
 let RoomClass: { prototype: object };
@@ -80,7 +133,7 @@ function sock(over: Partial<Conn> = {}): Sock {
 function room(socks: Sock[], env: Record<string, string> = {}): RoomInside {
   const r = Object.create(HubClass.prototype) as RoomInside;
   Object.assign(r, {
-    ctx: { getWebSockets: () => socks },
+    ctx: { getWebSockets: () => socks, storage: { sql: fakeSql() } },
     env,
     limits: new Map(),
     joining: new Set(),
@@ -382,6 +435,151 @@ describe("the table's voice chat", () => {
   });
 });
 
+describe("the voice chat's record", () => {
+  const up = (peer: string) => ({ kind: "up", peer, ms: 812.4, tries: 0, turn: true, local: "relay/udp", remote: "srflx/udp", mine: ["relay/udp", "host/udp", "relay/udp"], extra: 1 });
+
+  it("keeps who joined (with their browser), each call's news with the other's name, who left and who lost their connection, newest first", async () => {
+    const a = sock({ browser: "Chrome 131, Windows" });
+    const b = sock();
+    const r = room([a, b]);
+    await say(r, a, { t: "voice", on: true });
+    await say(r, b, { t: "voice", on: true });
+    await say(r, a, { t: "voice.report", r: up(b.conn.connId) });
+    await say(r, a, { t: "voice", on: false });
+    await r.webSocketClose(b, 1006);
+    const log = await r.voiceLog();
+    expect(log.map((e) => e.ev)).toEqual(["gone", "leave", "call", "join", "join"]);
+    expect(log[4]).toMatchObject({ ev: "join", who: a.conn.name, user: a.conn.userId, browser: "Chrome 131, Windows" });
+    expect(log[2].call).toEqual({ kind: "up", peer: b.conn.connId, peerName: b.conn.name, ms: 812, tries: 0, turn: true, local: "relay/udp", remote: "srflx/udp", mine: ["host/udp", "relay/udp"] });
+    expect(log[0]).toMatchObject({ ev: "gone", code: 1006, who: b.conn.name });
+    expect(typeof log[0].at).toBe("number");
+    expect(await r.voiceLog(2)).toHaveLength(2);
+  });
+
+  it("takes news only from a tab in voice, only real news, and not a flood", async () => {
+    const a = sock();
+    const b = sock();
+    const r = room([a, b]);
+    await say(r, a, { t: "voice.report", r: up(b.conn.connId) });
+    expect(await r.voiceLog()).toEqual([]);
+    await say(r, a, { t: "voice", on: true });
+    await say(r, a, { t: "voice.report", r: { ...up(b.conn.connId), kind: "chatter" } });
+    await say(r, a, { t: "voice.report", r: { ...up(b.conn.connId), ms: -1 } });
+    await say(r, a, { t: "voice.report" });
+    expect((await r.voiceLog()).map((e) => e.ev)).toEqual(["join"]);
+    const c = sock();
+    const r2 = room([c, b]);
+    await say(r2, c, { t: "voice", on: true });
+    for (let i = 0; i < REPORT_BURST + 10; i++) await say(r2, c, { t: "voice.report", r: up(b.conn.connId) });
+    expect((await r2.voiceLog()).filter((e) => e.ev === "call")).toHaveLength(REPORT_BURST);
+  });
+
+  it(`keeps the newest ${VOICE_LOG_KEEP} entries`, async () => {
+    const r = room([]);
+    const add = (r as unknown as { record(c: null, e: { ev: string; error?: string }): void }).record.bind(r);
+    for (let i = 0; i < VOICE_LOG_KEEP + 60; i++) add(null, { ev: "turn-failed", error: String(i) });
+    const log = await r.voiceLog(VOICE_LOG_KEEP + 100);
+    expect(log.length).toBeLessThanOrEqual(VOICE_LOG_KEEP + 50);
+    expect(log.length).toBeGreaterThanOrEqual(VOICE_LOG_KEEP);
+    expect(log[0].error).toBe(String(VOICE_LOG_KEEP + 59));
+  });
+
+  it("hands fresh relay passwords to a tab in voice that asks, and to nobody else, and notes when Cloudflare gives none", async () => {
+    const env = { TURN_KEY_ID: "key-id", TURN_KEY_API_TOKEN: "token" };
+    const answer = { iceServers: [{ urls: ["turns:turn.cloudflare.com:443?transport=tcp"], username: "u", credential: "c" }] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(answer), { status: 201 })));
+    const a = sock();
+    const b = sock();
+    const r = room([a, b], env);
+    await say(r, a, { t: "voice", on: true });
+    a.sent.length = 0;
+    b.sent.length = 0;
+    await say(r, a, { t: "voice.ice" });
+    await say(r, b, { t: "voice.ice" });
+    expect(a.sent).toEqual([{ t: "ice", servers: [STUN_ONLY[0], answer.iceServers[0]] }]);
+    expect(b.sent).toEqual([]);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status: 500 })));
+    const c = sock();
+    const r2 = room([c], env);
+    await say(r2, c, { t: "voice", on: true });
+    expect((await r2.voiceLog()).map((e) => e.ev)).toEqual(["join", "turn-failed"]);
+  });
+
+  it("notes a tab that came back on a new connection while its old one was still in voice", async () => {
+    const old = sock({ sid: "same", userId: "u-same", voice: { muted: false } });
+    const fresh = sock({ sid: "same", userId: "u-same" });
+    const r = room([old, fresh]);
+    await say(r, fresh, { t: "voice", on: true });
+    expect((await r.voiceLog()).map((e) => [e.ev, e.conn])).toEqual([
+      ["join", fresh.conn.connId],
+      ["replaced", old.conn.connId],
+    ]);
+  });
+});
+
+describe("a call's news, cleaned", () => {
+  it("keeps what the record holds, rounded, and nothing else", () => {
+    expect(cleanReport({ kind: "lost", peer: "abc", ms: 61_234.7, tries: 2, turn: true, local: "relay/tls", remote: "host/udp", theirs: ["srflx/udp", "bad route", 3], x: 1 })).toEqual({
+      kind: "lost",
+      peer: "abc",
+      ms: 61_235,
+      tries: 2,
+      turn: true,
+      local: "relay/tls",
+      remote: "host/udp",
+      theirs: ["srflx/udp"],
+    });
+    expect(cleanReport({ kind: "up", peer: "abc", ms: 5, tries: 0 })).toEqual({ kind: "up", peer: "abc", ms: 5, tries: 0, turn: false });
+    expect(cleanReport({ kind: "up", peer: "abc", ms: 5, tries: 0, local: "<script>" })).toEqual({ kind: "up", peer: "abc", ms: 5, tries: 0, turn: false });
+  });
+
+  it("refuses what isn't news of a call", () => {
+    for (const bad of [null, "up", {}, { kind: "nope", peer: "a", ms: 1, tries: 0 }, { kind: "up", peer: "", ms: 1, tries: 0 }, { kind: "up", peer: "a".repeat(33), ms: 1, tries: 0 }, { kind: "up", peer: "a", ms: Infinity, tries: 0 }, { kind: "up", peer: "a", ms: 1, tries: 1.5 }]) {
+      expect(cleanReport(bad)).toBeNull();
+    }
+  });
+
+  it("names the browser and system in a few words", () => {
+    const cases: [string, string][] = [
+      ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36", "Chrome 131, Windows"],
+      ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.70", "Edge 131, Windows"],
+      ["Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1", "Safari 17, iOS"],
+      ["Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.73 Mobile/15E148 Safari/604.1", "Chrome 131, iOS"],
+      ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0", "Firefox 133, Mac"],
+      ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15", "Safari 18, Mac"],
+      ["Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/26.0 Chrome/122.0.0.0 Mobile Safari/537.36", "Samsung Internet 26, Android"],
+      ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9173 Chrome/128.0.6613.186 Electron/32.2.2 Safari/537.36", "Discord 1, Windows"],
+      ["Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0", "Firefox 133, Linux"],
+      ["", "another browser"],
+    ];
+    for (const [ua, want] of cases) expect(browserOf(ua)).toBe(want);
+  });
+
+  it("reads a call's route from its statistics, in Chrome's way and Firefox's", () => {
+    const chrome = [
+      { id: "T", type: "transport", selectedCandidatePairId: "P" },
+      { id: "P", type: "candidate-pair", localCandidateId: "L1", remoteCandidateId: "R1", state: "succeeded" },
+      { id: "L1", type: "local-candidate", candidateType: "relay", protocol: "udp", relayProtocol: "tls" },
+      { id: "L2", type: "local-candidate", candidateType: "host", protocol: "udp" },
+      { id: "L3", type: "local-candidate", candidateType: "srflx", protocol: "udp" },
+      { id: "R1", type: "remote-candidate", candidateType: "srflx", protocol: "udp" },
+      { id: "X", type: "outbound-rtp" },
+    ];
+    expect(routeFrom(chrome)).toEqual({ local: "relay/tls", remote: "srflx/udp", mine: ["host/udp", "relay/tls", "srflx/udp"], theirs: ["srflx/udp"] });
+    const firefox = [
+      { id: "P0", type: "candidate-pair", localCandidateId: "L2", remoteCandidateId: "R1", nominated: true, state: "failed" },
+      { id: "P", type: "candidate-pair", localCandidateId: "L1", remoteCandidateId: "R1", selected: true },
+      { id: "L1", type: "local-candidate", candidateType: "host", protocol: "udp" },
+      { id: "L2", type: "local-candidate", candidateType: "relay", protocol: "udp" },
+      { id: "R1", type: "remote-candidate", candidateType: "prflx", protocol: "udp" },
+    ];
+    expect(routeFrom(firefox)).toMatchObject({ local: "host/udp", remote: "prflx/udp" });
+    // Not through yet: just what each end found.
+    expect(routeFrom([{ id: "L", type: "local-candidate", candidateType: "host", protocol: "udp" }])).toEqual({ mine: ["host/udp"] });
+  });
+});
+
 describe("cleaning signals and servers", () => {
   it("keeps an offer or answer and a route, and nothing else", () => {
     expect(cleanSignal({ sdp: { type: "answer", sdp: "v=0", x: 1 } })).toEqual({ sdp: { type: "answer", sdp: "v=0" } });
@@ -477,13 +675,17 @@ describe("the browser side", () => {
       },
     };
     const mic = { getAudioTracks: () => [track], getTracks: () => [track] };
-    // Calls that never connect: enough to see what each one carries.
-    const pcs: { tracks: unknown[]; closed: boolean }[] = [];
+    // Calls that connect only when a test says so: enough to see what each one carries and does.
+    const pcs: FakePc[] = [];
     vi.stubGlobal(
       "RTCPeerConnection",
       class {
         tracks: unknown[] = [];
         closed = false;
+        connectionState = "new";
+        restarted = 0;
+        stats: object[] = [];
+        onconnectionstatechange: (() => void) | null = null;
         constructor() {
           pcs.push(this);
         }
@@ -491,7 +693,12 @@ describe("the browser side", () => {
           this.tracks.push(t);
         }
         setConfiguration() {}
-        restartIce() {}
+        restartIce() {
+          this.restarted++;
+        }
+        getStats() {
+          return Promise.resolve({ forEach: (f: (s: object) => void) => this.stats.forEach((s) => f(s)) });
+        }
         close() {
           this.closed = true;
         }
@@ -534,6 +741,97 @@ describe("the browser side", () => {
   const coraTablet = person("j2", "uj", "Cora");
   const wren = person("v1", "uv", "Wren", "gm");
   const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  /** A pretend call's connection changing, as the browser tells it. */
+  const become = (pc: FakePc, s: string) => {
+    pc.connectionState = s;
+    pc.onconnectionstatechange?.();
+  };
+  const reports = (sent: VoiceClientMsg[]) => sent.flatMap((m) => (m.t === "voice.report" ? [m.r] : []));
+  const relay: IceServer[] = [STUN_ONLY[0], { urls: ["turns:turn.example:443?transport=tcp"], username: "u", credential: "c" }];
+
+  it("a call that drops looks for another route by itself, again and again, waiting longer each time, with fresh relay passwords", async () => {
+    vi.useFakeTimers();
+    const t = setup(false);
+    await t.voice.join();
+    t.voice.onIce(relay);
+    t.voice.onPeers([me, cora]);
+    const pc = t.pcs[0];
+    pc.stats = [
+      { id: "T", type: "transport", selectedCandidatePairId: "P" },
+      { id: "P", type: "candidate-pair", localCandidateId: "L", remoteCandidateId: "R" },
+      { id: "L", type: "local-candidate", candidateType: "relay", protocol: "udp", relayProtocol: "tls" },
+      { id: "R", type: "remote-candidate", candidateType: "srflx", protocol: "udp" },
+    ];
+    t.sent.length = 0;
+    await vi.advanceTimersByTimeAsync(1200);
+    become(pc, "connected");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reports(t.sent)).toEqual([{ kind: "up", peer: "j1", ms: 1200, tries: 0, turn: true, local: "relay/tls", remote: "srflx/udp", mine: ["relay/tls"], theirs: ["srflx/udp"] }]);
+    expect(t.state.links.j1).toBe("connected");
+
+    // Cut off: it may come back by itself, so it waits a moment, then looks for another route.
+    t.sent.length = 0;
+    await vi.advanceTimersByTimeAsync(60_000);
+    become(pc, "disconnected");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reports(t.sent)).toMatchObject([{ kind: "lost", ms: 60_000 }]);
+    expect(t.state.links.j1).toBe("connecting");
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_MS - 1);
+    expect(pc.restarted).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(t.sent.filter((m) => m.t === "voice.ice")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pc.restarted).toBe(1);
+
+    // No way through: each try waits twice as long, it shows as can't connect after three, and it keeps on.
+    const waits: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      become(pc, "failed");
+      const before = pc.restarted;
+      let waited = 0;
+      while (pc.restarted === before) {
+        await vi.advanceTimersByTimeAsync(500);
+        waited += 500;
+      }
+      waits.push(waited);
+    }
+    expect(waits).toEqual([2000, 4000, 8000, 16_000, RETRY_MAX_MS, RETRY_MAX_MS, RETRY_MAX_MS, RETRY_MAX_MS]);
+    expect(t.state.links.j1).toBe("failed");
+    // Fresh relay passwords at most once a minute.
+    expect(t.sent.filter((m) => m.t === "voice.ice").length).toBeGreaterThan(1);
+    expect(t.sent.filter((m) => m.t === "voice.ice").length).toBeLessThanOrEqual(Math.ceil((5_000 + 1000 + waits.reduce((a, b) => a + b)) / 60_000) + 1);
+
+    t.sent.length = 0;
+    become(pc, "connected");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reports(t.sent)).toMatchObject([{ kind: "back", tries: 9 }]);
+    expect(t.state.links.j1).toBe("connected");
+    // Connected again: no more tries.
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(pc.restarted).toBe(9);
+  });
+
+  it("a call that never gets through tries again by itself, says so, and stops when it's gone", async () => {
+    vi.useFakeTimers();
+    const t = setup(false);
+    await t.voice.join();
+    t.voice.onPeers([me, cora]);
+    const pc = t.pcs[0];
+    t.sent.length = 0;
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    expect(reports(t.sent)).toMatchObject([{ kind: "slow", peer: "j1", ms: STUCK_MS, tries: 0, turn: false }]);
+    // Without relay passwords to renew, it doesn't ask for them.
+    expect(t.sent.some((m) => m.t === "voice.ice")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pc.restarted).toBe(1);
+    await vi.advanceTimersByTimeAsync(STUCK_MS + 2000);
+    expect(pc.restarted).toBe(2);
+    t.voice.onPeers([me]);
+    expect(pc.closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(pc.restarted).toBe(2);
+  });
 
   it("whispering: only the chosen person's tabs hear it, only they're told, and everyone sees the microphone off", async () => {
     const t = setup(true);
@@ -790,8 +1088,8 @@ describe("the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
 
   it("has voice chat following the group twelfth in What's new, under the Build tool's library, maps from Dungeon, Dungeon's sign-in and extending maps, and says how to move it", () => {
-    expect(news.parts[44].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
-    const entry = [...news.parts[44].steps, ...news.parts[44].notes].join("\n");
+    expect(news.parts[45].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
+    const entry = [...news.parts[45].steps, ...news.parts[45].notes].join("\n");
     for (const what of ["**Room settings**", "**Move the group**", "**Send everyone**", "carries on", "Table displays stay"]) expect(entry).toContain(what);
     const part = GUIDE.find((s) => s.id === "room-settings")?.parts.find((p) => p.title === "Move everyone to another room") ??
       GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Move everyone to another room");
@@ -801,10 +1099,10 @@ describe("the guide", () => {
   const all = (parts: { steps: string[]; notes: string[] }[]) => parts.flatMap((p) => [...p.steps, ...p.notes]).join("\n");
 
   it("has the microphone fix fourteenth in What's new, under the rooms and the dice, then voice chat", () => {
-    expect(news.parts[46].title).toBe("Voice chat: the microphone works now (25 October 2026)");
-    expect(all([news.parts[46]])).toContain("**Voice chat: Tabletop can't use your microphone**");
-    expect(news.parts[47].title).toBe("Voice chat (24 October 2026)");
-    const entry = all([news.parts[47]]);
+    expect(news.parts[47].title).toBe("Voice chat: the microphone works now (25 October 2026)");
+    expect(all([news.parts[47]])).toContain("**Voice chat: Tabletop can't use your microphone**");
+    expect(news.parts[48].title).toBe("Voice chat (24 October 2026)");
+    const entry = all([news.parts[48]]);
     for (const what of ["**Join voice**", "**Left Shift**", "**Hold to talk**", "**Mute**", "top right of the map", "8 people", "headphones", "See **Voice chat**"]) {
       expect(entry).toContain(what);
     }
@@ -813,7 +1111,7 @@ describe("the guide", () => {
   it("names only labels the panel really shows, and the default key by its name", async () => {
     const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
     const panel = await readFile(new URL("../src/client/ui/VoicePanel.tsx", import.meta.url), "utf8");
-    const words = `${all(news.parts.slice(46, 48))}\n${all(voice.parts)}`;
+    const words = `${all(news.parts.slice(47, 49))}\n${all(voice.parts)}`;
     const labels = [...new Set(words.match(/\*\*[^*]+\*\*/g) ?? [])].map((b) => b.slice(2, -2));
     expect(labels.length).toBeGreaterThan(10);
     // Keys, the panel itself, and labels built from the key or the name: checked below.
@@ -831,6 +1129,13 @@ describe("the guide", () => {
     const text = all([part]);
     for (const what of ["**Whisper**", "**whispering to you**", "**Talk to everyone**", "**Stop**", "the GM included", "never goes back to everyone by itself"]) {
       expect(text).toContain(what);
+    }
+  });
+
+  it("leads What's new with calls reconnecting by themselves, and says what voice chat's record keeps, and never", () => {
+    expect(news.parts[0].title).toBe("Voice chat reconnects by itself (15 November 2026)");
+    for (const text of [all([news.parts[0]]), all(voice.parts)]) {
+      for (const what of ["keeps trying", "Never what's said", `${VOICE_LOG_KEEP.toLocaleString("en")} entries`]) expect(text).toContain(what);
     }
   });
 

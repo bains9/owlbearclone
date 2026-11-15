@@ -56,7 +56,125 @@ export type VoiceClientMsg =
   /** This person's new name or colour. */
   | { t: "profile"; name: string; color: string }
   /** The room this tab is in now (the GM moved the game): deleting it takes the tab out of voice. */
-  | { t: "room"; id: string };
+  | { t: "room"; id: string }
+  /** How a call is going, for the voice chat's record (finding why calls drop). */
+  | { t: "voice.report"; r: CallReport }
+  /** Fresh relay passwords, for a call looking for another route (they run out after hours). */
+  | { t: "voice.ice" };
+
+/** What happened to a call between two tabs, as one of them saw it. */
+export type CallKind =
+  /** Connected for the first time. */
+  | "up"
+  /** Was connected and isn't now. */
+  | "lost"
+  /** Connected again after that. */
+  | "back"
+  /** Found no way through (yet: it keeps trying). */
+  | "failed"
+  /** Still not through after a while, with nothing heard. */
+  | "slow";
+
+const CALL_KINDS: readonly CallKind[] = ["up", "lost", "back", "failed", "slow"];
+
+/** One call's news, for the voice chat's record. Never what's said: just how the call is doing. */
+export interface CallReport {
+  kind: CallKind;
+  /** The other tab (its connId). */
+  peer: string;
+  /** How long it took (up, back, failed, slow), or how long it had been up (lost), in ms. */
+  ms: number;
+  /** Tries at another route since it was last connected. */
+  tries: number;
+  /** This tab had a relay (TURN) to try. */
+  turn: boolean;
+  /** The route in use, as each end's kind of address and how it carries: "host/udp", "srflx/udp", "relay/tls". */
+  local?: string;
+  remote?: string;
+  /** Every kind of address each end found. */
+  mine?: string[];
+  theirs?: string[];
+}
+
+/** A kind of address and how it carries ("relay/udp"), or null when it isn't one. */
+function cleanRoute(raw: unknown): string | null {
+  return typeof raw === "string" && /^[a-z]{1,8}\/[a-z?]{1,4}$/.test(raw) ? raw : null;
+}
+
+/** A call's report as a tab sent it, kept to what the record holds, or null when it isn't one. */
+export function cleanReport(raw: unknown): CallReport | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (!CALL_KINDS.includes(r.kind as CallKind)) return null;
+  if (typeof r.peer !== "string" || !r.peer || r.peer.length > 32) return null;
+  if (typeof r.ms !== "number" || !Number.isFinite(r.ms) || r.ms < 0) return null;
+  if (typeof r.tries !== "number" || !Number.isInteger(r.tries) || r.tries < 0) return null;
+  const out: CallReport = { kind: r.kind as CallKind, peer: r.peer, ms: Math.min(Math.round(r.ms), 1e9), tries: Math.min(r.tries, 1e6), turn: r.turn === true };
+  const local = cleanRoute(r.local);
+  const remote = cleanRoute(r.remote);
+  if (local) out.local = local;
+  if (remote) out.remote = remote;
+  for (const k of ["mine", "theirs"] as const) {
+    const list = Array.isArray(r[k]) ? (r[k] as unknown[]).map(cleanRoute).filter((x): x is string => !!x) : [];
+    if (list.length) out[k] = [...new Set(list)].slice(0, 12).sort();
+  }
+  return out;
+}
+
+/** An entry in the voice chat's record: who, which browser, and what happened. */
+export interface VoiceLogEntry {
+  at: number;
+  /**
+   * join, leave: voice chat; gone: the tab's connection closed while in voice; replaced: it
+   * came back on a new connection while the old one was still in; turn-failed: Cloudflare
+   * gave no relay passwords; call: one end's news about a call.
+   */
+  ev: "join" | "leave" | "gone" | "replaced" | "turn-failed" | "call";
+  who?: string;
+  user?: string;
+  conn?: string;
+  browser?: string;
+  /** The close code, for gone. */
+  code?: number;
+  error?: string;
+  /** For call: the report, with the other person's name. */
+  call?: CallReport & { peerName?: string };
+}
+
+/** The browser and system from a User-Agent, in a few words ("Chrome 131, Windows"), for the record. */
+export function browserOf(ua: string): string {
+  const os = /iPhone|iPad|iPod/.test(ua)
+    ? "iOS"
+    : /Android/.test(ua)
+      ? "Android"
+      : /CrOS/.test(ua)
+        ? "ChromeOS"
+        : /Windows/.test(ua)
+          ? "Windows"
+          : /Macintosh|Mac OS X/.test(ua)
+            ? "Mac"
+            : /Linux/.test(ua)
+              ? "Linux"
+              : "";
+  const browsers: [string, RegExp][] = [
+    ["Discord", /discord\/(\d+)/i],
+    ["Edge", /Edg(?:A|iOS)?\/(\d+)/],
+    ["Opera", /OPR\/(\d+)/],
+    ["Samsung Internet", /SamsungBrowser\/(\d+)/],
+    ["Firefox", /(?:Firefox|FxiOS)\/(\d+)/],
+    ["Chrome", /(?:Chrome|CriOS)\/(\d+)/],
+    ["Safari", /Version\/(\d+)[\d.]* (?:Mobile\/\S+ )?Safari/],
+  ];
+  let name = "";
+  for (const [n, re] of browsers) {
+    const m = re.exec(ua);
+    if (m) {
+      name = `${n} ${m[1]}`;
+      break;
+    }
+  }
+  return [name || "another browser", os].filter(Boolean).join(", ").slice(0, 60);
+}
 
 /** What the table's voice chat sends a tab. */
 export type VoiceServerMsg =
@@ -70,6 +188,11 @@ export type VoiceServerMsg =
   | { t: "voice.refused"; message: string }
   /** From another tab in voice, about the call between the two. */
   | { t: "rtc"; from: string; d: RtcSignal };
+
+/** How many entries the voice chat's record keeps: the newest. */
+export const VOICE_LOG_KEEP = 2000;
+/** Reports one tab may send in a window before the rest are dropped. */
+export const REPORT_BURST = 40;
 
 /** Cloudflare's STUN server: free, and enough for most home networks. */
 export const STUN_ONLY: IceServer[] = [{ urls: ["stun:stun.cloudflare.com:3478"] }];

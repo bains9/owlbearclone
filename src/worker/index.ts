@@ -204,6 +204,12 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     return fail(405, "Method not allowed.");
   }
 
+  // The voice chat's record (who joined and left, how calls connected or dropped), for the GM.
+  if (pathname === "/api/voice/log" && method === "GET") {
+    if (!(await isGm(request, env))) return fail(401, "Sign in as the GM first.");
+    return json(await env.VOICE.getByName("table").voiceLog(Number(url.searchParams.get("limit")) || undefined));
+  }
+
   // The table's voice chat, for any tab with the id of a room that exists (voiceHub.ts).
   if (pathname === "/api/voice/ws" && method === "GET") {
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return fail(426, "Expected a WebSocket upgrade.");
