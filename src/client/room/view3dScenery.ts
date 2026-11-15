@@ -152,22 +152,53 @@ export function rangeMesh(r: Range, s: Scenery, cx: number, cz: number, radius: 
 }
 
 /**
- * The ground round the map out to `outer` (squares), as rings round (`cx`, `cz`) a little below the
- * map: the map's own edge colour near it, fading into the horizon. On a coast, the sea's side is sea.
+ * The ground round the map, from its edges out to `outer` squares from its middle, as a frame of
+ * rectangles widening outwards (none under the map, so ground lying low on it shows): the map's own
+ * edge colour near it, fading into the horizon; at the map's edge as high as the map's ground there
+ * (`edgeHeight`, squares: low ground running off the map slopes up into the land beyond), level
+ * further out. On a coast, the sea's side is sea.
  */
-export function groundMesh(s: Scenery, ground: Rgb, cx: number, cz: number, inner: number, outer: number, rings = 10, segs = 64): { position: Float32Array; color: Float32Array } {
+export function groundMesh(
+  s: Scenery,
+  ground: Rgb,
+  map: { x0: number; z0: number; x1: number; z1: number },
+  outer: number,
+  edgeHeight: (x: number, z: number) => number = () => 0,
+  rings = 10,
+  perSide = 24,
+): { position: Float32Array; color: Float32Array } {
   const position: number[] = [], color: number[] = [];
   const sea: Rgb = mix([0.16, 0.3, 0.42], s.horizon, 0.3);
+  const cx = (map.x0 + map.x1) / 2, cz = (map.z0 + map.z1) / 2;
+  const hx = (map.x1 - map.x0) / 2, hz = (map.z1 - map.z0) / 2;
+  const segs = perSide * 4;
+  // A point round a rectangle's edge, `t` a share of the way round (0 at the top left, clockwise).
+  const round = (t: number, ex: number, ez: number): [number, number] => {
+    const side = Math.floor(t * 4) % 4, u = t * 4 - Math.floor(t * 4);
+    if (side === 0) return [cx - ex + 2 * ex * u, cz - ez];
+    if (side === 1) return [cx + ex, cz - ez + 2 * ez * u];
+    if (side === 2) return [cx + ex - 2 * ex * u, cz + ez];
+    return [cx - ex, cz + ez - 2 * ez * u];
+  };
+  const rim = Array.from({ length: segs + 1 }, (_, i) => {
+    const [x, z] = round(i / segs, hx, hz);
+    return edgeHeight(x, z);
+  });
   const at = (i: number, j: number): { p: [number, number, number]; c: Rgb } => {
-    const f = j / rings;
-    const r = inner * 0.5 + (outer - inner * 0.5) * f ** 1.5;
-    const t = i / segs, a = t * Math.PI * 2;
+    const f = j / rings, g = f ** 1.5;
+    const ex = hx + (outer - hx) * g, ez = hz + (outer - hz) * g;
+    const t = i / segs;
+    const [x, z] = round(t, ex, ez);
     let c = mix(ground, s.horizon, Math.min(0.95, f ** 0.8 * (0.85 + s.haze * 0.15)));
-    if (s.sea && r > inner * 1.3) {
-      const d = Math.abs(((t - 0.25 + 1.5) % 1) - 0.5) * 2;
+    if (s.sea && j > 1) {
+      // The sea to the south (+z), a fifth of the way round either side.
+      const a = Math.atan2(z - cz, x - cx) / (Math.PI * 2);
+      const d = Math.abs(((a - 0.25 + 1.5) % 1) - 0.5) * 2;
       if (d < 0.3) c = mix(sea, s.horizon, Math.min(0.9, f));
     }
-    return { p: [cx + Math.cos(a) * r, -0.03, cz + Math.sin(a) * r], c };
+    // At the map's edge, the map's ground there; rising to level over the next two rings.
+    const y = -0.03 + rim[i] * Math.max(0, 1 - j / 2);
+    return { p: [x, y, z], c };
   };
   for (let j = 0; j < rings; j++) {
     for (let i = 0; i < segs; i++) {

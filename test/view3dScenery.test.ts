@@ -64,7 +64,12 @@ describe("scenery round an outdoor map", () => {
 
   it("runs the map's own ground out from its edges, fading into the horizon", () => {
     const s = sceneryOf("Temperate", day())!;
-    const g = groundMesh(s, [0.2, 0.5, 0.2], 0, 0, 30, 200);
+    const g = groundMesh(s, [0.2, 0.5, 0.2], { x0: -20, z0: -15, x1: 20, z1: 15 }, 200);
+    // Nothing under the map itself.
+    for (let i = 0; i < g.position.length; i += 9) {
+      const mx = (g.position[i] + g.position[i + 3] + g.position[i + 6]) / 3, mz = (g.position[i + 2] + g.position[i + 5] + g.position[i + 8]) / 3;
+      expect(Math.abs(mx) < 19.9 && Math.abs(mz) < 14.9).toBe(false);
+    }
     // Near the map, its ground's colour; far off, the horizon's.
     let near = -1, far = -1, nearD = Infinity, farD = 0;
     for (let i = 0; i < g.position.length; i += 3) {
@@ -77,6 +82,22 @@ describe("scenery round an outdoor map", () => {
     // Under the map's floor.
     expect(g.position[1]).toBeLessThan(0);
     expect(skyMesh(s, 0, 0, 100).position.length).toBeGreaterThan(0);
+  });
+
+  it("meets low ground at the map's edge at its height, and is level further out", () => {
+    const s = sceneryOf("Temperate", day())!;
+    // The map's north edge lies 3 squares low (the land below a cliff running off it).
+    const g = groundMesh(s, [0.2, 0.5, 0.2], { x0: -20, z0: -15, x1: 20, z1: 15 }, 200, (_x, z) => (z < -14 ? -3 : 0));
+    let north = Infinity, south = Infinity, farLow = Infinity;
+    for (let i = 0; i < g.position.length; i += 3) {
+      const [x, y, z] = [g.position[i], g.position[i + 1], g.position[i + 2]];
+      if (Math.abs(z + 15) < 0.01 && Math.abs(x) < 19) north = Math.min(north, y);
+      if (Math.abs(z - 15) < 0.01 && Math.abs(x) < 19) south = Math.min(south, y);
+      if (Math.hypot(x, z) > 60) farLow = Math.min(farLow, y);
+    }
+    expect(north).toBeCloseTo(-3.03);
+    expect(south).toBeCloseTo(-0.03);
+    expect(farLow).toBeCloseTo(-0.03);
   });
 
   it("takes the ground's colour from the map's edges", () => {

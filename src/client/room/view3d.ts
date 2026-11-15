@@ -130,6 +130,8 @@ export class View3D implements View3dControls {
   private cave = false;
   /** High and low ground (view3dGround.ts): where cliffs cut land off, it lies a cliff's height lower. */
   private ground: Ground | null = null;
+  /** What the ground is, in brief: the floor and the scenery round it are made again when it changes. */
+  private groundKey = "flat";
   /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
   private texturedWalls: Mesh | null = null;
   private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
@@ -322,7 +324,8 @@ export class View3D implements View3dControls {
 
     // The floor: a new texture when its size changes (WebGL keeps a texture's size), else the same one
     // drawn again; bent to the ground where cliffs make high and low ground.
-    const key = `${a.x0},${a.y0},${a.x1},${a.y1},${this.cell},${f.canvas.width}x${f.canvas.height},${g ? `${g.w}x${g.h}:${g.drop}:${lowSum}` : "flat"}`;
+    this.groundKey = g ? `${g.w}x${g.h}:${g.drop}:${lowSum}` : "flat";
+    const key = `${a.x0},${a.y0},${a.x1},${a.y1},${this.cell},${f.canvas.width}x${f.canvas.height},${this.groundKey}`;
     if (!this.floorMesh || !this.floorTex || key !== this.floorKey) {
       this.dropFloor();
       const tex = (this.floorTex = new CanvasTexture(f.canvas));
@@ -892,7 +895,7 @@ export class View3D implements View3dControls {
     const cx = (a.x0 + a.x1) / 2 / cell, cz = (a.y0 + a.y1) / 2 / cell;
     const radius = Math.max(4, Math.hypot(a.x1 - a.x0, a.y1 - a.y0) / 2 / cell);
     const ground = this.groundEdge ?? s?.ground ?? [0.5, 0.5, 0.48];
-    const key = JSON.stringify([s, Math.round(cx), Math.round(cz), Math.round(radius), ground.map((v) => Math.round(v * 40))]);
+    const key = JSON.stringify([s, a.x0, a.y0, a.x1, a.y1, cell, ground.map((v) => Math.round(v * 40)), this.groundKey]);
     if (this.scenery?.key === key) {
       this.tintToSky(s);
       return;
@@ -901,7 +904,17 @@ export class View3D implements View3dControls {
     if (!s) return;
     const meshes = [
       skyMesh(s, cx, cz, radius * 8),
-      groundMesh(s, ground, cx, cz, radius, radius * 7.6),
+      groundMesh(
+        s,
+        ground,
+        { x0: a.x0 / cell, z0: a.y0 / cell, x1: a.x1 / cell, z1: a.y1 / cell },
+        radius * 7.6,
+        // Just inside the map's edge: low ground there runs off it.
+        (x, z) => heightAt(this.ground, (x + Math.sign(cx - x) * 0.5) * cell, (z + Math.sign(cz - z) * 0.5) * cell),
+        10,
+        // With high and low ground, its edge close enough to follow the map's (two a square).
+        this.ground ? Math.min(256, Math.ceil((Math.max(a.x1 - a.x0, a.y1 - a.y0) / cell) * 2)) : 24,
+      ),
       ...s.ranges.map((r) => rangeMesh(r, s, cx, cz, radius)),
     ].map((m) => {
       const geo = new BufferGeometry();
