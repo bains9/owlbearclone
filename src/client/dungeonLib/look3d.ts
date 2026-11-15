@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
+// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf53d42. Change it there and run the script again.
 // The builder's 3D view (14 November 2026): Dungeon shows the map being built in Table's own 3D
 // view, so there's one 3D view, not two. Dungeon frames Table's /look3d page and sends it the open
 // level as it changes; Table draws it as it draws a scene, with no fog and no tokens (a map maker

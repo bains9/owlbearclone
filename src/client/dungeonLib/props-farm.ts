@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-farm.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-farm.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf53d42. Change it there and run the script again.
 import { rng } from "./noise";
 import { rr, circle, radial, linear, canopy } from "./propkit";
 import { WOODS, METALS, MASONRY, cross, vary, family, shade, ell, poly, fo, box, cbox, disc, plank, stroke, scatter, type C, type Tone } from "./propvariants";

@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
+// Copied from Dungeon (src/render/propkit.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf53d42. Change it there and run the script again.
 import { rng } from "./noise";
 import type { FormSpec } from "./solid";
 
