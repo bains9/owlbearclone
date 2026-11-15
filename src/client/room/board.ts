@@ -115,7 +115,7 @@ import type { ClearingMasks } from "./view3dClearing";
 import { findThings, foundHoles, foundObjects, type Found } from "./view3dFound";
 import { rockMask } from "./view3dRock";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
-import { castBounds, tokenLookBounds, zoneBounds, type Effect3d } from "./view3dEffects";
+import { castBounds, castVolume, tokenLookBounds, zoneBounds, zoneVolume, type Effect3d } from "./view3dEffects";
 import { mapCliffs, type Cliff3d } from "./view3dCliffs";
 import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
@@ -1372,6 +1372,8 @@ export class Board implements BoardApi {
         key: `zone:${d.id}:${look}`,
         level: ZONE_LOOKS[look].layer === "ground" ? "ground" : "air",
         bounds: zoneBounds(pts, cell),
+        // Its height and shape from the spell list: a dome, a cube, a column, a wall.
+        volume: zoneVolume(look, d.shape, pts, cell, d.spell),
         mask: true,
         moving: spellLookMoves(look),
         draw: (c, now, px) => {
@@ -1419,6 +1421,8 @@ export class Board implements BoardApi {
         key: `cast:${f.t0}:${f.seed}`,
         level: "mid",
         bounds: castBounds(f.a, f.b, f.r, cell),
+        // A burst swells as a sphere; a bolt flies at chest height.
+        volume: castVolume(f.look, f.a, f.b, f.r, cell),
         // The flat map draws a spell being cast over the fog too.
         mask: false,
         moving: true,

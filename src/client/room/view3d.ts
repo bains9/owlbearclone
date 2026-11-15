@@ -8,6 +8,7 @@
 // shows the map in 3D; the arithmetic is in view3dModel.ts.
 
 import {
+  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -61,7 +62,7 @@ import { rockMask, rockSides, rockTop } from "./view3dRock";
 import { groundOf, heightAt, onGround, type Ground } from "./view3dGround";
 import { edgeColour, groundMesh, rangeMesh, sceneryOf, skyMesh } from "./view3dScenery";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
-import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
+import { EFFECT_STEP_MS, effectScale, meanColour, sameSize, sameVolume, sheetLayers, skinMesh, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
 import { WeatherFx3d } from "./view3dWeatherFx";
 import type { Weather } from "../../shared/calendar";
@@ -99,6 +100,24 @@ export interface View3dOptions {
   touch: boolean;
   /** The device took WebGL back (too many pages using it, or the GPU reset): the page goes back to 2D. */
   onLost: () => void;
+}
+
+/**
+ * A spell in the scene: its drawing on a canvas, laid once or in layers up through its height
+ * (view3dEffects.ts sheetLayers), and the skin round it, in its drawing's colour, where it has one.
+ */
+interface Sheet {
+  e: Effect3d;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  tex: CanvasTexture;
+  mats: MeshBasicMaterial[];
+  geo: PlaneGeometry;
+  meshes: Mesh[];
+  k: number;
+  skin: { mesh: Mesh; geo: BufferGeometry; mat: MeshBasicMaterial; rise: Float32Array; color: Float32Array } | null;
+  /** Its drawing's colour, for its skin: found the first time it's drawn. */
+  rgb: [number, number, number] | null;
 }
 
 export class View3D implements View3dControls {
@@ -145,7 +164,7 @@ export class View3D implements View3dControls {
    * The spells on the map (view3dEffects.ts), each drawn on a canvas of its own laid in the scene
    * as one sheet or two, by its key.
    */
-  private sheets = new Map<string, { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[]; k: number }>();
+  private sheets = new Map<string, Sheet>();
   private sheetsAt = 0;
   private sheetsListedAt = 0;
   /** What covers the floor (the fog and the dark) as a picture, to take out of spells under it. */
@@ -732,7 +751,7 @@ export class View3D implements View3dControls {
     for (const e of this.src.effects()) {
       seen.add(e.key);
       let s = this.sheets.get(e.key);
-      if (s && !(sameSize(s.e.bounds, e.bounds) && s.e.level === e.level)) {
+      if (s && !(sameSize(s.e.bounds, e.bounds) && s.e.level === e.level && sameVolume(s.e.volume, e.volume))) {
         this.dropSheet(s);
         this.sheets.delete(e.key);
         s = undefined;
@@ -747,7 +766,10 @@ export class View3D implements View3dControls {
         s.e = e;
       }
       this.placeSheet(s);
-      if (fresh) this.drawSheet(s, now);
+      if (fresh) {
+        this.drawSheet(s, now);
+        this.shadeSkin(s);
+      }
     }
     for (const [key, s] of this.sheets) {
       if (seen.has(key)) continue;
@@ -757,7 +779,7 @@ export class View3D implements View3dControls {
     this.redraw();
   }
 
-  private makeSheet(e: Effect3d): { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[]; k: number } {
+  private makeSheet(e: Effect3d): Sheet {
     const b = e.bounds;
     const k = effectScale(b, this.cell, this.opts.touch);
     const canvas = document.createElement("canvas");
@@ -765,29 +787,73 @@ export class View3D implements View3dControls {
     canvas.height = Math.max(1, Math.round((b.y1 - b.y0) * k));
     const ctx = canvas.getContext("2d")!;
     const tex = new CanvasTexture(canvas);
-    const look = EFFECT_SHEETS[e.level];
-    const mat = new MeshBasicMaterial({ map: tex, transparent: true, opacity: look.opacity, depthWrite: false, side: DoubleSide });
     const geo = new PlaneGeometry((b.x1 - b.x0) / this.cell, (b.y1 - b.y0) / this.cell);
     geo.rotateX(-Math.PI / 2);
-    const meshes = look.heights.map(() => {
+    // One material for each see-through-ness its layers have (the bottom one and those above).
+    const byOpacity = new Map<number, MeshBasicMaterial>();
+    const meshes = sheetLayers(e).map((l) => {
+      let mat = byOpacity.get(l.opacity);
+      if (!mat) byOpacity.set(l.opacity, (mat = new MeshBasicMaterial({ map: tex, transparent: true, opacity: l.opacity, depthWrite: false, side: DoubleSide })));
       const m = new Mesh(geo, mat);
       m.renderOrder = 5;
       this.world.add(m);
       return m;
     });
-    return { e, canvas, ctx, tex, mat, geo, meshes, k };
+    // Its skin: round its area, up its height.
+    let skin: Sheet["skin"] = null;
+    const v = e.volume;
+    if (v && v.skin > 0 && v.top > v.bottom) {
+      const shape = skinMesh(v, this.cell);
+      const sg = new BufferGeometry();
+      sg.setAttribute("position", new BufferAttribute(shape.position, 3));
+      // Clear until its drawing's colour is known (shadeSkin).
+      const color = new Float32Array((shape.position.length / 3) * 4);
+      sg.setAttribute("color", new BufferAttribute(color, 4));
+      const mat = new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: DoubleSide, blending: v.glow ? AdditiveBlending : undefined });
+      const mesh = new Mesh(sg, mat);
+      mesh.renderOrder = 6;
+      this.world.add(mesh);
+      skin = { mesh, geo: sg, mat, rise: shape.rise, color };
+    }
+    return { e, canvas, ctx, tex, mats: [...byOpacity.values()], geo, meshes, k, skin, rgb: null };
   }
 
-  /** A sheet over its spell's place, at its level's heights. */
-  private placeSheet(s: { e: Effect3d; meshes: Mesh[] }): void {
+  /**
+   * A spell's skin in its drawing's colour, fading up it; where the fog and the dark cover the
+   * ground under it, as hidden as its drawing is there.
+   */
+  private shadeSkin(s: Sheet): void {
+    const sk = s.skin, v = s.e.volume;
+    if (!sk || !v || !s.rgb) return;
+    const pos = sk.geo.getAttribute("position").array;
+    const cx = (v.area.x0 + v.area.x1) / 2, cz = (v.area.y0 + v.area.y1) / 2;
+    const [r, g, b] = s.rgb;
+    const fade = v.form === "dome" ? 0.35 : 0.75;
+    for (let i = 0; i < sk.rise.length; i++) {
+      const seen = s.e.mask && this.cover ? brightnessAt(this.cover, cx + pos[i * 3] * this.cell, cz + pos[i * 3 + 2] * this.cell) : 1;
+      sk.color.set([r, g, b, v.skin * (1 - fade * sk.rise[i]) * seen], i * 4);
+    }
+    sk.geo.getAttribute("color").needsUpdate = true;
+  }
+
+  /** A spell's sheets over its place, at their heights (a dome's narrowing round its middle), and its skin round it. */
+  private placeSheet(s: Sheet): void {
     const b = s.e.bounds;
-    const heights = EFFECT_SHEETS[s.e.level].heights;
-    const base = heightAt(this.ground, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
-    s.meshes.forEach((m, i) => m.position.set((b.x0 + b.x1) / 2 / this.cell, base + heights[i], (b.y0 + b.y1) / 2 / this.cell));
+    const a = s.e.volume?.area ?? b;
+    const ax = (a.x0 + a.x1) / 2 / this.cell, az = (a.y0 + a.y1) / 2 / this.cell;
+    const bx = (b.x0 + b.x1) / 2 / this.cell, bz = (b.y0 + b.y1) / 2 / this.cell;
+    const base = heightAt(this.ground, ax * this.cell, az * this.cell);
+    const layers = sheetLayers(s.e);
+    s.meshes.forEach((m, i) => {
+      const l = layers[i];
+      m.position.set(ax + (bx - ax) * l.scale, base + l.y, az + (bz - az) * l.scale);
+      m.scale.set(l.scale, 1, l.scale);
+    });
+    s.skin?.mesh.position.set(ax, base, az);
   }
 
   /** Draws a spell onto its sheet as it is at `now`, and takes out what the fog and the dark cover. */
-  private drawSheet(s: { e: Effect3d; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: CanvasTexture; k: number }, now: number): void {
+  private drawSheet(s: Sheet, now: number): void {
     const { ctx: c, k, e } = s;
     const b = e.bounds;
     c.setTransform(1, 0, 0, 1, 0, 0);
@@ -799,6 +865,11 @@ export class View3D implements View3dControls {
       e.draw(c, now, 1 / k);
     } catch {
       // One spell that can't be drawn doesn't stop the rest.
+    }
+    // Its skin's colour: what's drawn, before the fog and the dark take any out.
+    if (s.skin && !s.rgb) {
+      s.rgb = meanColour(c.getImageData(0, 0, s.canvas.width, s.canvas.height).data);
+      if (s.rgb) this.shadeSkin(s);
     }
     const cover = this.cover;
     if (e.mask && cover && this.coverCanvas) {
@@ -832,11 +903,16 @@ export class View3D implements View3dControls {
     return drew;
   }
 
-  private dropSheet(s: { tex: CanvasTexture; mat: MeshBasicMaterial; geo: PlaneGeometry; meshes: Mesh[] }): void {
+  private dropSheet(s: Sheet): void {
     for (const m of s.meshes) this.world.remove(m);
     s.geo.dispose();
-    s.mat.dispose();
+    for (const m of s.mats) m.dispose();
     s.tex.dispose();
+    if (s.skin) {
+      this.world.remove(s.skin.mesh);
+      s.skin.geo.dispose();
+      s.skin.mat.dispose();
+    }
   }
 
   private dropSheets(): void {

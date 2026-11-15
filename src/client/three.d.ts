@@ -103,6 +103,7 @@ declare module "three" {
 
   export const FrontSide: number;
   export const DoubleSide: number;
+  export const AdditiveBlending: number;
   export const RepeatWrapping: number;
 
   export class Vector2 {
@@ -121,6 +122,7 @@ declare module "three" {
     polygonOffsetFactor?: number;
     polygonOffsetUnits?: number;
     vertexColors?: boolean;
+    blending?: number;
     fog?: boolean;
     color?: string | number | Color;
     map?: Texture | null;
