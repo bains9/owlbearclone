@@ -1094,6 +1094,69 @@ export const GUIDE: GuideSection[] = [
     ]
   },
   {
+    "id": "map-3d",
+    "title": "The map in 3D",
+    "audience": "everyone",
+    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it, and tokens stand on it as cardboard figures. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
+    "parts": [
+      {
+        "title": "Turn it on",
+        "steps": [
+          "Open **Chat & dice** and click **Change your name or colour**.",
+          "Under **This device**, tick **Offer a 3D view of the map (new)**.",
+          "Close the box. A **3D** button appears by the zoom buttons.",
+          "Click **3D** to see the map in 3D. Click it again for the flat map."
+        ],
+        "notes": [
+          "It's only on this device: other players, the GM and the table display don't change. Untick it to take the button away again.",
+          "A device that was showing 3D when it was closed opens in 3D next time.",
+          "If a device can't show 3D (an old one, or one without WebGL), a message says so and the map stays flat."
+        ]
+      },
+      {
+        "title": "Look around",
+        "steps": [
+          "Drag with the mouse, or one finger, to swing round the map and tilt it.",
+          "Zoom with the mouse wheel, by pinching, or with the **+** and **−** buttons (or the + and − keys).",
+          "Slide along the map with a right-drag, or two fingers.",
+          "Click **Fit the scene** (or press 0) to see the whole scene again, from the south."
+        ],
+        "notes": [
+          "It opens looking at the part of the map you were looking at on the flat map, with north away from you."
+        ]
+      },
+      {
+        "title": "What it shows",
+        "steps": [
+          "The floor is the map exactly as the flat map shows it: the picture, a built map, the grid, drawings, and the fog and darkness over them.",
+          "Walls and shut doors stand up: walls from a map brought in from Dungeon or a Universal VTT file, and walls built with the Build tool. Open doors are gaps.",
+          "Tokens stand up as figures, their pictures turned towards you, on a stand in their colour. Props (furniture, doors and other objects) lie flat.",
+          "When someone moves a token on the flat map, its figure slides there in 3D."
+        ],
+        "notes": [
+          "Players never see more in 3D than on the flat map. Walls stand only where you've seen: under the fog, or in darkness the party hasn't explored, there's nothing to give a room's shape away. Walls in places explored earlier are darker.",
+          "A token under the fog doesn't stand up for players. The GM sees everything, with the fog and the dark dimmed, as on the flat map.",
+          "It only shows the map. Moving tokens, drawing, measuring, the fog and the Build tool all work on the flat map: picking a tool goes back to it. The arrow keys still move a selected token.",
+          "Pings, rulers, spell effects playing and compass roses show on the flat map only.",
+          "On a phone or tablet the 3D view uses a smaller picture of the map, to stay quick. If it makes a device slow, click **3D** to go back to the flat map, or untick it under **This device**."
+        ]
+      },
+      {
+        "title": "GM: the table display in 3D",
+        "steps": [
+          "Tick **Offer a 3D view of the map (new)** on your own device first.",
+          "Click **More** (the three dots) in the top bar, then **Table display**.",
+          "Tick **Show the map in 3D on the display (new)**.",
+          "Click **Open display window**, or **Copy display link**: the link now opens the display in 3D."
+        ],
+        "notes": [
+          "The display shows what players see, in 3D. With **What I'm looking at** picked, its camera swings to wherever you point it on your flat map.",
+          "Move the mouse over the display to show its **Flat map (2D)** button, and click it to go back to the flat map there."
+        ]
+      }
+    ]
+  },
+  {
     "id": "tokens",
     "title": "Tokens",
     "audience": "everyone",
@@ -3963,7 +4026,8 @@ export const GUIDE: GuideSection[] = [
           "During combat, the display shows the round and whose turn it is in the bottom corner.",
           "The display always shows the scene's season, if it has one, even on a computer where seasons are turned off (see **Seasons: snow, autumn leaves, blossom and drought**).",
           "The mouse pointer on the display hides itself after a few seconds. You can still drag and scroll on the display to move it yourself.",
-          "While you use the Build tool, the display stays where it is rather than following you."
+          "While you use the Build tool, the display stays where it is rather than following you.",
+          "The display can show the map in 3D: see **GM: the table display in 3D** in **The map in 3D**."
         ]
       }
     ]

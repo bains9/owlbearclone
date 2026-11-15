@@ -1,6 +1,7 @@
 // The map in 3D (room/view3dModel.ts, map3d.ts): walls raised only where a page has seen, standing
 // figures, the camera's framing, and the per-device switch (off to begin with) and the display link.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GUIDE } from "../src/client/guide";
 import { RoomClient } from "../src/client/room/client";
 import { display3dLink, displayWants3d, loadMap3d, loadView3d, saveMap3d, saveView3d } from "../src/client/map3d";
 import {
@@ -387,5 +388,40 @@ describe("the 3D view on a device", () => {
     expect(displayWants3d(new URL(in3d).search)).toBe(true);
     expect(new URL(in3d).searchParams.get("display")).toBe("k/ey");
     expect(display3dLink(in3d, false)).toBe(new URL(plain).toString());
+  });
+});
+
+/** A source file's text (node:fs, which the test types leave out on purpose, as the other tests reach it). */
+async function source(path: string): Promise<string> {
+  const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+  return fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+describe("the guide", () => {
+  const section = GUIDE.find((g) => g.id === "map-3d")!;
+  const text = JSON.stringify(section);
+
+  it("has a section on the map in 3D, for everyone", () => {
+    expect(section.audience).toBe("everyone");
+    expect(section.parts.map((p) => p.title)).toEqual(["Turn it on", "Look around", "What it shows", "GM: the table display in 3D"]);
+  });
+
+  it("names the switches and buttons as the app shows them", async () => {
+    const page = await source("src/client/ui/RoomPage.tsx");
+    const display = await source("src/client/ui/TableDisplay.tsx");
+    const zoom = await source("src/client/ui/Toolbar.tsx");
+    expect(text).toContain("**Offer a 3D view of the map (new)**");
+    expect(page).toContain("Offer a 3D view of the map (new)");
+    expect(text).toContain("**Show the map in 3D on the display (new)**");
+    expect(display).toContain("Show the map in 3D on the display (new)");
+    expect(text).toContain("**Flat map (2D)**");
+    expect(display).toContain('"Flat map (2D)"');
+    expect(text).toContain("**Fit the scene**");
+    expect(zoom).toContain('aria-label="Fit the scene" onClick={fit}');
+  });
+
+  it("says players see no more in 3D than on the flat map", () => {
+    expect(text).toContain("Players never see more in 3D than on the flat map");
+    expect(text).toContain("A token under the fog doesn't stand up for players");
   });
 });
