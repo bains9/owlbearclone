@@ -231,9 +231,8 @@ export class View3D implements View3dControls {
 
   /** The day's weather on this map (null: none, or it doesn't fall here). */
   setWeather(w: Weather | null, region: string | null = null): void {
-    const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    this.weather.set(weatherLook(w, { reducedMotion, touch: this.opts.touch }));
     this.sceneryFor = { region, weather: w };
+    this.applyWeather();
     this.makeScenery();
     this.redraw();
   }
@@ -343,7 +342,10 @@ export class View3D implements View3dControls {
     const rockMap = f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null;
     this.makeRock(rockMap, f.cover, all, f.paint);
     this.makeRoofs(all);
-    this.cave = !!rockMap;
+    if (this.cave !== !!rockMap) {
+      this.cave = !!rockMap;
+      this.applyWeather();
+    }
     // The ground round the map: its edges' colour, but for a player only from what they've seen.
     const op = f.objectPaint;
     const seen = all ? undefined : (x: number, y: number) => !!op && brightnessAt(f.cover, op.x0 + (x + 0.5) / op.k, op.y0 + (y + 0.5) / op.k) >= WALL_SEEN;
@@ -826,6 +828,12 @@ export class View3D implements View3dControls {
       this.rockTop = null;
     }
     this.dropRoofs();
+  }
+
+  /** The day's rain and snow, but none in a cave (a map standing up as rock is underground, whatever the weather setting guessed). */
+  private applyWeather(): void {
+    const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.weather.set(this.cave ? null : weatherLook(this.sceneryFor.weather, { reducedMotion, touch: this.opts.touch }));
   }
 
   /**
