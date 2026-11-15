@@ -6,6 +6,7 @@ import {
   EFFECT_SHEETS,
   castBounds,
   castVolume,
+  copiesAt,
   effectScale,
   meanColour,
   sameSize,
@@ -13,6 +14,7 @@ import {
   sheetLayers,
   skinMesh,
   tokenLookBounds,
+  tokenLookVolume,
   zoneBounds,
   zoneVolume,
 } from "../src/client/room/view3dEffects";
@@ -173,6 +175,61 @@ describe("how tall each spell stands, from the spell list", () => {
     expect(sameVolume(a, moved)).toBe(true);
     expect(sameVolume(a, zoneVolume("fog", "ellipse", circle(5), CELL, "Fog Cloud"))).toBe(false);
     expect(sameVolume(undefined, undefined)).toBe(true);
+  });
+});
+
+describe("spells on tokens, round their figures", () => {
+  // A medium token at (500, 500), radius 50 (a square across), its card from 0.06 to 1.0 squares up.
+  const fig = { bottom: 0.06, top: 1 };
+  const look = (l: Parameters<typeof tokenLookVolume>[0], f = fig) => tokenLookVolume(l, 500, 500, 50, f);
+
+  it("puts Shield and the other shells in a bubble a little wider and taller than the figure", () => {
+    const v = look("shell");
+    expect(v.form).toBe("dome");
+    expect(v.top).toBeGreaterThan(fig.top);
+    expect(v.top).toBeLessThan(fig.top * 1.3);
+    expect(v.area.x1 - v.area.x0).toBeGreaterThan(100);
+    expect(v.skin).toBeGreaterThan(0);
+    expect(v.glow).toBe(true);
+  });
+
+  it("runs Faerie Fire's glow up the figure, and binds Hold Person's rings round it at three heights", () => {
+    const glow = sheetLayers({ level: "mid", volume: look("outline") });
+    expect(glow[0].y).toBeCloseTo(fig.bottom);
+    expect(glow[glow.length - 1].y).toBeCloseTo(fig.top);
+    const rings = sheetLayers({ level: "mid", volume: look("held") });
+    expect(rings).toHaveLength(3);
+    for (const r of rings) {
+      expect(r.y).toBeGreaterThan(fig.bottom);
+      expect(r.y).toBeLessThan(fig.top);
+    }
+  });
+
+  it("holds a burning blade at the figure's hand, and goes up with a flyer", () => {
+    const blade = sheetLayers({ level: "mid", volume: look("weapon") });
+    expect(blade).toHaveLength(1);
+    expect(blade[0].y).toBeCloseTo(0.06 + 0.94 * 0.45);
+    const flying = { bottom: 0.66, top: 1.6 };
+    expect(sheetLayers({ level: "mid", volume: look("weapon", flying) })[0].y).toBeGreaterThan(1);
+    expect(look("shell", flying).bottom).toBeCloseTo(0.66);
+  });
+
+  it("leaves a flyer's shadow on the ground, and what's left of Mirror Image, Blur and Haste once their copies stand", () => {
+    for (const l of ["flying", "mirror", "blur", "haste", "treeform"] as const) expect(look(l).top).toBeLessThan(0.05);
+  });
+
+  it("drifts Mirror Image's three copies round the token, and shakes Blur's two close to it", () => {
+    const mirror = copiesAt("mirror", 0.5, 123, 1000);
+    expect(mirror).toHaveLength(3);
+    for (const p of mirror) {
+      expect(Math.hypot(p.x, p.z / 0.8)).toBeGreaterThan(0.2);
+      expect(Math.hypot(p.x, p.z / 0.8)).toBeLessThan(0.4);
+    }
+    // They move.
+    expect(copiesAt("mirror", 0.5, 123, 3000)[0].x).not.toBeCloseTo(mirror[0].x);
+    const blur = copiesAt("blur", 0.5, 123, 1000);
+    expect(blur).toHaveLength(2);
+    for (const p of blur) expect(Math.hypot(p.x, p.z)).toBeLessThan(0.2);
   });
 });
 

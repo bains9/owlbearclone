@@ -107,7 +107,7 @@ import {
 import type { Placed } from "./stampGeom";
 import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
-import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
+import { FLYING_LIFT, cardSize, coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
 import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
 import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
@@ -115,7 +115,7 @@ import type { ClearingMasks } from "./view3dClearing";
 import { findThings, foundHoles, foundObjects, type Found } from "./view3dFound";
 import { rockMask } from "./view3dRock";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
-import { castBounds, castVolume, tokenLookBounds, zoneBounds, zoneVolume, type Effect3d } from "./view3dEffects";
+import { castBounds, castVolume, tokenLookBounds, tokenLookVolume, zoneBounds, zoneVolume, type Effect3d } from "./view3dEffects";
 import { mapCliffs, type Cliff3d } from "./view3dCliffs";
 import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
@@ -1397,17 +1397,24 @@ export class Board implements BoardApi {
       if (!n || !t || !n.group.visible()) continue;
       const r = (t.size * n.cell) / 2;
       const at = n.group.position();
+      // Its figure in 3D, in squares: its card's bottom (up in the air for a flyer) and top.
+      const pic = n.picture;
+      const bottom = 0.06 + (n.lifted ? FLYING_LIFT : 0);
+      const figure = { bottom, top: bottom + cardSize((t.size * n.cell) / cell, pic?.w ?? 1, pic?.h ?? 1).h };
       for (const d of list) {
         const look = d.fx as TokenLook;
         out.push({
           key: `look:${id}:${d.id}`,
           level: tokenLookLayer(look) === "ground" ? "ground" : "mid",
           bounds: tokenLookBounds(at.x, at.y, r, cell),
+          // Round its figure, as the spell list has it: a bubble, a glow up it, rings, a blade at its hand.
+          volume: tokenLookVolume(look, at.x, at.y, r, figure),
           mask: true,
           moving: true,
           draw: (c, now, px) => {
             const q = n.group.position();
-            const on: OnToken = { look, x: q.x, y: q.y, r, color: d.color, seed: seedOf(d.id) };
+            // Its copies stand as figures of their own in 3D (standees3d).
+            const on: OnToken = { look, x: q.x, y: q.y, r, color: d.color, seed: seedOf(d.id), standing: true };
             if (look === "spectral" || look === "haste") on.trail = this.ghostTrail(id, q, now);
             if (look === "spectral" || look === "haste" || look === "mirror" || look === "blur") {
               on.picture = n.picture;
@@ -1469,6 +1476,11 @@ export class Board implements BoardApi {
       // Compasses are the GM's guide to the 2D map, not something standing on it.
       if (!t || n.gone || !n.group.visible() || isCompass(t)) continue;
       const img = n.picture?.img;
+      // Spells that change the figure itself: Treeform stands it as a tree; Mirror Image, Blur and
+      // after-images (Haste, a spectral beast) stand copies of it.
+      const spells = this.spellsOn.get(t.id) ?? [];
+      const with_ = (look: TokenLook) => spells.find((d) => d.fx === look);
+      const copy = with_("mirror") ?? with_("blur") ?? with_("haste") ?? with_("spectral");
       out.push({
         id: t.id,
         x: n.group.x(),
@@ -1482,6 +1494,8 @@ export class Board implements BoardApi {
         flat: t.layer === "prop",
         rotation: t.rotation,
         lifted: !!n.lifted,
+        tree: !!with_("treeform"),
+        copies: copy ? { kind: copy.fx === "mirror" ? "mirror" : copy.fx === "blur" ? "blur" : "trail", seed: seedOf(copy.id) } : null,
       });
     }
     return out;

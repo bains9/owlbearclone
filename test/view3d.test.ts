@@ -402,6 +402,11 @@ describe("figures", () => {
     expect(standeeLook({ ...base, opacity: 0.5 })).not.toBe(look);
     expect(standeeLook({ ...base, flip: true })).not.toBe(look);
     expect(standeeLook({ ...base, lifted: true })).not.toBe(look);
+    // Treeform stands it as a tree; Mirror Image and Blur stand copies of it.
+    expect(standeeLook({ ...base, tree: true })).not.toBe(look);
+    expect(standeeLook({ ...base, copies: { kind: "mirror", seed: 4 } })).not.toBe(look);
+    expect(standeeLook({ ...base, copies: { kind: "blur", seed: 4 } })).not.toBe(standeeLook({ ...base, copies: { kind: "mirror", seed: 4 } }));
+    expect(standeeLook({ ...base, copies: null })).toBe(look);
     // A standing figure faces the camera whichever way the token's turned; a flat one turns.
     expect(standeeLook({ ...base, rotation: 90 })).toBe(look);
     expect(standeeLook({ ...base, flat: true, rotation: 90 })).not.toBe(standeeLook({ ...base, flat: true }));

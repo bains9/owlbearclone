@@ -386,11 +386,19 @@ export interface Standee {
   rotation: number;
   /** Flying: lifted above its stand. */
   lifted: boolean;
+  /** Treeform: it stands as a tree. */
+  tree?: boolean;
+  /**
+   * Copies of it standing round it: Mirror Image's three drifting round it, Blur's shaking one,
+   * or (`trail`) Haste's and a spectral beast's after-images where it was a moment ago. `seed`
+   * places them as the flat map does.
+   */
+  copies?: { kind: "mirror" | "blur" | "trail"; seed: number } | null;
 }
 
 /** What a standee looks like, apart from where it is: when this changes, it's made again. */
 export function standeeLook(s: Standee): string {
-  return [s.picture?.src ?? "", s.flip, s.color, s.label, s.size, s.flat, s.flat ? s.rotation : 0, s.lifted, s.opacity.toFixed(2)].join("|");
+  return [s.picture?.src ?? "", s.flip, s.color, s.label, s.size, s.flat, s.flat ? s.rotation : 0, s.lifted, s.opacity.toFixed(2), !!s.tree, s.copies?.kind ?? "", s.copies?.seed ?? ""].join("|");
 }
 
 /**

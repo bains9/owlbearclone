@@ -64,7 +64,7 @@ import { rockMask, rockSides, rockTop } from "./view3dRock";
 import { groundOf, heightAt, onGround, type Ground } from "./view3dGround";
 import { edgeColour, groundMesh, rangeMesh, sceneryOf, skyMesh } from "./view3dScenery";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
-import { EFFECT_STEP_MS, effectScale, meanColour, sameSize, sameVolume, sheetLayers, skinMesh, type Effect3d } from "./view3dEffects";
+import { AFTER_IMAGES, AFTER_MS, EFFECT_STEP_MS, copiesAt, effectScale, meanColour, sameSize, sameVolume, sheetLayers, skinMesh, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
 import { WeatherFx3d } from "./view3dWeatherFx";
 import type { Weather } from "../../shared/calendar";
@@ -93,6 +93,11 @@ interface Fig {
   /** Where it's going (it slides there). */
   to: Vector3;
   shade: number;
+  /**
+   * Copies of it standing round it (Mirror Image, Blur), or after-images where it was a moment ago
+   * (Haste, a spectral beast): each a card like its own, faint, moved each frame.
+   */
+  copies: { kind: "mirror" | "blur" | "trail"; seed: number; r: number; faces: Group[]; mats: MeshBasicMaterial[]; alpha: number; been: { x: number; y: number; z: number; t: number }[] } | null;
 }
 
 export interface View3dOptions {
@@ -170,6 +175,7 @@ export class View3D implements View3dControls {
    */
   private sheets = new Map<string, Sheet>();
   private sheetsAt = 0;
+  private copiesStepAt = 0;
   private sheetsListedAt = 0;
   /** What covers the floor (the fog and the dark) as a picture, to take out of spells under it. */
   private coverCanvas: HTMLCanvasElement | null = null;
@@ -480,7 +486,7 @@ export class View3D implements View3dControls {
 
   private makeFig(s: Standee, look: string): Fig {
     const group = new Group();
-    const fig: Fig = { group, face: null, tints: [], geometries: [], look, to: new Vector3(), shade: 1 };
+    const fig: Fig = { group, face: null, tints: [], geometries: [], look, to: new Vector3(), shade: 1, copies: null };
     const pic = this.pictureOf(s);
     const faded = s.opacity < 0.999;
     const tint = (material: MeshBasicMaterial | MeshLambertMaterial, color: string | number) => {
@@ -521,6 +527,23 @@ export class View3D implements View3dControls {
     stand.scale.set(r, 1, r);
     stand.position.y = 0.03;
     group.add(stand);
+    if (s.tree) {
+      // Treeform: a tree stands on the stand instead of its card, as one of the map's would.
+      const tree = objectMesh([{ id: null, shape: { kind: "tree", h: 0 }, x: 0, y: 0, size: s.size * 1.25, deg: 0, color: null }], this.cell, null, true);
+      if (tree.position.length) {
+        const geo = new BufferGeometry();
+        geo.setAttribute("position", new BufferAttribute(tree.position, 3));
+        geo.setAttribute("normal", new BufferAttribute(tree.normal, 3));
+        geo.setAttribute("color", new BufferAttribute(tree.color, 3));
+        fig.geometries.push(geo);
+        const mat = new MeshLambertMaterial({ vertexColors: true, transparent: faded, opacity: s.opacity });
+        tint(mat, 0xffffff);
+        const mesh = new Mesh(geo, mat);
+        mesh.position.y = 0.06 + (s.lifted ? FLYING_LIFT : 0);
+        group.add(mesh);
+        return fig;
+      }
+    }
     // ...and the card on it, its picture facing the camera.
     const { w, h } = cardSize(s.size, pic.w, pic.h);
     const geo = new PlaneGeometry(w, h);
@@ -535,12 +558,77 @@ export class View3D implements View3dControls {
     face.add(card);
     group.add(face);
     fig.face = face;
+    if (s.copies) {
+      // Its copies: the same card, faint, each turned to the camera as it is.
+      const n = s.copies.kind === "mirror" ? 3 : s.copies.kind === "blur" ? 2 : AFTER_IMAGES;
+      const copies: NonNullable<Fig["copies"]> = { kind: s.copies.kind, seed: s.copies.seed, r: s.size / 2, faces: [], mats: [], alpha: s.opacity, been: [] };
+      for (let i = 0; i < n; i++) {
+        const m = new MeshBasicMaterial({ map: pic.tex, transparent: true, opacity: 0, alphaTest: 0.02, depthWrite: false, side: DoubleSide });
+        tint(m, 0xffffff);
+        const c = new Mesh(geo, m);
+        if (s.flip) c.scale.x = -1;
+        c.renderOrder = 2;
+        const f = new Group();
+        f.position.y = face.position.y;
+        f.add(c);
+        group.add(f);
+        copies.faces.push(f);
+        copies.mats.push(m);
+      }
+      fig.copies = copies;
+    }
     return fig;
+  }
+
+  /**
+   * Moves each figure's copies: Mirror Image's drifting round it, Blur's shaking, and after-images
+   * (Haste, a spectral beast) where it stood a moment ago, fading. Now and then, as spells are drawn
+   * on (EFFECT_STEP_MS), not every frame. True when something moved.
+   */
+  private stepCopies(now: number): boolean {
+    if (now - this.copiesStepAt < EFFECT_STEP_MS) return false;
+    this.copiesStepAt = now;
+    let any = false;
+    for (const f of this.figs.values()) {
+      const c = f.copies;
+      if (!c) continue;
+      if (c.kind !== "trail") {
+        any = true;
+        copiesAt(c.kind, c.r, c.seed, now).forEach((p, i) => {
+          c.faces[i].position.set(p.x, c.faces[i].position.y, p.z);
+          c.mats[i].opacity = p.alpha * c.alpha;
+        });
+        continue;
+      }
+      // Where it's been lately, as it slides along.
+      const at = f.group.position;
+      const last = c.been[c.been.length - 1];
+      if (!last || Math.hypot(at.x - last.x, at.z - last.z) > 0.02) c.been.push({ x: at.x, y: at.y, z: at.z, t: now });
+      while (c.been.length && now - c.been[0].t > AFTER_MS) c.been.shift();
+      c.faces.forEach((face, i) => {
+        const age = (i + 1) / (AFTER_IMAGES + 1);
+        const want = now - age * AFTER_MS;
+        // The last place it was at that moment.
+        let p: { x: number; y: number; z: number } | null = null;
+        for (const b of c.been) if (b.t <= want) p = b;
+        const away = p ? Math.hypot(p.x - at.x, p.z - at.z) : 0;
+        if (!p || away < 0.15) {
+          if (c.mats[i].opacity > 0) any = true;
+          c.mats[i].opacity = 0;
+          return;
+        }
+        any = true;
+        face.position.set(p.x - at.x, face.position.y, p.z - at.z);
+        c.mats[i].opacity = 0.3 * (1 - age) * c.alpha;
+      });
+    }
+    return any;
   }
 
   private dropFig(f: Fig): void {
     this.world.remove(f.group);
     for (const g of f.geometries) g.dispose();
+    // Its copies' materials are among its tints.
     for (const t of f.tints) t.material.dispose();
   }
 
@@ -1148,12 +1236,18 @@ export class View3D implements View3dControls {
     const aiming = this.stepTween();
     const moved = this.controls.update();
     this.keepOnScene();
-    const sliding = this.stepFigs() || this.stepRoofs(performance.now()) || this.stepSheets(performance.now());
+    const now = performance.now();
+    // All of them, every frame (none left out because one before it moved).
+    const steps = [this.stepFigs(), this.stepRoofs(now), this.stepSheets(now), this.stepCopies(now)];
+    const sliding = steps.some(Boolean);
     const weathering = this.weather.step(performance.now(), this.controls.target, this.camera.position.distanceTo(this.controls.target));
     if (moved || aiming || sliding || weathering || this.dirty) {
       // Every figure's card faces the camera's way.
       const turn = this.controls.getAzimuthalAngle();
-      for (const f of this.figs.values()) if (f.face) f.face.rotation.y = turn;
+      for (const f of this.figs.values()) {
+        if (f.face) f.face.rotation.y = turn;
+        for (const c of f.copies?.faces ?? []) c.rotation.y = turn;
+      }
       this.renderer.render(this.world, this.camera);
       this.dirty = false;
     }

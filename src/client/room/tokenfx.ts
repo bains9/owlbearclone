@@ -24,6 +24,8 @@ export interface OnToken {
   picture?: { img: CanvasImageSource; w: number; h: number; flip: boolean } | null;
   /** The token's own colour: its copies are discs of it when it has no picture. */
   disc?: string;
+  /** In 3D: its copies (Mirror Image, Blur, after-images) stand as figures of their own, so none are drawn here. */
+  standing?: boolean;
 }
 
 /** How long a spectral token's after-image lasts, ms. */
@@ -47,7 +49,7 @@ export function blinkFade(now: number, seed: number): number {
 
 /** A copy of the token (its picture, or a disc of its colour) at a point, at an opacity. */
 function copyAt(c: CanvasRenderingContext2D, t: OnToken, x: number, y: number, alpha: number): void {
-  if (alpha <= 0) return;
+  if (alpha <= 0 || t.standing) return;
   c.save();
   c.globalAlpha *= alpha;
   const pic = t.picture;

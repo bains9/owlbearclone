@@ -3,13 +3,15 @@
 // sphere is a dome of its drawing laid in layers, a cube a block of them, Moonbeam a column of
 // light, a wall a skin of its colour 3 m high; plants, webs and a ring of fire rise a metre or two;
 // grease, spikes, a pit and water lie on the floor. Spells being cast: a burst swells as a sphere,
-// a bolt flies at chest height. The looks on tokens hang at a figure's middle, or on the floor at
-// its feet. Fog and the dark hide them as they hide them in 2D, but for spells being cast, which
+// a bolt flies at chest height. Spells on tokens stand round their figures (tokenLookVolume): a
+// shell a bubble over it, a glow up it, binding rings round it, a blade at its hand; copies of the
+// token (Mirror Image, Blur, after-images) stand as figures (view3d.ts). Fog and the dark hide
+// them as they hide them in 2D, but for spells being cast, which
 // the flat map draws over everything too. The board says where each is and draws it (board.ts
 // effects3d); here, the arithmetic, kept apart from three.js so it's tested.
 
 import { FX_LOOKS, type FxLook } from "../../shared/spellfx";
-import type { ZoneLook } from "../../shared/zones";
+import type { TokenLook, ZoneLook } from "../../shared/zones";
 
 /** Where an effect's sheet hangs: on the floor, at a figure's middle, or in the air above it. */
 export type EffectLevel = "ground" | "mid" | "air";
@@ -79,6 +81,32 @@ export function effectScale(b: Bounds, cell: number, touch: boolean): number {
 export function sameSize(a: Bounds, b: Bounds): boolean {
   return Math.abs(a.x1 - a.x0 - (b.x1 - b.x0)) < 0.5 && Math.abs(a.y1 - a.y0 - (b.y1 - b.y0)) < 0.5;
 }
+
+/**
+ * Where a token's standing copies are at `now`, in squares from its middle, and how solid each is,
+ * as the flat map draws them (tokenfx.ts): Mirror Image's three drifting round it, slowly changing
+ * places; Blur's two shaking a little off it. `r` is the token's radius in squares; `seed` the spell's.
+ */
+export function copiesAt(kind: "mirror" | "blur", r: number, seed: number, now: number): { x: number; z: number; alpha: number }[] {
+  const phase = (seed % 628) / 100;
+  if (kind === "mirror") {
+    return [0, 1, 2].map((i) => {
+      const a = phase + (i / 3) * Math.PI * 2 + now / 2600;
+      const d = r * (0.6 + 0.12 * Math.sin(now / 700 + i * 2));
+      return { x: Math.cos(a) * d, z: Math.sin(a) * d * 0.8, alpha: 0.38 };
+    });
+  }
+  const a = phase + Math.sin(now / 900) * 1.2;
+  const d = r * (0.22 + 0.06 * Math.sin(now / 75));
+  return [
+    { x: Math.cos(a) * d, z: Math.sin(a) * d, alpha: 0.3 },
+    { x: -Math.cos(a) * d * 0.6, z: -Math.sin(a) * d * 0.6, alpha: 0.18 },
+  ];
+}
+
+/** How long an after-image lasts (ms), and how many stand behind a token as it goes (Haste, a spectral beast). */
+export const AFTER_MS = 650;
+export const AFTER_IMAGES = 4;
 
 /** Moving effects are drawn again at most this often (ms): smooth enough, light on a phone. */
 export const EFFECT_STEP_MS = 50;
@@ -226,6 +254,61 @@ export function castVolume(look: FxLook, a: { x: number; y: number }, b: { x: nu
   return cloud(true, area, capped(r / cell), 0);
 }
 
+/**
+ * How a spell on a token stands round its figure: `x`, `y` and `r` the token's middle and radius
+ * (scene units), `figure` its card's bottom and top above the ground (squares; up in the air for a
+ * flyer). As the spell list has them: Shield, Mage Armor, Sanctuary and the other shells a bubble
+ * over the figure; Faerie Fire's glowing outline up it; Heat Metal's glow over its body; Hold
+ * Person's rings round it at three heights; a burning or icy blade at its hand; a swarm of insects
+ * all round it; an unseen token's shimmer through it. A flyer's shadow stays on the ground, and so
+ * does what's left of Mirror Image, Blur and Haste once their copies stand as figures (view3d.ts).
+ */
+export function tokenLookVolume(look: TokenLook, x: number, y: number, r: number, figure: { bottom: number; top: number }): Volume {
+  const area = { x0: x - r, y0: y - r, x1: x + r, y1: y + r };
+  const tall = figure.top - figure.bottom;
+  const at = (f: number) => figure.bottom + tall * f;
+  // Its drawing laid `layers` times from `from` to `to` of the way up the figure, the first whole.
+  const up = (from: number, to: number, layers: number, rest: number, skin = 0, glow = false): Volume => ({
+    form: "block",
+    round: true,
+    area,
+    bottom: at(from),
+    top: at(to),
+    layers,
+    base: 1,
+    rest,
+    skin,
+    glow,
+  });
+  switch (look) {
+    case "outline":
+      return up(0, 1, 4, 0.7, 0.25, true);
+    case "shell": {
+      // A bubble a little wider and taller than the figure.
+      const w = r * 1.2;
+      return { form: "dome", round: true, area: { x0: x - w, y0: y - w, x1: x + w, y1: y + w }, bottom: figure.bottom, top: at(1.15), layers: 1, base: 1, rest: 1, skin: 0.3, glow: true };
+    }
+    case "weapon":
+      return up(0.45, 0.45, 1, 1);
+    case "red-hot":
+      return up(0.2, 0.8, 3, 0.5, 0.3, true);
+    case "held":
+      return up(0.2, 0.85, 3, 0.9);
+    case "slowed":
+      return up(0.5, 0.5, 1, 1);
+    case "unseen":
+    case "blink":
+      return up(0, 1, 3, 0.5);
+    case "swarm":
+      return up(0.05, 1.1, 4, 0.6);
+    case "spectral":
+      return up(0, 1, 1, 1, 0.2, true);
+    default:
+      // A flyer's shadow; Treeform (the figure is a tree); Mirror Image, Blur and Haste (their copies stand).
+      return { ...up(0, 0, 1, 1), bottom: 0.02, top: 0.02 };
+  }
+}
+
 /** Where each of an effect's sheets hangs (squares above the ground), how much it's shrunk (a dome narrows to its top), and how see-through it is. */
 export function sheetLayers(e: { level: EffectLevel; volume?: Volume }): { y: number; scale: number; opacity: number }[] {
   const v = e.volume;
@@ -233,9 +316,9 @@ export function sheetLayers(e: { level: EffectLevel; volume?: Volume }): { y: nu
   return Array.from({ length: v.layers }, (_, i) => {
     const opacity = i === 0 ? v.base : v.rest;
     if (v.form === "dome") {
-      // Through the lower part of the sphere: its top layer not a dot.
-      const y = Math.max(v.bottom, (v.top * i) / v.layers);
-      return { y, scale: Math.sqrt(Math.max(0, 1 - (y / v.top) ** 2)), opacity };
+      // Through the lower part of the dome, from its bottom: its top layer not a dot.
+      const f = i / v.layers;
+      return { y: v.bottom + (v.top - v.bottom) * f, scale: Math.sqrt(Math.max(0, 1 - f * f)), opacity };
     }
     return { y: v.layers === 1 ? v.bottom : v.bottom + ((v.top - v.bottom) * i) / (v.layers - 1), scale: 1, opacity };
   });
@@ -258,7 +341,7 @@ export function skinMesh(v: Volume, cell: number, around = 48, rows = 6): { posi
   const at = (u: number, t: number): [number, number, number] => {
     if (v.form === "dome") {
       const th = (t * Math.PI) / 2, a = u * Math.PI * 2;
-      return [rx * Math.cos(th) * Math.cos(a), Math.max(v.bottom, v.top * Math.sin(th)), rz * Math.cos(th) * Math.sin(a)];
+      return [rx * Math.cos(th) * Math.cos(a), v.bottom + (v.top - v.bottom) * Math.sin(th), rz * Math.cos(th) * Math.sin(a)];
     }
     const y = v.bottom + (v.top - v.bottom) * t;
     if (v.round) {
