@@ -1,0 +1,195 @@
+// A Dungeondraft or Dungeon map's own data in the 3D view (view3d.ts): a picture map that came in
+// with its map file (Scene.mapData, the season sidecar: dd/sidecar.ts) says where its trees,
+// shrubs and rocks are and how far each reaches, and which squares are room floors. So its trees
+// stand up where the picture paints them, in the picture's colours, and on an outdoor map its
+// buildings get roofs, as a built map's do. Kept apart from three.js, so it's tested.
+//
+// World units are Dungeondraft's: 256 a square, x right, y down. The sidecar's rect is the
+// picture's rectangle in them; the picture spans the scene's width and height.
+
+import { OR, type ObjectRole } from "../dd/roles";
+import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, type ShapeLayer, type SidecarMeta, type TerrainGrid } from "../dd/sidecar";
+import { AR, TR } from "../dd/roles";
+import { REACH_DIRS } from "../dd/raster";
+import type { Object3d, Shape } from "./view3dObjects";
+
+/** Dungeondraft's world units a square. */
+export const WORLD_SQUARE = 256;
+
+/** Where the picture lies: its rectangle in world units, and its size in the scene. */
+export interface MapPlacement {
+  rect: readonly [number, number, number, number];
+  width: number;
+  height: number;
+}
+
+/** Scene units for each world unit, across and down. */
+export function sceneScale(p: MapPlacement): { sx: number; sy: number } {
+  return { sx: p.width / Math.max(1e-9, p.rect[2] - p.rect[0]), sy: p.height / Math.max(1e-9, p.rect[3] - p.rect[1]) };
+}
+
+/** A world point as a scene point. */
+export function toScene(p: MapPlacement, wx: number, wy: number): { x: number; y: number } {
+  const { sx, sy } = sceneScale(p);
+  return { x: (wx - p.rect[0]) * sx, y: (wy - p.rect[1]) * sy };
+}
+
+/** A scene point as a world point. */
+export function toWorld(p: MapPlacement, x: number, y: number): { x: number; y: number } {
+  const { sx, sy } = sceneScale(p);
+  return { x: x / sx + p.rect[0], y: y / sy + p.rect[1] };
+}
+
+/** The shape an object of this role stands up as, or null for one that stays painted (grass, flowers, litter, fire...). */
+export function roleShape(role: ObjectRole, name: string | null): Shape | null {
+  switch (role) {
+    case OR.DECIDUOUS:
+      return { kind: "tree", h: 0 };
+    case OR.EVERGREEN:
+      return { kind: name && /palm/i.test(name) ? "palm" : name && /cypress/i.test(name) ? "cypress" : "pine", h: 0 };
+    case OR.BARE:
+      return { kind: "bare", h: 0 };
+    case OR.SHRUB:
+    case OR.FLOWER_SHRUB:
+      return { kind: "bush", h: 0 };
+    case OR.ROCK:
+      return { kind: "rock", h: 0 };
+    case OR.STUMP:
+      return { kind: "barrel", h: 0.3 };
+    case OR.DEADWOOD:
+      return { kind: "box", h: 0.3 };
+    default:
+      return null;
+  }
+}
+
+/** Below this, in squares, a thing isn't stood up: a pebble or a sprig stays painted. */
+const SMALLEST = 0.3;
+
+/**
+ * The map's trees, shrubs, rocks, stumps and deadwood as the 3D view stands them up: at their
+ * places on the picture, as wide as they reach (round ones by their average reach, the rest by
+ * their reach along the map's axes), coloured from the picture where they stand. `cell`: the
+ * scene's square in scene units.
+ */
+export function mapObjects(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number): Object3d[] {
+  const out: Object3d[] = [];
+  const { sx, sy } = sceneScale(place);
+  // World units to the scene's squares (across and down agree for a picture laid on the grid).
+  const perSquareX = sx / cell, perSquareY = sy / cell;
+  for (let i = 0; i < objects.n; i++) {
+    const idx = objects.name[i];
+    const name = idx !== NO_NAME ? (meta.names[idx] ?? null) : null;
+    const shape = roleShape(objects.role[i] as ObjectRole, name);
+    if (!shape) continue;
+    let sum = 0, ex = 0, ey = 0;
+    for (let k = 0; k < REACH_N; k++) {
+      const r = objects.reach[i * REACH_N + k] / SIDECAR_UNITS.reach;
+      sum += r;
+      ex = Math.max(ex, Math.abs(r * REACH_DIRS[k * 2]));
+      ey = Math.max(ey, Math.abs(r * REACH_DIRS[k * 2 + 1]));
+    }
+    const round = shape.kind !== "box" && shape.kind !== "rock";
+    const w = round ? (2 * sum) / REACH_N * perSquareX : 2 * ex * perSquareX;
+    const d = round ? (2 * sum) / REACH_N * perSquareY : 2 * ey * perSquareY;
+    if (Math.max(w, d) < SMALLEST) continue;
+    const at = toScene(place, objects.x[i] / SIDECAR_UNITS.coord, objects.y[i] / SIDECAR_UNITS.coord);
+    out.push({ id: null, shape, x: at.x, y: at.y, size: Math.max(w, d), w, d, deg: 0, color: null, paint: true });
+  }
+  return out;
+}
+
+/** Trees a map needs before it counts as outdoors by them alone. */
+const OUTDOOR_TREES = 2;
+/** Or the share of its ground that's grass or snow. */
+const OUTDOOR_GROUND = 0.1;
+
+/**
+ * Whether a map is outdoors by its own data, for roofs on its rooms: it has trees, or grass or snow
+ * over a tenth of its ground. (A cave or a dungeon has neither.)
+ */
+export function mapLooksOutdoors(data: { objects: Pick<ObjectTable, "n" | "role">; terrain: TerrainGrid | null }): boolean {
+  let trees = 0;
+  for (let i = 0; i < data.objects.n && trees < OUTDOOR_TREES; i++) {
+    const r = data.objects.role[i];
+    if (r === OR.DECIDUOUS || r === OR.EVERGREEN || r === OR.BARE) trees++;
+  }
+  if (trees >= OUTDOOR_TREES) return true;
+  const t = data.terrain;
+  if (!t || !t.slots.length) return false;
+  const texels = t.tw * t.th;
+  if (!texels) return false;
+  let open = 0, all = 0;
+  t.slots.forEach((slot, s) => {
+    let sum = 0;
+    for (let i = 0; i < texels; i++) sum += t.w[s * texels + i];
+    all += sum;
+    if (slot.role === TR.GRASS || slot.role === TR.SNOW) open += sum;
+  });
+  return all > 0 && open / all >= OUTDOOR_GROUND;
+}
+
+/**
+ * The squares the map's floors cover (its rooms), as [col, row] in world squares: from its floor
+ * outlines (a square whose middle lies inside one) and its floor bitmaps of one sample a square.
+ * Each square once, however many layers mark it.
+ */
+export function floorCells(bitmaps: readonly BitmapLayer[], shapes: readonly ShapeLayer[] = []): [number, number][] {
+  const seen = new Set<string>();
+  const out: [number, number][] = [];
+  const add = (col: number, row: number) => {
+    const k = `${col},${row}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push([col, row]);
+  };
+  for (const s of shapes) {
+    if (s.role !== AR.FLOOR || !s.pts.length) continue;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < s.pts.length; i += 2) {
+      x0 = Math.min(x0, s.pts[i]);
+      x1 = Math.max(x1, s.pts[i]);
+      y0 = Math.min(y0, s.pts[i + 1]);
+      y1 = Math.max(y1, s.pts[i + 1]);
+    }
+    const u = SIDECAR_UNITS.coord * WORLD_SQUARE;
+    for (let row = Math.floor(y0 / u); row <= Math.floor(y1 / u); row++) {
+      for (let col = Math.floor(x0 / u); col <= Math.floor(x1 / u); col++) {
+        if (inside(s, (col + 0.5) * u, (row + 0.5) * u)) add(col, row);
+      }
+    }
+  }
+  for (const b of bitmaps) {
+    if (b.role !== AR.FLOOR || b.step !== WORLD_SQUARE) continue;
+    for (let y = 0; y < b.h; y++) {
+      for (let x = 0; x < b.w; x++) {
+        const bit = y * b.w + x;
+        if (!((b.bits[bit >> 3] >> (bit & 7)) & 1)) continue;
+        add(Math.floor((b.ox + x * b.step) / WORLD_SQUARE), Math.floor((b.oy + y * b.step) / WORLD_SQUARE));
+      }
+    }
+  }
+  return out;
+}
+
+/** Whether a point (in the shape's 1/16 world units) is inside it, by its fill rule over all its rings. */
+export function inside(s: Pick<ShapeLayer, "pts" | "ringEnds" | "rule">, px: number, py: number): boolean {
+  let winding = 0, crossings = 0;
+  let start = 0;
+  for (let r = 0; r < s.ringEnds.length; r++) {
+    const end = s.ringEnds[r];
+    for (let i = start; i < end; i++) {
+      const j = i + 1 < end ? i + 1 : start;
+      const ax = s.pts[i * 2], ay = s.pts[i * 2 + 1], bx = s.pts[j * 2], by = s.pts[j * 2 + 1];
+      if ((ay <= py) !== (by <= py)) {
+        const x = ax + ((py - ay) * (bx - ax)) / (by - ay);
+        if (x > px) {
+          crossings++;
+          winding += by > ay ? 1 : -1;
+        }
+      }
+    }
+    start = end;
+  }
+  return s.rule === 1 ? winding !== 0 : crossings % 2 === 1;
+}

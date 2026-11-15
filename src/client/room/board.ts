@@ -110,6 +110,8 @@ import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
 import { buildingsOf, samplesOf, type Building3d } from "./view3dRoofs";
+import { WORLD_SQUARE, floorCells, mapLooksOutdoors, mapObjects, toScene, toWorld, type MapPlacement } from "./view3dMapData";
+import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
 import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
@@ -789,6 +791,11 @@ export class Board implements BoardApi {
   private paint3dCanvas: HTMLCanvasElement | null = null;
   /** The built map's buildings as last worked out, and what from (they change only with the build). */
   private buildings3dOf: { index: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
+  /**
+   * The scene's map data (a Dungeondraft or Dungeon map's sidecar), read for the 3D view: its
+   * trees and its rooms. Fetched the first time 3D asks for the scene, then kept.
+   */
+  private mapData3d: { assetId: string; data: SeasonSidecar | null; objects?: { scene: Scene; list: Object3d[] }; rooms?: { scene: Scene; list: { b: Building3d; keys: Set<string> }[] } } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
   /**
@@ -979,22 +986,104 @@ export class Board implements BoardApi {
   }
 
   /**
-   * Whether the built map's rooms are buildings, with roofs in 3D: on a map with open ground (the
-   * build's grass, or ground round its trees; an outdoor picture under it; the GM keeping the
-   * weather on), and not where it's indoors or underground (as "Weather on this map" decides).
+   * Whether the map's rooms are buildings, with roofs in 3D: on a map with open ground (the build's
+   * grass, or ground round its trees; an outdoor picture, by its season's look or its map data's
+   * trees and grass; the GM keeping the weather on), and not where it's indoors or underground
+   * (as "Weather on this map" decides).
    */
   private roofsWanted(scene: Scene): boolean {
     const share = scene.mapAssetId
       ? this.room.state.mapOutdoor[outdoorKey(scene.mapAssetId, scene.mapData ? { assetId: scene.mapData.assetId } : undefined)]
       : undefined;
     if (!weatherHere(scene, share).on) return false;
-    return scene.weather === "on" || (!!scene.mapAssetId && share !== undefined) || this.build.hasOutdoors();
+    if (scene.weather === "on" || (!!scene.mapAssetId && share !== undefined) || this.build.hasOutdoors()) return true;
+    // A picture map not looked at for seasons yet: its own map data can say (trees, grass).
+    const md = this.mapData(scene);
+    return !!md && mapLooksOutdoors(md.data);
   }
 
-  /** The built map's buildings (none where roofs aren't wanted), and whether the party is inside each. */
+  /**
+   * The scene's map data, once it's here (null until then, or for a scene without any): asked for
+   * the first time it's wanted, and the 3D view told when it comes.
+   */
+  private mapData(scene: Scene): { data: SeasonSidecar; place: MapPlacement } | null {
+    const md = scene.mapData;
+    if (!md || md.hold || md.forAssetId !== scene.mapAssetId) return null;
+    if (this.mapData3d?.assetId !== md.assetId) {
+      const entry: { assetId: string; data: SeasonSidecar | null } = { assetId: md.assetId, data: null };
+      this.mapData3d = entry;
+      void this.sidecars.get(this.room.roomId, md.assetId).then((r) => {
+        if (this.mapData3d !== entry || !r.ok) return;
+        try {
+          entry.data = decodeSidecar(r.bytes);
+        } catch {
+          return;
+        }
+        this.tell3d("floor");
+      });
+    }
+    const data = this.mapData3d.data;
+    return data ? { data, place: { rect: data.meta.rect, width: scene.width, height: scene.height } } : null;
+  }
+
+  /** The map data's trees, shrubs and rocks, for the 3D view (worked out once a scene). */
+  private mapObjects3d(scene: Scene): Object3d[] {
+    const md = this.mapData(scene);
+    if (!md || !this.mapData3d) return [];
+    if (this.mapData3d.objects?.scene !== scene) {
+      this.mapData3d.objects = { scene, list: mapObjects(md.data.objects, md.data.meta, md.place, scene.grid.size) };
+    }
+    return this.mapData3d.objects.list;
+  }
+
+  /** The map data's rooms as buildings (worked out once a scene), in scene units. */
+  private mapRooms3d(scene: Scene): { b: Building3d; keys: Set<string> }[] {
+    const md = this.mapData(scene);
+    if (!md || !this.mapData3d) return [];
+    if (this.mapData3d.rooms?.scene !== scene) {
+      const X = (col: number) => toScene(md.place, col * WORLD_SQUARE, 0).x;
+      const Y = (row: number) => toScene(md.place, 0, row * WORLD_SQUARE).y;
+      const size = X(1) - X(0);
+      const list = buildingsOf(floorCells(md.data.bitmaps, md.data.shapes)).map((b) => ({
+        b: {
+          id: `map:${b.cells[0][0]},${b.cells[0][1]}`,
+          rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
+          samples: samplesOf(b, X, Y, size),
+          inside: false,
+        },
+        keys: new Set(b.cells.map(([c, r]) => `${c},${r}`)),
+      }));
+      this.mapData3d.rooms = { scene, list };
+    }
+    return this.mapData3d.rooms.list;
+  }
+
+  /**
+   * The map's buildings (none where roofs aren't wanted): a built map's, and a picture map's from
+   * its map data; and whether the party is inside each.
+   */
   private buildings3d(): Building3d[] {
     const scene = this.renderedScene;
     if (!scene || isHex(scene.grid) || !this.roofsWanted(scene)) return [];
+    // Where the party stands: the characters and the tokens players put down, in the scene.
+    const party: { x: number; y: number }[] = [];
+    for (const n of this.tokens.values()) if (n.item && isSightToken(n.item)) party.push({ x: n.group.x(), y: n.group.y() });
+    const rooms = this.mapRooms3d(scene);
+    const md = rooms.length ? this.mapData(scene) : null;
+    const inMap = new Set(
+      md
+        ? party.map((p) => {
+            const w = toWorld(md.place, p.x, p.y);
+            return `${Math.floor(w.x / WORLD_SQUARE)},${Math.floor(w.y / WORLD_SQUARE)}`;
+          })
+        : [],
+    );
+    const fromMap = rooms.map(({ b, keys }) => ({ ...b, inside: [...inMap].some((k) => keys.has(k)) }));
+    return [...this.builtBuildings3d(scene, party), ...fromMap];
+  }
+
+  /** The built map's buildings, and whether the party (`party`, scene points) is inside each. */
+  private builtBuildings3d(scene: Scene, party: { x: number; y: number }[]): Building3d[] {
     const index = this.build.model.index;
     let made = this.buildings3dOf;
     if (!made || made.index !== index || made.scene !== scene) {
@@ -1012,21 +1101,20 @@ export class Board implements BoardApi {
       }));
       made = this.buildings3dOf = { index, scene, list };
     }
-    // Where the party stands now: the characters and the tokens players put down.
     const g = scene.grid;
-    const party = new Set<string>();
-    for (const n of this.tokens.values()) {
-      const t = n.item;
-      if (!t || !isSightToken(t)) continue;
-      party.add(`${Math.floor((n.group.x() - g.offsetX) / g.size)},${Math.floor((n.group.y() - g.offsetY) / g.size)}`);
-    }
-    return made.list.map(({ b, keys }) => ({ ...b, inside: [...party].some((k) => keys.has(k)) }));
+    const at = new Set(party.map((p) => `${Math.floor((p.x - g.offsetX) / g.size)},${Math.floor((p.y - g.offsetY) / g.size)}`));
+    return made.list.map(({ b, keys }) => ({ ...b, inside: [...at].some((k) => keys.has(k)) }));
   }
 
-  /** The built map's objects that stand up in 3D: where, how big, turned how, and their drawing's colour. */
+  /**
+   * The objects that stand up in 3D: the built map's (where, how big, turned how, and their
+   * drawing's colour), and a picture map's trees, shrubs and rocks from its map data.
+   */
   private objects3d(): Object3d[] {
     const scene = this.renderedScene;
-    if (!scene || isHex(scene.grid)) return [];
+    if (!scene) return [];
+    const fromMap = this.mapObjects3d(scene);
+    if (isHex(scene.grid)) return fromMap;
     const g = scene.grid;
     const area = sceneBounds(scene);
     const out: Object3d[] = [];
@@ -1038,7 +1126,7 @@ export class Board implements BoardApi {
       if (x < area.x0 || y < area.y0 || x > area.x1 || y > area.y1) continue;
       out.push({ id: p.id, x, y, size: p.size, deg: p.deg, color: stampColour(p.id, look) });
     }
-    return out;
+    return fromMap.length ? [...out, ...fromMap] : out;
   }
 
   /** The dark and the fog over the scene, as dimmed as this page shows them; false when there's neither. */

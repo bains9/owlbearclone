@@ -496,6 +496,13 @@ describe("the guide", () => {
     expect(text).toContain("no roofs");
   });
 
+  it("says a map brought in from Dungeon or with its project file stands its trees up, and names the setting as the app does", async () => {
+    expect(text).toContain("knows where its trees, bushes, rocks, stumps and fallen logs are");
+    expect(text).toContain("**Dungeondraft data** under **Map** in **Edit scene**");
+    expect(JSON.stringify(GUIDE)).toContain("click **Attach…** next to **Dungeondraft data**");
+    expect(text).not.toContain("built map (made with the Build tool, or brought in from Dungeon)");
+  });
+
   it("says players see no more in 3D than on the flat map", () => {
     expect(text).toContain("Players never see more in 3D than on the flat map");
     expect(text).toContain("A token or a built map's object under the fog doesn't stand up for players");

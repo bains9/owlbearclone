@@ -7,7 +7,7 @@
 // Units as in view3dModel.ts: scene units in, squares out (x to the right, z down the map, y up).
 
 import { dungeonStampInfo, isDungeonStamp, type BaseStampId, type StampId } from "../../shared/terrain";
-import { WALL_HEIGHT, WALL_SEEN, brightnessAt, shadeOf, type CoverMap, type WallMesh } from "./view3dModel";
+import { WALL_HEIGHT, WALL_SEEN, brightnessAt, paintAt, shadeOf, type CoverMap, type PaintMap, type WallMesh } from "./view3dModel";
 
 /** The shapes objects get. Trees and plants grow with the object's size; the rest stand `h` squares tall. */
 export type ShapeKind =
@@ -141,9 +141,17 @@ export function footprintOf(id: StampId, size: number): { w: number; d: number }
   return { w: info.w * k, d: info.h * k };
 }
 
-/** An object on the built map, as the board gives it (board.ts source3d). */
+/** An object on the map, as the board gives it (board.ts source3d): one of a built map's, or a picture map's from its map data. */
 export interface Object3d {
-  id: StampId;
+  /** A built map's object (its shape from the catalog); null for one from a map's own data, which brings its shape. */
+  id: StampId | null;
+  /** Its shape, when it isn't the catalog's (an object from a map's own data). */
+  shape?: Shape;
+  /** What it covers, in squares (when it isn't the catalog's proportions of `size`). */
+  w?: number;
+  d?: number;
+  /** Coloured as the picture paints it where it stands (an object from a map's own data). */
+  paint?: boolean;
   /** Its middle, in scene units. */
   x: number;
   y: number;
@@ -293,6 +301,20 @@ class Builder {
   }
 }
 
+/** What the picture paints where an object stands: the average of its middle and four points round it (null where it paints nothing). */
+export function paintedColour(paint: PaintMap | null, x: number, y: number, reach: number): Rgb | null {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const c = paintAt(paint, x + dx * reach, y + dy * reach);
+    if (!c) continue;
+    r += c[0];
+    g += c[1];
+    b += c[2];
+    n++;
+  }
+  return n ? [r / n, g / n, b / n] : null;
+}
+
 /** How lit an object is for this page: the brightest of its middle and four points round it. */
 export function objectLight(o: Pick<Object3d, "x" | "y">, reach: number, cover: CoverMap | null): number {
   let best = brightnessAt(cover, o.x, o.y);
@@ -305,16 +327,16 @@ export function objectLight(o: Pick<Object3d, "x" | "y">, reach: number, cover: 
  * one a player hasn't seen (under the fog, in the dark not explored) isn't made at all; the GM
  * (`all`) sees every one.
  */
-export function objectMesh(objects: readonly Object3d[], cell: number, cover: CoverMap | null, all: boolean): WallMesh {
+export function objectMesh(objects: readonly Object3d[], cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallMesh {
   const b = new Builder();
   for (const o of objects) {
-    const sh = shapeOf(o.id);
+    const sh = o.shape ?? (o.id ? shapeOf(o.id) : null);
     if (!sh) continue;
-    const { w, d } = footprintOf(o.id, o.size);
+    const { w, d } = o.w !== undefined && o.d !== undefined ? { w: o.w, d: o.d } : o.id ? footprintOf(o.id, o.size) : { w: o.size, d: o.size };
     const light = objectLight(o, (Math.min(w, d) * cell) / 3, cover);
     if (!all && light < WALL_SEEN) continue;
     const shade = shadeOf(light);
-    const base = o.color ?? STAND_IN[sh.kind];
+    const base = o.color ?? (o.paint ? paintedColour(paint, o.x, o.y, (Math.min(w, d) * cell) / 4) : null) ?? STAND_IN[sh.kind];
     const col: Rgb = [base[0] * shade, base[1] * shade, base[2] * shade];
     const bark: Rgb = [BARK[0] * shade, BARK[1] * shade, BARK[2] * shade];
     const seed = Math.round(o.x * 7 + o.y * 13);
