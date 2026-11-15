@@ -26,6 +26,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "With lighting on, players see through a window and light shines through it, but their tokens can't pass it, as with a wall.",
+          "In the 3D view a window is wall below and above a pane of glass you can see through.",
           "Click it again with **Window**, or Alt+click it, to put the wall back. In **Select** (**X**), click it and press **Delete**.",
           "Also new: clicking something you built with **Move & select** says how to move or delete it (press **X** for the Build tool's **Select**). And where an object stands over a door, a second click in **Select** picks the object, and dragging there moves it."
         ]
@@ -1142,7 +1143,7 @@ export const GUIDE: GuideSection[] = [
         "title": "What it shows",
         "steps": [
           "The floor is the map exactly as the flat map shows it: the picture, a built map, the grid, drawings, and the fog and darkness over them.",
-          "Walls and shut doors stand up: walls from a map brought in from Dungeon or a Universal VTT file, and walls built with the Build tool. Open doors are gaps.",
+          "Walls and shut doors stand up: walls from a map brought in from Dungeon or a Universal VTT file, and walls built with the Build tool. Open doors are gaps. A window built with the Build tool is wall below and above a pane of glass you can see through.",
           "Walls stand in their own colours, as the map paints them, so stone, brick and wooden walls look like themselves. On a built map with one of Dungeon's wall textures (**Plain walls** in the Build tool's **Walls** bar), the Build tool's walls wear that texture.",
           "On a map with open ground (grass, or trees outside, or an outdoor picture), the rooms of a map made with the Build tool, or of a map brought in from Dungeon or with its Dungeondraft project file, are buildings, and each has a roof. So are rooms a map's walls close off (walls loaded from its Dungeondraft or Universal VTT file under **Lighting and line of sight** in **Edit scene**), when nothing else says where its rooms are. When one of the party's characters (or a token a player put down) goes inside, its roof lifts off so everyone sees in, and it comes back when they leave. Rooms on a map with no open ground are underground: no roofs.",
           "On a map made with the Build tool, its objects stand up too, every one in a shape of its own made for it: a table's top on four legs, a chair with its back, a bed with its pillow and cover, a bookcase as tall as a person with its shelves of books, barrels with their hoops, a tub you can see into, trees with trunks under their crowns, evergreens as tall cones, a bare tree's branches. Each is in its own colours (leaves in their drawing's, so they change with the seasons), at its real height, with flames and glowing magic lit by themselves. A tankard, a candle or a platter put on a table sits on the table. Rugs, stains, trapdoors and the ways to other levels (stairs, ladders, hatches) lie flat, painted on the floor.",

@@ -34,6 +34,7 @@ import type { SceneArea } from "../../shared/types";
 import {
   FLYING_LIFT,
   FOV,
+  GLASS_OPACITY,
   MAX_TILT,
   WALL_HEIGHT,
   START_TILT,
@@ -50,6 +51,7 @@ import {
   standeeShown,
   wallMesh,
   wallPieces,
+  windowGlass,
   type Board3dSource,
   type Change3d,
   type CoverMap,
@@ -129,6 +131,8 @@ export class View3D implements View3dControls {
   private floorTex: CanvasTexture | null = null;
   private floorKey = "";
   private walls: Mesh | null = null;
+  /** The glass in the Build tool's windows: see-through, so drawn apart from the walls. */
+  private glass: Mesh | null = null;
   /** The built map's objects standing up: trees, rocks, pillars, tables... (view3dObjects.ts). */
   private objects: Mesh | null = null;
   /** Their parts that glow by themselves (flames, magic), drawn unlit. */
@@ -382,6 +386,14 @@ export class View3D implements View3dControls {
     };
     if (plain.length) this.walls = this.lit(grounded(wallMesh(plain, this.cell)));
     if (tile && textured.length) this.texturedWalls = this.lit(grounded(wallMesh(textured, this.cell, true)), tile);
+    const panes = windowGlass(pieces, this.cell);
+    if (panes.position.length) {
+      const glass = (this.glass = this.lit(grounded(panes)));
+      glass.material.transparent = true;
+      glass.material.opacity = GLASS_OPACITY;
+      // What's behind it still shows: it doesn't hide what's drawn after it.
+      (glass.material as MeshLambertMaterial).depthWrite = false;
+    }
     const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.objectPaint);
     grounded(things);
     grounded(things.glow);
@@ -931,7 +943,7 @@ export class View3D implements View3dControls {
 
   /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.texturedWalls, this.objects, this.glowing, this.cliffs, this.rock]) {
+    for (const m of [this.walls, this.texturedWalls, this.glass, this.objects, this.glowing, this.cliffs, this.rock]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
@@ -939,6 +951,7 @@ export class View3D implements View3dControls {
     }
     this.walls = null;
     this.texturedWalls = null;
+    this.glass = null;
     this.objects = null;
     this.glowing = null;
     this.cliffs = null;

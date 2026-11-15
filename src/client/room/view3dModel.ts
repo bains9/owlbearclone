@@ -22,6 +22,14 @@ export const WALL_THICK = 0.14;
 /** Shut doors: this much of a wall's height (2.1 m), and of its thickness. */
 export const DOOR_HEIGHT = 0.7;
 export const DOOR_THICK = 0.6;
+/**
+ * Windows: wall below the sill (0.9 m) and above the lintel (2.25 m), as fractions of a wall's
+ * height, with a pane of glass between; and the posts at each end, as a fraction of its length
+ * (as the flat map draws them).
+ */
+export const WINDOW_SILL = 0.3;
+export const WINDOW_TOP = 0.75;
+export const WINDOW_POST = 0.15;
 /** Walls are cut into pieces at most this long (squares); each is raised or not by what's been seen where it stands. */
 export const WALL_PIECE = 0.5;
 /** How far either side of a wall (squares) is looked at to tell whether it's been seen. */
@@ -72,12 +80,15 @@ export interface Walls3d {
   /** The Build tool's walls: in the scene's wall texture, when it has one. */
   built: Seg[];
   doors: { line: Seg; open: boolean }[];
+  /** The Build tool's windows between their posts (the posts are in `built`): wall with a pane of glass in it. */
+  windows?: Seg[];
 }
 
-/** The walls and doors the Build tool made, in squares (BuildModel.sightLines). */
+/** The walls, doors and windows the Build tool made, in squares (BuildModel.sightLines). */
 export interface BuiltLines {
   walls: readonly (readonly number[])[];
   doors: readonly { key: number; line: readonly number[] }[];
+  windows?: readonly (readonly number[])[];
 }
 
 /**
@@ -89,13 +100,25 @@ export function wallsOf(vision: SceneVision | undefined, built: BuiltLines, grid
   const { size, offsetX, offsetY } = grid;
   const toScene = (l: readonly number[]): Seg => [offsetX + l[0] * size, offsetY + l[1] * size, offsetX + l[2] * size, offsetY + l[3] * size];
   const open = new Set(vision?.openEdges ?? []);
+  // A window: a post of wall at each end, the glass between.
+  const posts: Seg[] = [];
+  const windows: Seg[] = [];
+  for (const l of built.windows ?? []) {
+    const [ax, ay, bx, by] = toScene(l);
+    const at = (t: number): [number, number] => [ax + (bx - ax) * t, ay + (by - ay) * t];
+    const [px, py] = at(WINDOW_POST);
+    const [qx, qy] = at(1 - WINDOW_POST);
+    posts.push([ax, ay, px, py], [qx, qy, bx, by]);
+    windows.push([px, py, qx, qy]);
+  }
   return {
     walls: segmentsOf(vision?.walls ?? []),
-    built: built.walls.map(toScene),
+    built: [...built.walls.map(toScene), ...posts],
     doors: [
       ...(vision?.doors ?? []).map((d) => ({ line: d.line, open: d.open })),
       ...built.doors.map((d) => ({ line: toScene(d.line), open: open.has(d.key) })),
     ],
+    windows,
   };
 }
 
@@ -109,6 +132,8 @@ export interface WallPiece {
   light: number;
   /** One of the Build tool's walls (which take the scene's wall texture). */
   built?: boolean;
+  /** A window: wall below its sill and above its lintel, glass between (see windowGlass). */
+  window?: boolean;
   /** Its colour as the map paints it (0 to 1 each), when that's known. */
   color?: readonly [number, number, number];
 }
@@ -158,7 +183,7 @@ const WALL_DARKEST = 0.24;
  */
 export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallPiece[] {
   const out: WallPiece[] = [];
-  const add = (s: Seg, door: boolean, built = false) => {
+  const add = (s: Seg, door: boolean, built = false, window = false) => {
     const [ax, ay, bx, by] = s;
     const len = Math.hypot(bx - ax, by - ay);
     if (!(len > 1e-6) || !(cell > 0)) return;
@@ -166,6 +191,9 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
     // Either side of the wall: its normal, a little way out.
     const nx = (-(by - ay) / len) * WALL_SIDE * cell;
     const ny = ((bx - ax) / len) * WALL_SIDE * cell;
+    // A window's wall is coloured as the post just before it is painted (the glass is painted
+    // where the window is).
+    const post = window ? paintAt(paint, ax - ((bx - ax) / len) * WINDOW_POST * cell * 0.5, ay - ((by - ay) / len) * WINDOW_POST * cell * 0.5) : null;
     for (let i = 0; i < n; i++) {
       const x0 = ax + ((bx - ax) * i) / n, y0 = ay + ((by - ay) * i) / n;
       const x1 = ax + ((bx - ax) * (i + 1)) / n, y1 = ay + ((by - ay) * (i + 1)) / n;
@@ -174,13 +202,15 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
       if (!all && light < WALL_SEEN) continue;
       const piece: WallPiece = { x0, y0, x1, y1, door, light };
       if (built) piece.built = true;
-      const painted = door ? null : paintAt(paint, mx, my);
+      if (window) piece.window = true;
+      const painted = door ? null : window ? post : paintAt(paint, mx, my);
       if (painted) piece.color = wallTint(painted);
       out.push(piece);
     }
   };
   for (const w of walls3d.walls) add(w, false);
   for (const w of walls3d.built) add(w, false, true);
+  for (const w of walls3d.windows ?? []) add(w, false, true, true);
   for (const d of walls3d.doors) if (!d.open) add(d.line, true);
   return out;
 }
@@ -217,6 +247,8 @@ export interface WallMesh {
 
 /** Vertices a piece of wall takes: five faces (no bottom), two triangles each. */
 export const WALL_PIECE_VERTICES = 30;
+/** A window's piece: the wall below its sill (five faces), and above it (six: its underside shows). */
+export const WINDOW_PIECE_VERTICES = 30 + 36;
 
 /**
  * The pieces as boxes standing on the floor, each as lit as it is: their sides in the colour the
@@ -225,7 +257,7 @@ export const WALL_PIECE_VERTICES = 30;
  * texture, on the Build tool's walls).
  */
 export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = false): WallMesh {
-  const count = pieces.length * WALL_PIECE_VERTICES;
+  const count = pieces.reduce((n, p) => n + (p.window ? WINDOW_PIECE_VERTICES : WALL_PIECE_VERTICES), 0);
   const position = new Float32Array(count * 3);
   const normal = new Float32Array(count * 3);
   const color = new Float32Array(count * 3);
@@ -275,18 +307,61 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = 
     const base = textured ? WHITE : p.door ? WOOD : (p.color ?? STONE);
     const side = base.map((x) => x * shade);
     const top = (textured ? WHITE_TOP : p.door ? WOOD_TOP : p.color ? p.color.map((x) => x * 0.6) : STONE_TOP).map((x) => x * shade);
-    // Bottom corners: a and b, on the + side (1) and the - side (2); the tops are the same, h up.
-    const a1 = [ax + ox, 0, az + oz], b1 = [bx + ox, 0, bz + oz], a2 = [ax - ox, 0, az - oz], b2 = [bx - ox, 0, bz - oz];
-    const up = (q: number[]) => [q[0], h, q[2]];
     const nPlus = [-dz, 0, dx], nMinus = [dz, 0, -dx];
-    // Each face listed clockwise as seen from outside (quad turns it round for WebGL).
-    quad(a1, up(a1), up(b1), b1, nPlus, side);
-    quad(b2, up(b2), up(a2), a2, nMinus, side);
-    quad(a2, up(a2), up(a1), a1, [-dx, 0, -dz], side);
-    quad(b1, up(b1), up(b2), b2, [dx, 0, dz], side);
-    quad(up(a1), up(a2), up(b2), up(b1), [0, 1, 0], top);
+    /** A box from lo to hi up: its four sides and top, and its underside when it's off the ground. */
+    const box = (lo: number, hi: number) => {
+      // Bottom corners: a and b, on the + side (1) and the - side (2); the tops are the same, hi up.
+      const a1 = [ax + ox, lo, az + oz], b1 = [bx + ox, lo, bz + oz], a2 = [ax - ox, lo, az - oz], b2 = [bx - ox, lo, bz - oz];
+      const up = (q: number[]) => [q[0], hi, q[2]];
+      // Each face listed clockwise as seen from outside (quad turns it round for WebGL).
+      quad(a1, up(a1), up(b1), b1, nPlus, side);
+      quad(b2, up(b2), up(a2), a2, nMinus, side);
+      quad(a2, up(a2), up(a1), a1, [-dx, 0, -dz], side);
+      quad(b1, up(b1), up(b2), b2, [dx, 0, dz], side);
+      quad(up(a1), up(a2), up(b2), up(b1), [0, 1, 0], top);
+      if (lo > 0) quad(a1, b1, b2, a2, [0, -1, 0], side);
+    };
+    if (p.window) {
+      box(0, WINDOW_SILL * h);
+      box(WINDOW_TOP * h, h);
+    } else box(0, h);
   }
   return { position, normal, color, uv };
+}
+
+/** Glass in a window: pale blue, partly see-through (the 3D view draws it so). */
+export const GLASS_COLOR: readonly [number, number, number] = [0.67, 0.84, 0.92];
+export const GLASS_OPACITY = 0.35;
+
+/**
+ * The glass in the windows among the pieces: a thin pane along the middle of each, from its sill
+ * to its lintel, facing both ways, as lit as its piece.
+ */
+export function windowGlass(pieces: readonly WallPiece[], cell: number): WallMesh {
+  const panes = pieces.filter((p) => p.window);
+  const position = new Float32Array(panes.length * 12 * 3);
+  const normal = new Float32Array(panes.length * 12 * 3);
+  const color = new Float32Array(panes.length * 12 * 3);
+  let v = 0;
+  const put = (q: readonly number[], n: readonly number[], c: readonly number[]) => {
+    position.set(q, v * 3);
+    normal.set(n, v * 3);
+    color.set(c, v * 3);
+    v++;
+  };
+  for (const p of panes) {
+    const ax = p.x0 / cell, az = p.y0 / cell, bx = p.x1 / cell, bz = p.y1 / cell;
+    const len = Math.hypot(bx - ax, bz - az) || 1;
+    const nx = -(bz - az) / len, nz = (bx - ax) / len;
+    const lo = WINDOW_SILL * WALL_HEIGHT, hi = WINDOW_TOP * WALL_HEIGHT;
+    const a = [ax, lo, az], b = [bx, lo, bz], c = [bx, hi, bz], d = [ax, hi, az];
+    const shade = shadeOf(p.light);
+    const col = GLASS_COLOR.map((x) => x * shade);
+    // Both faces, each wound anticlockwise as seen from its own side.
+    for (const q of [a, b, c, a, c, d]) put(q, [nx, 0, nz], col);
+    for (const q of [a, c, b, a, d, c]) put(q, [-nx, 0, -nz], col);
+  }
+  return { position, normal, color };
 }
 
 /** A token as the 3D view shows it, from what the board shows (board.ts source3d). */

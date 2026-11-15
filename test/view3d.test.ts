@@ -12,6 +12,9 @@ import {
   WALL_HEIGHT,
   WALL_PIECE_VERTICES,
   WALL_SEEN,
+  WINDOW_PIECE_VERTICES,
+  WINDOW_SILL,
+  WINDOW_TOP,
   brightnessAt,
   cameraAt,
   cardSize,
@@ -29,6 +32,7 @@ import {
   wallPieces,
   wallTint,
   wallsOf,
+  windowGlass,
   type CoverMap,
   type PaintMap,
   type Standee,
@@ -287,6 +291,78 @@ describe("the walls' mesh", () => {
     const dim = wallMesh([{ x0: 0, y0: 0, x1: 100, y1: 0, door: false, light: 0.3 }], CELL);
     expect(dim.color[0]).toBeLessThan(lit.color[0]);
     expect(dim.color[0]).toBeCloseTo(lit.color[0] * shadeOf(0.3));
+  });
+});
+
+describe("windows", () => {
+  const grid = { size: CELL, offsetX: 0, offsetY: 0 };
+
+  it("are wall posts at each end and glass between, as the flat map draws them", () => {
+    const w = wallsOf(undefined, { walls: [[0, 0, 1, 0]], doors: [], windows: [[1, 0, 2, 0]] }, grid);
+    expect(w.built).toEqual([[0, 0, 100, 0], [100, 0, 115, 0], [185, 0, 200, 0]]);
+    expect(w.windows).toEqual([[115, 0, 185, 0]]);
+    // And none on a map without them.
+    expect(wallsOf(undefined, noBuilt, grid).windows).toEqual([]);
+  });
+
+  it("are raised as the Build tool's, marked as windows", () => {
+    const pieces = wallPieces(wallsOf(undefined, { walls: [], doors: [], windows: [[1, 0, 2, 0]] }, grid), CELL, null, true);
+    const glass = pieces.filter((p) => p.window);
+    expect(glass.length).toBeGreaterThan(0);
+    expect(glass.every((p) => p.built && !p.door)).toBe(true);
+    expect(pieces.filter((p) => !p.window)).toHaveLength(2);
+  });
+
+  it("take their wall's colour from the post beside them, not the glass painted where they are", () => {
+    // A map painted brown, but pale blue (the glass) from x 115 to 185 along y 0.
+    const w = 30, h = 5;
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      const x = (i % w) * 10;
+      rgba.set(x >= 115 && x < 185 ? [170, 215, 235, 255] : [120, 80, 40, 255], i * 4);
+    }
+    const paint: PaintMap = { x0: 0, y0: -20, k: 0.1, w, h, rgba };
+    const pieces = wallPieces(wallsOf(undefined, { walls: [], doors: [], windows: [[1, 0, 2, 0]] }, grid), CELL, null, true, paint);
+    const glass = pieces.filter((p) => p.window);
+    expect(glass.length).toBeGreaterThan(0);
+    for (const p of glass) expect(p.color).toEqual(wallTint([120 / 255, 80 / 255, 40 / 255]));
+  });
+
+  it("are wall below the sill and above the lintel, the lintel's underside showing, each face outwards", () => {
+    const m = wallMesh([{ x0: 0, y0: 0, x1: 100, y1: 0, door: false, light: 1, built: true, window: true }], CELL);
+    expect(m.position.length).toBe(WINDOW_PIECE_VERTICES * 3);
+    const ys = Array.from(m.position).filter((_, i) => i % 3 === 1);
+    // The sill's box, then the lintel's: nothing in the gap between.
+    expect(Math.max(...ys.slice(0, 30))).toBeCloseTo(WINDOW_SILL * WALL_HEIGHT);
+    expect(Math.min(...ys.slice(30))).toBeCloseTo(WINDOW_TOP * WALL_HEIGHT);
+    expect(Math.max(...ys.slice(30))).toBeCloseTo(WALL_HEIGHT);
+    expect(ys.some((y) => y > WINDOW_SILL * WALL_HEIGHT + 1e-6 && y < WINDOW_TOP * WALL_HEIGHT - 1e-6)).toBe(false);
+    for (let t = 0; t < WINDOW_PIECE_VERTICES / 3; t++) {
+      const p = (i: number) => [m.position[(t * 3 + i) * 3], m.position[(t * 3 + i) * 3 + 1], m.position[(t * 3 + i) * 3 + 2]];
+      const [a, b, c] = [p(0), p(1), p(2)];
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const n = [m.normal[t * 9], m.normal[t * 9 + 1], m.normal[t * 9 + 2]];
+      expect(cross[0] * n[0] + cross[1] * n[1] + cross[2] * n[2]).toBeGreaterThan(0);
+    }
+    // A wall beside it is still a whole wall.
+    expect(wallMesh([{ x0: 0, y0: 0, x1: 100, y1: 0, door: false, light: 1 }], CELL).position.length).toBe(WALL_PIECE_VERTICES * 3);
+  });
+
+  it("have a pane of glass from sill to lintel, facing both ways, as lit as its wall", () => {
+    const pieces = [
+      { x0: 0, y0: 0, x1: 100, y1: 0, door: false, light: 1, built: true, window: true },
+      { x0: 100, y0: 0, x1: 200, y1: 0, door: false, light: 0.3, built: true },
+    ];
+    const g = windowGlass(pieces, CELL);
+    expect(g.position.length).toBe(12 * 3);
+    const ys = Array.from(g.position).filter((_, i) => i % 3 === 1);
+    expect(Math.min(...ys)).toBeCloseTo(WINDOW_SILL * WALL_HEIGHT);
+    expect(Math.max(...ys)).toBeCloseTo(WINDOW_TOP * WALL_HEIGHT);
+    // In the middle of the wall (z 0), one face each way.
+    expect(Array.from(g.position).filter((_, i) => i % 3 === 2).every((z) => z === 0)).toBe(true);
+    expect([g.normal[2], g.normal[6 * 3 + 2]]).toEqual([1, -1]);
+    expect(windowGlass([{ ...pieces[0], light: 0.3 }], CELL).color[0]).toBeCloseTo(g.color[0] * shadeOf(0.3));
   });
 });
 
