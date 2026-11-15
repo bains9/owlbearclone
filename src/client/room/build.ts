@@ -1624,6 +1624,40 @@ function paintStamp(
   c.restore();
 }
 
+/** Each object's colour, by its id and look (see stampColour). */
+const stampColours = new Map<string, [number, number, number] | null>();
+
+/**
+ * An object's colour as its drawing has it (the average of its solid pixels, in its seasonal look,
+ * so a snowy tree is white): what its shape is painted in the 3D view. Null while one of Dungeon's
+ * objects can't be drawn yet (they load after the page), or for a drawing with nothing solid in it.
+ */
+export function stampColour(id: StampId, look: StampLook | null): [number, number, number] | null {
+  const key = look ? `${id}|${look.look}|${look.level}|${look.cover}|${Math.floor(look.hash * 4)}` : id;
+  const had = stampColours.get(key);
+  if (had !== undefined) return had;
+  if (isDungeonStamp(id) && !dungeonObjects()) return null;
+  if (typeof document === "undefined") return null;
+  const px = 48;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = px;
+  const c = canvas.getContext("2d", { willReadFrequently: true });
+  if (!c) return null;
+  paintStamp(c, { size: px, offsetX: 0, offsetY: 0 }, id, 0, 0, 0, 1, 0, look);
+  const data = c.getImageData(0, 0, px, px).data;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 160) continue;
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
+    n++;
+  }
+  const colour: [number, number, number] | null = n ? [r / n / 255, g / n / 255, b / n / 255] : null;
+  stampColours.set(key, colour);
+  return colour;
+}
+
 /** Draws an object where it stands, as the build draws it (the caller sets the alpha): for previews and drags. */
 export function drawStampAt(c: CanvasRenderingContext2D, g: GridSettings, p: Placed, look: StampLook | null): void {
   const { stamp } = stampFor(p);
@@ -2008,6 +2042,53 @@ export class BuildRenderer {
     c.restore();
   }
 
+  /**
+   * The built map for the 3D view's floor (view3d.ts): the scene's whole area, drawn straight
+   * rather than from the cache, without the objects that stand up there as shapes (`standing`),
+   * so a tree isn't painted flat under its 3D one as well. `scale`: the floor picture's pixels
+   * to a scene unit.
+   */
+  drawFloor3d(c: CanvasRenderingContext2D, scene: Scene, scale: number, gmView: boolean, standing: (id: StampId) => boolean): void {
+    if (this.empty && !this.geoms.size) return;
+    const g = scene.grid;
+    const all = sceneAreaCells(scene, g);
+    const area = sceneBounds(scene);
+    if (this.season) this.updateExposure();
+    c.save();
+    c.beginPath();
+    c.rect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+    c.clip();
+    this.drawFloors(c, scene, all.c0, all.r0, all.c1 + 1, all.r1 + 1);
+    this.drawStamps(c, scene, all.c0, all.r0, all.c1 + 1, all.r1 + 1, standing);
+    c.restore();
+    const m = Math.max(g.size * 0.13, 1.5 / scale) * 1.2;
+    c.save();
+    c.beginPath();
+    c.rect(area.x0 - m, area.y0 - m, area.x1 - area.x0 + 2 * m, area.y1 - area.y0 + 2 * m);
+    c.clip();
+    this.drawWalls(c, scene, all.c0, all.r0, all.c1 + 1, all.r1 + 1, scale, gmView);
+    c.restore();
+  }
+
+  /** Every object on the built map (but those being dragged), where it stands, with its look in the season. */
+  placedAll(): { p: Placed; look: StampLook | null }[] {
+    if (this.season) this.updateExposure();
+    const out: { p: Placed; look: StampLook | null }[] = [];
+    const hidden = this.model.hiddenSlots;
+    for (const [k, ch] of this.model.index.chunks) {
+      if (!ch.stamps.length) continue;
+      const cx = Math.floor(k / 4096) - 2048;
+      const cy = (k % 4096) - 2048;
+      ch.stamps.forEach((stamp, i) => {
+        if (hidden.size && hidden.has(slot(cx, cy, i))) return;
+        const p = placedOf(cx, cy, stamp);
+        const look = this.season ? this.stampLook(p.id, cx * CHUNK + stamp[1], cy * CHUNK + stamp[2], stampBlock(stamp[4])) : null;
+        out.push({ p, look });
+      });
+    }
+    return out;
+  }
+
   private updateCache(scene: Scene, k: number): void {
     const g = scene.grid;
     const area = sceneBounds(scene);
@@ -2162,7 +2243,15 @@ export class BuildRenderer {
     return textureSwatch(id);
   }
 
-  private drawStamps(c: CanvasRenderingContext2D, scene: Scene, c0: number, r0: number, c1: number, r1: number): void {
+  private drawStamps(
+    c: CanvasRenderingContext2D,
+    scene: Scene,
+    c0: number,
+    r0: number,
+    c1: number,
+    r1: number,
+    leaveOut?: (id: StampId) => boolean,
+  ): void {
     const g = scene.grid;
     const chunks = this.model.index.chunks;
     const draft = this.model.draft?.groundOnly ? undefined : this.model.draft?.cells;
@@ -2185,6 +2274,7 @@ export class BuildRenderer {
           const stamp = ch.stamps[i];
           const [id, sc, sr, turns, size, fine = 0] = stamp;
           if (hidden.size && hidden.has(slot(cx, cy, i))) continue;
+          if (leaveOut?.(id)) continue;
           const ax = cx * CHUNK + sc;
           const ay = cy * CHUNK + sr;
           const n = stampBlock(size);

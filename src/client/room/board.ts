@@ -74,6 +74,7 @@ import {
   sceneTerrain,
   setPortal,
   setWall,
+  stampColour,
   wallsFor,
 } from "./build";
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
@@ -107,6 +108,7 @@ import type { Placed } from "./stampGeom";
 import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type Standee, type Walls3d } from "./view3dModel";
+import { shapeOf, type Object3d } from "./view3dObjects";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
@@ -597,7 +599,10 @@ export class Board implements BoardApi {
     this.sight = new BoardSight(room);
     this.stage = new Konva.Stage({ container: el, width: el.clientWidth || 1, height: el.clientHeight || 1 });
     // One of Dungeon's textures made after it was first needed: draw it properly now.
-    this.build.onReady = () => this.bgLayer.batchDraw();
+    this.build.onReady = () => {
+      this.buildReady++;
+      this.bgLayer.batchDraw();
+    };
 
     this.gridNode = new Konva.Shape({
       listening: false,
@@ -779,6 +784,23 @@ export class Board implements BoardApi {
   private making3d = false;
   private floor3dCanvas: HTMLCanvasElement | null = null;
   private cover3dCanvas: HTMLCanvasElement | null = null;
+  /** Counts the times the built map has had something ready to draw properly (a texture made). */
+  private buildReady = 0;
+  /**
+   * The built map as the 3D floor has it (without the objects standing up in 3D), and what it was
+   * drawn from: drawn again only when one of those changes, not every time the fog or the dark does.
+   */
+  private built3d: {
+    canvas: HTMLCanvasElement;
+    index: unknown;
+    hidden: unknown;
+    scene: Scene;
+    w: number;
+    h: number;
+    gm: boolean;
+    objects: boolean;
+    ready: number;
+  } | null = null;
 
   /** The scene as this page shows it, for the 3D view: the board stays the one place that decides what a page sees. */
   source3d(): Board3dSource {
@@ -786,6 +808,7 @@ export class Board implements BoardApi {
       floor: (maxPx) => this.floor3d(maxPx),
       standees: () => this.standees3d(),
       walls: () => this.walls3d(),
+      objects: () => this.objects3d(),
       gmView: () => this.isGm && !this.room.state.fogOpts.preview,
       view: () => {
         if (!this.renderedScene) return null;
@@ -850,7 +873,7 @@ export class Board implements BoardApi {
       c.fillRect(area.x0, area.y0, w, h);
       const img = this.mapNode.visible() ? this.mapNode.image() : undefined;
       if (img) c.drawImage(img as CanvasImageSource, 0, 0, scene.width, scene.height);
-      if (!isHex(scene.grid)) this.build.draw(c, scene, area, k, k, gmView);
+      if (!isHex(scene.grid)) this.drawBuilt3d(c, scene, area, cw, ch, k, gmView);
       this.drawGridOver(c, area, k);
       this.drawLightGlows(c);
       // The drawings, as Konva draws them, over the scene's whole area (on screen or not).
@@ -889,6 +912,56 @@ export class Board implements BoardApi {
     } finally {
       this.making3d = false;
     }
+  }
+
+  /** The built map onto the 3D floor (`c` set to scene units), without the objects standing up in 3D. */
+  private drawBuilt3d(c: CanvasRenderingContext2D, scene: Scene, area: SceneArea, cw: number, ch: number, k: number, gmView: boolean): void {
+    const index = this.build.model.index;
+    const hidden = this.build.model.hiddenSlots;
+    const objects = !!dungeonObjects();
+    let b = this.built3d;
+    if (
+      !b ||
+      b.index !== index ||
+      b.hidden !== hidden ||
+      b.scene !== scene ||
+      b.w !== cw ||
+      b.h !== ch ||
+      b.gm !== gmView ||
+      b.objects !== objects ||
+      b.ready !== this.buildReady
+    ) {
+      const canvas = b?.canvas ?? document.createElement("canvas");
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+      }
+      const x = canvas.getContext("2d")!;
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.clearRect(0, 0, cw, ch);
+      x.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
+      this.build.drawFloor3d(x, scene, k, gmView, (id) => shapeOf(id) !== null);
+      b = this.built3d = { canvas, index, hidden, scene, w: cw, h: ch, gm: gmView, objects, ready: this.buildReady };
+    }
+    c.drawImage(b.canvas, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+  }
+
+  /** The built map's objects that stand up in 3D: where, how big, turned how, and their drawing's colour. */
+  private objects3d(): Object3d[] {
+    const scene = this.renderedScene;
+    if (!scene || isHex(scene.grid)) return [];
+    const g = scene.grid;
+    const area = sceneBounds(scene);
+    const out: Object3d[] = [];
+    for (const { p, look } of this.build.placedAll()) {
+      if (!shapeOf(p.id)) continue;
+      const m = centreOf(p);
+      const x = g.offsetX + m.x * g.size, y = g.offsetY + m.y * g.size;
+      // One left off the scene when it was made smaller isn't on the map.
+      if (x < area.x0 || y < area.y0 || x > area.x1 || y > area.y1) continue;
+      out.push({ id: p.id, x, y, size: p.size, deg: p.deg, color: stampColour(p.id, look) });
+    }
+    return out;
   }
 
   /** The dark and the fog over the scene, as dimmed as this page shows them; false when there's neither. */

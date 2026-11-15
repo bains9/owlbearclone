@@ -52,6 +52,7 @@ import {
   type Standee,
   type View3dControls,
 } from "./view3dModel";
+import { objectMesh } from "./view3dObjects";
 
 /** The floor picture's long side at most: on a touch screen (phones and tablets), and elsewhere. */
 const FLOOR_PX_TOUCH = 2048;
@@ -97,6 +98,8 @@ export class View3D implements View3dControls {
   private floorTex: CanvasTexture | null = null;
   private floorKey = "";
   private walls: Mesh | null = null;
+  /** The built map's objects standing up: trees, rocks, pillars, tables... (view3dObjects.ts). */
+  private objects: Mesh | null = null;
   private figs = new Map<string, Fig>();
   /** Token pictures as textures, by picture (an image's address, or a disc's colour and initials). */
   private pictures = new Map<string, { tex: Texture; w: number; h: number }>();
@@ -257,18 +260,13 @@ export class View3D implements View3dControls {
       this.floorTex.needsUpdate = true;
     }
 
-    // The walls, where this page has seen them.
+    // The walls and the built map's objects, where this page has seen them.
     this.dropWalls();
-    const pieces = wallPieces(this.src.walls(), this.cell, f.cover, this.src.gmView());
-    if (pieces.length) {
-      const m = wallMesh(pieces, this.cell);
-      const geo = new BufferGeometry();
-      geo.setAttribute("position", new BufferAttribute(m.position, 3));
-      geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
-      geo.setAttribute("color", new BufferAttribute(m.color, 3));
-      this.walls = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true }));
-      this.world.add(this.walls);
-    }
+    const all = this.src.gmView();
+    const pieces = wallPieces(this.src.walls(), this.cell, f.cover, all);
+    if (pieces.length) this.walls = this.lit(wallMesh(pieces, this.cell));
+    const things = objectMesh(this.src.objects(), this.cell, f.cover, all);
+    if (things.position.length) this.objects = this.lit(things);
 
     // How far the camera may go, for this scene's size.
     const reach = Math.max(20, 2.5 * Math.hypot(w, h));
@@ -458,12 +456,27 @@ export class View3D implements View3dControls {
     this.floorKey = "";
   }
 
+  /** Triangles lit by the scene's lights, each in its own colour, added to the world. */
+  private lit(m: { position: Float32Array; normal: Float32Array; color: Float32Array }): Mesh {
+    const geo = new BufferGeometry();
+    geo.setAttribute("position", new BufferAttribute(m.position, 3));
+    geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
+    geo.setAttribute("color", new BufferAttribute(m.color, 3));
+    const mesh = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true }));
+    this.world.add(mesh);
+    return mesh;
+  }
+
+  /** Takes away the walls and the objects (they're made again together). */
   private dropWalls(): void {
-    if (!this.walls) return;
-    this.world.remove(this.walls);
-    this.walls.geometry.dispose();
-    this.walls.material.dispose();
+    for (const m of [this.walls, this.objects]) {
+      if (!m) continue;
+      this.world.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
     this.walls = null;
+    this.objects = null;
   }
 
   private clearScene(): void {

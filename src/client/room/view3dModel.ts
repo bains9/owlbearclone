@@ -9,6 +9,7 @@
 
 import type { GridSettings, Scene, SceneArea, SceneVision } from "../../shared/types";
 import { segmentsOf, type Seg } from "./vision";
+import type { Object3d } from "./view3dObjects";
 
 /** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
 export const WALL_HEIGHT = 1.1;
@@ -325,6 +326,8 @@ export interface Board3dSource {
   standees(): Standee[];
   /** The scene's walls and doors. */
   walls(): Walls3d;
+  /** The built map's objects that stand up in 3D (trees, rocks, pillars, tables...). */
+  objects(): Object3d[];
   /** The GM, not looking as players: sees everything, the fog and the dark dimmed. */
   gmView(): boolean;
   /** The middle and size of the 2D view, in scene units (null: no scene). */
