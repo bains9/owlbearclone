@@ -1,14 +1,15 @@
-// The GM's own monsters and NPCs (4 November 2026): token pictures the GM uploaded and filed under
-// Monsters or NPCs, kept once for every room (by the Directory, their files in R2 under library/)
-// and listed at the top of those tabs. Placing one in a room copies its picture into that room the
+// The GM's own monsters and NPCs (4 November 2026), and plain token pictures (15 November 2026):
+// pictures the GM uploaded and filed under Monsters, NPCs or Tokens, kept once for every room (by
+// the Directory, their files in R2 under library/) and listed at the top of those tabs. What the
+// GM uploads in Tokens, or drops on the map, goes straight to Your tokens. Placing one in a room copies its picture into that room the
 // first time (the room's picture says which entry it's a copy of), so its tokens work as any
 // picture's do, for players too. Filing a room's upload copies it into the library, and that room's
 // picture leaves its Tokens tab.
 import type { Asset } from "./types";
 
-export type Shelf = "monster" | "npc";
+export type Shelf = "monster" | "npc" | "token";
 
-export const SHELVES: readonly Shelf[] = ["monster", "npc"];
+export const SHELVES: readonly Shelf[] = ["monster", "npc", "token"];
 
 export interface LibraryEntry {
   id: string;
@@ -31,12 +32,17 @@ export const MAX_FILE_AT_ONCE = 200;
 export const LIBRARY_ID = /^[A-Za-z0-9]{16}$/;
 
 export function isShelf(v: unknown): v is Shelf {
-  return v === "monster" || v === "npc";
+  return v === "monster" || v === "npc" || v === "token";
 }
 
 /** The tab a shelf is listed in. */
 export function shelfName(s: Shelf): string {
-  return s === "monster" ? "Monsters" : "NPCs";
+  return s === "monster" ? "Monsters" : s === "npc" ? "NPCs" : "Tokens";
+}
+
+/** What a shelf's pictures are called at the top of its tab. */
+export function shelfLabel(s: Shelf): string {
+  return s === "monster" ? "Your monsters" : s === "npc" ? "Your NPCs" : "Your tokens";
 }
 
 /** Where an entry's picture is kept in R2. */

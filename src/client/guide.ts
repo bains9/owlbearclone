@@ -19,6 +19,20 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: your tokens are in every room (15 November 2026)",
+        "steps": [
+          "Pictures you upload in **Tokens & images** › **Tokens** now go into **Your tokens**, at the top of that tab, and they're there in every one of your rooms. So do pictures you drop or paste on the map.",
+          "For the ones you uploaded before, in each room: open **Tokens**, click **Select**, **Pick all**, then **Keep in every room**. They move up into **Your tokens**.",
+          "Click one to place it in the middle of your view, or drag it onto the map, as before."
+        ],
+        "notes": [
+          "Tokens of them already on maps stay as they are.",
+          "On each one in **Your tokens**: **Rename**, **Move to…** (Monsters or NPCs), and **Take out of the library** (the bin), for every room.",
+          "Players' own uploads stay in their room, and theirs: they're listed under **Only in this room**.",
+          "See **Upload pictures for tokens** in **Tokens**."
+        ]
+      },
+      {
         "title": "Voice chat reconnects by itself (15 November 2026)",
         "steps": [
           "Nothing to do: join voice chat from **Chat & dice** as before."
@@ -1304,7 +1318,8 @@ export const GUIDE: GuideSection[] = [
           "If you've typed something in the **Name (optional)** box, a picture you click gets that name (a picture you drag in doesn't). The name stays in the box, so every picture you click gets it until you clear the box.",
           "The picture keeps its shape and is fitted inside the token's square. If it has a name, the name is shown underneath.",
           "Players only see the pictures they uploaded themselves, and can have up to 100. After that they see **You've uploaded as many images as a player can. Delete some of yours first.**",
-          "GM: your **Tokens** tab also lists the pictures players have uploaded.",
+          "GM: what you upload goes into **Your tokens**, at the top of the **Tokens** tab, and it's there in every one of your rooms (the library holds up to 1,500 pictures). On each one: **Rename**, **Move to…** (Monsters or NPCs), and **Take out of the library** (the bin), for every room; tokens of it on maps stay.",
+          "GM: under **Only in this room**, your **Tokens** tab lists the pictures players have uploaded, and any you uploaded before 15 November 2026. To have yours in every room, click **Select**, **Pick all**, then **Keep in every room**, or use the folder button on one. A player's picture stays theirs.",
           "GM: the **Monsters** tab has 55 ready-made monsters, sized for the map. See **Monsters**.",
           "GM: the **NPCs** tab makes a token for any race and class from the campaign handbook. See **NPC tokens by race and class**.",
           "The GM's **Maps** tab holds map pictures. You use those from the **Scenes** panel."
@@ -1334,6 +1349,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Each picture is uploaded and becomes a token where you let go. If you drop several, they're laid out in a row, one square apart.",
+          "GM: the pictures you drop or paste go into **Your tokens** too, for every room.",
           "They snap into the square where you let go, when the scene snaps. To put them exactly where you let go, hold **Alt** as you drop them (or turn snapping off with the magnet in a token's bar).",
           "You can also copy a picture and press **Ctrl+V** with the map in front of you. It becomes a token in the middle of your view.",
           "GM: a big picture (1600 pixels or more along its longest side), a Dungeondraft or other Universal VTT file, or an Owlbear Rodeo backup opens the **New scene** window instead of making a token. Pictures dropped together with a Dungeondraft project file (.dungeondraft_map) all go to the **New scene** window, whatever their size, and the project file's data is attached to the new scene for exact seasons. A project file dropped on its own onto a scene whose picture could be its export opens the **Dungeondraft data** window for that scene; otherwise it waits in the **New scene** window for its export.",

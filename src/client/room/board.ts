@@ -121,7 +121,7 @@ import { dungeondraftSquares, pictureFitsMap, sortDroppedFiles } from "../mapImp
 import { MONSTER_DRAG_TYPE, placeMonster, readMonsterDrag } from "../monsters/place";
 import { NPC_DRAG_TYPE, placeNpc, readNpcDrag } from "../npcs/place";
 
-import { LIBRARY_DRAG_TYPE, placeFromLibrary, readLibraryDrag } from "../library";
+import { LIBRARY_DRAG_TYPE, placeFromLibrary, readLibraryDrag, uploadAndPlace } from "../library";
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FOG_COLOR = "#0b0d11";
@@ -6382,7 +6382,8 @@ export class Board implements BoardApi {
       }
     }
     if (sorted.maps.length) this.room.store.set({ mapImport: sorted.maps });
-    if (sorted.tokens.length && at) void this.room.uploadTokens(sorted.tokens, at, free);
+    // The GM's go into Your tokens, for every room; a player's stay in this room, theirs.
+    if (sorted.tokens.length && at) void (this.isGm ? uploadAndPlace(this.room, sorted.tokens, at, free) : this.room.uploadTokens(sorted.tokens, at, free));
   }
 
   /** Shift held for a click or drag, unless it's held to talk (voice chat), when tokens and the map still move. */

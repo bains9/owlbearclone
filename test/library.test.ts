@@ -4,14 +4,19 @@
 // room copies its picture there once.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE } from "../src/client/guide";
-import { fileInLibrary, filterEntries, libraryDragData, placeFromLibrary, readLibraryDrag } from "../src/client/library";
+import { fileInLibrary, filterEntries, libraryDragData, placeFromLibrary, readLibraryDrag, uploadAndPlace } from "../src/client/library";
 import { RoomClient } from "../src/client/room/client";
-import { MAX_FILE_AT_ONCE, MAX_LIBRARY_BYTES, isFiled, isShelf, libraryKey, type LibraryEntry } from "../src/shared/library";
+import { MAX_FILE_AT_ONCE, MAX_LIBRARY_BYTES, isFiled, isShelf, libraryKey, shelfLabel, shelfName, type LibraryEntry } from "../src/shared/library";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER } from "../src/shared/sanitize";
 import type { Asset, Player, Scene, TokenItem } from "../src/shared/types";
 
 vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
 vi.mock("../src/worker/auth", () => ({ isGm: async (r: Request) => r.headers.get("X-Test-Gm") === "1" }));
+// Pictures as they'd be once made ready in a browser (no canvas here).
+vi.mock("../src/client/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/client/api")>()),
+  prepareImage: async (f: File) => ({ blob: new Blob([await f.arrayBuffer()], { type: "image/png" }), width: 64, height: 64 }),
+}));
 
 const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
 const source = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((t) => t.replace(/\r\n/g, "\n"));
@@ -31,7 +36,9 @@ const asset = (id: string, more: Partial<Asset> = {}): Asset => ({ id, name: "Or
 
 describe("the library's rules", () => {
   it("files a room's picture while its entry is there, any copy before the list is read", () => {
-    expect([isShelf("monster"), isShelf("npc"), isShelf("map"), isShelf(null)]).toEqual([true, true, false, false]);
+    expect([isShelf("monster"), isShelf("npc"), isShelf("token"), isShelf("map"), isShelf(null)]).toEqual([true, true, true, false, false]);
+    expect([shelfName("monster"), shelfName("npc"), shelfName("token")]).toEqual(["Monsters", "NPCs", "Tokens"]);
+    expect([shelfLabel("monster"), shelfLabel("npc"), shelfLabel("token")]).toEqual(["Your monsters", "Your NPCs", "Your tokens"]);
     expect(libraryKey("AbCdEfGhIjKlMnOp")).toBe("library/AbCdEfGhIjKlMnOp");
     const copy = asset("asset0000000001", { library: "AbCdEfGhIjKlMnOp" });
     expect(isFiled(copy, [entry("AbCdEfGhIjKlMnOp")])).toBe(true);
@@ -249,11 +256,29 @@ describe("the library's routes", () => {
     expect((await go("POST", `/api/rooms/AbCdEf123456/library/${owlbear.id}`))?.status).toBe(404);
   });
 
+  it("keeps plain token pictures for every room too: uploaded straight there, or the GM's own filed from a room, never a player's", async () => {
+    const { go, d, room, files } = await setup();
+    const up = await go("POST", "/api/library?shelf=token&name=Cart&w=256&h=256", PNG);
+    expect(up?.data).toMatchObject({ shelf: "token", name: "Cart" });
+    room.assets.set("asset0000000003", asset("asset0000000003", { name: "Rowan's cat", owner: "playeruid0001" }));
+    await files.put("rooms/AbCdEf123456/asset0000000003", PNG.buffer, { httpMetadata: { contentType: "image/png" } });
+    const filed = await go("POST", "/api/library/from-room", JSON.stringify({ room: "AbCdEf123456", assets: ["asset0000000001", "asset0000000003"], shelf: "token" }));
+    expect(filed?.data.filed).toBe(1);
+    expect(d.libraryList().map((e) => [e.name, e.shelf]).sort()).toEqual([
+      ["Cart", "token"],
+      ["Owlbear", "token"],
+    ]);
+    expect(room.assets.get("asset0000000003")?.library).toBeUndefined();
+    // A player's picture can still go under Monsters, as before.
+    expect((await go("POST", "/api/library/from-room", JSON.stringify({ room: "AbCdEf123456", assets: ["asset0000000003"], shelf: "monster" })))?.data.filed).toBe(1);
+  });
+
   it("renames one, or moves it to the other shelf", async () => {
     const { go, d } = await setup();
     d.addLibraryEntries([entry("AAAAAAAAAAAAAAAA")]);
     expect((await go("PATCH", "/api/library/AAAAAAAAAAAAAAAA", JSON.stringify({ name: "Goblin chief" })))?.data).toMatchObject({ name: "Goblin chief", shelf: "monster" });
     expect((await go("PATCH", "/api/library/AAAAAAAAAAAAAAAA", JSON.stringify({ shelf: "npc" })))?.data).toMatchObject({ shelf: "npc" });
+    expect((await go("PATCH", "/api/library/AAAAAAAAAAAAAAAA", JSON.stringify({ shelf: "token" })))?.data).toMatchObject({ shelf: "token" });
     expect((await go("PATCH", "/api/library/AAAAAAAAAAAAAAAA", JSON.stringify({ shelf: "dragon" })))?.status).toBe(400);
     expect((await go("PATCH", "/api/library/BBBBBBBBBBBBBBBB", JSON.stringify({ name: "x" })))?.status).toBe(404);
   });
@@ -302,6 +327,56 @@ describe("on the GM's page", () => {
     expect(added.mock.calls.at(-1)?.[0]).toEqual({ assetId: "copy00000000001", label: "Goblin 2", hidden: true });
   });
 
+  it("places one of Your tokens as a room's upload goes on: named from the Quick token box only, never numbered or hidden", async () => {
+    const room = client();
+    room.store.set({ library: [entry("TTTTTTTTTTTTTTTT", { shelf: "token", name: "Cart" })] });
+    const copy = asset("copy00000000009", { name: "Cart", library: "TTTTTTTTTTTTTTTT" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json(copy, { status: 201 }));
+    const added = vi.spyOn(room, "addToken").mockImplementation(() => null);
+    await placeFromLibrary(room, "TTTTTTTTTTTTTTTT", undefined, true);
+    expect(added.mock.calls[0][0]).toEqual({ assetId: "copy00000000009", label: "" });
+    room.store.set({ items: { t1: { id: "t1", sceneId: "scene1", kind: "token", label: "" } as TokenItem } });
+    await placeFromLibrary(room, "TTTTTTTTTTTTTTTT", { x: 10, y: 20 }, false, true, " Supply cart ");
+    expect(added.mock.calls[1]).toEqual([{ assetId: "copy00000000009", label: "Supply cart" }, { x: 10, y: 20 }, true]);
+  });
+
+  it("keeps the GM's own pictures for every room, and leaves players' theirs", async () => {
+    const room = client([asset("mine0000000001"), asset("theirs00000001", { owner: "playeruid0001" })]);
+    const sent = vi.spyOn(globalThis, "fetch").mockImplementation(async (_u, init) => {
+      const body = JSON.parse(String((init as RequestInit).body)) as { assets: string[] };
+      return Response.json({ filed: body.assets.length, library: [] });
+    });
+    const toast = vi.spyOn(room, "toast");
+    expect(await fileInLibrary(room, ["mine0000000001", "theirs00000001"], "token")).toBe(1);
+    expect(JSON.parse(String((sent.mock.calls[0][1] as RequestInit).body))).toMatchObject({ shelf: "token", assets: ["mine0000000001"] });
+    expect(toast.mock.calls.at(-1)?.[0]).toBe("1 now in every room, under Your tokens. 1 uploaded by players stay in this room, theirs.");
+  });
+
+  it("puts pictures the GM drops on the map into Your tokens, and places them there side by side", async () => {
+    const room = client();
+    const made: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+      const url = String(u);
+      if (url.startsWith("/api/library?")) {
+        const id = `ENTRY${made.length}`.padEnd(16, "0");
+        made.push(id);
+        return Response.json(entry(id, { shelf: "token", name: new URLSearchParams(url.split("?")[1]).get("name") ?? "" }), { status: 201 });
+      }
+      const id = url.split("/").at(-1)!;
+      return Response.json(asset(`copy${id}`.slice(0, 15), { library: id }), { status: 201 });
+    });
+    const added = vi.spyOn(room, "addToken").mockImplementation(() => null);
+    const files = [new File([PNG], "cart.png", { type: "image/png" }), new File([PNG], "barrel.png", { type: "image/png" })];
+    await uploadAndPlace(room, files, { x: 100, y: 50 });
+    expect(room.state.library?.filter((e) => e.shelf === "token").map((e) => e.name).sort()).toEqual(["barrel", "cart"]);
+    const g = room.viewScene!.grid.size;
+    expect(added.mock.calls.map((c) => c[1])).toEqual([
+      { x: 100, y: 50 },
+      { x: 100 + g, y: 50 },
+    ]);
+    expect(added.mock.calls.every((c) => (c[0] as { label: string }).label === "")).toBe(true);
+  });
+
   it("files a crapton of uploads a few at a time", async () => {
     const room = client();
     const ids = Array.from({ length: MAX_FILE_AT_ONCE * 2 + 3 }, (_, i) => `asset${String(i).padStart(10, "0")}`);
@@ -323,19 +398,33 @@ describe("on the GM's page", () => {
     expect(panel).toContain("if (shelf) void uploadToLibrary(room, files, shelf);");
     expect(panel).toContain('<LibraryShelf shelf="monster" />\n          <MonstersSection />');
     expect(panel).toContain('<LibraryShelf shelf="npc" />\n          <NpcsSection />');
+    expect(panel).toContain('{gm && tab === "token" && <LibraryShelf shelf="token" label={label} />}');
+    expect(panel).toContain('onClick={() => move([...picked], "token")}>\n            Keep in every room');
+    expect(panel).toContain('tab === "token" && gm ? "token" : null');
     const board = await source("src/client/room/board.ts");
     expect(board).toContain("const own = readLibraryDrag(e.dataTransfer?.getData(LIBRARY_DRAG_TYPE));");
     expect(board).toContain("types.includes(LIBRARY_DRAG_TYPE) ||");
+    expect(board).toContain("void (this.isGm ? uploadAndPlace(this.room, sorted.tokens, at, free) : this.room.uploadTokens(sorted.tokens, at, free));");
     const worker = await source("src/worker/index.ts");
     expect(worker).toContain("const library = await libraryRoute(request, env, pathname, method);");
   });
 });
 
 describe("the guide", () => {
+  it("leads What's new with tokens in every room, and Tokens says how, and what stays a player's", () => {
+    const news = GUIDE.find((s) => s.id === "whats-new")!;
+    expect(news.parts[0].title).toBe("GM: your tokens are in every room (15 November 2026)");
+    const top = [...news.parts[0].steps, ...news.parts[0].notes].join("\n");
+    for (const words of ["**Your tokens**", "**Select**", "**Pick all**", "**Keep in every room**", "**Only in this room**", "drop or paste"]) expect(top).toContain(words);
+    const upload = GUIDE.find((s) => s.id === "tokens")!.parts.find((p) => p.title === "Upload pictures for tokens")!;
+    const how = [...upload.steps, ...upload.notes].join("\n");
+    for (const words of ["**Your tokens**", "**Only in this room**", "**Keep in every room**", "stays theirs"]) expect(how).toContain(words);
+  });
+
   it("leads What's new with it, and the Monsters section explains it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[13].title).toBe("GM: your own monsters and NPCs, in every room (4 November 2026)");
-    const top = [...news.parts[13].steps, ...news.parts[13].notes].join("\n");
+    expect(news.parts[14].title).toBe("GM: your own monsters and NPCs, in every room (4 November 2026)");
+    const top = [...news.parts[14].steps, ...news.parts[14].notes].join("\n");
     for (const words of ["**Select**", "**Move to Monsters**", "**Move to NPCs**", "every room", "**Upload**", "**Add hidden**"]) expect(top).toContain(words);
     const monsters = GUIDE.find((s) => s.id === "monsters")!;
     const titles = monsters.parts.map((p) => p.title);

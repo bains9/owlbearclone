@@ -1088,8 +1088,8 @@ describe("the guide", () => {
   const news = GUIDE.find((s) => s.id === "whats-new")!;
 
   it("has voice chat following the group twelfth in What's new, under the Build tool's library, maps from Dungeon, Dungeon's sign-in and extending maps, and says how to move it", () => {
-    expect(news.parts[45].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
-    const entry = [...news.parts[45].steps, ...news.parts[45].notes].join("\n");
+    expect(news.parts[46].title).toBe("Voice chat follows the group to other rooms (25 October 2026)");
+    const entry = [...news.parts[46].steps, ...news.parts[46].notes].join("\n");
     for (const what of ["**Room settings**", "**Move the group**", "**Send everyone**", "carries on", "Table displays stay"]) expect(entry).toContain(what);
     const part = GUIDE.find((s) => s.id === "room-settings")?.parts.find((p) => p.title === "Move everyone to another room") ??
       GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Move everyone to another room");
@@ -1099,10 +1099,10 @@ describe("the guide", () => {
   const all = (parts: { steps: string[]; notes: string[] }[]) => parts.flatMap((p) => [...p.steps, ...p.notes]).join("\n");
 
   it("has the microphone fix fourteenth in What's new, under the rooms and the dice, then voice chat", () => {
-    expect(news.parts[47].title).toBe("Voice chat: the microphone works now (25 October 2026)");
-    expect(all([news.parts[47]])).toContain("**Voice chat: Tabletop can't use your microphone**");
-    expect(news.parts[48].title).toBe("Voice chat (24 October 2026)");
-    const entry = all([news.parts[48]]);
+    expect(news.parts[48].title).toBe("Voice chat: the microphone works now (25 October 2026)");
+    expect(all([news.parts[48]])).toContain("**Voice chat: Tabletop can't use your microphone**");
+    expect(news.parts[49].title).toBe("Voice chat (24 October 2026)");
+    const entry = all([news.parts[49]]);
     for (const what of ["**Join voice**", "**Left Shift**", "**Hold to talk**", "**Mute**", "top right of the map", "8 people", "headphones", "See **Voice chat**"]) {
       expect(entry).toContain(what);
     }
@@ -1111,7 +1111,7 @@ describe("the guide", () => {
   it("names only labels the panel really shows, and the default key by its name", async () => {
     const { readFile } = (await import("node:" + "fs/promises")) as { readFile(p: URL, e: string): Promise<string> };
     const panel = await readFile(new URL("../src/client/ui/VoicePanel.tsx", import.meta.url), "utf8");
-    const words = `${all(news.parts.slice(47, 49))}\n${all(voice.parts)}`;
+    const words = `${all(news.parts.slice(48, 50))}\n${all(voice.parts)}`;
     const labels = [...new Set(words.match(/\*\*[^*]+\*\*/g) ?? [])].map((b) => b.slice(2, -2));
     expect(labels.length).toBeGreaterThan(10);
     // Keys, the panel itself, and labels built from the key or the name: checked below.
@@ -1132,9 +1132,9 @@ describe("the guide", () => {
     }
   });
 
-  it("leads What's new with calls reconnecting by themselves, and says what voice chat's record keeps, and never", () => {
-    expect(news.parts[0].title).toBe("Voice chat reconnects by itself (15 November 2026)");
-    for (const text of [all([news.parts[0]]), all(voice.parts)]) {
+  it("has calls reconnecting by themselves second in What's new, and says what voice chat's record keeps, and never", () => {
+    expect(news.parts[1].title).toBe("Voice chat reconnects by itself (15 November 2026)");
+    for (const text of [all([news.parts[1]]), all(voice.parts)]) {
       for (const what of ["keeps trying", "Never what's said", `${VOICE_LOG_KEEP.toLocaleString("en")} entries`]) expect(text).toContain(what);
     }
   });

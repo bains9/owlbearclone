@@ -1,4 +1,4 @@
-// The GM's own monsters and NPCs, for every room (shared/library.ts): the list, uploading straight
+// The GM's own monsters, NPCs and tokens, for every room (shared/library.ts): the list, uploading straight
 // into it, filing a room's uploads in it, renaming one or moving it to the other shelf, taking one
 // out, its picture, and putting one in a room (the room gets its own copy of the picture, once).
 // All the GM's, but the picture: like a room's pictures, it's for anyone with its address.
@@ -87,7 +87,7 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
     const have = await stub.libraryCopy(entryId);
     if (have) return json(have);
     const entry = await directory.libraryEntry(entryId);
-    if (!entry) return fail(404, "That isn't in your monsters and NPCs any more.");
+    if (!entry) return fail(404, "That isn't in your library any more.");
     const obj = await env.FILES.get(libraryKey(entryId));
     if (!obj) return fail(404, "Its picture has gone.");
     const asset: Asset = {
@@ -119,7 +119,7 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
     // A picture uploaded straight into Monsters or NPCs.
     const url = new URL(request.url);
     const shelf = url.searchParams.get("shelf");
-    if (!isShelf(shelf)) return fail(400, "Say whether it's a monster or an NPC.");
+    if (!isShelf(shelf)) return fail(400, "Say which tab it's for: Monsters, NPCs or Tokens.");
     const limit = MAX_UPLOAD_BYTES.token;
     if (Number(request.headers.get("Content-Length") ?? "0") > limit) return fail(413, `Images must be under ${limit / 1024 / 1024} MB.`);
     const body = await request.arrayBuffer();
@@ -151,19 +151,20 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
     return json(entry, 201);
   }
 
-  // A room's uploads filed under Monsters or NPCs: copied into the library, and that room's
-  // pictures marked as its copies (they leave its Tokens). A few at a time: the page sends more.
+  // A room's uploads filed under Monsters, NPCs or Tokens: copied into the library, and that room's
+  // pictures marked as its copies (they leave its own list). A few at a time: the page sends more.
+  // Into Tokens only the GM's own: a player's upload stays theirs.
   if (pathname === "/api/library/from-room") {
     if (method !== "POST") return fail(405, "Method not allowed.");
     const body = await readJson(request);
     const roomId = typeof body?.room === "string" ? body.room : "";
     const shelf = body?.shelf;
     const ids = Array.isArray(body?.assets) ? body.assets.filter((x): x is string => typeof x === "string").slice(0, MAX_FILE_AT_ONCE) : [];
-    if (!/^[A-Za-z0-9]{12}$/.test(roomId) || !isShelf(shelf) || !ids.length) return fail(400, "Say which room, which pictures, and Monsters or NPCs.");
+    if (!/^[A-Za-z0-9]{12}$/.test(roomId) || !isShelf(shelf) || !ids.length) return fail(400, "Say which room, which pictures, and Monsters, NPCs or Tokens.");
     const stub = env.ROOMS.getByName(roomId);
     if (!(await stub.exists())) return fail(404, "Room not found.");
     const live = new Set((await directory.libraryList()).map((e) => e.id));
-    const assets = (await stub.tokenAssets(ids)).filter((a) => !a.library || !live.has(a.library));
+    const assets = (await stub.tokenAssets(ids)).filter((a) => (!a.library || !live.has(a.library)) && (shelf !== "token" || a.owner === GM_OWNER));
     const full = await directory.libraryRefusal(assets.length, assets.reduce((n, a) => n + a.bytes, 0));
     if (full) return fail(403, full);
     const entries: LibraryEntry[] = [];
@@ -192,9 +193,9 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
       const body = await readJson(request);
       const name = body?.name === undefined ? undefined : cleanText(body.name, LIMITS.name);
       const shelf = body?.shelf === undefined ? undefined : body.shelf;
-      if (name === "" || (shelf !== undefined && !isShelf(shelf)) || (name === undefined && shelf === undefined)) return fail(400, "Give it a name, or Monsters or NPCs.");
+      if (name === "" || (shelf !== undefined && !isShelf(shelf)) || (name === undefined && shelf === undefined)) return fail(400, "Give it a name, or a tab: Monsters, NPCs or Tokens.");
       const entry = await directory.updateLibraryEntry(id, { ...(name ? { name } : {}), ...(isShelf(shelf) ? { shelf } : {}) });
-      return entry ? json(entry) : fail(404, "That isn't in your monsters and NPCs any more.");
+      return entry ? json(entry) : fail(404, "That isn't in your library any more.");
     }
     if (method === "DELETE") {
       // Out of the library, for every room. Rooms keep their copies, so tokens on maps stay.

@@ -1,15 +1,16 @@
-// The GM's own monsters or NPCs, at the top of those tabs in Tokens & images (shared/library.ts):
-// the pictures they uploaded there, or filed there from Tokens, for every room. A click places one
-// in the middle of the view, or drag it onto the map; under each, rename it, move it to the other
-// tab, or take it out of the library.
+// The GM's own monsters, NPCs or tokens, at the top of those tabs in Tokens & images
+// (shared/library.ts): the pictures they uploaded there, or filed there from a room's own list, for
+// every room. A click places one in the middle of the view, or drag it onto the map; under each,
+// rename it, move it to another tab, or take it out of the library.
 import { useState } from "preact/hooks";
-import { ArrowLeftRight, Pencil, Trash } from "lucide-preact";
-import { SHELVES, libraryFileUrl, shelfName, type LibraryEntry, type Shelf } from "../../shared/library";
+import { FolderInput, Pencil, Trash } from "lucide-preact";
+import { SHELVES, isShelf, libraryFileUrl, shelfLabel, shelfName, type LibraryEntry, type Shelf } from "../../shared/library";
 import { LIBRARY_DRAG_TYPE, filterEntries, libraryDragData, placeFromLibrary, removeEntry, renameEntry, shelveEntry } from "../library";
 import { loadAddHidden } from "../monsters/place";
 import { ConfirmDialog, PromptDialog, cx, useRoom, useRoomState } from "./common";
 
-export function LibraryShelf(props: { shelf: Shelf }) {
+/** `label`: the Quick token box, for naming one of Your tokens as it's clicked (as a room's upload is). */
+export function LibraryShelf(props: { shelf: Shelf; label?: string }) {
   const room = useRoom();
   const library = useRoomState((s) => s.library);
   const [query, setQuery] = useState("");
@@ -17,7 +18,8 @@ export function LibraryShelf(props: { shelf: Shelf }) {
   const [renaming, setRenaming] = useState<LibraryEntry | null>(null);
   const [removing, setRemoving] = useState<LibraryEntry | null>(null);
   const { shelf } = props;
-  const label = shelf === "monster" ? "Your monsters" : "Your NPCs";
+  const label = shelfLabel(shelf);
+  const tokens = shelf === "token";
   const act = async (fn: () => Promise<unknown>) => {
     try {
       await fn();
@@ -25,20 +27,26 @@ export function LibraryShelf(props: { shelf: Shelf }) {
       room.toast((err as Error).message, "error");
     }
   };
-  if (!library) return <p class="small muted shelf-empty">Reading your {shelf === "monster" ? "monsters" : "NPCs"}…</p>;
+  if (!library) return <p class="small muted shelf-empty">Reading {label.toLowerCase()}…</p>;
   const all = library.filter((e) => e.shelf === shelf);
   const shown = filterEntries(all, query);
-  const other = SHELVES.find((s) => s !== shelf)!;
+  const others = SHELVES.filter((s) => s !== shelf);
   return (
     <div class="shelf">
       <h4 class="shelf-head">
         {label} <span class="muted small">({all.length}, every room)</span>
       </h4>
       {all.length === 0 ? (
-        <p class="small muted shelf-empty">
-          None yet. Click <strong>Upload</strong> to add pictures here, or move uploads from <strong>Tokens</strong> (<strong>Select</strong>, then{" "}
-          <strong>Move to {shelfName(shelf)}</strong>).
-        </p>
+        tokens ? (
+          <p class="small muted shelf-empty">
+            None yet. Click <strong>Upload</strong>, or drop pictures on the map: they're kept here, for every room.
+          </p>
+        ) : (
+          <p class="small muted shelf-empty">
+            None yet. Click <strong>Upload</strong> to add pictures here, or move uploads from <strong>Tokens</strong> (<strong>Select</strong>, then{" "}
+            <strong>Move to {shelfName(shelf)}</strong>).
+          </p>
+        )
       ) : (
         <>
           {all.length > 8 && (
@@ -52,12 +60,14 @@ export function LibraryShelf(props: { shelf: Shelf }) {
                   title={`${e.name}: click to place, or drag onto the map`}
                   draggable
                   onDragStart={(ev) => {
-                    ev.dataTransfer?.setData(LIBRARY_DRAG_TYPE, libraryDragData(e.id, loadAddHidden()));
+                    // Your tokens are never hidden as they go on, as a room's uploads aren't.
+                    ev.dataTransfer?.setData(LIBRARY_DRAG_TYPE, libraryDragData(e.id, !tokens && loadAddHidden()));
                     if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "copy";
                   }}
                   onClick={() => {
                     setBusy(e.id);
-                    void placeFromLibrary(room, e.id).finally(() => setBusy(null));
+                    const placing = tokens ? placeFromLibrary(room, e.id, undefined, false, false, props.label ?? "") : placeFromLibrary(room, e.id);
+                    void placing.finally(() => setBusy(null));
                   }}
                 >
                   <img src={libraryFileUrl(e.id)} alt={e.name} loading="lazy" draggable={false} />
@@ -67,9 +77,26 @@ export function LibraryShelf(props: { shelf: Shelf }) {
                   <button class="icon-btn" title="Rename" aria-label={`Rename ${e.name}`} onClick={() => setRenaming(e)}>
                     <Pencil size={14} />
                   </button>
-                  <button class="icon-btn" title={`Move to ${shelfName(other)}`} aria-label={`Move ${e.name} to ${shelfName(other)}`} onClick={() => void act(() => shelveEntry(room, e, other))}>
-                    <ArrowLeftRight size={14} />
-                  </button>
+                  {/* Moving one: a native list over the button, as a room's own pictures have. */}
+                  <span class="icon-btn party-figure" title={`Move to ${others.map(shelfName).join(" or ")}`}>
+                    <FolderInput size={14} />
+                    <select
+                      aria-label={`Move ${e.name} to ${others.map(shelfName).join(" or ")}`}
+                      value=""
+                      onChange={(ev) => {
+                        const to = ev.currentTarget.value;
+                        ev.currentTarget.value = "";
+                        if (isShelf(to) && to !== shelf) void act(() => shelveEntry(room, e, to));
+                      }}
+                    >
+                      <option value="">Move to…</option>
+                      {others.map((s) => (
+                        <option key={s} value={s}>
+                          {shelfName(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
                   <button class="icon-btn danger" title="Take out of the library" aria-label={`Take ${e.name} out of the library`} onClick={() => setRemoving(e)}>
                     <Trash size={14} />
                   </button>
@@ -80,7 +107,7 @@ export function LibraryShelf(props: { shelf: Shelf }) {
           {shown.length === 0 && <p class="small muted">None match.</p>}
         </>
       )}
-      <h4 class="shelf-head">Built in</h4>
+      {!tokens && <h4 class="shelf-head">Built in</h4>}
       {renaming && (
         <PromptDialog
           title="Rename"
@@ -93,11 +120,11 @@ export function LibraryShelf(props: { shelf: Shelf }) {
       )}
       {removing && (
         <ConfirmDialog
-          title={`Take it out of ${shelfName(shelf)}?`}
+          title={`Take it out of ${label.toLowerCase()}?`}
           message={
             <>
-              <strong>{removing.name}</strong> leaves {shelfName(shelf)} in every room. Tokens of it already on maps stay, and a room that has used it keeps
-              its picture in Tokens.
+              <strong>{removing.name}</strong> leaves {label.toLowerCase()} in every room. Tokens of it already on maps stay, and a room that has used it keeps
+              its picture in its own list.
             </>
           }
           confirmLabel="Take it out"
