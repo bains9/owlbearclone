@@ -47,11 +47,18 @@ const EMPTY_CELLS = EMPTY.repeat(CHUNK_CELLS);
  *   "w"  wall
  *   "d"  door (on a line with no wall, or in an automatic one)
  *   "D"  door cut into a hand-drawn wall (taking it away puts that wall back)
+ *   "g"  window (glass): stops tokens as a wall does, but sight and light go through it
+ *   "G"  window cut into a hand-drawn wall (taking it away puts that wall back)
  * Secret doors live only in hidden chunks (players never receive those), where an edge
  * is "." (nothing) or "s" (the wall there is a secret door).
  */
-export type EdgeChar = "." | "o" | "w" | "d" | "D";
-const EDGES_RE = /^[.owdD]{512}$/;
+export type EdgeChar = "." | "o" | "w" | "d" | "D" | "g" | "G";
+const EDGES_RE = /^[.owdDgG]{512}$/;
+
+/** Whether a chunk's edges have a window: those need code from 15 November 2026 (protocol 9). */
+export function hasWindows(edges: string): boolean {
+  return edges.includes("g") || edges.includes("G");
+}
 const SECRET_EDGES_RE = /^[.s]{512}$/;
 const EMPTY_EDGES = EMPTY.repeat(CHUNK_CELLS * 2);
 

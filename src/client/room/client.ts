@@ -127,7 +127,7 @@ export interface BuildOptions {
   /** Walls: add them, or take them away (also where they'd be drawn automatically). */
   wallMode: "add" | "remove";
   /** Doors: what a click on a wall makes. */
-  doorStyle: "open" | "door" | "secret";
+  doorStyle: "open" | "door" | "secret" | "window";
   stamp: StampId;
   /** Objects: size in squares of the next one placed, ½ to 3 in quarter squares. */
   stampSize: number;
@@ -233,8 +233,11 @@ export interface RoomState {
   mapLoad: MapLoad;
   /** This table's own settings, as the room sent them: its loading lines, and for the GM where its Dungeon is. */
   table: TableSettings;
-  /** Build › Select: how many objects and doors are selected, and whether they can grow or shrink. */
-  buildSel: { objects: number; doors: number; canGrow: boolean; canShrink: boolean };
+  /**
+   * Build › Select: how many objects and doors are selected (doors counting windows and secret
+   * doors; `windows` says how many of them are windows), and whether they can grow or shrink.
+   */
+  buildSel: { objects: number; doors: number; windows: number; canGrow: boolean; canShrink: boolean };
   /** This tab holds objects copied in Build › Select (so Paste has something to paste). */
   buildClip: boolean;
   /** What this device's mouse wheel does over objects in the Build tool (remembered in the browser). */
@@ -620,7 +623,7 @@ export class RoomClient {
       mapDataState: {},
       mapLoad: NO_MAP_LOAD,
       table: NO_TABLE_SETTINGS,
-      buildSel: { objects: 0, doors: 0, canGrow: false, canShrink: false },
+      buildSel: { objects: 0, doors: 0, windows: 0, canGrow: false, canShrink: false },
       buildClip: false,
       wheelTurns: displayKey === null ? loadWheelTurns() : "auto",
       objectSnap: displayKey === null ? loadObjectSnap() : true,

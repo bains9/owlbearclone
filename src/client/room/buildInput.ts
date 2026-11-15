@@ -12,6 +12,14 @@ export interface SelectReturn {
   buildMode: BuildMode;
 }
 
+/** What a click on a wall makes in Doors, as the controls along the bottom name it. */
+const DOOR_STYLE_WORDS: Record<BuildOptions["doorStyle"], string> = {
+  open: "opening",
+  door: "door",
+  secret: "secret door",
+  window: "window",
+};
+
 /** The Build tool's modes, as the bar names them. */
 export const BUILD_MODE_LABELS: Record<BuildMode, string> = {
   building: "Building",
@@ -258,7 +266,7 @@ export function isMacPlatform(platform: string, userAgent: string): boolean {
  */
 export function buildHints(
   o: BuildOptions,
-  sel: { objects: number; doors: number },
+  sel: { objects: number; doors: number; windows?: number },
   env: { mac: boolean; wheel: WheelPref; backLabel: string },
 ): [string, string][] {
   const mod = env.mac ? "⌘" : "Ctrl";
@@ -288,7 +296,7 @@ export function buildHints(
     }
     case "doors":
       return [
-        ["Click a wall", o.doorStyle === "open" ? "opening" : o.doorStyle === "secret" ? "secret door" : "door"],
+        ["Click a wall", DOOR_STYLE_WORDS[o.doorStyle]],
         ["Click it again, or Alt+click", "take it away"],
         pan,
         zoom,
@@ -334,7 +342,10 @@ export function buildHints(
           ["Esc", "deselect"],
         ];
       }
-      if (sel.doors) return [["Del", "remove door"], ["Esc", "deselect"], ["Wheel", "zoom"], back];
+      if (sel.doors) {
+        const what = !sel.windows ? "remove door" : sel.windows === sel.doors ? "remove window" : "remove them";
+        return [["Del", what], ["Esc", "deselect"], ["Wheel", "zoom"], back];
+      }
       return [
         ["Click", "select"],
         ["Shift+click", "add"],
@@ -370,11 +381,17 @@ export function pickUnder<T>(under: T[], selectedAlone: (t: T) => boolean): T | 
   return under[k >= 0 ? (k + 1) % under.length : 0];
 }
 
-/** What Build › Select's bar says is selected: "Nothing selected", "1 object", "2 objects, 1 door". */
-export function selectionStatus(sel: { objects: number; doors: number }): string {
+/**
+ * What Build › Select's bar says is selected: "Nothing selected", "1 object", "2 objects, 1 door",
+ * "1 window". `doors` counts the windows too; `windows` says how many of them are windows.
+ */
+export function selectionStatus(sel: { objects: number; doors: number; windows?: number }): string {
   const parts: string[] = [];
+  const windows = sel.windows ?? 0;
+  const doors = sel.doors - windows;
   if (sel.objects) parts.push(`${sel.objects} object${sel.objects === 1 ? "" : "s"}`);
-  if (sel.doors) parts.push(`${sel.doors} door${sel.doors === 1 ? "" : "s"}`);
+  if (doors) parts.push(`${doors} door${doors === 1 ? "" : "s"}`);
+  if (windows) parts.push(`${windows} window${windows === 1 ? "" : "s"}`);
   return parts.length ? parts.join(", ") : "Nothing selected";
 }
 
@@ -389,7 +406,7 @@ export const BUILD_TOASTS = {
   tooBig: "Those objects don't fit on this scene.",
   nothingToPaste: "Nothing to paste: select objects and press Ctrl+C first.",
   pasteMode: "To paste objects, press X for Select first.",
-  doorDrag: "Doors can't be moved: delete this one and place a new one with Doors.",
+  doorDrag: "Doors and windows can't be moved: delete this one and place a new one with Doors.",
   eraserBuilt:
     "This eraser takes drawings, notes and tokens. To erase floors, walls or objects you built, use Erase in the Build tool (B): in Building, Terrain or Objects.",
   /** Move & select clicked on an object built into the map, which it passes over. */

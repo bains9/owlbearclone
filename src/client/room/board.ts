@@ -49,7 +49,7 @@ import {
   toggleHidden,
   toggleLocked,
 } from "./actions";
-import type { BoardApi, BuildAction, RoomClient, RoomState } from "./client";
+import type { BoardApi, BuildAction, BuildOptions, RoomClient, RoomState } from "./client";
 import { COMPASS_SIZE_STEP, compassesKey, drawCompass, inCompassCore, sizeBy, tokenCovers, turnBy } from "./compass";
 import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
@@ -172,6 +172,13 @@ const STROKE_PIECE_POINTS = 1500;
 
 /** Shown once per page load: the hint that doors can't be dragged, and each Build mode's touch hint. */
 let doorDragWarned = false;
+/** Under the pointer in Doors, what a click there makes (a click with Alt takes it away). */
+const DOOR_HOVER_COLORS: Record<BuildOptions["doorStyle"], string> = {
+  open: REMOVE_COLOR,
+  door: "#d9a066",
+  secret: "#c77dff",
+  window: "#8fd0ec",
+};
 const touchHintsShown = new Set<string>();
 
 interface Camera {
@@ -2536,7 +2543,7 @@ export class Board implements BoardApi {
     } else if (o.mode === "doors") {
       const e = this.nearestWallEdge(p);
       if (this.edgeOnScene(e.col, e.row, e.side)) {
-        const color = alt ? "#e7e9ee" : o.doorStyle === "open" ? REMOVE_COLOR : o.doorStyle === "secret" ? "#c77dff" : "#d9a066";
+        const color = alt ? "#e7e9ee" : DOOR_HOVER_COLORS[o.doorStyle];
         const x0 = X(e.col);
         const y0 = Y(e.row);
         line({ x0, y0, x1: e.side === "t" ? X(e.col + 1) : x0, y1: e.side === "t" ? y0 : Y(e.row + 1) }, color, 0.75);
@@ -4882,10 +4889,11 @@ export class Board implements BoardApi {
     const next = {
       objects: this.buildSel.objects.length,
       doors: this.buildSel.doors.length,
+      windows: this.buildSel.doors.filter((d) => this.build.model.doorStyle(d) === "window").length,
       canGrow: canResize(this.selPlaced, 1),
       canShrink: canResize(this.selPlaced, -1),
     };
-    if (next.objects !== cur.objects || next.doors !== cur.doors || next.canGrow !== cur.canGrow || next.canShrink !== cur.canShrink) {
+    if (next.objects !== cur.objects || next.doors !== cur.doors || next.windows !== cur.windows || next.canGrow !== cur.canGrow || next.canShrink !== cur.canShrink) {
       this.room.store.set({ buildSel: next });
     }
   }

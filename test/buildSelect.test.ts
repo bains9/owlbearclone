@@ -276,3 +276,28 @@ describe("drawing an object where it stands", () => {
     expect(c.log.slice(0, 4)).toEqual(["save()", "translate(210,210)", `rotate(${fmt(Math.PI / 2 + Math.PI / 12)})`, "scale(105,105)"]);
   });
 });
+
+describe("drawing a window", () => {
+  it("paints its glass between two posts of wall, where a door would go", () => {
+    // A window on the line along the top of (6, 1), with no floor round it (floors need a real canvas).
+    const edges = [...noEdges];
+    edges[edge(6, 1, "t")] = "g";
+    const r = new BuildRenderer();
+    r.update([chunk(0, 0, { edges: edges.join("") })]);
+    const c = fakeContext();
+    r.draw(c, scene, { x0: 0, y0: 0, x1: scene.width, y1: scene.height }, 2, 2, true);
+    const glass = c.log.indexOf('fillStyle="#aad7eb"');
+    expect(glass).toBeGreaterThan(0);
+    // The pane: from 0.15 to 0.85 of the square along the line (squares of 70), a little either side of it.
+    expect(c.log.slice(0, glass).reverse().find((l) => l.startsWith("rect("))).toBe("rect(430.5,64.75,49,10.5)");
+    // And no door there.
+    expect(c.log).not.toContain('fillStyle="#9a6532"');
+  });
+
+  it("is a button in the Doors bar", async () => {
+    const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
+    const bar = fs.readFileSync(new URL("../src/client/ui/Toolbar.tsx", import.meta.url), "utf8");
+    expect(bar).toContain('onClick={() => set({ doorStyle: "window" })}');
+    expect(bar).toContain('aria-label="Window"');
+  });
+});

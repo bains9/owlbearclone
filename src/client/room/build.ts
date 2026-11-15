@@ -172,7 +172,7 @@ export interface StampRef {
   key: string;
 }
 
-/** A door or secret door: the cell whose top ("t") or left ("l") edge it's on. */
+/** A door, secret door or window: the cell whose top ("t") or left ("l") edge it's on. */
 export interface DoorRef {
   col: number;
   row: number;
@@ -180,7 +180,7 @@ export interface DoorRef {
 }
 
 export interface DoorHit extends DoorRef {
-  style: "door" | "secret";
+  style: "door" | "secret" | "window";
 }
 
 /** What an edit did to one object: where it was and what it was, and the same after. */
@@ -253,6 +253,8 @@ export interface BuildDraft {
 const NONE = 0;
 const WALL = 1;
 const DOOR = 2;
+/** A window: stops tokens as a wall does, but sight and light go through it. */
+const WINDOW = 3;
 
 /** Reads a scene's build, with the draft (if any) on top. */
 export class BuildModel {
@@ -310,11 +312,12 @@ export class BuildModel {
     return list.some((t) => t.edges[i] === "s");
   }
 
-  /** What an edge shows: nothing, a wall or a door. */
+  /** What an edge shows: nothing, a wall, a door or a window. */
   state(col: number, row: number, side: Side): number {
     const e = this.edge(col, row, side);
     if (e === "w") return WALL;
     if (e === "d" || e === "D") return DOOR;
+    if (e === "g" || e === "G") return WINDOW;
     if (e === "o") return NONE;
     const [ac, ar] = across(col, row, side);
     const a = this.cell(col, row);
@@ -405,11 +408,17 @@ export class BuildModel {
   /**
    * The built walls and doors, for line of sight (vision.ts), as lines in cells [col0, row0, col1,
    * row1]: every edge of every chunk's cells, and the edges along their right and bottom too. As
-   * stored (no draft). A secret door is a wall here, for players and the GM alike.
+   * stored (no draft). A secret door is a wall here, for players and the GM alike. Windows are
+   * apart: sight and light go through them, tokens don't.
    */
-  sightLines(): { walls: [number, number, number, number][]; doors: { key: number; line: [number, number, number, number] }[] } {
+  sightLines(): {
+    walls: [number, number, number, number][];
+    doors: { key: number; line: [number, number, number, number] }[];
+    windows: [number, number, number, number][];
+  } {
     const walls: [number, number, number, number][] = [];
     const doors: { key: number; line: [number, number, number, number] }[] = [];
+    const windows: [number, number, number, number][] = [];
     const draft = this.draft;
     this.draft = null;
     const seen = new Set<number>();
@@ -428,6 +437,7 @@ export class BuildModel {
               if (s === NONE) continue;
               const line: [number, number, number, number] = side === "t" ? [col, row, col + 1, row] : [col, row, col, row + 1];
               if (s === DOOR) doors.push({ key, line });
+              else if (s === WINDOW) windows.push(line);
               else walls.push(line);
             }
           }
@@ -436,19 +446,20 @@ export class BuildModel {
     } finally {
       this.draft = draft;
     }
-    return { walls, doors };
+    return { walls, doors, windows };
   }
 
-  /** What an edge is now: a door, a secret door, or neither. */
-  doorStyle(d: DoorRef): "door" | "secret" | null {
+  /** What an edge is now: a door, a secret door, a window, or none of them. */
+  doorStyle(d: DoorRef): "door" | "secret" | "window" | null {
     const e = this.edge(d.col, d.row, d.side);
     if (e === "d" || e === "D") return "door";
+    if (e === "g" || e === "G") return "window";
     return this.state(d.col, d.row, d.side) === WALL && this.secret(d.col, d.row, d.side) ? "secret" : null;
   }
 
   /**
-   * The door or secret door on the grid line nearest a point (in cells, fractional), if
-   * it's within reach cells of it; of the lines across and down, the nearer. Openings and
+   * The door, secret door or window on the grid line nearest a point (in cells, fractional),
+   * if it's within reach cells of it; of the lines across and down, the nearer. Openings and
    * walls are never found. (Secret doors always are: only the GM builds, and never in
    * Player view.)
    */
@@ -1017,14 +1028,15 @@ export class BuildEdit {
   }
 
   /**
-   * Takes away each door or secret door, leaving what was there before it (a wall, or
-   * nothing); anything else (an opening, a wall, nothing) is skipped. Returns how many.
+   * Takes away each door, secret door or window, leaving what was there before it (a wall,
+   * or nothing); anything else (an opening, a wall, nothing) is skipped. Returns how many.
    */
   removeDoors(doors: DoorRef[]): number {
     let n = 0;
     for (const { col, row, side } of doors) {
       const e = this.edge(col, row, side);
-      if (e !== "d" && e !== "D" && !(this.isWall(col, row, side) && this.secret(col, row, side))) continue;
+      const portal = e === "d" || e === "D" || e === "g" || e === "G";
+      if (!portal && !(this.isWall(col, row, side) && this.secret(col, row, side))) continue;
       setPortal(this, col, row, side, "wall");
       n++;
     }
@@ -1288,46 +1300,55 @@ export function opsBetween(now: ItemMap, final: ItemMap, ids: Iterable<string>):
 }
 
 /** What a click with the Doors tool makes of a grid line (named after Dungeondraft's portal styles). */
-export type PortalStyle = "open" | "door" | "secret" | "wall";
+export type PortalStyle = "open" | "door" | "secret" | "window" | "wall";
 
 /**
- * Doors: puts a door, a secret door or an opening in a wall, or (style "wall") takes one
- * away again. Choosing the style a line already has also takes it away. What each leaves
- * behind is stored with it, so taking it away puts back exactly what was there: a door
- * cut into a hand-drawn wall is "D", an opening is "o", and a secret door is the wall it's
- * in plus a hidden flag.
+ * Doors: puts a door, a secret door, a window or an opening in a wall, or (style "wall")
+ * takes one away again. Choosing the style a line already has also takes it away. What
+ * each leaves behind is stored with it, so taking it away puts back exactly what was there:
+ * a door cut into a hand-drawn wall is "D" (a window "G"), an opening is "o", and a secret
+ * door is the wall it's in plus a hidden flag.
  */
 export function setPortal(edit: BuildEdit, col: number, row: number, side: Side, style: PortalStyle): void {
   const e = edit.edge(col, row, side);
   const auto = edit.autoWall(col, row, side);
   const isDoor = e === "d" || e === "D";
+  const isWindow = e === "g" || e === "G";
   const isSecret = edit.isWall(col, row, side) && edit.secret(col, row, side);
   const isOpening = e === "o";
-  if (style === "wall" || (style === "door" && isDoor) || (style === "secret" && isSecret) || (style === "open" && isOpening)) {
+  if (
+    style === "wall" ||
+    (style === "door" && isDoor) ||
+    (style === "window" && isWindow) ||
+    (style === "secret" && isSecret) ||
+    (style === "open" && isOpening)
+  ) {
     if (isSecret) {
       // Players have seen a wall there all along: it simply stops being secret.
       edit.setSecret(col, row, side, false);
-    } else if (isDoor) {
-      edit.setEdge(col, row, side, e === "D" ? "w" : EMPTY);
+    } else if (isDoor || isWindow) {
+      edit.setEdge(col, row, side, e === "D" || e === "G" ? "w" : EMPTY);
     } else if (isOpening) {
       edit.setEdge(col, row, side, auto ? EMPTY : "w");
     }
     // Where there was nothing to take away, nothing changes.
-  } else if (style === "door") {
-    // Remember a hand-drawn wall under the door, to put it back if the door goes.
-    const drawn = e === "w" || e === "D" || (isOpening && !auto) || (isSecret && e === "w" && !auto);
-    edit.setEdge(col, row, side, drawn ? "D" : "d");
+  } else if (style === "door" || style === "window") {
+    // Remember a hand-drawn wall under the door or window, to put it back if it goes.
+    const drawn = e === "w" || e === "D" || e === "G" || (isOpening && !auto) || (isSecret && e === "w" && !auto);
+    const cut = style === "door" ? "D" : "G";
+    const bare = style === "door" ? "d" : "g";
+    edit.setEdge(col, row, side, drawn ? cut : bare);
     edit.setSecret(col, row, side, false);
   } else if (style === "secret") {
     // Players see a secret door as the wall it's in.
     edit.setEdge(col, row, side, auto ? EMPTY : "w");
     edit.setSecret(col, row, side, true);
-  } else if (edit.isWall(col, row, side) || e === "D" || (e === "d" && auto)) {
+  } else if (edit.isWall(col, row, side) || e === "D" || e === "G" || ((e === "d" || e === "g") && auto)) {
     // An opening: a gap in a wall, an archway.
     edit.setEdge(col, row, side, "o");
     edit.setSecret(col, row, side, false);
-  } else if (e === "d") {
-    // A door on a bare line: taking the door out leaves the bare line.
+  } else if (e === "d" || e === "g") {
+    // A door or window on a bare line: taking it out leaves the bare line.
     edit.setEdge(col, row, side, EMPTY);
   }
   // Otherwise (an opening where there's no wall): nothing to open.
@@ -1603,6 +1624,9 @@ const CACHE_CELL_PX = 40;
 const DIRECT_MAX_CELLS = 4000;
 const WALL_COLOR = "#1d1a17";
 const DOOR_COLOR = "#9a6532";
+/** A window's glass (as Dungeon draws one), and the bar along the middle of it. */
+const WINDOW_COLOR = "#aad7eb";
+const WINDOW_BAR_COLOR = "rgba(255, 255, 255, 0.7)";
 const SECRET_COLOR = "#c77dff";
 
 /**
@@ -1686,6 +1710,8 @@ interface ChunkGeom {
   doors: number[];
   /** Walls that are secret doors (GM only), the same way. */
   secrets: number[];
+  /** Windows, the same way. */
+  windows: number[];
 }
 
 export class BuildRenderer {
@@ -1950,11 +1976,12 @@ export class BuildRenderer {
     const walls: number[] = [];
     const doors: number[] = [];
     const secrets: number[] = [];
+    const windows: number[] = [];
     const x0 = cx * CHUNK;
     const y0 = cy * CHUNK;
-    const door = (col: number, row: number, side: 0 | 1) => {
-      doors.push(col, row, side);
-      // A short piece of wall each side of the door, so it sits in the wall line.
+    const door = (col: number, row: number, side: 0 | 1, into = doors) => {
+      into.push(col, row, side);
+      // A short piece of wall each side of the door (or window), so it sits in the wall line.
       if (side === 0) walls.push(col, row, col + 0.15, row, col + 0.85, row, col + 1, row);
       else walls.push(col, row, col, row + 0.15, col, row + 0.85, col, row + 1);
     };
@@ -1971,6 +1998,7 @@ export class BuildRenderer {
           if (run >= 0) walls.push(run, row, col, row);
           run = -1;
           if (st === DOOR) door(col, row, 0);
+          else if (st === WINDOW) door(col, row, 0, windows);
         }
       }
     }
@@ -1987,10 +2015,11 @@ export class BuildRenderer {
           if (run >= 0) walls.push(col, run, col, row);
           run = -1;
           if (st === DOOR) door(col, row, 1);
+          else if (st === WINDOW) door(col, row, 1, windows);
         }
       }
     }
-    return walls.length || doors.length ? { walls, doors, secrets } : null;
+    return walls.length || doors.length || windows.length ? { walls, doors, secrets, windows } : null;
   }
 
   /** Whether there's anything to draw at all. */
@@ -2357,6 +2386,7 @@ export class BuildRenderer {
     const walls = new Path2D();
     const doors: number[] = [];
     const secrets: number[] = [];
+    const windows: number[] = [];
     let any = false;
     // Chunks that exist, the draft's, and the ones to their right and below (whose
     // edges border them): those are the only places walls can be.
@@ -2379,9 +2409,10 @@ export class BuildRenderer {
         any = true;
       }
       doors.push(...geo.doors);
+      windows.push(...geo.windows);
       if (gmView) secrets.push(...geo.secrets);
     }
-    if (!any && !doors.length) return;
+    if (!any && !doors.length && !windows.length) return;
     const lw = Math.max(size * 0.13, 1.5 / scale);
     c.lineCap = "square";
     c.lineJoin = "miter";
@@ -2420,6 +2451,33 @@ export class BuildRenderer {
       c.fill();
       c.strokeStyle = WALL_COLOR;
       c.lineWidth = Math.max(size * 0.03, 1 / scale);
+      c.stroke();
+    }
+
+    // A pane of glass between the posts, a little wider than the wall so its frame shows, with its glazing bar along it.
+    const pane = size * 0.075;
+    for (let i = 0; i < windows.length; i += 3) {
+      const col = windows[i];
+      const row = windows[i + 1];
+      const top = windows[i + 2] === 0;
+      c.beginPath();
+      if (top) c.rect(X(col + 0.15), Y(row) - pane, size * 0.7, pane * 2);
+      else c.rect(X(col) - pane, Y(row + 0.15), pane * 2, size * 0.7);
+      c.fillStyle = WINDOW_COLOR;
+      c.fill();
+      c.strokeStyle = WALL_COLOR;
+      c.lineWidth = Math.max(size * 0.025, 1 / scale);
+      c.stroke();
+      c.beginPath();
+      if (top) {
+        c.moveTo(X(col + 0.15), Y(row));
+        c.lineTo(X(col + 0.85), Y(row));
+      } else {
+        c.moveTo(X(col), Y(row + 0.15));
+        c.lineTo(X(col), Y(row + 0.85));
+      }
+      c.strokeStyle = WINDOW_BAR_COLOR;
+      c.lineWidth = Math.max(size * 0.012, 0.75 / scale);
       c.stroke();
     }
 

@@ -52,10 +52,12 @@ export interface SightGeometry {
   spots: SceneLight[];
 }
 
-/** The walls and doors built in Build mode, in squares (BuildModel.sightLines). */
+/** The walls, doors and windows built in Build mode, in squares (BuildModel.sightLines). */
 export interface BuiltSight {
   walls: readonly (readonly number[])[];
   doors: readonly { key: number; line: readonly number[] }[];
+  /** Stop tokens, not sight or light. */
+  windows?: readonly (readonly number[])[];
 }
 
 /**
@@ -137,7 +139,9 @@ export class BoardSight {
     const doors = doorSpots(v, built.doors.map((d) => ({ key: d.key, line: toScene(d.line) })));
     const area = sceneBounds(scene);
     const index = new WallIndex(blockers([...fixed, ...zoneWalls], doors), area, size * 2);
-    const moveIndex = new WallIndex(blockers(fixed, doors), area, size * 2);
+    // Windows stop a token as a wall does, but sight and light go through them.
+    const windows = (built.windows ?? []).map(toScene);
+    const moveIndex = new WallIndex(blockers([...fixed, ...windows], doors), area, size * 2);
     // The map's lights and the spell zones' lights, less any a darkness puts out.
     const dark = zoneList.filter((z) => ZONE_LOOKS[z.look].sight === "dark");
     const spots = v.daylight

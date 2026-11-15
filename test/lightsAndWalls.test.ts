@@ -5,6 +5,7 @@ import { GUIDE } from "../src/client/guide";
 import { visionFromSight } from "../src/client/importScenes";
 import { lightColor, parseUniversalVtt } from "../src/client/mapImport";
 import { nudgeSelection } from "../src/client/room/actions";
+import { BoardSight } from "../src/client/room/boardSight";
 import { RoomClient } from "../src/client/room/client";
 import { WallIndex, blockers, doorSpots, flickerAt, lightNear, moveStop, segmentsOf, toggledDoor } from "../src/client/room/vision";
 import { DEFAULT_GRID, DEFAULT_SETTINGS, GM_OWNER, sanitizeVision } from "../src/shared/sanitize";
@@ -85,6 +86,22 @@ describe("walls that stop tokens", () => {
     expect(moveStop(index, 200, 300, 400, 450, 5)).toEqual([400, 450]);
   });
 
+  it("stop a token at a built window, which sight and light go through", () => {
+    // A window one square long (squares of 100) across the middle, from x 500 to 600 at y 500.
+    const scene: Scene = { id: "scene1", name: "Keep", order: 0, mapAssetId: null, width: 1000, height: 1000, background: "#000000", grid: { ...DEFAULT_GRID, size: 100, offsetX: 0, offsetY: 0 }, fogCover: false, createdAt: 0 };
+    const lit: SceneVision = { ...VISION, lights: [{ x: 550, y: 300, r: 600 }] };
+    const geom = new BoardSight({} as RoomClient).geometry(scene, lit, {}, "", () => ({ walls: [], doors: [], windows: [[5, 5, 6, 5]] }), () => []);
+    // A token walking at it stops short; one beside it walks on.
+    expect(moveStop(geom.moveIndex, 550, 300, 550, 700, 5)[1]).toBeCloseTo(495);
+    expect(moveStop(geom.moveIndex, 300, 300, 300, 700, 5)).toEqual([300, 700]);
+    // Sight has only the scene's edges in its way, and the light reaches the far side through the glass.
+    expect(geom.moveIndex.segs).toContainEqual([500, 500, 600, 500]);
+    expect(geom.index.segs).not.toContainEqual([500, 500, 600, 500]);
+    expect(geom.index.segs).toHaveLength(geom.moveIndex.segs.length - 1);
+    const poly = geom.lights[0];
+    expect(Math.max(...poly.filter((_, i) => i % 2 === 1))).toBeGreaterThan(800);
+  });
+
   it("let it through a door once it's open", () => {
     const open = indexOf(toggledDoor(v, doorSpots(v, [])[0]));
     expect(moveStop(open, 500, 300, 500, 700, 5)).toEqual([500, 700]);
@@ -127,9 +144,10 @@ describe("walls that stop tokens", () => {
     expect(board).toContain("const [x, y] = moveStop(walls, from.x, from.y, p.x, p.y, scene.grid.size * WALL_GAP);");
     expect(board).toContain("if (walls) p = this.stoppedAt(walls, g.at.get(id) ?? o, p, item.size, scene, snap);");
     expect(board).toContain("nudgeSelection(room, 0, 1, this.stepBlocked);");
-    // Fog and darkness stop sight, not tokens.
+    // Fog and darkness stop sight, not tokens; built windows stop tokens, not sight.
     const sight = await readFile(new URL("../src/client/room/boardSight.ts", import.meta.url), "utf8");
-    expect(sight).toContain("const moveIndex = new WallIndex(blockers(fixed, doors), area, size * 2);");
+    expect(sight).toContain("const index = new WallIndex(blockers([...fixed, ...zoneWalls], doors), area, size * 2);");
+    expect(sight).toContain("const moveIndex = new WallIndex(blockers([...fixed, ...windows], doors), area, size * 2);");
     // The lights' glow, under the tokens; a flickering one keeps the layer drawing.
     expect(board).toContain("this.drawLightGlows(native(ctx));");
     expect(board).toContain("const flicker = !!v?.on && !v.daylight && v.lights.some((l) => l.flicker);");
@@ -138,7 +156,7 @@ describe("walls that stop tokens", () => {
 
 describe("in the guide and Edit scene", () => {
   it("leads What's new, and says how to colour a light, make it flicker, and let tokens through", async () => {
-    expect(GUIDE[0].parts[17].title).toBe("Coloured and flickering lights, and walls that stop tokens (31 October 2026)");
+    expect(GUIDE[0].parts[18].title).toBe("Coloured and flickering lights, and walls that stop tokens (31 October 2026)");
     const lighting = JSON.stringify(GUIDE.find((s) => s.id === "lighting"));
     for (const words of ["Lights (GM)", "**Flickers**", "**Plain**", "Walls stop tokens", "**Walls and shut doors stop players' tokens**"]) expect(lighting).toContain(words);
     const settings = await readFile(new URL("../src/client/ui/LightingSettings.tsx", import.meta.url), "utf8");

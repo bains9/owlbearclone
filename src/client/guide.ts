@@ -16,8 +16,20 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 8 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "Windows in the walls you build (15 November 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Doors**, then **Window**.",
+          "Click a wall: a pane of glass goes in, one square long."
+        ],
+        "notes": [
+          "With lighting on, players see through a window and light shines through it, but their tokens can't pass it, as with a wall.",
+          "Click it again with **Window**, or Alt+click it, to put the wall back. In **Select** (**X**), click it and press **Delete**.",
+          "Also new: clicking something you built with **Move & select** says how to move or delete it (press **X** for the Build tool's **Select**). And where an object stands over a door, a second click in **Select** picks the object, and dragging there moves it."
+        ]
+      },
       {
         "title": "Take the party to another map (8 November 2026)",
         "steps": [
@@ -1382,7 +1394,8 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "A token standing on the marker is picked instead: move it aside first.",
-          "Secret doors made with the Build tool are walls to the players' sight."
+          "Secret doors made with the Build tool are walls to the players' sight.",
+          "Windows made with the Build tool have no marker: players always see through them, and their tokens are stopped by them as by walls."
         ]
       },
       {
@@ -3172,14 +3185,15 @@ export const GUIDE: GuideSection[] = [
         ]
       },
       {
-        "title": "Doors, secret doors and openings",
+        "title": "Doors, secret doors, windows and openings",
         "steps": [
           "Pick **Doors**.",
-          "Pick a style: **Door**, **Secret** (a secret door) or **Opening** (the X: a gap in the wall).",
+          "Pick a style: **Opening** (the X: a gap in the wall), **Door**, **Secret** (a secret door) or **Window**.",
           "Click a wall. The wall nearest your click is used, so you don't need to hit the line exactly."
         ],
         "notes": [
-          "To take a door, secret door or opening away again, click it with the same style, or hold **Alt** and click it. It goes back to exactly what was there: the wall it was cut into, or a bare grid line. A secret door just stops being secret, leaving the wall players have seen all along. Alt+click where there's no door or opening does nothing.",
+          "To take a door, secret door, window or opening away again, click it with the same style, or hold **Alt** and click it. It goes back to exactly what was there: the wall it was cut into, or a bare grid line. A secret door just stops being secret, leaving the wall players have seen all along. Alt+click where there's no door, window or opening does nothing.",
+          "A window is a pane of glass in the wall, one square long. With lighting on, players see through it and light shines through it, but their tokens can't pass it, as with a wall. It never opens: to let them through, make it a door.",
           "Players see a secret door as an ordinary wall; you see it marked with a purple **S**. Their browsers are never even told it's there.",
           "An opening only goes where there's a wall to open.",
           "To see the map as players do, pick **Fog of war** and click **Player view**: the secret doors' marks disappear."
@@ -3240,7 +3254,7 @@ export const GUIDE: GuideSection[] = [
           "Selected objects have a blue outline, and the one under the pointer a yellow one, as in Dungeondraft. The bar has the same actions as buttons.",
           "With **Snap to squares** unticked, dragging moves them smoothly, the arrow keys move them a quarter square (**Shift**: a square), and **Ctrl+V** pastes centred on the pointer itself. Objects off the grid keep their place within the square when moved with it ticked.",
           "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, objects on the grid keep to it, so they can shift a little; turn on and they fall back into place. With **Snap to squares** unticked, or any of them off the grid, they turn exactly round their middle. Sizing sizes each object where it stands.",
-          "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected, so an object across a wall is picked like any other.",
+          "Doors, secret doors and windows can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected, so an object across a wall is picked like any other.",
           "Where an object covers a door, the first click picks the door (it's drawn on top) and a second click the object. Dragging there always moves the object.",
           "Each move, delete, duplicate or paste is one step for **Undo**, and so is each burst of turning, sizing or nudging. Undo also clears the selection.",
           "With nothing selected, the mouse wheel zooms as usual. With objects selected it turns them; **Ctrl** and the wheel always zoom. If your wheel or trackpad moves the map instead, hold **Z** while you scroll, or see **Place objects**.",

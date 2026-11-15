@@ -12,6 +12,7 @@ import {
   DoorOpen,
   Expand,
   FileUp,
+  Grid2x2,
   Hammer,
   Lasso,
   RedoDot,
@@ -337,7 +338,7 @@ function FogOptions() {
 const BUILD_MODES: { id: BuildOpts["mode"]; label: string; title: string; icon: typeof Pencil }[] = [
   { id: "building", label: BUILD_MODE_LABELS.building, title: "Building: rooms with walls round them (like Dungeondraft's Building tool)", icon: Castle },
   { id: "walls", label: BUILD_MODE_LABELS.walls, title: "Walls: along grid lines (like Dungeondraft's Wall tool)", icon: BrickWall },
-  { id: "doors", label: BUILD_MODE_LABELS.doors, title: "Doors, secret doors and openings in walls (like Dungeondraft's Portal tool)", icon: DoorOpen },
+  { id: "doors", label: BUILD_MODE_LABELS.doors, title: "Doors, secret doors, windows and openings in walls (like Dungeondraft's Portal tool)", icon: DoorOpen },
   { id: "terrain", label: BUILD_MODE_LABELS.terrain, title: "Terrain: grass, water and lava, under buildings (like Dungeondraft's Terrain brush)", icon: Trees },
   { id: "stamps", label: BUILD_MODE_LABELS.stamps, title: "Objects: furniture and scenery (like Dungeondraft's Object tool)", icon: Armchair },
   {
@@ -599,6 +600,15 @@ function BuildOptions() {
             onClick={() => set({ doorStyle: "secret" })}
           >
             <span class="secret-mark">S</span> <span class="seg-label">Secret</span>
+          </button>
+          <button
+            class={cx("seg-btn wide", o.doorStyle === "window" && "active")}
+            title="Window: tokens can't pass, but sight and light go through"
+            aria-label="Window"
+            aria-pressed={o.doorStyle === "window"}
+            onClick={() => set({ doorStyle: "window" })}
+          >
+            <Grid2x2 size={16} /> <span class="seg-label">Window</span>
           </button>
         </div>
       )}

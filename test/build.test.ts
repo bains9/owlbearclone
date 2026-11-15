@@ -3,7 +3,7 @@ import { applyOps, inverseOps } from "../src/shared/ops";
 import type { ItemMap } from "../src/shared/ops";
 import { canCreate, canDelete, canPatch, visibleToPlayer } from "../src/shared/permissions";
 import { DEFAULT_SETTINGS, sanitizeItem, sanitizeSet } from "../src/shared/sanitize";
-import { MAX_STAMPS_PER_CHUNK, chunkOf, cleanStamps, inChunk, looksLikeTerrainId, makeStamp, sceneCells, snapDeg, snapSize, stampBlock, stampDeg, terrainId } from "../src/shared/terrain";
+import { MAX_STAMPS_PER_CHUNK, chunkOf, cleanStamps, hasWindows, inChunk, looksLikeTerrainId, makeStamp, sceneCells, snapDeg, snapSize, stampBlock, stampDeg, terrainId } from "../src/shared/terrain";
 import type { Stamp } from "../src/shared/terrain";
 import type { TerrainItem } from "../src/shared/types";
 import {
@@ -499,6 +499,84 @@ describe("door styles (the Portal tool)", () => {
     const e = new BuildEdit(room(), SCENE);
     setPortal(e, 8, 8, "t", "open");
     expect(e.ops()).toEqual({});
+  });
+});
+
+describe("windows (the Portal tool's Window)", () => {
+  // A stone cell at (1,1): its top edge (index 34) has an automatic wall.
+  const room = () => toMap([chunk(0, 0, { cells: cellsWith([[1, 1, "s"]]) })]);
+  const apply = (items: ItemMap, style: Parameters<typeof setPortal>[4], col = 1, row = 1, side: "t" | "l" = "t") => {
+    const e = new BuildEdit(items, SCENE);
+    setPortal(e, col, row, side, style);
+    return applyOps(items, e.ops());
+  };
+  const edge = (items: ItemMap, i = 34) => (items[terrainId(SCENE, 0, 0)] as TerrainItem).edges[i];
+  const model = (items: ItemMap) => {
+    const m = new BuildModel();
+    m.index = indexTerrain(Object.values(items) as TerrainItem[]);
+    return m;
+  };
+
+  it("puts a window in a wall, and Window again (or Alt) gives the wall back", () => {
+    const win = apply(room(), "window");
+    expect(edge(win)).toBe("g");
+    expect(edge(apply(win, "window"))).toBe(".");
+    expect(edge(apply(win, "wall"))).toBe(".");
+  });
+
+  it("in a hand-drawn wall, remembers it, and puts it back when taken away", () => {
+    const e = new BuildEdit(room(), SCENE);
+    setWall(e, 6, 6, "t", "add");
+    const drawn = applyOps(room(), e.ops());
+    const i = (6 * 16 + 6) * 2;
+    const win = apply(drawn, "window", 6, 6, "t");
+    expect(edge(win, i)).toBe("G");
+    expect(edge(apply(win, "window", 6, 6, "t"), i)).toBe("w");
+    expect(edge(apply(win, "wall", 6, 6, "t"), i)).toBe("w");
+    // Door to window and back keeps the wall underneath remembered.
+    expect(edge(apply(apply(drawn, "door", 6, 6, "t"), "window", 6, 6, "t"), i)).toBe("G");
+    expect(edge(apply(apply(win, "door", 6, 6, "t"), "door", 6, 6, "t"), i)).toBe("w");
+  });
+
+  it("turns into a door, a secret door or an opening, and they into a window", () => {
+    const win = apply(room(), "window");
+    expect(edge(apply(win, "door"))).toBe("d");
+    expect(edge(apply(win, "open"))).toBe("o");
+    const secret = apply(win, "secret");
+    expect(edge(secret)).toBe(".");
+    expect(Object.values(secret).some((t) => t.kind === "terrain" && t.hidden && t.edges[34] === "s")).toBe(true);
+    expect(edge(apply(apply(room(), "door"), "window"))).toBe("g");
+    expect(edge(apply(apply(room(), "open"), "window"))).toBe("g");
+  });
+
+  it("is a window to the model: found by a click, selectable, taken away by Delete", () => {
+    const win = apply(room(), "window");
+    const m = model(win);
+    expect(m.doorStyle({ col: 1, row: 1, side: "t" })).toBe("window");
+    expect(m.doorAt(1.5, 1.05, 0.2)).toEqual({ col: 1, row: 1, side: "t", style: "window" });
+    const e = new BuildEdit(win, SCENE);
+    expect(e.removeDoors([{ col: 1, row: 1, side: "t" }])).toBe(1);
+    expect(edge(applyOps(win, e.ops()))).toBe(".");
+  });
+
+  it("lets sight through but not tokens: it's in the sight lines' windows, not their walls", () => {
+    const m = model(apply(room(), "window"));
+    const lines = m.sightLines();
+    expect(lines.windows).toEqual([[1, 1, 2, 1]]);
+    expect(lines.walls).not.toContainEqual([1, 1, 2, 1]);
+    expect(lines.doors).toEqual([]);
+    // The cell's other three walls are still walls.
+    expect(lines.walls).toHaveLength(3);
+  });
+
+  it("is stored as the server allows, and needs this protocol's code", () => {
+    const win = apply(room(), "window");
+    const t = win[terrainId(SCENE, 0, 0)] as TerrainItem;
+    expect(sanitizeItem(t, "@gm")).toMatchObject({ edges: t.edges });
+    expect(hasWindows(t.edges)).toBe(true);
+    expect(hasWindows(noEdges.slice(0, 10) + "dD" + noEdges.slice(12))).toBe(false);
+    // Anything else in an edge is still refused.
+    expect(sanitizeItem({ ...t, edges: "x" + t.edges.slice(1) }, "@gm")).toBeNull();
   });
 });
 

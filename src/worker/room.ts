@@ -19,7 +19,7 @@ import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
 import { PROBLEM_LIMITS, addProblem } from "../shared/problems";
 import type { Problem } from "../shared/problems";
-import { isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
+import { hasWindows, isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid, switchUnits } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
 import { INITIATIVE_MAX } from "../shared/characters";
@@ -124,9 +124,17 @@ const DUNGEON_VERSION = 5;
  * chunks, can't change them, and are asked to reload, as with terrain.
  */
 const FREE_VERSION = 6;
+/**
+ * Windows in built walls need code from 15 November 2026 (9). Older code checks a chunk's
+ * edges against the five it knew and would drop the whole chunk: that part of the map would
+ * stop being drawn. Such tabs don't get those chunks, can't change them, and are asked to
+ * reload, as with terrain.
+ */
+const WINDOW_VERSION = 9;
 /** The oldest protocol version whose code can show this item. */
 function versionFor(item: Item): number {
   if (item.kind === "terrain") {
+    if (hasWindows(item.edges)) return WINDOW_VERSION;
     if (!stampsOnGrid(item.stamps)) return FREE_VERSION;
     return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;
   }
