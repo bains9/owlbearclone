@@ -1030,14 +1030,24 @@ export class Board implements BoardApi {
         x.setTransform(dw / aw, 0, 0, dh / ah, (-area.x0 * dw) / aw, (-area.y0 * dh) / ah);
         x.fillStyle = scene.background;
         x.fillRect(area.x0, area.y0, aw, ah);
+        // The picture alone: the built map's grass and floors aren't things on the ground.
         x.drawImage(img, 0, 0, scene.width, scene.height);
-        if (built) x.drawImage(built, area.x0, area.y0, aw, ah);
         x.setTransform(1, 0, 0, 1, 0, 0);
         try {
           const detail: PaintMap = { x0: area.x0, y0: area.y0, k: dw / aw, w: dw, h: dh, rgba: x.getImageData(0, 0, dw, dh).data };
           list = findThings(detail, picture, scene.grid.size);
+          // What the built map covers is the built map's: a painted tree under a built floor doesn't stand.
+          if (built && list.length) {
+            x.clearRect(0, 0, dw, dh);
+            x.drawImage(built, 0, 0, dw, dh);
+            const cover = x.getImageData(0, 0, dw, dh).data;
+            list = list.filter((f) => {
+              const i = Math.floor((f.x - area.x0) * (dw / aw)), j = Math.floor((f.y - area.y0) * (dh / ah));
+              return i < 0 || j < 0 || i >= dw || j >= dh || cover[(j * dw + i) * 4 + 3] < 128;
+            });
+          }
         } catch {
-          list = findThings(paint, picture, scene.grid.size);
+          list = [];
         }
       }
     }
