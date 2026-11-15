@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf53d42. Change it there and run the script again.
+// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon 0f2dfd5. Change it there and run the script again.
 // The builder's 3D view (14 November 2026): Dungeon shows the map being built in Table's own 3D
 // view, so there's one 3D view, not two. Dungeon frames Table's /look3d page and sends it the open
 // level as it changes; Table draws it as it draws a scene, with no fog and no tokens (a map maker
@@ -45,6 +45,11 @@ export interface LookMap {
   /** Walls, in the map's wall texture ("wall-stone"), as [x0, y0, x1, y1] in cells, cut where doors and arches are. */
   walls: number[][];
   wallTexture: string;
+  /**
+   * Each wall's own texture, one for each of `walls` (15 November 2026: a wall keeps the style it
+   * was built in). Missing (a Dungeon from before), or not one for each: every wall in wallTexture.
+   */
+  wallTextures?: string[];
   /** Cave edges, standing as rock in the floor's own colour. */
   rock: number[][];
   /** Doors, shut, as their lines. */
@@ -115,7 +120,11 @@ export function cleanLookMap(v: unknown, isBitmap: (b: unknown) => b is ImageBit
   if (!isBitmap(m.floor)) return null;
   const walls = lines(m.walls), rock = lines(m.rock), doors = lines(m.doors);
   if (!walls || !rock || !doors) return null;
-  if (typeof m.wallTexture !== "string" || !/^[a-z0-9-]{1,40}$/.test(m.wallTexture)) return null;
+  const isTexture = (t: unknown): t is string => typeof t === "string" && /^[a-z0-9-]{1,40}$/.test(t);
+  if (!isTexture(m.wallTexture)) return null;
+  // Each wall's own: kept only when there's one for each wall, every one a texture's id.
+  const own = m.wallTextures;
+  const wallTextures = Array.isArray(own) && own.length === walls.length && own.every(isTexture) ? own.slice() : undefined;
   if (!Array.isArray(m.objects) || m.objects.length > MAX_OBJECTS) return null;
   const objects: LookObject[] = [];
   for (const o of m.objects as Record<string, unknown>[]) {
@@ -133,5 +142,5 @@ export function cleanLookMap(v: unknown, isBitmap: (b: unknown) => b is ImageBit
     if (!Array.isArray(cell) || cell.length !== 2 || !Number.isInteger(cell[0]) || !Number.isInteger(cell[1])) return null;
     roofed.push([cell[0], cell[1]]);
   }
-  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, rock, doors, objects, roofed };
+  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, ...(wallTextures ? { wallTextures } : {}), rock, doors, objects, roofed };
 }

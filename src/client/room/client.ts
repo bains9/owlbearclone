@@ -22,6 +22,7 @@ import type { ItemMap } from "../../shared/ops";
 import { canDelete, canMove } from "../../shared/permissions";
 import type { ClientAction, ClientMsg, Ephemeral, ItemOps, MeasureShape, ScenePatch, ServerMsg } from "../../shared/protocol";
 import { CLOSE_DELETED, CLOSE_NOT_FOUND, PROTOCOL_VERSION } from "../../shared/protocol";
+import type { WallDraw } from "./build";
 import { cellSpacing, isHex, snapTokenCenter } from "../../shared/geometry";
 import type { Point } from "../../shared/geometry";
 import type {
@@ -124,8 +125,8 @@ export interface BuildOptions {
    * get walled in).
    */
   walls: Record<string, boolean>;
-  /** Walls: add them, or take them away (also where they'd be drawn automatically). */
-  wallMode: "add" | "remove";
+  /** Walls: add them, take them away (also where they'd be drawn automatically), or repaint them in the look picked. */
+  wallMode: WallDraw;
   /** Doors: what a click on a wall makes. */
   doorStyle: "open" | "door" | "secret" | "window";
   stamp: StampId;

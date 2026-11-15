@@ -16,7 +16,10 @@
 // - Floors: Dungeon's floor polygons, each with its holes joined in by a zero-width cut, since
 //   the extractor fills every floor polygon "nonzero" after turning it positive.
 // - Walls: the room outlines (type 0, closed) and hand-drawn walls (type 1) as Dungeon draws
-//   them, with their doors; doors on no wall are freestanding portals.
+//   them, with their doors; doors on no wall are freestanding portals. Each in its own texture
+//   (a Dungeon from 15 November 2026 on: a wall keeps the style it was built in): a wall's
+//   `style`, or where its style changes along it, `styles` a segment, and the wall is split
+//   there into one wall a style; from a Dungeon before, every wall in the map's wallStyle.
 // - Water: the edges as drawn, nested by containment into Dungeondraft's tree.
 // - Paths, objects and lights as placed. Objects' layers: on the floor 100, standing 200,
 //   overhead 700 (above walls, where Dungeondraft keeps treetops).
@@ -305,24 +308,45 @@ class Builder {
     const s = this.shapes;
     const wallTexture = this.ref("walls", typeof this.root.wallStyle === "string" ? `wall-${this.root.wallStyle}` : null);
     const walls: Wall[] = [];
-    // Index in shapes.walls -> index in `walls`, for doors.
-    const byShape = new Map<number, number>();
+    // Index in shapes.walls -> the walls made of it (one, or one a style), each with the segments it has, for doors.
+    const byShape = new Map<number, { from: number; to: number; wall: number }[]>();
     arr(s.walls).forEach((w, i) => {
       if (!isObj(w) || !this.item()) return;
       const points = this.line(w.points, 2);
       if (!points) return;
-      byShape.set(i, walls.length);
-      walls.push({
-        points,
-        texture: wallTexture,
-        color: null,
-        loop: w.closed === true,
-        type: w.kind === "room" ? 0 : 1,
-        joint: 0,
-        shadow: true,
-        nodeId: this.id(),
-        portals: [],
-      });
+      const loop = w.closed === true;
+      const n = points.length / 2;
+      const segments = loop ? n : n - 1;
+      const own = this.ref("walls", w.style) ?? wallTexture;
+      const styles = Array.isArray(w.styles) && w.styles.length === segments ? w.styles.map((st) => this.ref("walls", st) ?? own) : null;
+      const make = (pts: Float64Array, texture: AssetRef | null, closed: boolean): number => {
+        walls.push({ points: pts, texture, color: null, loop: closed, type: w.kind === "room" ? 0 : 1, joint: 0, shadow: true, nodeId: this.id(), portals: [] });
+        return walls.length - 1;
+      };
+      if (!styles || styles.every((t) => t?.path === styles[0]?.path)) {
+        byShape.set(i, [{ from: 0, to: segments, wall: make(points, styles?.[0] ?? own, loop) }]);
+        return;
+      }
+      // Its style changes along it: a wall for each run of one style, each open (a ring's runs
+      // meet end to end). A ring's runs start where its style changes, so none is cut in two
+      // where the ring starts; segments count on from there (past the end, round again).
+      const same = (a: number, b: number) => styles[a % segments]?.path === styles[b % segments]?.path;
+      let start = 0;
+      if (loop) while (start < segments && same(start, start + segments - 1)) start++;
+      const runs: { from: number; to: number; wall: number }[] = [];
+      let from = start;
+      for (let k = start + 1; k <= start + segments; k++) {
+        if (k < start + segments && same(k, from)) continue;
+        const pts = new Float64Array((k - from + 1) * 2);
+        for (let j = from; j <= k; j++) {
+          const p = j % n;
+          pts[(j - from) * 2] = points[p * 2];
+          pts[(j - from) * 2 + 1] = points[p * 2 + 1];
+        }
+        runs.push({ from, to: k, wall: make(pts, styles[from % segments], false) });
+        from = k;
+      }
+      byShape.set(i, runs);
     });
     for (const ring of arr(s.caves)) {
       if (!this.item()) break;
@@ -332,8 +356,13 @@ class Builder {
     const portals: Portal[] = [];
     for (const d of arr(s.doors)) {
       if (!isObj(d) || !fin(d.x) || !fin(d.y) || !fin(d.angle) || !fin(d.width) || !this.item()) continue;
-      const wi = fin(d.wall) ? byShape.get(d.wall) : undefined;
-      const wall = wi === undefined ? null : walls[wi];
+      // The wall it's in: of a wall split where its style changes, the part holding its segment
+      // (counted as the parts count them: on round a ring from where the first part starts).
+      const runs = fin(d.wall) ? byShape.get(d.wall) : undefined;
+      const first = runs?.[0]?.from ?? 0;
+      const at = fin(d.at) ? (d.at < first ? d.at + (runs![runs!.length - 1].to - first) : d.at) : 0;
+      const run = runs?.find((r, k) => (at >= r.from && at < r.to) || k === runs.length - 1);
+      const wall = run ? walls[run.wall] : null;
       const p: Portal = {
         position: { x: d.x * GRID, y: d.y * GRID },
         rotation: d.angle,
@@ -343,7 +372,7 @@ class Builder {
         radius: Math.min(DEFAULT_LIMITS.maxWidth, Math.max(0, (d.width / 2) * GRID)),
         closed: d.kind !== "arch",
         wallId: wall ? wall.nodeId : null,
-        wallDistance: wall && fin(d.at) ? d.at : null,
+        wallDistance: wall && run && fin(d.at) ? at - run.from : null,
         nodeId: this.id(),
       };
       if (wall) wall.portals.push(p);

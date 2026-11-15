@@ -20,11 +20,16 @@ import {
   EMPTY,
   MAX_STAMPS_PER_CHUNK,
   MAX_TEXTURES_PER_CHUNK,
+  PLAIN_WALL,
+  WALL_TYPE_CHARS,
+  sceneWallType,
   chunkOf,
   decodeTextures,
+  decodeWallTypes,
   emptyCells,
   emptyEdges,
   encodeTextures,
+  encodeWallTypes,
   inChunk,
   isBuildingFloor,
   isDungeonStamp,
@@ -117,6 +122,41 @@ function encodeFitting(cells: readonly string[]): { tex: string; pal: string[] }
   const kept: string[] = [];
   for (const id of cells) if (id && !kept.includes(id) && kept.length < MAX_TEXTURES_PER_CHUNK) kept.push(id);
   return encodeTextures(cells.map((id) => (kept.includes(id) ? id : "")))!;
+}
+
+/** A chunk whose walls have no look of their own: "" for every place (terrain.ts WALL_TYPE_CHARS). */
+const NO_WALL_TYPES: readonly string[] = Array<string>(WALL_TYPE_CHARS).fill("");
+
+const decodedWalls = new WeakMap<TerrainItem, readonly string[]>();
+
+/**
+ * A chunk's walls' own looks ("" none: the scene's), worked out once per item: the walls round
+ * each cell's floor first, then each cell's top and left edges (see terrain.ts WALL_TYPE_CHARS).
+ */
+function wallTypesOf(t: TerrainItem | undefined): readonly string[] {
+  if (!t?.wt) return NO_WALL_TYPES;
+  let out = decodedWalls.get(t);
+  if (!out) decodedWalls.set(t, (out = decodeWallTypes(t) ?? NO_WALL_TYPES));
+  return out;
+}
+
+/** The same walls' looks? (Missing and empty are the same: none.) */
+function sameWallTypes(a: TerrainItem | undefined, b: TerrainItem | undefined): boolean {
+  return (a?.wt ?? "") === (b?.wt ?? "") && (a?.wpal ?? []).join() === (b?.wpal ?? []).join();
+}
+
+/** Where an edge's own wall look is kept in a chunk's wall looks: after the cells'. */
+function edgeTypeIdx(col: number, row: number, side: Side): number {
+  return CHUNK_CELLS + edgeIdx(col, row, side);
+}
+
+/** A chunk's walls' looks as its wt and wpal fields (a chunk can't use more than there are). */
+function encodeWallsFitting(types: readonly string[]): { wt: string; wpal: string[] } {
+  const enc = encodeWallTypes(types);
+  if (enc) return enc;
+  const kept: string[] = [];
+  for (const id of types) if (id && !kept.includes(id) && kept.length < MAX_TEXTURES_PER_CHUNK) kept.push(id);
+  return encodeWallTypes(types.map((id) => (kept.includes(id) ? id : "")))!;
 }
 
 // ---------------------------------------------------------------- the index
@@ -234,6 +274,9 @@ export function resolveRefs(
   return out;
 }
 
+/** What Build > Walls does along a grid line: draws a wall, takes one away, or repaints one in the look picked. */
+export type WallDraw = "add" | "remove" | "repaint";
+
 /** What the Build tool is painting before it's committed: shown at once, sent when you let go. */
 export interface BuildDraft {
   /**
@@ -241,8 +284,8 @@ export interface BuildDraft {
    * the floor's character: "g:meadow" (see paintCode).
    */
   cells: Map<number, string>;
-  /** Edge -> a wall being drawn, or one being taken away. */
-  walls: Map<number, "add" | "remove">;
+  /** Edge -> a wall being drawn, one being taken away, or one being repainted (Build > Walls > Repaint). */
+  walls: Map<number, WallDraw>;
   /**
    * Erasing terrain: only the ground goes. (Erasing a room also takes the walls, doors
    * and objects on it; erasing grass beside a building mustn't take the building's door.)
@@ -264,6 +307,11 @@ export class BuildModel {
   hidden: StampRef[] = [];
   /** The same, as slot numbers, for the drawing loop. */
   hiddenSlots = new Set<number>();
+  /**
+   * The look walls built now get (the scene's wall texture, or "plain"; the board sets it), for
+   * showing the draft: walls being drawn or repainted, and those round floor being painted.
+   */
+  newWallType = "";
 
   storedCell(col: number, row: number): string {
     const ch = this.index.chunks.get(ckey(chunkOf(col), chunkOf(row)));
@@ -289,7 +337,8 @@ export class BuildModel {
     const d = this.draft;
     if (d) {
       const w = d.walls.get(edgeKey(col, row, side));
-      if (w) return w === "add" ? "w" : "o";
+      if (w === "add") return "w";
+      if (w === "remove") return "o";
       // Erasing a room clears the walls and doors around it.
       const [ac, ar] = across(col, row, side);
       if (!d.groundOnly && (d.cells.get(cellKey(col, row)) === EMPTY || d.cells.get(cellKey(ac, ar)) === EMPTY)) return EMPTY;
@@ -301,8 +350,9 @@ export class BuildModel {
   secret(col: number, row: number, side: Side): boolean {
     const d = this.draft;
     if (d) {
-      // Drawing or removing a wall there, or erasing beside it, does away with a secret door.
-      if (d.walls.has(edgeKey(col, row, side))) return false;
+      // Drawing or removing a wall there, or erasing beside it, does away with a secret door (repainting it doesn't).
+      const w = d.walls.get(edgeKey(col, row, side));
+      if (w === "add" || w === "remove") return false;
       const [ac, ar] = across(col, row, side);
       if (!d.groundOnly && (d.cells.get(cellKey(col, row)) === EMPTY || d.cells.get(cellKey(ac, ar)) === EMPTY)) return false;
     }
@@ -323,6 +373,43 @@ export class BuildModel {
     const a = this.cell(col, row);
     const b = this.cell(ac, ar);
     return (isWalledFloor(a) && !isBuildingFloor(b)) || (isWalledFloor(b) && !isBuildingFloor(a)) ? WALL : NONE;
+  }
+
+  /** A place's own wall look as stored ("" none), in the chunk holding (col, row). */
+  private storedType(col: number, row: number, i: number): string {
+    return wallTypesOf(this.index.chunks.get(ckey(chunkOf(col), chunkOf(row))))[i];
+  }
+
+  /** The look of the walls a room gets round a cell's floor ("" none: the scene's), with the draft on top. */
+  cellWallType(col: number, row: number): string {
+    const v = this.draft?.cells.get(cellKey(col, row));
+    const stored = this.storedType(col, row, idx(col, row));
+    if (v === undefined) return stored;
+    // A room being painted where there was none: its walls are new.
+    return isWalledFloor(v[0]) && !isWalledFloor(this.storedCell(col, row)) ? this.newWallType : stored;
+  }
+
+  /**
+   * The look of what's on an edge (a wall, or a door's or window's posts): its own (drawn by hand,
+   * or repainted), else for a room's automatic wall the look of the floor it walls in; "" for none,
+   * which is the scene's. With the draft on top.
+   */
+  wallType(col: number, row: number, side: Side): string {
+    const w = this.draft?.walls.get(edgeKey(col, row, side));
+    if (w === "repaint") return this.newWallType;
+    const stored = this.index.chunks.get(ckey(chunkOf(col), chunkOf(row)));
+    const e = stored ? stored.edges[edgeIdx(col, row, side)] : EMPTY;
+    const [ac, ar] = across(col, row, side);
+    const a = this.cell(col, row);
+    const b = this.cell(ac, ar);
+    const auto = (isWalledFloor(a) && !isBuildingFloor(b)) || (isWalledFloor(b) && !isBuildingFloor(a));
+    // A wall being drawn on a bare line is new (on a room's own wall, it stays that wall).
+    if (w === "add" && e === EMPTY && !auto) return this.newWallType;
+    const own = this.storedType(col, row, edgeTypeIdx(col, row, side));
+    if (own) return own;
+    if (isWalledFloor(a) && !isBuildingFloor(b)) return this.cellWallType(col, row);
+    if (isWalledFloor(b) && !isBuildingFloor(a)) return this.cellWallType(ac, ar);
+    return "";
   }
 
   /** The object whose block covers a cell, topmost, if any (as erasing goes by). */
@@ -413,12 +500,18 @@ export class BuildModel {
    */
   sightLines(): {
     walls: [number, number, number, number][];
+    /** Each wall's look, as wallType gives it ("" none: the scene's). */
+    wallTypes: string[];
     doors: { key: number; line: [number, number, number, number] }[];
     windows: [number, number, number, number][];
+    /** Each window's posts' look, the same way. */
+    windowTypes: string[];
   } {
     const walls: [number, number, number, number][] = [];
+    const wallTypes: string[] = [];
     const doors: { key: number; line: [number, number, number, number] }[] = [];
     const windows: [number, number, number, number][] = [];
+    const windowTypes: string[] = [];
     const draft = this.draft;
     this.draft = null;
     const seen = new Set<number>();
@@ -437,8 +530,13 @@ export class BuildModel {
               if (s === NONE) continue;
               const line: [number, number, number, number] = side === "t" ? [col, row, col + 1, row] : [col, row, col, row + 1];
               if (s === DOOR) doors.push({ key, line });
-              else if (s === WINDOW) windows.push(line);
-              else walls.push(line);
+              else if (s === WINDOW) {
+                windows.push(line);
+                windowTypes.push(this.wallType(col, row, side));
+              } else {
+                walls.push(line);
+                wallTypes.push(this.wallType(col, row, side));
+              }
             }
           }
         }
@@ -446,7 +544,7 @@ export class BuildModel {
     } finally {
       this.draft = draft;
     }
-    return { walls, doors, windows };
+    return { walls, wallTypes, doors, windows, windowTypes };
   }
 
   /** What an edge is now: a door, a secret door, a window, or none of them. */
@@ -518,6 +616,8 @@ interface WorkChunk {
   /** Each cell's texture, "" for none. */
   tex: string[];
   edges: string[];
+  /** Each wall's own look, "" for none: the cells' then the edges' (terrain.ts WALL_TYPE_CHARS). */
+  walls: string[];
   stamps: Stamp[];
   stampsChanged: boolean;
   orig: TerrainItem | undefined;
@@ -541,9 +641,15 @@ export class BuildEdit {
   private index: TerrainIndex;
   private placedPairs: StampPair[] = [];
 
+  /**
+   * `newWallType`: the look walls built by this edit get (the scene's wall texture, or "plain"),
+   * kept with each, so picking another later leaves them as they are. "" gives them none of their
+   * own: they wear the scene's, whatever it is then.
+   */
   constructor(
     items: ItemMap,
     private readonly sceneId: string,
+    readonly newWallType = "",
   ) {
     this.index = indexTerrain(sceneTerrain(items, sceneId));
   }
@@ -561,6 +667,7 @@ export class BuildEdit {
         cells: [...(orig?.cells ?? EMPTY_CELLS)],
         tex: [...texturesOf(orig)],
         edges: [...(orig?.edges ?? EMPTY_EDGES)],
+        walls: [...wallTypesOf(orig)],
         stamps: orig ? orig.stamps.slice() : [],
         stampsChanged: false,
         orig,
@@ -597,22 +704,119 @@ export class BuildEdit {
     return w ? w.tex[idx(col, row)] : texturesOf(this.index.chunks.get(k))[idx(col, row)];
   }
 
-  /** Paints a cell: its floor's character, and one of Dungeon's textures on it or "" for Tabletop's own. */
+  /**
+   * Paints a cell: its floor's character, and one of Dungeon's textures on it or "" for Tabletop's
+   * own. A room laid where there was none gets walls in the look built now; floor laid over a room
+   * keeps the look of the room's walls.
+   */
   setCell(col: number, row: number, ch: string, texture = ""): void {
     const tex = ch === EMPTY ? "" : texture;
-    if (this.cell(col, row) === ch && this.texture(col, row) === tex) return;
+    const was = this.cell(col, row);
+    if (was === ch && this.texture(col, row) === tex) return;
     const w = this.chunk(col, row);
     w.cells[idx(col, row)] = ch;
     w.tex[idx(col, row)] = tex;
+    if (!isWalledFloor(ch)) w.walls[idx(col, row)] = "";
+    else if (!isWalledFloor(was)) w.walls[idx(col, row)] = this.newWallType;
   }
 
   edge(col: number, row: number, side: Side): string {
     return this.peek(col, row)?.edges[edgeIdx(col, row, side)] ?? EMPTY;
   }
 
+  /**
+   * Sets an edge. Something new on a bare line gets a look of its own: a wall the look built now,
+   * a door's or window's posts those of the wall beside it (or the look built now). What's there
+   * keeps its look through doors cut into it and taken away; a bare line forgets it.
+   */
   setEdge(col: number, row: number, side: Side, ch: string): void {
-    if (this.edge(col, row, side) === ch) return;
-    this.chunk(col, row).edges[edgeIdx(col, row, side)] = ch;
+    const before = this.edge(col, row, side);
+    if (before === ch) return;
+    const w = this.chunk(col, row);
+    w.edges[edgeIdx(col, row, side)] = ch;
+    const i = edgeTypeIdx(col, row, side);
+    const auto = this.autoWall(col, row, side);
+    if (ch === EMPTY) {
+      if (!auto) w.walls[i] = "";
+    } else if (before === EMPTY && !auto && ch !== "o") {
+      w.walls[i] = (ch === "w" ? null : this.besideType(col, row, side)) ?? this.newWallType;
+    }
+  }
+
+  /** A place's own wall look so far ("" none). */
+  private typeAt(col: number, row: number, i: number): string {
+    const k = ckey(chunkOf(col), chunkOf(row));
+    const w = this.work.get(k);
+    return w ? w.walls[i] : wallTypesOf(this.index.chunks.get(k))[i];
+  }
+
+  private setType(col: number, row: number, i: number, type: string): void {
+    if (this.typeAt(col, row, i) !== type) this.chunk(col, row).walls[i] = type;
+  }
+
+  /** The look of the walls round a cell's floor so far ("" none: the scene's). */
+  cellType(col: number, row: number): string {
+    return this.typeAt(col, row, idx(col, row));
+  }
+
+  /** An edge's own look so far ("" none). */
+  edgeType(col: number, row: number, side: Side): string {
+    return this.typeAt(col, row, edgeTypeIdx(col, row, side));
+  }
+
+  /** The look of what's on an edge so far: its own, else an automatic wall's floor's; "" none (the scene's). */
+  wallType(col: number, row: number, side: Side): string {
+    const own = this.edgeType(col, row, side);
+    if (own) return own;
+    const [ac, ar] = across(col, row, side);
+    const a = this.cell(col, row);
+    const b = this.cell(ac, ar);
+    if (isWalledFloor(a) && !isBuildingFloor(b)) return this.cellType(col, row);
+    if (isWalledFloor(b) && !isBuildingFloor(a)) return this.cellType(ac, ar);
+    return "";
+  }
+
+  /** The look of the wall next to an edge along its line (null: none there), the one before it first. */
+  besideType(col: number, row: number, side: Side): string | null {
+    const near: [number, number][] = side === "t" ? [[col - 1, row], [col + 1, row]] : [[col, row - 1], [col, row + 1]];
+    for (const [c, r] of near) if (this.isWall(c, r, side)) return this.wallType(c, r, side);
+    return null;
+  }
+
+  /** Gives an edge's wall, door or window (whatever shows there) a look of its own: Build > Walls > Repaint. */
+  repaint(col: number, row: number, side: Side, type: string): void {
+    const e = this.edge(col, row, side);
+    const shows = this.isWall(col, row, side) || e === "d" || e === "D" || e === "g" || e === "G";
+    if (shows && this.wallType(col, row, side) !== type) this.setType(col, row, edgeTypeIdx(col, row, side), type);
+  }
+
+  /** A secret door looks like the wall it's in: the look of the wall beside it, when there's one. */
+  matchBeside(col: number, row: number, side: Side): void {
+    const beside = this.besideType(col, row, side);
+    if (beside !== null && this.wallType(col, row, side) !== beside) this.setType(col, row, edgeTypeIdx(col, row, side), beside);
+  }
+
+  /**
+   * Gives every wall that has no look of its own (built before walls had them) `type`, the look
+   * it wears now: what picking another look does first, so the walls already built keep theirs.
+   */
+  saveTypes(type: string): void {
+    for (const t of this.index.chunks.values()) {
+      const c0 = t.cx * CHUNK, r0 = t.cy * CHUNK;
+      for (let j = 0; j < CHUNK; j++) {
+        for (let i = 0; i < CHUNK; i++) {
+          const col = c0 + i, row = r0 + j;
+          if (isWalledFloor(this.cell(col, row)) && !this.cellType(col, row)) this.setType(col, row, idx(col, row), type);
+          for (const side of ["t", "l"] as const) {
+            if (this.edgeType(col, row, side)) continue;
+            const e = this.edge(col, row, side);
+            // A room's own walls, doors in them included, wear their floor's look, given above.
+            const own = e === "w" || e === "D" || e === "G" || ((e === "d" || e === "g") && !this.autoWall(col, row, side));
+            if (own) this.setType(col, row, edgeTypeIdx(col, row, side), type);
+          }
+        }
+      }
+    }
   }
 
   /** Whether a wall would be drawn here automatically (a walled room floor meeting empty space or terrain). */
@@ -704,15 +908,23 @@ export class BuildEdit {
    */
   mergeChunk(cx: number, cy: number, from: ChunkData, to: ChunkData): void {
     const w = this.chunk(cx * CHUNK, cy * CHUNK);
-    // A cell's floor and its texture go together: one painted since in either way is left alone.
+    // A cell's floor, its texture and its walls' look go together: one painted since in any way is left alone.
     for (let i = 0; i < CHUNK_CELLS; i++) {
-      if ((from.cells[i] !== to.cells[i] || from.tex[i] !== to.tex[i]) && w.cells[i] === from.cells[i] && w.tex[i] === from.tex[i]) {
+      const changed = from.cells[i] !== to.cells[i] || from.tex[i] !== to.tex[i] || from.wt[i] !== to.wt[i];
+      if (changed && w.cells[i] === from.cells[i] && w.tex[i] === from.tex[i] && w.walls[i] === from.wt[i]) {
         w.cells[i] = to.cells[i];
         w.tex[i] = to.tex[i];
+        w.walls[i] = to.wt[i];
       }
     }
+    // An edge and its look the same.
     for (let i = 0; i < CHUNK_CELLS * 2; i++) {
-      if (from.edges[i] !== to.edges[i] && w.edges[i] === from.edges[i]) w.edges[i] = to.edges[i];
+      const t = CHUNK_CELLS + i;
+      const changed = from.edges[i] !== to.edges[i] || from.wt[t] !== to.wt[t];
+      if (changed && w.edges[i] === from.edges[i] && w.walls[t] === from.wt[t]) {
+        w.edges[i] = to.edges[i];
+        w.walls[t] = to.wt[t];
+      }
     }
     // Objects are counted, not just compared: two identical ones can share a square.
     const key = (s: Stamp) => s.join();
@@ -1048,14 +1260,31 @@ export class BuildEdit {
     return this.placedPairs.slice();
   }
 
+  /** Forgets the looks of walls that aren't there any more in a chunk: floor that isn't a walled room's, bare lines. */
+  private tidyTypes(w: WorkChunk): void {
+    const c0 = w.cx * CHUNK, r0 = w.cy * CHUNK;
+    for (let j = 0; j < CHUNK; j++) {
+      for (let i = 0; i < CHUNK; i++) {
+        const col = c0 + i, row = r0 + j;
+        if (w.walls[idx(col, row)] && !isWalledFloor(w.cells[idx(col, row)])) w.walls[idx(col, row)] = "";
+        for (const side of ["t", "l"] as const) {
+          const t = edgeTypeIdx(col, row, side);
+          if (w.walls[t] && w.edges[edgeIdx(col, row, side)] === EMPTY && !this.autoWall(col, row, side)) w.walls[t] = "";
+        }
+      }
+    }
+  }
+
   ops(): ItemOps {
     const upsert: TerrainItem[] = [];
     const patch: ItemPatch[] = [];
     const del: string[] = [];
     for (const w of this.work.values()) {
+      this.tidyTypes(w);
       const cells = w.cells.join("");
       const edges = w.edges.join("");
       const textures = encodeFitting(w.tex);
+      const looks = encodeWallsFitting(w.walls);
       const empty = cells === EMPTY_CELLS && edges === EMPTY_EDGES && !w.stamps.length;
       if (w.orig) {
         // An empty chunk is deleted, so it doesn't take up room in the scene forever.
@@ -1072,6 +1301,10 @@ export class BuildEdit {
           set.tex = textures.tex;
           set.pal = textures.pal;
         }
+        if (looks.wt !== (w.orig.wt ?? "") || looks.wpal.join() !== (w.orig.wpal ?? []).join()) {
+          set.wt = looks.wt;
+          set.wpal = looks.wpal;
+        }
         if (Object.keys(set).length) patch.push({ id: w.orig.id, set });
       } else if (!empty) {
         upsert.push({
@@ -1086,6 +1319,7 @@ export class BuildEdit {
           edges,
           stamps: w.stamps,
           ...(textures.tex ? textures : {}),
+          ...(looks.wt ? looks : {}),
         });
       }
     }
@@ -1133,12 +1367,28 @@ export function setWall(edit: BuildEdit, col: number, row: number, side: Side, m
   edit.setSecret(col, row, side, false);
 }
 
+/** Build > Walls > Repaint: the wall (or door's or window's posts) on a grid line takes the look `type`. */
+export function repaintWall(edit: BuildEdit, col: number, row: number, side: Side, type: string): void {
+  edit.repaint(col, row, side, type);
+}
+
+/**
+ * What picking another look in Build > Walls does first: gives the scene's walls that have no look
+ * of their own (built before 15 November 2026) the look they wear now, `type`, so they keep it.
+ */
+export function saveWallTypes(items: ItemMap, sceneId: string, type: string): ItemOps {
+  const edit = new BuildEdit(items, sceneId);
+  edit.saveTypes(type);
+  return edit.ops();
+}
+
 /** Doors: a wall or an opening becomes a door, a door a secret door, a secret door a wall again. */
 export function cycleDoor(edit: BuildEdit, col: number, row: number, side: Side): void {
   if (edit.edge(col, row, side) === "d") {
-    // Players see a secret door as the wall it's in.
+    // Players see a secret door as the wall it's in, in that wall's look.
     edit.setEdge(col, row, side, edit.autoWall(col, row, side) ? EMPTY : "w");
     edit.setSecret(col, row, side, true);
+    edit.matchBeside(col, row, side);
   } else if (edit.isWall(col, row, side) && edit.secret(col, row, side)) {
     edit.setSecret(col, row, side, false);
   } else {
@@ -1154,9 +1404,11 @@ export interface ChunkData {
   stamps: Stamp[];
   /** Each cell's texture, "" for none. */
   tex: readonly string[];
+  /** Each wall's own look, "" for none (terrain.ts WALL_TYPE_CHARS). */
+  wt: readonly string[];
 }
 
-const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [], tex: NO_TEXTURES };
+const EMPTY_CHUNK: ChunkData = { cells: EMPTY_CELLS, edges: EMPTY_EDGES, stamps: [], tex: NO_TEXTURES, wt: NO_WALL_TYPES };
 
 /** A scene's secret doors in one chunk, from all the hidden chunks there. */
 function secretsIn(items: ItemMap, sceneId: string, cx: number, cy: number): string {
@@ -1190,7 +1442,7 @@ export function buildUndo(items: ItemMap, sceneId: string, ops: ItemOps, pairs: 
   const secrets = new Map<number, { cx: number; cy: number; before: string; after: string }>();
   const data = (map: ItemMap, id: string): ChunkData => {
     const t = map[id];
-    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps, tex: texturesOf(t) } : EMPTY_CHUNK;
+    return t?.kind === "terrain" ? { cells: t.cells, edges: t.edges, stamps: t.stamps, tex: texturesOf(t), wt: wallTypesOf(t) } : EMPTY_CHUNK;
   };
   for (const id of ids) {
     const t = items[id] ?? after[id];
@@ -1289,6 +1541,10 @@ export function opsBetween(now: ItemMap, final: ItemMap, ids: Iterable<string>):
         set.tex = b.tex ?? "";
         set.pal = b.pal ?? [];
       }
+      if (!sameWallTypes(a, b)) {
+        set.wt = b.wt ?? "";
+        set.wpal = b.wpal ?? [];
+      }
       if (Object.keys(set).length) patch.push({ id, set });
     }
   }
@@ -1340,9 +1596,10 @@ export function setPortal(edit: BuildEdit, col: number, row: number, side: Side,
     edit.setEdge(col, row, side, drawn ? cut : bare);
     edit.setSecret(col, row, side, false);
   } else if (style === "secret") {
-    // Players see a secret door as the wall it's in.
+    // Players see a secret door as the wall it's in, in that wall's look.
     edit.setEdge(col, row, side, auto ? EMPTY : "w");
     edit.setSecret(col, row, side, true);
+    edit.matchBeside(col, row, side);
   } else if (edit.isWall(col, row, side) || e === "D" || e === "G" || ((e === "d" || e === "g") && auto)) {
     // An opening: a gap in a wall, an archway.
     edit.setEdge(col, row, side, "o");
@@ -1706,6 +1963,8 @@ export function doorSegment(g: GridSettings, d: DoorRef): { x0: number; y0: numb
 interface ChunkGeom {
   /** Wall lines, in cells: x0, y0, x1, y1 for each. */
   walls: number[];
+  /** Each wall line's look, as BuildModel.wallType gives it ("" none: the scene's). */
+  types: string[];
   /** Doors: col, row, 0 (top edge) or 1 (left edge). */
   doors: number[];
   /** Walls that are secret doors (GM only), the same way. */
@@ -1853,6 +2112,12 @@ export class BuildRenderer {
         this.cellsChanged(k);
       }
       if ((a?.edges ?? EMPTY_EDGES) !== (b?.edges ?? EMPTY_EDGES)) this.geomDirty.add(k);
+      if (!sameWallTypes(a, b)) {
+        // A floor's walls' look shows on the walls along its right and bottom sides too.
+        this.geomDirty.add(k);
+        this.geomDirty.add(k + 4096);
+        this.geomDirty.add(k + 1);
+      }
       if (!sameStamps(a?.stamps ?? [], b?.stamps ?? []) || !sameTextures(a, b)) this.paintDirty.add(k);
     }
     const skeys = new Set([...prev.secrets.keys(), ...next.secrets.keys()]);
@@ -1944,7 +2209,7 @@ export class BuildRenderer {
     for (const r of refs) this.paintDirty.add(ckey(r.cx, r.cy));
   }
 
-  draftWall(col: number, row: number, side: Side, mode: "add" | "remove"): void {
+  draftWall(col: number, row: number, side: Side, mode: WallDraw): void {
     const d = this.model.draft;
     if (!d) return;
     d.walls.set(edgeKey(col, row, side), mode);
@@ -1974,6 +2239,7 @@ export class BuildRenderer {
   private computeGeom(cx: number, cy: number): ChunkGeom | null {
     const m = this.model;
     const walls: number[] = [];
+    const types: string[] = [];
     const doors: number[] = [];
     const secrets: number[] = [];
     const windows: number[] = [];
@@ -1981,21 +2247,37 @@ export class BuildRenderer {
     const y0 = cy * CHUNK;
     const door = (col: number, row: number, side: 0 | 1, into = doors) => {
       into.push(col, row, side);
-      // A short piece of wall each side of the door (or window), so it sits in the wall line.
+      // A short piece of wall each side of the door (or window), so it sits in the wall line, in the look of its line.
+      const look = m.wallType(col, row, side === 0 ? "t" : "l");
       if (side === 0) walls.push(col, row, col + 0.15, row, col + 0.85, row, col + 1, row);
       else walls.push(col, row, col, row + 0.15, col, row + 0.85, col, row + 1);
+      types.push(look, look);
     };
+    // A wall runs on until it ends or its look changes.
     for (let j = 0; j < CHUNK; j++) {
       const row = y0 + j;
       let run = -1;
+      let look = "";
       for (let i = 0; i <= CHUNK; i++) {
         const col = x0 + i;
         const st = i < CHUNK ? m.state(col, row, "t") : NONE;
         if (st === WALL) {
-          if (run < 0) run = col;
+          const t = m.wallType(col, row, "t");
+          if (run >= 0 && t !== look) {
+            walls.push(run, row, col, row);
+            types.push(look);
+            run = -1;
+          }
+          if (run < 0) {
+            run = col;
+            look = t;
+          }
           if (m.secret(col, row, "t")) secrets.push(col, row, 0);
         } else {
-          if (run >= 0) walls.push(run, row, col, row);
+          if (run >= 0) {
+            walls.push(run, row, col, row);
+            types.push(look);
+          }
           run = -1;
           if (st === DOOR) door(col, row, 0);
           else if (st === WINDOW) door(col, row, 0, windows);
@@ -2005,21 +2287,34 @@ export class BuildRenderer {
     for (let i = 0; i < CHUNK; i++) {
       const col = x0 + i;
       let run = -1;
+      let look = "";
       for (let j = 0; j <= CHUNK; j++) {
         const row = y0 + j;
         const st = j < CHUNK ? m.state(col, row, "l") : NONE;
         if (st === WALL) {
-          if (run < 0) run = row;
+          const t = m.wallType(col, row, "l");
+          if (run >= 0 && t !== look) {
+            walls.push(col, run, col, row);
+            types.push(look);
+            run = -1;
+          }
+          if (run < 0) {
+            run = row;
+            look = t;
+          }
           if (m.secret(col, row, "l")) secrets.push(col, row, 1);
         } else {
-          if (run >= 0) walls.push(col, run, col, row);
+          if (run >= 0) {
+            walls.push(col, run, col, row);
+            types.push(look);
+          }
           run = -1;
           if (st === DOOR) door(col, row, 1);
           else if (st === WINDOW) door(col, row, 1, windows);
         }
       }
     }
-    return walls.length || doors.length || windows.length ? { walls, doors, secrets, windows } : null;
+    return walls.length || doors.length || windows.length ? { walls, types, doors, secrets, windows } : null;
   }
 
   /** Whether there's anything to draw at all. */
@@ -2049,6 +2344,8 @@ export class BuildRenderer {
     const c1 = Math.min(all.c1 + 1, Math.floor((view.x1 - g.offsetX) / size) + 1);
     const r1 = Math.min(all.r1 + 1, Math.floor((view.y1 - g.offsetY) / size) + 1);
     if (c0 > c1 || r0 > r1) return;
+    // The look walls being drawn now get (the draft's), from the scene: it arrives as a scene change, which update() never sees.
+    this.model.newWallType = sceneWallType(scene);
     // Worked out here rather than in update(): a season arrives as a scene change, which update() never sees.
     if (this.season) this.updateExposure();
     c.save();
@@ -2383,7 +2680,9 @@ export class BuildRenderer {
     const size = g.size;
     const X = (col: number) => g.offsetX + col * size;
     const Y = (row: number) => g.offsetY + row * size;
-    const walls = new Path2D();
+    // Each wall in its own look (BuildModel.wallType), those with none in the scene's: one path a look.
+    const sceneLook = scene.wallTexture ?? PLAIN_WALL;
+    const looks = new Map<string, Path2D>();
     const doors: number[] = [];
     const secrets: number[] = [];
     const windows: number[] = [];
@@ -2404,6 +2703,9 @@ export class BuildRenderer {
       if (!geo) continue;
       const w = geo.walls;
       for (let i = 0; i < w.length; i += 4) {
+        const look = geo.types[i / 4] || sceneLook;
+        let walls = looks.get(look);
+        if (!walls) looks.set(look, (walls = new Path2D()));
         walls.moveTo(X(w[i]), Y(w[i + 1]));
         walls.lineTo(X(w[i + 2]), Y(w[i + 3]));
         any = true;
@@ -2416,27 +2718,26 @@ export class BuildRenderer {
     const lw = Math.max(size * 0.13, 1.5 / scale);
     c.lineCap = "square";
     c.lineJoin = "miter";
-    if (scene.wallTexture) {
-      // One of Dungeon's wall textures: a wider band of it, edged in the walls' own dark, over
-      // the same soft shadow.
-      const band = Math.max(size * 0.22, 3 / scale);
-      const edge = Math.max(size * 0.02, 1 / scale);
-      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
-      c.lineWidth = band * 1.8;
+    // Tabletop's own walls: a soft shadow along them, then the walls. One of Dungeon's wall
+    // textures: a wider band of it, edged in the walls' own dark, over the same soft shadow.
+    // Every look's shadow first, then their dark, then the textures, so one look's shadow never
+    // lies over another's wall where two meet.
+    const band = Math.max(size * 0.22, 3 / scale);
+    const edge = Math.max(size * 0.02, 1 / scale);
+    c.strokeStyle = "rgba(0, 0, 0, 0.2)";
+    for (const [look, walls] of looks) {
+      c.lineWidth = look === PLAIN_WALL ? lw * 2.4 : band * 1.8;
       c.stroke(walls);
-      c.strokeStyle = WALL_COLOR;
-      c.lineWidth = band + edge * 2;
+    }
+    c.strokeStyle = WALL_COLOR;
+    for (const [look, walls] of looks) {
+      c.lineWidth = look === PLAIN_WALL ? lw : band + edge * 2;
       c.stroke(walls);
-      c.strokeStyle = this.texture(c, scene.wallTexture, size, g.offsetX, g.offsetY);
+    }
+    for (const [look, walls] of looks) {
+      if (look === PLAIN_WALL) continue;
+      c.strokeStyle = this.texture(c, look, size, g.offsetX, g.offsetY);
       c.lineWidth = band;
-      c.stroke(walls);
-    } else {
-      // A soft shadow along the walls, then the walls.
-      c.strokeStyle = "rgba(0, 0, 0, 0.2)";
-      c.lineWidth = lw * 2.4;
-      c.stroke(walls);
-      c.strokeStyle = WALL_COLOR;
-      c.lineWidth = lw;
       c.stroke(walls);
     }
 

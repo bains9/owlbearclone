@@ -22,7 +22,7 @@ import type {
   VisionDistance,
 } from "./types";
 import { SEASON_LOOKS, TOKEN_ARTS, isCompass } from "./types";
-import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
+import { cleanCells, cleanEdges, cleanPal, cleanStamps, cleanTex, cleanWpal, cleanWt, isWallTexture, sanitizeTerrain, terrainFieldsOk } from "./terrain";
 import { isTokenLook, isZoneLook, type SpellLook } from "./zones";
 
 export const LIMITS = {
@@ -186,6 +186,8 @@ const TERRAIN_FIELDS: Record<string, Validator> = {
   stamps: cleanStamps,
   tex: cleanTex,
   pal: cleanPal,
+  wt: cleanWt,
+  wpal: cleanWpal,
 };
 
 const FIELDS_BY_KIND = { token: TOKEN_FIELDS, drawing: DRAWING_FIELDS, fog: FOG_FIELDS, terrain: TERRAIN_FIELDS } as const;

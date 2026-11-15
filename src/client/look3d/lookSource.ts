@@ -19,11 +19,13 @@ const PAINT_PX = 8;
 
 const scaled = (l: readonly number[], cell: number): Seg => [l[0] * cell, l[1] * cell, l[2] * cell, l[3] * cell];
 
-/** The level's walls (in its wall texture), its cave edges (as rock) and its doors, shut. */
-export function lookWalls(m: Pick<LookMap, "walls" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
+/** The level's walls (each in its own wall texture: Dungeon's walls keep the style they're built in), its cave edges (as rock) and its doors, shut. */
+export function lookWalls(m: Pick<LookMap, "walls" | "wallTexture" | "wallTextures" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
   return {
     walls: m.rock.map((l) => scaled(l, cell)),
     built: m.walls.map((l) => scaled(l, cell)),
+    // A Dungeon from before sends one texture for every wall.
+    builtTex: m.wallTextures ?? m.walls.map(() => m.wallTexture),
     doors: m.doors.map((l) => ({ line: scaled(l, cell), open: false })),
   };
 }
@@ -82,9 +84,10 @@ export class LookSource implements Board3dSource {
     c.getContext("2d")?.drawImage(m.floor, 0, 0);
     this.paint = paintOf(m.floor, m, LOOK_CELL);
     m.floor.close();
-    // The wall texture is made a moment after it's first asked for: the walls are made again then.
+    // A wall texture is made a moment after it's first asked for: the walls are made again then.
     this.stopWaiting?.();
-    this.stopWaiting = whenTextureMade(m.wallTexture, () => this.tell("floor"));
+    const stops = [...new Set([m.wallTexture, ...(m.wallTextures ?? [])])].map((id) => whenTextureMade(id, () => this.tell("floor")));
+    this.stopWaiting = () => stops.forEach((stop) => stop());
     this.tell("floor");
   }
 
@@ -134,8 +137,8 @@ export class LookSource implements Board3dSource {
     return this.map ? lookObjects(this.map) : [];
   }
 
-  wallTexture(): { canvas: HTMLCanvasElement; squares: number } | null {
-    return this.map ? textureTile(this.map.wallTexture) : null;
+  wallTexture(id: string): { canvas: HTMLCanvasElement; squares: number } | null {
+    return this.map ? textureTile(id) : null;
   }
 
   buildings(): Building3d[] {

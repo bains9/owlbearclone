@@ -285,9 +285,10 @@ export function buildHints(
     }
     case "walls": {
       const remove = o.wallMode === "remove";
+      const repaint = o.wallMode === "repaint";
       const out: [string, string][] = [
-        ["Drag", remove ? "remove" : "walls"],
-        ["Click corners", remove ? "remove between" : "walls between"],
+        ["Drag", remove ? "remove" : repaint ? "repaint" : "walls"],
+        ["Click corners", remove ? "remove between" : repaint ? "repaint between" : "walls between"],
         ["Dbl-click, right-click, Enter", "finish"],
         ["Backspace", "undo corner"],
       ];

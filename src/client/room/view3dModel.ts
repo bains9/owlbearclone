@@ -77,18 +77,29 @@ export function brightnessAt(cover: CoverMap | null, x: number, y: number): numb
 export interface Walls3d {
   /** The map file's walls (from Dungeon, or a Universal VTT file). */
   walls: Seg[];
-  /** The Build tool's walls: in the scene's wall texture, when it has one. */
+  /** The Build tool's walls. */
   built: Seg[];
+  /**
+   * Each of `built`'s look: one of Dungeon's wall textures (its id), or "" for none (in its colour
+   * as painted). Each wall keeps its own (build.ts BuildModel.wallType). Missing: all "".
+   */
+  builtTex?: string[];
   doors: { line: Seg; open: boolean }[];
   /** The Build tool's windows between their posts (the posts are in `built`): wall with a pane of glass in it. */
   windows?: Seg[];
+  /** Each window's wall's look, as builtTex. */
+  windowTex?: string[];
 }
 
 /** The walls, doors and windows the Build tool made, in squares (BuildModel.sightLines). */
 export interface BuiltLines {
   walls: readonly (readonly number[])[];
+  /** Each wall's look: a wall texture's id, or "" for none (see Walls3d.builtTex). */
+  wallTypes?: readonly string[];
   doors: readonly { key: number; line: readonly number[] }[];
   windows?: readonly (readonly number[])[];
+  /** Each window's posts' look, the same way. */
+  windowTypes?: readonly string[];
 }
 
 /**
@@ -102,18 +113,25 @@ export function wallsOf(vision: SceneVision | undefined, built: BuiltLines, grid
   const open = new Set(vision?.openEdges ?? []);
   // A window: a post of wall at each end, the glass between.
   const posts: Seg[] = [];
+  const postTex: string[] = [];
   const windows: Seg[] = [];
-  for (const l of built.windows ?? []) {
+  const windowTex: string[] = [];
+  (built.windows ?? []).forEach((l, i) => {
     const [ax, ay, bx, by] = toScene(l);
     const at = (t: number): [number, number] => [ax + (bx - ax) * t, ay + (by - ay) * t];
     const [px, py] = at(WINDOW_POST);
     const [qx, qy] = at(1 - WINDOW_POST);
     posts.push([ax, ay, px, py], [qx, qy, bx, by]);
     windows.push([px, py, qx, qy]);
-  }
+    const tex = built.windowTypes?.[i] ?? "";
+    postTex.push(tex, tex);
+    windowTex.push(tex);
+  });
   return {
     walls: segmentsOf(vision?.walls ?? []),
     built: [...built.walls.map(toScene), ...posts],
+    builtTex: [...built.walls.map((_, i) => built.wallTypes?.[i] ?? ""), ...postTex],
+    windowTex,
     doors: [
       ...(vision?.doors ?? []).map((d) => ({ line: d.line, open: d.open })),
       ...built.doors.map((d) => ({ line: toScene(d.line), open: open.has(d.key) })),
@@ -130,8 +148,10 @@ export interface WallPiece {
   y1: number;
   door: boolean;
   light: number;
-  /** One of the Build tool's walls (which take the scene's wall texture). */
+  /** One of the Build tool's walls. */
   built?: boolean;
+  /** One of Dungeon's wall textures (its id) it's drawn in, rather than its colour: a built wall's own look. */
+  tex?: string;
   /** A window: wall below its sill and above its lintel, glass between (see windowGlass). */
   window?: boolean;
   /** Its colour as the map paints it (0 to 1 each), when that's known. */
@@ -183,7 +203,7 @@ const WALL_DARKEST = 0.24;
  */
 export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallPiece[] {
   const out: WallPiece[] = [];
-  const add = (s: Seg, door: boolean, built = false, window = false) => {
+  const add = (s: Seg, door: boolean, built = false, window = false, tex = "") => {
     const [ax, ay, bx, by] = s;
     const len = Math.hypot(bx - ax, by - ay);
     if (!(len > 1e-6) || !(cell > 0)) return;
@@ -203,14 +223,15 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
       const piece: WallPiece = { x0, y0, x1, y1, door, light };
       if (built) piece.built = true;
       if (window) piece.window = true;
+      if (tex && !door) piece.tex = tex;
       const painted = door ? null : window ? post : paintAt(paint, mx, my);
       if (painted) piece.color = wallTint(painted);
       out.push(piece);
     }
   };
   for (const w of walls3d.walls) add(w, false);
-  for (const w of walls3d.built) add(w, false, true);
-  for (const w of walls3d.windows ?? []) add(w, false, true, true);
+  walls3d.built.forEach((w, i) => add(w, false, true, false, walls3d.builtTex?.[i]));
+  (walls3d.windows ?? []).forEach((w, i) => add(w, false, true, true, walls3d.windowTex?.[i]));
   for (const d of walls3d.doors) if (!d.open) add(d.line, true);
   return out;
 }
@@ -520,8 +541,8 @@ export interface Board3dSource {
   walls(): Walls3d;
   /** The built map's objects that stand up in 3D (trees, rocks, pillars, tables...). */
   objects(): Object3d[];
-  /** The scene's wall texture for the Build tool's walls, once it's made: its picture and how many squares it spans. */
-  wallTexture(): { canvas: HTMLCanvasElement; squares: number } | null;
+  /** One of Dungeon's wall textures (a built wall's look), once it's made: its picture and how many squares it spans. */
+  wallTexture(id: string): { canvas: HTMLCanvasElement; squares: number } | null;
   /** The built map's buildings, for roofs: none on a map with no open ground (a dungeon underground). */
   buildings(): Building3d[];
   /** The spells on the map: areas, looks on tokens, spells being cast (view3dEffects.ts). */

@@ -444,8 +444,8 @@ describe("the room's undo for bursts, and X", () => {
 });
 
 describe("the protocol version", () => {
-  it("is 9, and the browser sends it", async () => {
-    expect(PROTOCOL_VERSION).toBe(9);
+  it("is 10, and the browser sends it", async () => {
+    expect(PROTOCOL_VERSION).toBe(10);
     // Node's fs, which the tests' types leave out (they check browser and Worker code).
     const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as { readFileSync(path: URL, encoding: "utf8"): string };
     const src = fs.readFileSync(new URL("../src/client/room/client.ts", import.meta.url), "utf8");
@@ -458,8 +458,8 @@ describe("erasing what's built", () => {
   const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
 
   it("is in What's new under placing things anywhere, with the bar's word for it", () => {
-    expect(news.parts[29].title).toBe("Erasing what you built (31 October 2026)");
-    expect(news.parts[29].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
+    expect(news.parts[30].title).toBe("Erasing what you built (31 October 2026)");
+    expect(news.parts[30].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
   });
 
   it("is in the guide where the eraser and objects are explained", () => {
@@ -541,8 +541,8 @@ describe("windows in the bars and the guide", () => {
   it("leads What's new, and the Doors part says how and what a window does", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.intro).toContain("The latest updates came out on 15 November 2026.");
-    expect(news.parts[1].title).toBe("Windows in the walls you build (15 November 2026)");
-    expect(news.parts[1].steps.join(" ")).toContain("pick **Doors**, then **Window**");
+    expect(news.parts[2].title).toBe("Windows in the walls you build (15 November 2026)");
+    expect(news.parts[2].steps.join(" ")).toContain("pick **Doors**, then **Window**");
     const doors = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Doors, secret doors, windows and openings")!;
     expect(doors.steps.join(" ")).toContain("**Window**");
     const text = doors.notes.join(" ");

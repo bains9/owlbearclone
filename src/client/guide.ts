@@ -19,6 +19,19 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Walls keep the look they're built in (15 November 2026)",
+        "steps": [
+          "GM: in the Build tool, pick **Walls**, then pick a look in **Plain walls** (it shows the look picked): the walls you build from then on have it.",
+          "To change walls already built, pick the look, then **Repaint**, and drag along the walls."
+        ],
+        "notes": [
+          "Picking another look no longer changes the walls you've already built: those keep theirs, whether you drew them or they came round a room you painted. Before, it changed every wall in the scene.",
+          "Maps you've already built look just as they did. **Undo** puts back a look you picked by mistake.",
+          "Doors and windows sit in their wall's look, and a secret door has the look of the wall it's in, so players still can't tell it from the wall.",
+          "In the 3D view, each wall stands in its own look. Dungeon works the same way, and a map from Dungeon comes in with each wall as it was built there."
+        ]
+      },
+      {
         "title": "Secret notes from Dungeon (15 November 2026)",
         "steps": [
           "In Dungeon, tick \"Only the GM sees this\" on a label, such as `An assassin waits in the cupboard`.",
@@ -528,7 +541,7 @@ export const GUIDE: GuideSection[] = [
           "GM: in the Build tool, pick **Objects**, then click the object shown in the bar (the one you're placing) to choose from all 151: Tabletop's own sixteen and the 135 from Dungeon, the map maker.",
           "Type in **Search 151 objects**, or open a group: Tabletop, Furniture, Containers, Kitchen & tavern, Nature, Camp & outdoors, Dungeon or Light. **Enter** picks the first match.",
           "Floors work the same way: in **Building** and **Terrain**, click the floor shown in the bar to choose from Tabletop's own and Dungeon's textures: marble, mosaics, carpets and parquet for rooms; meadows, moss, heather, sand, gravel, snow, ice, caves, water and lava for the ground.",
-          "In **Walls**, the walls' look for the whole scene: plain, or one of Dungeon's 16, from brick and logs to marble and ice."
+          "In **Walls**, the walls' look: plain, or one of Dungeon's 16, from brick and logs to marble and ice. (Since 15 November 2026 each wall keeps the look it's built in.)"
         ],
         "notes": [
           "A Dungeon object starts at its own size: a dining table 2½ squares, an oak tree 3. **Size** and **Turn** work as before.",
@@ -3190,7 +3203,7 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Walls",
         "steps": [
-          "Pick **Walls**, then **Add** or **Remove**.",
+          "Pick **Walls**, then **Add**, **Remove** or **Repaint**.",
           "Drag along the grid lines where the wall goes.",
           "Or click grid corners one after another: each click adds a wall from the last corner, straight across or straight down.",
           "Finish with a double-click, a right-click or **Enter**. Clicking the first corner again closes the loop and finishes too."
@@ -3200,7 +3213,8 @@ export const GUIDE: GuideSection[] = [
           "Hold **Alt** to remove walls instead of adding them.",
           "**Remove** also opens up a wall that was drawn automatically: an archway, or an opening into a cave.",
           "On a touch screen, drag along the lines, or tap a single grid line.",
-          "The walls' look: click **Plain walls** in the bar to give every wall in the scene one of Dungeon's 16 wall textures (brick, stone, logs, plaster, marble, iron, ice and more), or plain again. It's for the whole scene, everyone sees it at once, and **Undo** puts it back."
+          "The walls' look: click **Plain walls** in the bar (it shows the look picked) to pick plain or one of Dungeon's 16 wall textures (brick, stone, logs, plaster, marble, iron, ice and more). Walls keep the look they're built in: what you pick is for the walls you build from then on, drawn here or round the rooms you paint in **Building**, and the walls already built stay as they are. **Undo** puts back a look picked by mistake.",
+          "**Repaint** changes walls already built: pick the look, pick **Repaint**, and drag along the walls (or click corners, as with **Add**). A wall round a room changes only where you drag. Doors and windows in it change with it; a secret door keeps the look of the wall it's in."
         ]
       },
       {

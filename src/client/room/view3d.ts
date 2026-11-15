@@ -167,9 +167,9 @@ export class View3D implements View3dControls {
   private ground: Ground | null = null;
   /** What the ground is, in brief: the floor and the scenery round it are made again when it changes. */
   private groundKey = "flat";
-  /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
-  private texturedWalls: Mesh | null = null;
-  private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
+  /** The Build tool's walls in Dungeon's wall textures, a mesh a texture, and those textures (made from their pictures), by id. */
+  private texturedWalls: Mesh[] = [];
+  private wallTex = new Map<string, { canvas: HTMLCanvasElement; tex: CanvasTexture }>();
   /**
    * The buildings' roofs (view3dRoofs.ts), by building: how far each is lifted off (0 on, 1 off)
    * and how far it's going, and how see-through it is at most (the GM's are half).
@@ -388,21 +388,28 @@ export class View3D implements View3dControls {
       this.floorTex.needsUpdate = true;
     }
 
-    // The walls, in their own colours (the Build tool's in the scene's wall texture, when it has
+    // The walls, in their own colours (the Build tool's each in its own wall texture, when it has
     // one), the built map's objects, and the buildings' roofs: where this page has seen them.
     this.dropWalls();
     const all = this.src.gmView();
     const pieces = wallPieces(this.src.walls(), this.cell, f.cover, all, f.paint);
-    const tile = this.wallTexture();
-    const textured = tile ? pieces.filter((p) => p.built && !p.door) : [];
-    const plain = tile ? pieces.filter((p) => !(p.built && !p.door)) : pieces;
+    // A mesh for each texture; a wall whose texture isn't made yet is in its colour till it is.
+    const textured = new Map<CanvasTexture, typeof pieces>();
+    const plain: typeof pieces = [];
+    for (const p of pieces) {
+      const tile = p.tex ? this.wallTexture(p.tex) : null;
+      const list = tile && textured.get(tile);
+      if (!tile) plain.push(p);
+      else if (list) list.push(p);
+      else textured.set(tile, [p]);
+    }
     // Each on the ground under it.
     const grounded = <M extends { position: Float32Array }>(m: M): M => {
       onGround(m.position, g, this.cell);
       return m;
     };
     if (plain.length) this.walls = this.lit(grounded(wallMesh(plain, this.cell)));
-    if (tile && textured.length) this.texturedWalls = this.lit(grounded(wallMesh(textured, this.cell, true)), tile);
+    for (const [tile, list] of textured) this.texturedWalls.push(this.lit(grounded(wallMesh(list, this.cell, true)), tile));
     const panes = windowGlass(pieces, this.cell);
     if (panes.position.length) {
       const glass = (this.glass = this.lit(grounded(panes)));
@@ -857,19 +864,19 @@ export class View3D implements View3dControls {
     this.rockTop = { mesh, tex, canvas, geo, mat };
   }
 
-  /** The scene's wall texture as a repeating texture (made once for its picture), or null while it has none or it isn't made yet. */
-  private wallTexture(): CanvasTexture | null {
-    const tile = this.src.wallTexture();
+  /** One of Dungeon's wall textures as a repeating texture (made once for its picture), or null while it isn't made yet. */
+  private wallTexture(id: string): CanvasTexture | null {
+    const tile = this.src.wallTexture(id);
     if (!tile) return null;
-    if (this.wallTex?.canvas !== tile.canvas) {
-      this.wallTex?.tex.dispose();
-      const tex = new CanvasTexture(tile.canvas);
-      tex.wrapS = tex.wrapT = RepeatWrapping;
-      tex.repeat.set(1 / tile.squares, 1 / tile.squares);
-      tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-      this.wallTex = { canvas: tile.canvas, tex };
-    }
-    return this.wallTex.tex;
+    const had = this.wallTex.get(id);
+    if (had?.canvas === tile.canvas) return had.tex;
+    had?.tex.dispose();
+    const tex = new CanvasTexture(tile.canvas);
+    tex.wrapS = tex.wrapT = RepeatWrapping;
+    tex.repeat.set(1 / tile.squares, 1 / tile.squares);
+    tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    this.wallTex.set(id, { canvas: tile.canvas, tex });
+    return tex;
   }
 
   /**
@@ -1145,14 +1152,14 @@ export class View3D implements View3dControls {
 
   /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.texturedWalls, this.glass, this.objects, this.glowing, this.cliffs, this.rock]) {
+    for (const m of [this.walls, ...this.texturedWalls, this.glass, this.objects, this.glowing, this.cliffs, this.rock]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
       m.material.dispose();
     }
     this.walls = null;
-    this.texturedWalls = null;
+    this.texturedWalls = [];
     this.glass = null;
     this.objects = null;
     this.glowing = null;
@@ -1244,8 +1251,8 @@ export class View3D implements View3dControls {
     this.dropFloor();
     this.dropWalls();
     this.dropSheets();
-    this.wallTex?.tex.dispose();
-    this.wallTex = null;
+    for (const t of this.wallTex.values()) t.tex.dispose();
+    this.wallTex.clear();
     for (const f of this.figs.values()) this.dropFig(f);
     this.figs.clear();
     this.sceneId = null;

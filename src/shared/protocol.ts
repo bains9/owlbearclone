@@ -29,9 +29,10 @@ import type {
  * 6: objects off the grid (a stamp's column and row in sixteenths of a square), and up to 256
  * objects in a chunk. 7: spells on tokens, and conjured things (zones.ts lookVersion). 8: the
  * rest of the spell looks (lookVersion, and spellfx.ts fxVersion for effects played once).
- * 9: windows in built walls (a chunk's edges "g" and "G").
+ * 9: windows in built walls (a chunk's edges "g" and "G"). 10: each built wall's own look
+ * (a chunk's wt and wpal).
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** What the measure tool draws: a plain ruler or a spell area template. */
 export type MeasureShape = "ruler" | TemplateShape;

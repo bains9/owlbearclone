@@ -59,6 +59,7 @@ import {
   isDungeonStamp,
   isStampId,
   naturalStampSize,
+  sceneWallType,
   snapDeg,
   snapSize,
 } from "../../shared/terrain";
@@ -90,7 +91,7 @@ import { isFloorFor, type FloorChoice } from "./floorGroups";
 import { RECENT_OBJECTS, loadRecent, recentFloorsKey, saveRecent, withRecent } from "./recentPicks";
 import type { DrawShape, DrawingItem } from "../../shared/types";
 import { canDelete } from "../../shared/permissions";
-import { buildUndo, wallsFor } from "../room/build";
+import { buildUndo, saveWallTypes, wallsFor } from "../room/build";
 import {
   BUILD_MODE_LABELS,
   TOUCH_HINTS,
@@ -565,10 +566,26 @@ function BuildOptions() {
             <button class={cx("seg-btn wide", o.wallMode === "remove" && "active")} onClick={() => set({ wallMode: "remove" })}>
               Remove
             </button>
+            <button
+              class={cx("seg-btn wide", o.wallMode === "repaint" && "active")}
+              title="Repaint: drag along walls already built to give them the wall style picked"
+              aria-pressed={o.wallMode === "repaint"}
+              onClick={() => set({ wallMode: "repaint" })}
+            >
+              <Paintbrush size={14} /> Repaint
+            </button>
           </div>
           <WallPicker
             value={scene.wallTexture ? `t:${scene.wallTexture}` : "plain"}
-            onPick={(id) => room.changeScene(scene.id, { wallTexture: id === "plain" ? null : id.slice(2) }, {})}
+            onPick={(id) => {
+              const next = id === "plain" ? undefined : id.slice(2);
+              if (next === scene.wallTexture) return;
+              // The style for walls built from now on. Walls already built keep theirs: those with
+              // none of their own (built before) are given the one they wear first, in the same
+              // step, so undoing it puts both back.
+              const save = saveWallTypes(room.state.items, scene.id, sceneWallType(scene));
+              room.changeScene(scene.id, { wallTexture: next ?? null }, save);
+            }}
           />
         </>
       )}

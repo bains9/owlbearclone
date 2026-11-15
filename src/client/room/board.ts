@@ -25,18 +25,7 @@ import { randomId } from "../../shared/ids";
 import type { ItemMap } from "../../shared/ops";
 import { canDelete } from "../../shared/permissions";
 import type { Ephemeral, MeasureShape } from "../../shared/protocol";
-import {
-  EMPTY,
-  STAMP_SIZE_STEP,
-  cellAt,
-  isBuildingFloor,
-  isTerrainFloor,
-  sceneAreaCells,
-  snapDeg,
-  snapPos,
-  snapSize,
-  stampBlock,
-} from "../../shared/terrain";
+import { EMPTY, STAMP_SIZE_STEP, cellAt, isBuildingFloor, isTerrainFloor, sceneAreaCells, snapDeg, snapPos, snapSize, stampBlock, PLAIN_WALL, sceneWallType } from "../../shared/terrain";
 import type { CellBounds, StampId } from "../../shared/terrain";
 import type { DrawShape, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneLight, SceneVision, TerrainItem, TokenItem } from "../../shared/types";
 import { isCompass, sceneBounds } from "../../shared/types";
@@ -76,8 +65,9 @@ import {
   setWall,
   stampColour,
   wallsFor,
+  repaintWall,
 } from "./build";
-import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
+import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef, WallDraw } from "./build";
 import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, pickUnder, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
 import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
@@ -310,7 +300,7 @@ type Gesture =
       vertex: { c: number; r: number };
       start: { c: number; r: number };
       moved: boolean;
-      mode: "add" | "remove";
+      mode: WallDraw;
       mouse: boolean;
     }
   /**
@@ -514,8 +504,7 @@ export class Board implements BoardApi {
   /** Alt is held: the Build tool takes away instead of adding. */
   private altDown = false;
   /** Walls being placed corner by corner with a mouse: the corners so far, and the grid lines between them. */
-  private wallPath: { corners: { c: number; r: number }[]; steps: [number, number, Side][][]; mode: "add" | "remove" } | null =
-    null;
+  private wallPath: { corners: { c: number; r: number }[]; steps: [number, number, Side][][]; mode: WallDraw } | null = null;
   /** The last corner clicked, and when: the second click of a double-click finishes rather than adding or starting. */
   private lastWallClick: { at: number; c: number; r: number } | null = null;
   /** Build › Select: the objects and doors selected. Only this tab's: never sent. */
@@ -847,10 +836,7 @@ export class Board implements BoardApi {
       standees: () => this.standees3d(),
       walls: () => this.walls3d(),
       objects: () => this.objects3d(),
-      wallTexture: () => {
-        const id = this.renderedScene?.wallTexture;
-        return id && !isHex(this.renderedScene!.grid) ? textureTile(id) : null;
-      },
+      wallTexture: (id) => (this.renderedScene && !isHex(this.renderedScene.grid) ? textureTile(id) : null),
       buildings: () => this.buildings3d(),
       effects: () => this.effects3d(),
       cliffs: () => {
@@ -1505,8 +1491,14 @@ export class Board implements BoardApi {
   private walls3d(): Walls3d {
     const scene = this.renderedScene;
     if (!scene) return { walls: [], built: [], doors: [] };
-    const built = isHex(scene.grid) ? { walls: [], doors: [] } : this.build.model.sightLines();
-    return wallsOf(scene.vision, built, scene.grid);
+    if (isHex(scene.grid)) return wallsOf(scene.vision, { walls: [], doors: [] }, scene.grid);
+    // Each built wall in its own look (those with none in the scene's): a wall texture's id, or "" for plain.
+    const lines = this.build.model.sightLines();
+    const look = (t: string) => {
+      const id = t || sceneWallType(scene);
+      return id === PLAIN_WALL ? "" : id;
+    };
+    return wallsOf(scene.vision, { ...lines, wallTypes: lines.wallTypes.map(look), windowTypes: lines.windowTypes.map(look) }, scene.grid);
   }
 
   destroy(): void {
@@ -4619,7 +4611,7 @@ export class Board implements BoardApi {
   }
 
   /** Starts walls drawn corner by corner with a mouse, as with Dungeondraft's Wall tool. */
-  private startWallPath(v: { c: number; r: number }, mode: "add" | "remove"): void {
+  private startWallPath(v: { c: number; r: number }, mode: WallDraw): void {
     this.wallPath = { corners: [v], steps: [], mode };
     this.uiLayer.batchDraw();
   }
@@ -4731,14 +4723,17 @@ export class Board implements BoardApi {
       this.bgLayer.batchDraw();
       return;
     }
-    const edit = new BuildEdit(this.room.state.items, scene.id);
+    // What's built now keeps the look picked now (Build > Walls), whatever's picked later.
+    const look = sceneWallType(scene);
+    const edit = new BuildEdit(this.room.state.items, scene.id, look);
     for (const [k, code] of d.cells) {
       if (code === EMPTY && !d.groundOnly) edit.erase(keyCol(k), keyRow(k));
       else edit.setCell(keyCol(k), keyRow(k), code[0], code.slice(2));
     }
     for (const [k, mode] of d.walls) {
       const { col, row, side } = edgeOf(k);
-      setWall(edit, col, row, side, mode);
+      if (mode === "repaint") repaintWall(edit, col, row, side, look);
+      else setWall(edit, col, row, side, mode);
     }
     this.applyBuild(edit);
   }
@@ -4749,7 +4744,7 @@ export class Board implements BoardApi {
     if (!scene) return;
     const { col, row, side } = this.nearestWallEdge(world);
     if (!this.edgeOnScene(col, row, side)) return;
-    const edit = new BuildEdit(this.room.state.items, scene.id);
+    const edit = new BuildEdit(this.room.state.items, scene.id, sceneWallType(scene));
     setPortal(edit, col, row, side, alt ? "wall" : this.room.state.buildOpts.doorStyle);
     this.applyBuild(edit);
   }

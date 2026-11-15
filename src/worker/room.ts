@@ -19,7 +19,7 @@ import type { ExploreGrid } from "../shared/explore";
 import { randomId } from "../shared/ids";
 import { PROBLEM_LIMITS, addProblem } from "../shared/problems";
 import type { Problem } from "../shared/problems";
-import { hasWindows, isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
+import { hasWallTypes, hasWindows, isDungeonStamp, looksLikeTerrainId, stampsOnGrid } from "../shared/terrain";
 import { defaultGrid, switchUnits } from "../shared/units";
 import { BUILD_ID } from "../shared/build";
 import { INITIATIVE_MAX } from "../shared/characters";
@@ -131,9 +131,17 @@ const FREE_VERSION = 6;
  * reload, as with terrain.
  */
 const WINDOW_VERSION = 9;
+/**
+ * Walls with a look of their own need code from 15 November 2026 (10). Older code knows one
+ * look for every wall, the scene's, and would draw them all in it; worse, it would write the
+ * chunk back in a way that loses them. Such tabs don't get those chunks, can't change them,
+ * and are asked to reload, as with terrain.
+ */
+const WALL_TYPE_VERSION = 10;
 /** The oldest protocol version whose code can show this item. */
 function versionFor(item: Item): number {
   if (item.kind === "terrain") {
+    if (hasWallTypes(item)) return WALL_TYPE_VERSION;
     if (hasWindows(item.edges)) return WINDOW_VERSION;
     if (!stampsOnGrid(item.stamps)) return FREE_VERSION;
     return item.tex || item.stamps.some((s) => isDungeonStamp(s[0])) ? DUNGEON_VERSION : TERRAIN_VERSION;

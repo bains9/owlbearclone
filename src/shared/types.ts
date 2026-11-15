@@ -71,7 +71,12 @@ export interface Scene {
    * Cleared when the picture changes.
    */
   mapRect?: [number, number, number, number];
-  /** Dungeon's texture for the walls of the scene's built map (a wall texture's id). Missing: Tabletop's plain dark walls. */
+  /**
+   * Dungeon's texture for walls built on the scene's built map from now on (a wall texture's
+   * id), and for those with none of their own (built before 15 November 2026). Missing:
+   * Tabletop's plain dark walls. Each wall keeps its own look (TerrainItem.wt): changing this
+   * changes only walls built after (Build > Walls first gives walls without one the look they had).
+   */
   wallTexture?: string;
   /**
    * The scene's area in world units, [left, top, right, bottom], when the GM has extended it
@@ -392,6 +397,13 @@ export interface TerrainItem extends ItemBase {
    */
   tex?: string;
   pal?: string[];
+  /**
+   * Each wall's own look (terrain.ts, WALL_TYPE_CHARS): 768 characters, "." for none (the
+   * scene's wallTexture) or an index into wpal, "plain" or a wall texture's id. Both or
+   * neither; "" and [] when a patch takes them all away. Never in a hidden chunk.
+   */
+  wt?: string;
+  wpal?: string[];
   hidden?: boolean;
 }
 
@@ -425,6 +437,8 @@ export interface MutableFields {
   stamps: Stamp[];
   tex: string;
   pal: string[];
+  wt: string;
+  wpal: string[];
 }
 
 export interface ItemPatch {

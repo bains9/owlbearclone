@@ -336,15 +336,22 @@ export function cleanStamps(v: unknown): Stamp[] | undefined {
 }
 
 /** Whether a set of terrain fields is right for a public chunk, or for a hidden (secret door) one. */
-export function terrainFieldsOk(hidden: boolean, f: { cells?: string; edges?: string; stamps?: Stamp[]; tex?: string; pal?: string[] }): boolean {
-  // Textures come as a pair, always: an index means nothing without its palette.
+export function terrainFieldsOk(
+  hidden: boolean,
+  f: { cells?: string; edges?: string; stamps?: Stamp[]; tex?: string; pal?: string[]; wt?: string; wpal?: string[] },
+): boolean {
+  // Textures come as a pair, always: an index means nothing without its palette. Walls' looks the same.
   if ((f.tex === undefined) !== (f.pal === undefined)) return false;
   if (f.tex !== undefined && !texturesOk(f.tex, f.pal!)) return false;
+  if ((f.wt === undefined) !== (f.wpal === undefined)) return false;
+  if (f.wt !== undefined && !wallTypesOk(f.wt, f.wpal!)) return false;
   if (hidden) {
     if (f.cells !== undefined && f.cells !== EMPTY_CELLS) return false;
     if (f.edges !== undefined && !SECRET_EDGES_RE.test(f.edges)) return false;
     if (f.stamps !== undefined && f.stamps.length) return false;
     if (f.tex) return false;
+    // A secret door is the wall players see, whose look is in the public chunk.
+    if (f.wt) return false;
     return true;
   }
   return f.edges === undefined || EDGES_RE.test(f.edges);
@@ -436,6 +443,94 @@ export function texturesOk(tex: string, pal: readonly string[]): boolean {
   return !!again && again.tex === tex && again.pal.join() === pal.join();
 }
 
+// ---------------------------------------------------------------- walls' own looks
+
+/**
+ * Each built wall keeps the look it was built with (15 November 2026): before, a scene had one
+ * wallTexture and every wall wore it, so picking another in Build > Walls repainted the walls
+ * already built. A chunk's wt holds each wall's own, one character for each place a wall's look
+ * is kept, "." for none (the scene's wallTexture, as walls had before) or an index into wpal:
+ *   0-255     a cell's floor: the walls a room gets by itself round it (where a walled floor
+ *             meets anything but a room floor), whichever side they're on
+ *   256-767   a cell's top and left edges (two a cell, as edges): a wall drawn by hand, or a
+ *             door's or window's posts; on an automatic wall, one repainted there (it wins
+ *             over its floor's)
+ * wpal's entries are PLAIN_WALL (Tabletop's own dark walls) or one of Dungeon's wall textures.
+ */
+export const WALL_TYPE_CHARS = CHUNK_CELLS * 3;
+/** Tabletop's own plain dark walls, as a wall's look. */
+export const PLAIN_WALL = "plain";
+const WT_RE = /^[.0-9A-Za-z]{768}$/;
+
+/** A wall's look: Tabletop's plain walls or one of Dungeon's wall textures. */
+export function isWallType(id: unknown): id is string {
+  return id === PLAIN_WALL || isWallTexture(id);
+}
+
+/** The look a scene gives walls with none of their own, and walls built from now on: its wall texture, or plain. */
+export function sceneWallType(scene: Pick<Scene, "wallTexture">): string {
+  return scene.wallTexture ?? PLAIN_WALL;
+}
+
+/** A chunk's walls' own looks, one for each place (see WALL_TYPE_CHARS; "" for none), or null when it has none at all. */
+export function decodeWallTypes(t: { wt?: string; wpal?: string[] }): string[] | null {
+  if (!t.wt || !t.wpal?.length) return null;
+  const out = Array<string>(WALL_TYPE_CHARS);
+  for (let i = 0; i < WALL_TYPE_CHARS; i++) {
+    const ch = t.wt[i];
+    out[i] = ch === EMPTY ? "" : (t.wpal[TEX_DIGITS.indexOf(ch)] ?? "");
+  }
+  return out;
+}
+
+/**
+ * The wt and wpal fields for each place's look ("" none), the palette in order of first use as
+ * textures' is. Empty strings and an empty palette when there are none; null if a chunk would
+ * need more looks than it can hold (there are far fewer wall textures than that).
+ */
+export function encodeWallTypes(types: readonly string[]): { wt: string; wpal: string[] } | null {
+  const wpal: string[] = [];
+  let wt = "";
+  for (let i = 0; i < WALL_TYPE_CHARS; i++) {
+    const id = types[i] ?? "";
+    if (!id) {
+      wt += EMPTY;
+      continue;
+    }
+    let n = wpal.indexOf(id);
+    if (n < 0) {
+      if (wpal.length === MAX_TEXTURES_PER_CHUNK) return null;
+      n = wpal.push(id) - 1;
+    }
+    wt += TEX_DIGITS[n];
+  }
+  return wpal.length ? { wt, wpal } : { wt: "", wpal: [] };
+}
+
+/** Whether a chunk has walls with a look of their own: those need code from 15 November 2026 (protocol 10). */
+export function hasWallTypes(t: { wt?: string }): boolean {
+  return !!t.wt;
+}
+
+export function cleanWt(v: unknown): string | undefined {
+  return typeof v === "string" && (v === "" || WT_RE.test(v)) ? v : undefined;
+}
+
+export function cleanWpal(v: unknown): string[] | undefined {
+  if (!Array.isArray(v) || v.length > MAX_TEXTURES_PER_CHUNK || !v.every(isWallType) || new Set(v).size !== v.length) return undefined;
+  return v.slice();
+}
+
+/** Whether wt and wpal belong together, exactly as encodeWallTypes makes them (see texturesOk). */
+export function wallTypesOk(wt: string, wpal: readonly string[]): boolean {
+  if (!wt || !wpal.length) return !wt && !wpal.length;
+  const types = decodeWallTypes({ wt, wpal: [...wpal] });
+  if (!types) return false;
+  for (let i = 0; i < WALL_TYPE_CHARS; i++) if (wt[i] !== EMPTY && !types[i]) return false;
+  const again = encodeWallTypes(types);
+  return !!again && again.wt === wt && again.wpal.join() === wpal.join();
+}
+
 /** Validates a terrain item. The owner is always the GM: only the GM builds. */
 export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId: string, owner: string): TerrainItem | null {
   const cx = chunkCoord(r.cx);
@@ -453,7 +548,12 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
   const tex = textured ? cleanTex(r.tex) : undefined;
   const pal = textured ? cleanPal(r.pal) : undefined;
   if (textured && (tex === undefined || pal === undefined)) return null;
-  if (!terrainFieldsOk(hidden, { cells, edges, stamps, tex, pal })) return null;
+  // Walls' own looks, the same: a chunk from before them has neither.
+  const typed = r.wt !== undefined || r.wpal !== undefined;
+  const wt = typed ? cleanWt(r.wt) : undefined;
+  const wpal = typed ? cleanWpal(r.wpal) : undefined;
+  if (typed && (wt === undefined || wpal === undefined)) return null;
+  if (!terrainFieldsOk(hidden, { cells, edges, stamps, tex, pal, wt, wpal })) return null;
   return {
     id,
     sceneId,
@@ -466,6 +566,7 @@ export function sanitizeTerrain(r: Record<string, unknown>, id: string, sceneId:
     edges,
     stamps,
     ...(tex ? { tex, pal } : {}),
+    ...(wt ? { wt, wpal } : {}),
     ...(hidden ? { hidden: true } : {}),
   };
 }
