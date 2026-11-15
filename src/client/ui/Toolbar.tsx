@@ -103,6 +103,7 @@ import {
 import type { BuildAction, BuildOptions as BuildOpts, ToolId } from "../room/client";
 import { ConfirmDialog, Swatches, canFullscreen, cx, toggleFullscreen, useFullscreen, useRoom, useRoomState } from "./common";
 import { VoiceMicButton } from "./VoicePanel";
+import { besideBuild } from "./view3dBeside";
 
 const TOOLS: { id: ToolId; label: string; key: string; icon: typeof Pencil; gm?: boolean }[] = [
   { id: "select", label: "Move & select", key: "V", icon: MousePointer2 },
@@ -1238,9 +1239,11 @@ export function ZoomControls() {
   const zoom = useRoomState((s) => s.zoom);
   const map3d = useRoomState((s) => s.map3d);
   const in3d = useRoomState((s) => s.view3d && s.map3d);
+  // Beside the flat map while building, the 3D view has its own wheel and pinch: the buttons stay the map's.
+  const beside = useRoomState((s) => besideBuild(s.view3d && s.map3d, s.tool, s.stageNarrow));
   // In 3D the buttons work the 3D view's camera; the 2D map keeps its own zoom for coming back.
-  const zoomBy = (f: number) => (room.view3d ? room.view3d.zoomBy(f) : room.board?.zoomBy(f));
-  const fit = () => (room.view3d ? room.view3d.fit() : room.board?.fit());
+  const zoomBy = (f: number) => (room.view3d && !beside ? room.view3d.zoomBy(f) : room.board?.zoomBy(f));
+  const fit = () => (room.view3d && !beside ? room.view3d.fit() : room.board?.fit());
   return (
     <div class="zoom">
       <VoiceMicButton />
@@ -1258,7 +1261,7 @@ export function ZoomControls() {
       <button class="tool" title="Zoom out (−)" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
         <Minus size={18} />
       </button>
-      {!in3d && (
+      {(!in3d || beside) && (
         <button class="zoom-level" title="Fit the scene (0)" onClick={fit}>
           {Math.round(zoom * 100)}%
         </button>

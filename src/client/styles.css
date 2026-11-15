@@ -820,6 +820,14 @@ button:disabled {
 .board.under3d {
   visibility: hidden;
 }
+/* Building with the 3D view on (View3dLayer.tsx): the flat map on the left half, the 3D view on the right. */
+.board.beside3d {
+  right: 50%;
+}
+.view3d.beside {
+  left: 50%;
+  border-left: 1px solid var(--border);
+}
 
 /* The party at the top of Tokens & images (PartySection.tsx). */
 .party {

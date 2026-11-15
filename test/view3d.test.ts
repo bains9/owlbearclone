@@ -465,7 +465,7 @@ describe("the guide", () => {
 
   it("has a section on the map in 3D, for everyone", () => {
     expect(section.audience).toBe("everyone");
-    expect(section.parts.map((p) => p.title)).toEqual(["Turn it on", "Look around", "What it shows", "GM: the table display in 3D"]);
+    expect(section.parts.map((p) => p.title)).toEqual(["Turn it on", "Look around", "What it shows", "GM: check a build in 3D", "GM: the table display in 3D"]);
   });
 
   it("names the switches and buttons as the app shows them", async () => {
@@ -483,10 +483,19 @@ describe("the guide", () => {
   });
 
   it("says what stands up on a built map, and that the weather falls", () => {
-    expect(text).toContain("trees with trunks and leafy tops");
-    expect(text).toContain("Rugs, stains and other things lying on the floor stay painted");
+    expect(text).toContain("every one in a shape of its own made for it");
+    expect(text).toContain("trees with trunks under their crowns");
+    expect(text).toContain("A tankard, a candle or a platter put on a table sits on the table");
+    expect(text).toContain("Rugs, stains, trapdoors and the ways to other levels (stairs, ladders, hatches) lie flat");
     expect(text).toContain("The day's weather falls on the map");
     expect(text).toContain("**Weather on this map**");
+  });
+
+  it("says the Build tool keeps the 3D view beside the flat map, and on a phone in its place", () => {
+    const build = JSON.stringify(section.parts.find((p) => p.title === "GM: check a build in 3D"));
+    expect(build).toContain("the 3D view opens beside the flat map");
+    expect(build).toContain("the Build tool stays picked");
+    expect(text).toContain("but for the Build tool, which keeps the 3D view");
   });
 
   it("says walls take their own colours and buildings get roofs that lift when the party's in", () => {
