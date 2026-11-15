@@ -33,13 +33,14 @@ function disc(p: PaintMap, cx: number, cy: number, r: number, col: number[], spi
   }
 }
 
-/** Paints a bare tree: thin dark branches out from a middle. */
+/** Paints a bare tree: thin dark branches out from a dense knot in the middle. */
 function bare(p: PaintMap, cx: number, cy: number, r: number): void {
-  for (let b = 0; b < 9; b++) {
-    const a = (b / 9) * Math.PI * 2;
+  for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (x * x + y * y <= 36) p.rgba.set([80, 52, 34, 255], ((Math.round(cy * S) + y) * W + Math.round(cx * S) + x) * 4);
+  for (let b = 0; b < 14; b++) {
+    const a = (b / 14) * Math.PI * 2;
     for (let t = 0; t < r * S; t += 0.5) {
       const x = Math.round(cx * S + Math.cos(a) * t), y = Math.round(cy * S + Math.sin(a) * t);
-      if (x >= 0 && y >= 0 && x < W && y < H) p.rgba.set([80, 52, 34, 255], (y * W + x) * 4);
+      for (const dx of [0, 1]) if (x + dx >= 0 && y >= 0 && x + dx < W && y < H) p.rgba.set([80, 52, 34, 255], (y * W + x + dx) * 4);
     }
   }
 }

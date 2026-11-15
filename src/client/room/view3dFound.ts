@@ -305,6 +305,24 @@ function cliffOf(members: readonly number[], path: readonly number[], width: num
   return pts.length >= 4 ? { pts, halfWidth: width / 2 } : null;
 }
 
+/**
+ * How full a patch is round its middle (within a fifth of its radius `r`): a bare tree's limbs meet
+ * in a dense knot there; a river's branches, or a word, leave it mostly empty.
+ */
+function hub(members: readonly number[], w: number, r: number): number {
+  let cx = 0, cy = 0;
+  for (const p of members) {
+    cx += p % w;
+    cy += Math.floor(p / w);
+  }
+  cx /= members.length;
+  cy /= members.length;
+  const near = Math.max(1.5, r * 0.2);
+  let n = 0;
+  for (const p of members) if (Math.hypot((p % w) - cx, Math.floor(p / w) - cy) <= near) n++;
+  return n / (Math.PI * near * near);
+}
+
 /** A mask grown by a pixel each way (8 neighbours). */
 function grown(m: Uint8Array, w: number, h: number): Uint8Array {
   const out = new Uint8Array(w * h);
@@ -366,8 +384,14 @@ function classify(members: readonly number[], edge: number, outline: number, rgb
     if (piney && area >= PINE) return { shape: shape("pine"), size: across };
     return { shape: shape(area < TREE ? "bush" : "tree"), size: across };
   }
-  // A bare tree's branches are brown (grey scree and dirt, scattered, aren't).
-  if (brown && !grey && fill < 0.35 && across >= 1) return { shape: shape("bare"), size: across };
+  // A bare tree: warm (brown or snowy grey-brown branches), its limbs spread about as far every way
+  // (a word written on the map is wide and flat) from a dense knot in the middle (a river's
+  // branches, or scattered scree, have none), and thin: a fifth to a third of its round box filled
+  // (a river network much less).
+  if (!green && r - b >= 5 && lum < 170 && fill >= 0.18 && fill < 0.35 && across >= 1 && across <= 5 &&
+      Math.max(bw, bh) / Math.min(bw, bh) <= 1.7 && hub(members, w, (bw + bh) / 4) >= 0.6) {
+    return { shape: shape("bare"), size: across };
+  }
   // A rock is drawn with an outline darker than its middle.
   if (grey && fill > 0.5 && lum >= 60 && area <= 4 && outline > 12) return { shape: shape("rock"), size: across };
   return null;
