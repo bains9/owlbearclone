@@ -57,6 +57,7 @@ import {
 import { objectMesh } from "./view3dObjects";
 import { cliffMesh } from "./view3dCliffs";
 import { rockMask, rockSides, rockTop } from "./view3dRock";
+import { edgeColour, groundMesh, rangeMesh, sceneryOf, skyMesh } from "./view3dScenery";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
@@ -114,6 +115,15 @@ export class View3D implements View3dControls {
   /** A cave or dungeon map's black, standing up as rock (view3dRock.ts): its faces, and its top as a picture laid over it. */
   private rock: Mesh | null = null;
   private rockTop: { mesh: Mesh; tex: CanvasTexture; canvas: HTMLCanvasElement; geo: PlaneGeometry; mat: MeshLambertMaterial } | null = null;
+  /**
+   * The scenery round an outdoor map (view3dScenery.ts): sky, ground to the horizon and distant
+   * ranges, made for the weather region and the day's weather, and what it was made from.
+   */
+  private scenery: { meshes: Mesh[]; key: string } | null = null;
+  private sceneryFor: { region: string | null; weather: Weather | null } = { region: null, weather: null };
+  /** The map's edge colour (the ground it runs on into) and whether it's a cave (no scenery), as the floor last had them. */
+  private groundEdge: [number, number, number] | null = null;
+  private cave = false;
   /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
   private texturedWalls: Mesh | null = null;
   private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
@@ -219,9 +229,11 @@ export class View3D implements View3dControls {
   }
 
   /** The day's weather on this map (null: none, or it doesn't fall here). */
-  setWeather(w: Weather | null): void {
+  setWeather(w: Weather | null, region: string | null = null): void {
     const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.weather.set(weatherLook(w, { reducedMotion, touch: this.opts.touch }));
+    this.sceneryFor = { region, weather: w };
+    this.makeScenery();
     this.redraw();
   }
 
@@ -327,8 +339,12 @@ export class View3D implements View3dControls {
     if (things.position.length) this.objects = this.lit(things);
     const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
     if (rock.position.length) this.cliffs = this.lit(rock);
-    this.makeRock(f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null, f.cover, all, f.paint);
+    const rockMap = f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null;
+    this.makeRock(rockMap, f.cover, all, f.paint);
     this.makeRoofs(all);
+    this.cave = !!rockMap;
+    this.groundEdge = f.objectPaint ? edgeColour(f.objectPaint.rgba, f.objectPaint.w, f.objectPaint.h) : null;
+    this.makeScenery();
 
     // How far the camera may go, for this scene's size.
     const reach = Math.max(20, 2.5 * Math.hypot(w, h));
@@ -808,7 +824,63 @@ export class View3D implements View3dControls {
     this.dropRoofs();
   }
 
+  /**
+   * The scenery round the map (view3dScenery.ts), made again only when what it's made from changes:
+   * none for a cave, or where the weather doesn't reach (indoors, underground). The mist, if any,
+   * fades into its sky.
+   */
+  private makeScenery(): void {
+    const { region, weather } = this.sceneryFor;
+    const s = this.cave || !this.sceneId ? null : sceneryOf(region, weather);
+    const a = this.area, cell = this.cell;
+    const cx = (a.x0 + a.x1) / 2 / cell, cz = (a.y0 + a.y1) / 2 / cell;
+    const radius = Math.max(4, Math.hypot(a.x1 - a.x0, a.y1 - a.y0) / 2 / cell);
+    const ground = this.groundEdge ?? [0.5, 0.5, 0.48];
+    const key = JSON.stringify([s, Math.round(cx), Math.round(cz), Math.round(radius), ground.map((v) => Math.round(v * 40))]);
+    if (this.scenery?.key === key) {
+      this.tintToSky(s);
+      return;
+    }
+    this.dropScenery();
+    if (!s) return;
+    const meshes = [
+      skyMesh(s, cx, cz, radius * 8),
+      groundMesh(s, ground, cx, cz, radius, radius * 7.6),
+      ...s.ranges.map((r) => rangeMesh(r, s, cx, cz, radius)),
+    ].map((m) => {
+      const geo = new BufferGeometry();
+      geo.setAttribute("position", new BufferAttribute(m.position, 3));
+      geo.setAttribute("color", new BufferAttribute(m.color, 3));
+      const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }));
+      this.world.add(mesh);
+      return mesh;
+    });
+    this.scenery = { meshes, key };
+    this.tintToSky(s);
+    this.redraw();
+  }
+
+  /** Rain, snow and mist fade into the scenery's sky rather than the dark round a map without it. */
+  private tintToSky(s: { horizon: readonly number[] } | null): void {
+    if (!s) return;
+    const [r, g, b] = s.horizon;
+    this.world.fog?.color.setRGB(r, g, b);
+    this.renderer.setClearColor((Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255), 1);
+  }
+
+  private dropScenery(): void {
+    if (!this.scenery) return;
+    for (const m of this.scenery.meshes) {
+      this.world.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
+    this.scenery = null;
+    this.renderer.setClearColor(BACKGROUND, 1);
+  }
+
   private clearScene(): void {
+    this.dropScenery();
     this.dropFloor();
     this.dropWalls();
     this.dropSheets();

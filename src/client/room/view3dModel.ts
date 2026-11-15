@@ -432,8 +432,8 @@ export interface Board3dSource {
 /** What the page's buttons and keys ask of the 3D view while it's showing. */
 export interface View3dControls {
   zoomBy(factor: number): void;
-  /** The day's weather on this map (null: none, or it doesn't fall here). */
-  setWeather(w: Weather | null): void;
+  /** The day's weather on this map (null: none, or it doesn't fall here), and its weather region (null: the calendar's), for the scenery round it. */
+  setWeather(w: Weather | null, region?: string | null): void;
   /** Back to the whole scene, from the south, tilted. */
   fit(): void;
 }

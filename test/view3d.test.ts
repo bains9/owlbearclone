@@ -511,6 +511,11 @@ describe("the guide", () => {
     expect(JSON.stringify(GUIDE)).toContain("Lighting and line of sight");
   });
 
+  it("says an outdoor map sits in a landscape, by its weather region", () => {
+    expect(text).toContain("it sits in a landscape: a sky in the day's weather");
+    expect(text).toContain("jagged snow-capped peaks for Mountains");
+  });
+
   it("says a cave map's black stands up as rock", () => {
     expect(text).toContain("A cave or dungeon map drawn on black stands its black up as solid rock");
     expect(text).toContain("has its trees, bushes, bare trees and rocks found by their colour against the ground round them");

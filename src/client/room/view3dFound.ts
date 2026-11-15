@@ -112,7 +112,7 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
     members.length = 0;
     stack.push(start);
     seen[start] = 1;
-    let edge = 0;
+    let edge = 0, rimLum = 0, coreLum = 0;
     while (stack.length) {
       const p = stack.pop()!;
       const x = p % w, y = (p - x) / w;
@@ -124,7 +124,11 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
           const nx = x + dx, ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= w || ny >= h || !on[ny * w + nx]) border = true;
         }
-        if (border) edge++;
+        const l = 0.3 * rgba[p * 4] + 0.59 * rgba[p * 4 + 1] + 0.11 * rgba[p * 4 + 2];
+        if (border) {
+          edge++;
+          rimLum += l;
+        } else coreLum += l;
       }
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
@@ -139,7 +143,9 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
       }
     }
     if (!members.length) continue;
-    const f = classify(members, edge, rgba, w, s);
+    // How much darker its rim is than its middle (a drawn thing's outline; a patch of dirt has none).
+    const outline = edge < members.length ? coreLum / (members.length - edge) - rimLum / Math.max(1, edge) : 0;
+    const f = classify(members, edge, outline, rgba, w, s);
     if (!f) continue;
     // Its middle and its reach in each direction, in scene units.
     let cx = 0, cy = 0;
@@ -186,10 +192,10 @@ function grown(m: Uint8Array, w: number, h: number): Uint8Array {
 }
 
 /**
- * What a patch is, from its pixels (`edge` of them on its rim) and how big it is (`s` pixels a
- * square): its shape and how wide (squares), or null for none of the things found.
+ * What a patch is, from its pixels (`edge` of them on its rim, `outline` how much darker that
+ * rim is than its middle) and how big it is (`s` pixels a square): its shape and how wide (squares), or null for none of the things found.
  */
-function classify(members: readonly number[], edge: number, rgba: Uint8ClampedArray, w: number, s: number): { shape: Shape; size: number } | null {
+function classify(members: readonly number[], edge: number, outline: number, rgba: Uint8ClampedArray, w: number, s: number): { shape: Shape; size: number } | null {
   const n = members.length;
   const area = n / (s * s);
   // A big patch is a building, a yard or a wood, but for one round green crown (a great tree).
@@ -227,8 +233,10 @@ function classify(members: readonly number[], edge: number, rgba: Uint8ClampedAr
     if (piney && area >= PINE) return { shape: shape("pine"), size: across };
     return { shape: shape(area < TREE ? "bush" : "tree"), size: across };
   }
-  if ((brown || (grey && lum < 90)) && fill < 0.35 && across >= 1) return { shape: shape("bare"), size: across };
-  if (grey && fill > 0.5 && lum >= 60 && area <= 4) return { shape: shape("rock"), size: across };
+  // A bare tree's branches are brown (grey scree and dirt, scattered, aren't).
+  if (brown && !grey && fill < 0.35 && across >= 1) return { shape: shape("bare"), size: across };
+  // A rock is drawn with an outline darker than its middle.
+  if (grey && fill > 0.5 && lum >= 60 && area <= 4 && outline > 12) return { shape: shape("rock"), size: across };
   return null;
 }
 

@@ -1141,7 +1141,8 @@ export const GUIDE: GuideSection[] = [
           "Tokens stand up as figures, their pictures turned towards you, on a stand in their colour. Props (furniture, doors and other objects put down as tokens) lie flat.",
           "When someone moves a token on the flat map, its figure slides there in 3D.",
           "Spells show too, moving as on the flat map: a spell area on the ground (a web, spike growth) lies on the floor, a cloud or darkness hangs in the air among the figures, a spell on a token glows round its figure, and a spell being cast (a fireball, a lightning bolt) plays at the figures' middle.",
-          "The day's weather falls on the map: rain slanting with the wind, snow drifting down, mist over the far end of the map in heavy weather or under an overcast sky, and now and then lightning in a storm (heavy rain with a strong wind)."
+          "The day's weather falls on the map: rain slanting with the wind, snow drifting down, mist over the far end of the map in heavy weather or under an overcast sky, and now and then lightning in a storm (heavy rain with a strong wind).",
+          "Where the weather reaches the map, it sits in a landscape: a sky in the day's weather, the map's ground running on to the horizon, and ranges of hills or mountains round it, by the scene's **Weather region**: jagged snow-capped peaks for Mountains, white rolling hills for Tundra, flat-topped mesas for a desert, the sea on one side for Coast, green hills elsewhere. A cold day puts snow on the tops; rain and snow fade the far ranges, and a storm hides them. Indoors, underground and in a cave there's none."
         ],
         "notes": [
           "Players never see more in 3D than on the flat map. Walls stand only where you've seen: under the fog, or in darkness the party hasn't explored, there's nothing to give a room's shape away. Walls in places explored earlier are darker.",

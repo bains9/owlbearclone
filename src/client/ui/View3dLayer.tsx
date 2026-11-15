@@ -15,7 +15,9 @@ export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }
   const ref = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"loading" | "ready">("loading");
   const weather = useMapWeather();
-  const weatherKey = JSON.stringify(weather);
+  // The scene's weather region, else the calendar's: what the land round the map looks like in 3D.
+  const region = useRoomState((s) => (s.viewSceneId ? s.scenes[s.viewSceneId]?.region : undefined) ?? s.calendar?.climate ?? null);
+  const weatherKey = JSON.stringify([weather, region]);
   const view3d = useRef<View3dControls | null>(null);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export function View3dLayer(props: { board: Board; boardEl: HTMLElement | null }
 
   // The day's weather, once the view is there and whenever it changes.
   useEffect(() => {
-    if (state === "ready") view3d.current?.setWeather(weather);
+    if (state === "ready") view3d.current?.setWeather(weather, region);
   }, [state, weatherKey]);
 
   // The 2D board is under the 3D view: it needn't be shown (the browser draws less).

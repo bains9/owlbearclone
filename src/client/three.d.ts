@@ -118,6 +118,7 @@ declare module "three" {
     polygonOffsetFactor?: number;
     polygonOffsetUnits?: number;
     vertexColors?: boolean;
+    fog?: boolean;
     color?: string | number | Color;
     map?: Texture | null;
     size?: number;
