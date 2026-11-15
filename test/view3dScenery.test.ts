@@ -85,3 +85,14 @@ describe("scenery round an outdoor map", () => {
     expect(edgeColour(rgba, w, h)!.map((v) => Math.round(v * 255))).toEqual([200, 210, 220]);
   });
 });
+
+describe("scenery and what players have seen", () => {
+  it("gives nothing of a fogged map's edges away: only seen pixels count, none when too few are", () => {
+    const w = 10, h = 10, rgba = new Uint8ClampedArray(w * h * 4);
+    for (let p = 0; p < w * h; p++) rgba.set([200, 210, 220, 255], p * 4);
+    expect(edgeColour(rgba, w, h, () => false)).toBeNull();
+    expect(edgeColour(rgba, w, h, (x) => x < 5)!.map((v) => Math.round(v * 255))).toEqual([200, 210, 220]);
+    // Then the land's own ground colour, white on a freezing day.
+    expect(sceneryOf("Temperate", day({ low: -12, high: -4 }))!.ground[0]).toBeGreaterThan(0.8);
+  });
+});

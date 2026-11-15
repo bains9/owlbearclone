@@ -36,6 +36,7 @@ import {
   MAX_TILT,
   WALL_HEIGHT,
   START_TILT,
+  WALL_SEEN,
   brightnessAt,
   cameraAt,
   cardSize,
@@ -343,7 +344,10 @@ export class View3D implements View3dControls {
     this.makeRock(rockMap, f.cover, all, f.paint);
     this.makeRoofs(all);
     this.cave = !!rockMap;
-    this.groundEdge = f.objectPaint ? edgeColour(f.objectPaint.rgba, f.objectPaint.w, f.objectPaint.h) : null;
+    // The ground round the map: its edges' colour, but for a player only from what they've seen.
+    const op = f.objectPaint;
+    const seen = all ? undefined : (x: number, y: number) => !!op && brightnessAt(f.cover, op.x0 + (x + 0.5) / op.k, op.y0 + (y + 0.5) / op.k) >= WALL_SEEN;
+    this.groundEdge = op ? edgeColour(op.rgba, op.w, op.h, seen) : null;
     this.makeScenery();
 
     // How far the camera may go, for this scene's size.
@@ -835,7 +839,7 @@ export class View3D implements View3dControls {
     const a = this.area, cell = this.cell;
     const cx = (a.x0 + a.x1) / 2 / cell, cz = (a.y0 + a.y1) / 2 / cell;
     const radius = Math.max(4, Math.hypot(a.x1 - a.x0, a.y1 - a.y0) / 2 / cell);
-    const ground = this.groundEdge ?? [0.5, 0.5, 0.48];
+    const ground = this.groundEdge ?? s?.ground ?? [0.5, 0.5, 0.48];
     const key = JSON.stringify([s, Math.round(cx), Math.round(cz), Math.round(radius), ground.map((v) => Math.round(v * 40))]);
     if (this.scenery?.key === key) {
       this.tintToSky(s);

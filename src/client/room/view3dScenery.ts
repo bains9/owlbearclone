@@ -36,6 +36,8 @@ export interface Scenery {
   sea: boolean;
   /** How much far things fade into the horizon's colour, beyond what distance does (the weather's). */
   haze: number;
+  /** The land's ground colour, for round a map whose own edges haven't been seen. */
+  ground: Rgb;
 }
 
 const mix = (a: readonly number[], b: readonly number[], t: number): Rgb => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -84,7 +86,8 @@ export function sceneryOf(region: string | null, w: Weather | null): Scenery | n
     { dist: 4.6, height: l.tall * 1.3, rough: l.rough, plateau: l.plateau, colour: winterHills, snowline, seed: 23 },
     { dist: 3, height: l.tall * 0.55, rough: l.rough * 0.6, plateau: l.plateau * 0.5, colour: mix(winterHills, [0.12, 0.14, 0.12], 0.25), snowline: snowline + 0.15, seed: 37 },
   ];
-  return { zenith, horizon, ranges, sea: l.sea, haze: Math.min(0.95, haze) };
+  const ground: Rgb = cold < 0 ? [0.88, 0.9, 0.93] : mix(l.colour, [0.55, 0.5, 0.4], 0.35);
+  return { zenith, horizon, ranges, sea: l.sea, haze: Math.min(0.95, haze), ground };
 }
 
 /** 0 to 1, smooth along `t` (an angle's share of a turn) and the same for the same seed: layered waves. */
@@ -208,10 +211,17 @@ export function skyAt(s: Scenery, up: number): Rgb {
   return mix(s.horizon, s.zenith, Math.min(1, Math.max(0, up)) ** 0.6);
 }
 
-/** The middle colour of the map's paint along its edges (rgba, 0-255): the ground it runs on into. */
-export function edgeColour(rgba: ArrayLike<number>, w: number, h: number): Rgb | null {
+/**
+ * The middle colour of the map's paint along its edges (rgba, 0-255): the ground it runs on into.
+ * With `seen`, only the pixels it says have been seen count, and none when under a twentieth of
+ * the edge has been (a player's map under fog gives nothing of itself away).
+ */
+export function edgeColour(rgba: ArrayLike<number>, w: number, h: number, seen?: (x: number, y: number) => boolean): Rgb | null {
   const ch: number[][] = [[], [], []];
+  let all = 0;
   const take = (x: number, y: number) => {
+    all++;
+    if (seen && !seen(x, y)) return;
     const q = (y * w + x) * 4;
     if (rgba[q + 3] < 128) return;
     for (let c = 0; c < 3; c++) ch[c].push(rgba[q + c]);
@@ -220,6 +230,6 @@ export function edgeColour(rgba: ArrayLike<number>, w: number, h: number): Rgb |
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) if (x < band || y < band || x >= w - band || y >= h - band) take(x, y);
   }
-  if (!ch[0].length) return null;
+  if (!ch[0].length || ch[0].length < all * 0.05) return null;
   return ch.map((v) => v.sort((a, b) => a - b)[v.length >> 1] / 255) as Rgb;
 }
