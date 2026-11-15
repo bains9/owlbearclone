@@ -5,7 +5,7 @@
 // initiative list as the GM's creatures do. One of Your tokens goes on as a room's own upload does:
 // named only from the Quick token box. The room gets its own copy of the picture the first time.
 import type { Point } from "../shared/geometry";
-import { MAX_FILE_AT_ONCE, shelfLabel, shelfName, type LibraryEntry, type Shelf } from "../shared/library";
+import { MAX_FILE_AT_ONCE, isCharacterPicture, shelfLabel, shelfName, type LibraryEntry, type Shelf } from "../shared/library";
 import { GM_OWNER } from "../shared/sanitize";
 import type { Asset, TokenItem } from "../shared/types";
 import { prepareImage } from "./api";
@@ -111,11 +111,14 @@ export async function uploadAndPlace(room: RoomClient, files: File[], at: Point,
 /**
  * GM: files this room's uploads under Monsters, NPCs or Tokens, for every room: they leave this
  * room's own list. A few at a time (the Worker copies each picture); the toast says how many went.
- * Into Tokens only the GM's own go: a player's upload stays theirs.
+ * Into Tokens only the GM's own go: a player's upload stays theirs, and the Party's pictures of
+ * characters stay in their room (it makes them in each).
  */
 export async function fileInLibrary(room: RoomClient, picked: string[], shelf: Shelf): Promise<number> {
-  const assetIds = shelf === "token" ? picked.filter((id) => room.state.assets[id]?.owner === GM_OWNER) : picked;
-  const players = picked.length - assetIds.length;
+  const of = (id: string) => room.state.assets[id];
+  const party = shelf === "token" ? picked.filter((id) => isCharacterPicture(of(id)?.name ?? "")).length : 0;
+  const players = shelf === "token" ? picked.filter((id) => of(id)?.owner !== GM_OWNER && !isCharacterPicture(of(id)?.name ?? "")).length : 0;
+  const assetIds = shelf === "token" ? picked.filter((id) => of(id)?.owner === GM_OWNER && !isCharacterPicture(of(id)?.name ?? "")) : picked;
   let filed = 0;
   room.store.set((s) => ({ uploading: s.uploading + 1 }));
   try {
@@ -131,7 +134,8 @@ export async function fileInLibrary(room: RoomClient, picked: string[], shelf: S
     room.store.set((s) => ({ uploading: s.uploading - 1 }));
   }
   const theirs = players ? ` ${players} uploaded by players stay in this room, theirs.` : "";
-  room.toast(shelf === "token" ? `${filed} now in every room, under ${shelfLabel(shelf)}.${theirs}` : `${filed} moved to ${shelfName(shelf)}, for every room.`);
+  const made = party ? ` ${party} of the party's stay too: the Party makes those in each room.` : "";
+  room.toast(shelf === "token" ? `${filed} now in every room, under ${shelfLabel(shelf)}.${theirs}${made}` : `${filed} moved to ${shelfName(shelf)}, for every room.`);
   return filed;
 }
 

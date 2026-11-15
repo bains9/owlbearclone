@@ -4,7 +4,7 @@
 // All the GM's, but the picture: like a room's pictures, it's for anyone with its address.
 import { SAVED_LIMITS, isCreatureKey, sanitizeTokenStats } from "../shared/tokenStats";
 import { randomId } from "../shared/ids";
-import { LIBRARY_ID, MAX_FILE_AT_ONCE, isShelf, libraryKey, type LibraryEntry } from "../shared/library";
+import { LIBRARY_ID, MAX_FILE_AT_ONCE, isCharacterPicture, isShelf, libraryKey, type LibraryEntry } from "../shared/library";
 import { GM_OWNER, LIMITS, cleanText } from "../shared/sanitize";
 import type { Asset } from "../shared/types";
 import { isGm } from "./auth";
@@ -153,7 +153,8 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
 
   // A room's uploads filed under Monsters, NPCs or Tokens: copied into the library, and that room's
   // pictures marked as its copies (they leave its own list). A few at a time: the page sends more.
-  // Into Tokens only the GM's own: a player's upload stays theirs.
+  // Into Tokens only the GM's own: a player's upload stays theirs, and the Party's pictures of
+  // characters stay in their room (the Party makes them in each).
   if (pathname === "/api/library/from-room") {
     if (method !== "POST") return fail(405, "Method not allowed.");
     const body = await readJson(request);
@@ -164,7 +165,7 @@ export async function libraryRoute(request: Request, env: Env, pathname: string,
     const stub = env.ROOMS.getByName(roomId);
     if (!(await stub.exists())) return fail(404, "Room not found.");
     const live = new Set((await directory.libraryList()).map((e) => e.id));
-    const assets = (await stub.tokenAssets(ids)).filter((a) => (!a.library || !live.has(a.library)) && (shelf !== "token" || a.owner === GM_OWNER));
+    const assets = (await stub.tokenAssets(ids)).filter((a) => (!a.library || !live.has(a.library)) && (shelf !== "token" || (a.owner === GM_OWNER && !isCharacterPicture(a.name))));
     const full = await directory.libraryRefusal(assets.length, assets.reduce((n, a) => n + a.bytes, 0));
     if (full) return fail(403, full);
     const entries: LibraryEntry[] = [];

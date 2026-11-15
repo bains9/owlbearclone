@@ -28,7 +28,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Tokens of them already on maps stay as they are.",
           "On each one in **Your tokens**: **Rename**, **Move to…** (Monsters or NPCs), and **Take out of the library** (the bin), for every room.",
-          "Players' own uploads stay in their room, and theirs: they're listed under **Only in this room**.",
+          "Players' own uploads stay in their room, and theirs: they're listed under **Only in this room**. So do the pictures the Party makes for characters' tokens (named like Aldwyn · figure 1k3x9): it makes them in each room.",
           "See **Upload pictures for tokens** in **Tokens**."
         ]
       },

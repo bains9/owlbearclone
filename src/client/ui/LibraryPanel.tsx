@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Check, Compass, FolderInput, Pencil, Trash, Upload } from "lucide-preact";
-import { isFiled, shelfLabel, type Shelf } from "../../shared/library";
+import { isCharacterPicture, isFiled, shelfLabel, type Shelf } from "../../shared/library";
 import type { Asset } from "../../shared/types";
 import { fileUrl } from "../api";
 import { fileInLibrary, loadLibrary, uploadToLibrary } from "../library";
@@ -263,7 +263,7 @@ export function LibraryPanel() {
                           }}
                         >
                           <option value="">Move to…</option>
-                          {a.owner === me && <option value="token">Your tokens (every room)</option>}
+                          {a.owner === me && !isCharacterPicture(a.name) && <option value="token">Your tokens (every room)</option>}
                           <option value="monster">Monsters (every room)</option>
                           <option value="npc">NPCs (every room)</option>
                         </select>

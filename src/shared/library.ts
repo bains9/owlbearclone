@@ -40,6 +40,15 @@ export function shelfName(s: Shelf): string {
   return s === "monster" ? "Monsters" : s === "npc" ? "NPCs" : "Tokens";
 }
 
+/**
+ * A picture the Party made for a character's token in a room (client/party.ts characterAssetName:
+ * "Aldwyn · figure 1k3x9", "Aldwyn · picture Ab12Cd34"). The Party makes one in each room it places
+ * them in, so it isn't kept for every room.
+ */
+export function isCharacterPicture(name: string): boolean {
+  return / · (?:figure|picture) [\w-]{1,16}$/.test(name);
+}
+
 /** What a shelf's pictures are called at the top of its tab. */
 export function shelfLabel(s: Shelf): string {
   return s === "monster" ? "Your monsters" : s === "npc" ? "Your NPCs" : "Your tokens";
