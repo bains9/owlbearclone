@@ -7,15 +7,15 @@
 import { guessGridSize } from "../shared/geometry";
 import { randomId } from "../shared/ids";
 import { DEFAULT_GRID, LIMITS, PARTY_LIGHT, SIGHT_RANGE } from "../shared/sanitize";
-import type { ScenePatch } from "../shared/protocol";
-import type { Asset, FogItem, Item, Scene, SceneDungeon, SceneLight, SceneMapData, SceneVision, TokenItem } from "../shared/types";
+import type { ItemOps, ScenePatch } from "../shared/protocol";
+import type { Asset, DrawingItem, FogItem, Item, ItemPatch, Scene, SceneDungeon, SceneLight, SceneMapData, SceneVision, TokenItem } from "../shared/types";
 import { defaultVisionDistances, importedUnits } from "../shared/units";
 import type { GridUnits } from "../shared/units";
 import { AttachError, cleanUpSidecars, prepareAttach, uploadSidecar } from "./dd/attach";
 import type { AttachReport, VttMeta } from "./dd/extract";
 import { dungeonLevelNames, gridSizeFor, readMapFiles, vttName } from "./mapImport";
 import { randomId as newBatchId } from "../shared/ids";
-import type { MapFile, MapSight } from "./mapImport";
+import type { MapFile, MapNote, MapSight } from "./mapImport";
 import type { Uploaded } from "./api";
 import { isOb2File, readOb2 } from "./ob2";
 import type { RoomClient } from "./room/client";
@@ -113,6 +113,117 @@ export function visionFromSight(sight: MapSight, perSquare: number, keep?: Scene
       : units
         ? defaultVisionDistances(units)
         : {}),
+  };
+}
+
+// ---------------------------------------------------------------- notes only the GM sees
+
+/** Which of a level's labels only the GM sees is which note here (SceneDungeon.notes). */
+export type NoteLink = NonNullable<SceneDungeon["notes"]>[number];
+
+/** The lettering notes are drawn in (board.ts draws them bold, lines 1.2 apart). */
+const NOTE_FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+const NOTE_LINE = 1.2;
+let measurer: CanvasRenderingContext2D | null | undefined;
+
+/** How wide a note's longest line is drawn at this letter size, in the same units (a fair guess where there's no canvas). */
+export function noteWidth(text: string, size: number): number {
+  const longest = text.split("\n").reduce((a, b) => (b.length > a.length ? b : a), "");
+  if (measurer === undefined) {
+    try {
+      measurer = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+    } catch {
+      measurer = null;
+    }
+  }
+  if (!measurer) return longest.length * size * 0.56;
+  measurer.font = `bold 100px ${NOTE_FONT}`;
+  return (measurer.measureText(longest).width / 100) * size;
+}
+
+/** Scene units a square of the map takes on this scene: its picture's width over the squares it shows. */
+export function perSquareOf(scene: Pick<Scene, "width" | "mapRect" | "grid">): number {
+  return scene.mapRect ? scene.width / scene.mapRect[2] : scene.grid.size;
+}
+
+/**
+ * Where a label's note goes, and how it looks: centred where Dungeon centres the label, its
+ * letters as tall (`perSquare` scene units a square), in its colour. Notes don't turn, so a
+ * turned label comes in level.
+ */
+export function noteLook(n: MapNote, perSquare: number, measure = noteWidth): Pick<DrawingItem, "points" | "text" | "color" | "width"> {
+  const width = Math.max(0.5, Math.min(LIMITS.strokeMax, round2(n.size * perSquare)));
+  const lines = n.text.split("\n").length;
+  const w = measure(n.text, width);
+  return {
+    points: [round2(n.x * perSquare - w / 2), round2(n.y * perSquare - (lines * width * NOTE_LINE) / 2)],
+    text: n.text,
+    color: n.color,
+    width,
+  };
+}
+
+const isNoteOn = (item: Item | undefined, sceneId: string): item is DrawingItem =>
+  !!item && item.kind === "drawing" && item.shape === "text" && item.sceneId === sceneId;
+
+/**
+ * Brings a scene's notes only the GM sees into step with its level's labels only the GM sees, by
+ * Dungeon's id for each: a label with a note gets its note moved and changed to match (whether
+ * players see it stays as the GM set it), a new label gets a new note, hidden, and a label gone
+ * (deleted or unticked in Dungeon) takes its note away. A note the GM deleted here stays deleted.
+ * Only notes `links` names are touched, never one the GM made. Returns the change to make and
+ * the scene's links after it.
+ */
+export function syncDungeonNotes(
+  sceneId: string,
+  notes: readonly MapNote[],
+  links: readonly NoteLink[],
+  items: Readonly<Record<string, Item>>,
+  perSquare: number,
+  make: { owner: string; z: number; newId?: () => string; measure?: (text: string, size: number) => number },
+): { ops: ItemOps; links: NoteLink[] } {
+  const linked = new Map(links.map((l) => [l.id, l.item]));
+  const upsert: DrawingItem[] = [];
+  const patch: ItemPatch[] = [];
+  const out: NoteLink[] = [];
+  const wanted = new Set<string>();
+  let z = make.z;
+  for (const n of notes) {
+    if (wanted.has(n.id)) continue;
+    wanted.add(n.id);
+    const look = noteLook(n, perSquare, make.measure);
+    const id = linked.get(n.id);
+    if (id) {
+      out.push({ id: n.id, item: id });
+      const was = items[id];
+      // Deleted here by the GM: it stays deleted.
+      if (!isNoteOn(was, sceneId)) continue;
+      const set: ItemPatch["set"] = {};
+      if (was.points.join() !== look.points.join()) set.points = look.points;
+      if (was.text !== look.text) set.text = look.text;
+      if (was.color !== look.color) set.color = look.color;
+      if (was.width !== look.width) set.width = look.width;
+      if (Object.keys(set).length) patch.push({ id, set });
+      continue;
+    }
+    const note: DrawingItem = {
+      id: (make.newId ?? (() => randomId(12)))(),
+      sceneId,
+      kind: "drawing",
+      z: z++,
+      owner: make.owner,
+      shape: "text",
+      fill: false,
+      hidden: true,
+      ...look,
+    };
+    upsert.push(note);
+    out.push({ id: n.id, item: note.id });
+  }
+  const gone = links.filter((l) => !wanted.has(l.id) && isNoteOn(items[l.item], sceneId)).map((l) => l.item);
+  return {
+    ops: { ...(upsert.length ? { upsert } : {}), ...(patch.length ? { patch } : {}), ...(gone.length ? { delete: gone } : {}) },
+    links: out,
   };
 }
 
@@ -311,14 +422,28 @@ export async function importFiles(
       // The picture's place in its map, from the .dd2vtt, whether or not the data could be attached:
       // so a later attach (Edit scene › Map, or the project file dropped alone) needs no second file (2.1 step 5).
       if (d.map.dd && d.map.vtt) scene.mapRect = vttRect(d.map.vtt);
+      // A map from Dungeon's labels only the GM sees: notes only the GM sees, from Dungeon's own data
+      // (they're in no picture). Linked to their labels when the scene is Dungeon's, for updates.
+      const notes = syncDungeonNotes(scene.id, d.map.gmNotes ?? [], [], {}, perSquareOf(scene), { owner: room.state.me?.userId ?? "", z: 0 });
       if (fromDungeon) {
         const index = maps.indexOf(d.map);
-        scene.dungeon = { map: fromDungeon.map, batch, level: levels[index], index, levels, asset: d.asset.id, ...(fromDungeon.lighting ? { lighting: true } : {}) };
+        scene.dungeon = {
+          map: fromDungeon.map,
+          batch,
+          level: levels[index],
+          index,
+          levels,
+          asset: d.asset.id,
+          ...(fromDungeon.lighting ? { lighting: true } : {}),
+          ...(notes.links.length ? { notes: notes.links } : {}),
+        };
       } else if (d.map.level) {
         // One of a file's levels: the file's levels are one map in Scenes, with Up and Down between them.
         scene.level = d.map.level;
       }
       room.createScene(scene);
+      // Not undoable: part of making the scene.
+      room.change(notes.ops, false);
       result.scenes.push(scene);
       if (fromFile) result.gridFromFile++;
       if (attach) {
@@ -516,11 +641,11 @@ export function updatePatch(
   scene: Scene & { dungeon: SceneDungeon },
   d: Uploaded & { map: MapFile },
   attach: Pick<Attached, "mapData"> | null,
-  link: Pick<SceneDungeon, "index" | "levels" | "lighting">,
+  link: Pick<SceneDungeon, "index" | "levels" | "lighting" | "notes">,
 ): Omit<ScenePatch, "id"> {
   const fresh = sceneFromMap(d.asset, scene.name, scene.order, scene.fogCover, { unit: scene.grid.unit, unitName: scene.grid.unitName }, d);
   // World units a square of the map takes on this scene, and a pixel of the new picture.
-  const perSquare = scene.mapRect ? scene.width / scene.mapRect[2] : scene.grid.size;
+  const perSquare = perSquareOf(scene);
   const k = perSquare / fresh.grid.size;
   const kept = scene.mapData ? { ...(scene.mapData.bare ? { bare: scene.mapData.bare } : {}), ...(scene.mapData.drawn ? { drawn: scene.mapData.drawn } : {}), ...(scene.mapData.packs ? { packs: scene.mapData.packs } : {}) } : {};
   return {
@@ -538,6 +663,8 @@ export function updatePatch(
       levels: link.levels,
       asset: d.asset.id,
       ...(link.lighting ? { lighting: true } : { lighting: undefined }),
+      // Which label is which note, as syncDungeonNotes leaves them (when given; else as they were).
+      ...("notes" in link ? { notes: link.notes?.length ? link.notes : undefined } : {}),
     },
   };
 }
@@ -627,7 +754,13 @@ export async function applyDungeonUpdate(
       old.push(now.mapAssetId!);
       // Its map data only if it's Dungeon's, for this picture: never anything the GM attached.
       if (now.mapData?.from === "dungeon" && now.mapData.forAssetId === now.mapAssetId) old.push(now.mapData.assetId);
-      room.updateScene(now.id, updatePatch(now, d, attach, { ...link, index: level }));
+      // Its notes only the GM sees, in step with the level's labels only the GM sees (in the scene's units, as before).
+      const notes = syncDungeonNotes(now.id, d.map.gmNotes ?? [], now.dungeon.notes ?? [], room.state.items, perSquareOf(now), {
+        owner: room.state.me?.userId ?? "",
+        z: room.nextZ(now.id, "drawing"),
+      });
+      room.updateScene(now.id, updatePatch(now, d, attach, { ...link, index: level, notes: notes.links }));
+      room.change(notes.ops, false);
       updated.add(now.id);
       result.updated.push(room.state.scenes[now.id] ?? now);
     }
@@ -635,8 +768,19 @@ export async function applyDungeonUpdate(
       const scene = sceneFromMap(d.asset, d.map.name, order++, opts.covered, importedUnits(d.map.scale, settings), d);
       if (attach) scene.mapData = attach.mapData;
       if (d.map.vtt) scene.mapRect = vttRect(d.map.vtt);
-      scene.dungeon = { map: first.map, batch: first.batch, level: levels[level], index: level, levels, asset: d.asset.id, ...(opts.lighting ? { lighting: true } : {}) };
+      const notes = syncDungeonNotes(scene.id, d.map.gmNotes ?? [], [], {}, perSquareOf(scene), { owner: room.state.me?.userId ?? "", z: 0 });
+      scene.dungeon = {
+        map: first.map,
+        batch: first.batch,
+        level: levels[level],
+        index: level,
+        levels,
+        asset: d.asset.id,
+        ...(opts.lighting ? { lighting: true } : {}),
+        ...(notes.links.length ? { notes: notes.links } : {}),
+      };
       room.createScene(scene);
+      room.change(notes.ops, false);
       result.added.push(scene);
     }
   }

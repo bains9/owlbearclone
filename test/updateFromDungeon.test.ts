@@ -13,12 +13,14 @@ vi.mock("../src/client/dd/attach", async (actual) => ({
   uploadSidecar: vi.fn(async () => ({ id: `side${++sidecars}` })),
 }));
 
-const { applyDungeonUpdate, detailOf, isDungeonScene, planDungeonUpdate, readDungeonFile, unusedAssets, updatePatch, withPairs } = await import("../src/client/importScenes");
+const { applyDungeonUpdate, detailOf, importFiles, isDungeonScene, noteWidth, planDungeonUpdate, readDungeonFile, unusedAssets, updatePatch, withPairs } = await import("../src/client/importScenes");
 const { dungeonLevelNames } = await import("../src/client/mapImport");
 const { RoomClient } = await import("../src/client/room/client");
 const { DEFAULT_GRID, sanitizeScene } = await import("../src/shared/sanitize");
 const { playerScene } = await import("../src/worker/playerView");
-import type { Asset, Scene, SceneDungeon } from "../src/shared/types";
+const { applyOps, isEmptyOps } = await import("../src/shared/ops");
+import type { Asset, DrawingItem, Item, Scene, SceneDungeon } from "../src/shared/types";
+import type { ItemOps } from "../src/shared/protocol";
 import type { MapFile } from "../src/client/mapImport";
 
 // Update from Dungeon (importScenes.ts): one bring-in's scenes get their levels' new pictures in
@@ -31,14 +33,15 @@ const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as Fs;
 // Dungeon's three-level fixture: Ground floor, Cellar, Crypt, 36 × 24 squares at 128 pixels.
 const FIXTURE = fs.readFileSync(new URL("./fixtures/dungeon-levels.dd2vtt", import.meta.url), "utf8");
 type Level = Record<string, any>;
-/** The fixture with its levels as given (by name), each its own copy. */
-function fileOf(names: string[]): File {
+/** The fixture with its levels as given (by name), each its own copy; `texts`: labels added to a level, by its name. */
+function fileOf(names: string[], texts: Record<string, Level[]> = {}): File {
   const data = JSON.parse(FIXTURE) as Level;
   const all: Level[] = [data, ...data.dungeon_levels].map((l) => JSON.parse(JSON.stringify({ ...l, dungeon_levels: undefined })));
   const byName = new Map(all.map((l) => [l.dungeon.levelName as string, l]));
   const levels = names.map((n) => {
     const l = JSON.parse(JSON.stringify(byName.get(n) ?? all[0]));
     l.dungeon.levelName = n;
+    l.dungeon.texts = [...l.dungeon.texts, ...(texts[n] ?? [])];
     return l;
   });
   const [first, ...rest] = levels;
@@ -72,14 +75,25 @@ function linked(id: string, index: number, asset: string, extra: Partial<Scene> 
 function fakeRoom(scenes: Scene[], scale = 1, status = "open") {
   const state = {
     scenes: Object.fromEntries(scenes.map((s) => [s.id, s])) as Record<string, Scene>,
+    items: {} as Record<string, Item>,
+    me: { userId: "@gm" },
     room: { settings: { metric: false } },
     status,
   };
   const deleted: string[] = [];
   const forgotten: string[][] = [];
+  /** Every change to items, in order, and whether it could be undone. */
+  const changes: { ops: ItemOps; undoable: boolean }[] = [];
   let n = 0;
   const room = {
     state,
+    change: (ops: ItemOps, undoable = true) => {
+      if (isEmptyOps(ops)) return;
+      changes.push({ ops, undoable });
+      state.items = applyOps(state.items, ops);
+    },
+    nextZ: (sceneId: string, kind: string) =>
+      Math.max(0, ...Object.values(state.items).filter((i) => i.sceneId === sceneId && i.kind === kind).map((i) => i.z + 1)),
     uploadMaps: async (maps: MapFile[]) =>
       maps.map((map) => {
         const source = { width: 36 * 128, height: 24 * 128 };
@@ -96,7 +110,7 @@ function fakeRoom(scenes: Scene[], scale = 1, status = "open") {
     deleteAsset: (id: string) => deleted.push(id),
     forgetPictures: (ids: ReadonlySet<string>) => forgotten.push([...ids].sort()),
   };
-  return { room: room as unknown as InstanceType<typeof RoomClient>, state, deleted, forgotten };
+  return { room: room as unknown as InstanceType<typeof RoomClient>, state, deleted, forgotten, changes };
 }
 
 async function update(
@@ -326,5 +340,127 @@ describe("a scene's link to Dungeon", () => {
 
   it("isn't sent to players", () => {
     expect(playerScene(base)).not.toHaveProperty("dungeon");
+  });
+});
+
+// ---------------------------------------------------------------- labels only the GM sees
+
+// Dungeon's "Only the GM sees this" on a label leaves it out of the picture; Table makes it a note
+// only the GM sees (a hidden text drawing), linked to its label by Dungeon's id for it, so Update
+// from Dungeon changes, adds and removes notes rather than adding copies.
+
+const gmLabel = (id: string, text: string, x: number, y: number, more: Level = {}): Level => ({ id, x, y, text, size: 0.5, color: "#ffd0d0", font: "serif", rot: 0, gmOnly: true, ...more });
+const ASSASSIN = gmLabel("assassin0001", "An assassin waits in the cupboard", 10, 6);
+const TRAP = gmLabel("trapdoor0001", "The third flagstone is a trap", 20, 12, { size: 0.4, color: "#a0e0ff" });
+const GHOST = gmLabel("ghost0000001", "A ghost wakes at midnight", 5, 20);
+
+/** A room the Old Keep was brought into from Dungeon (New scene, From Dungeon), its levels' labels as given. */
+async function broughtIn(texts: Record<string, Level[]>, dungeon = true) {
+  const r = fakeRoom([]);
+  await importFiles(r.room, [fileOf(NAMES, texts)], { name: "", order: 0, covered: true, ...(dungeon ? { dungeon: { map: MAP, lighting: false, name: "Old Keep" } } : {}) });
+  return r;
+}
+
+/** Update from Dungeon on that room, the map's labels now as given. */
+async function updated(r: ReturnType<typeof fakeRoom>, texts: Record<string, Level[]>) {
+  const drawing = await readDungeonFile(fileOf(NAMES, texts), "Old Keep");
+  const batch = Object.values(r.state.scenes)[0].dungeon!.batch;
+  const plan = planDungeonUpdate(Object.values(r.state.scenes).filter((s) => s.dungeon?.batch === batch), drawing.levels);
+  return applyDungeonUpdate(r.room, plan, drawing, { lighting: false, covered: true, bringIn: new Set() });
+}
+
+const notesIn = (r: ReturnType<typeof fakeRoom>) => Object.values(r.state.items).filter((i): i is DrawingItem => i.kind === "drawing" && i.shape === "text");
+const levelScene = (r: ReturnType<typeof fakeRoom>, name: string) => Object.values(r.state.scenes).find((s) => s.name.endsWith(name))!;
+const noteFor = (r: ReturnType<typeof fakeRoom>, label: string) => {
+  for (const s of Object.values(r.state.scenes)) {
+    const l = s.dungeon?.notes?.find((n) => n.id === label);
+    if (l) return r.state.items[l.item] as DrawingItem | undefined;
+  }
+  return undefined;
+};
+
+describe("Labels only the GM sees, from Dungeon", () => {
+  it("come in as notes only the GM sees, on their own level's scene, where they are, in their colour and size", async () => {
+    const r = await broughtIn({ "Ground floor": [ASSASSIN], Cellar: [TRAP] });
+    const notes = notesIn(r);
+    // Only those two: the labels everyone sees ("Great Hall" and the rest) are in the picture already.
+    expect(notes.map((n) => n.text).sort()).toEqual([ASSASSIN.text, TRAP.text].sort());
+    expect(notes.every((n) => n.hidden === true && n.fill === false && n.owner === "@gm")).toBe(true);
+    const ground = levelScene(r, "Ground floor");
+    const note = noteFor(r, "assassin0001")!;
+    expect(note.sceneId).toBe(ground.id);
+    expect(note).toMatchObject({ color: "#ffd0d0", width: 64 }); // half a square, 128 scene units a square
+    // Centred where Dungeon centres the label: (10, 6) squares.
+    expect(note.points[0] + noteWidth(note.text!, 64) / 2).toBeCloseTo(1280, 1);
+    expect(note.points[1] + (64 * 1.2) / 2).toBeCloseTo(768, 1);
+    expect(noteFor(r, "trapdoor0001")).toMatchObject({ sceneId: levelScene(r, "Cellar").id, color: "#a0e0ff", width: 51.2 });
+    // Each scene's link says which label is which note; the crypt has none.
+    expect(ground.dungeon!.notes).toEqual([{ id: "assassin0001", item: note.id }]);
+    expect(levelScene(r, "Crypt").dungeon).not.toHaveProperty("notes");
+    // Part of making the scenes, not a step to undo.
+    expect(r.changes.length).toBeGreaterThan(0);
+    expect(r.changes.every((c) => !c.undoable)).toBe(true);
+  });
+
+  it("stay in step on Update from Dungeon: changed, added and removed, with no copies", async () => {
+    const r = await broughtIn({ "Ground floor": [ASSASSIN], Cellar: [TRAP] });
+    const before = noteFor(r, "assassin0001")!;
+    const moved = { ...ASSASSIN, x: 12, y: 7, text: "The assassin has moved to the larder", color: "#ff8080", size: 0.6 };
+    const result = await updated(r, { "Ground floor": [moved], Crypt: [GHOST] });
+    expect(result.updated).toHaveLength(3);
+    const after = noteFor(r, "assassin0001")!;
+    // The same note, changed to match.
+    expect(after.id).toBe(before.id);
+    expect(after).toMatchObject({ text: moved.text, color: "#ff8080", width: 76.8, hidden: true });
+    expect(after.points[0] + noteWidth(moved.text, 76.8) / 2).toBeCloseTo(1536, 1);
+    // The trap's label went from Dungeon, so its note went; the ghost's is new, on the crypt.
+    expect(noteFor(r, "trapdoor0001")).toBeUndefined();
+    expect(levelScene(r, "Cellar").dungeon).not.toHaveProperty("notes");
+    expect(noteFor(r, "ghost0000001")).toMatchObject({ sceneId: levelScene(r, "Crypt").id, text: GHOST.text, hidden: true });
+    expect(notesIn(r)).toHaveLength(2);
+
+    // Again with nothing changed in Dungeon: nothing changes, and still no copies.
+    const made = r.changes.length;
+    await updated(r, { "Ground floor": [moved], Crypt: [GHOST] });
+    expect(r.changes.length).toBe(made);
+    expect(notesIn(r)).toHaveLength(2);
+    expect(r.changes.every((c) => !c.undoable)).toBe(true);
+  });
+
+  it("keep the GM's choices: one shown to players stays shown, one deleted here stays deleted, and the GM's own notes are left alone", async () => {
+    const r = await broughtIn({ "Ground floor": [ASSASSIN, TRAP] });
+    const shown = noteFor(r, "assassin0001")!;
+    const gone = noteFor(r, "trapdoor0001")!;
+    const ground = levelScene(r, "Ground floor");
+    const mine: DrawingItem = { id: "mynote000001", sceneId: ground.id, kind: "drawing", z: 9, owner: "@gm", shape: "text", points: [1, 1], color: "#ffffff", width: 30, fill: false, text: "My own note", hidden: true };
+    r.room.change({ patch: [{ id: shown.id, set: { hidden: false } }], delete: [gone.id], upsert: [mine] });
+    await updated(r, { "Ground floor": [{ ...ASSASSIN, text: "The assassin is gone" }, TRAP] });
+    expect(r.state.items[shown.id]).toMatchObject({ text: "The assassin is gone", hidden: false });
+    expect(r.state.items[gone.id]).toBeUndefined();
+    expect(notesIn(r).map((n) => n.text).sort()).toEqual(["My own note", "The assassin is gone"]);
+    // The deleted one's label is still remembered, so it isn't brought back next time either...
+    expect(levelScene(r, "Ground floor").dungeon!.notes!.map((l) => l.id).sort()).toEqual(["assassin0001", "trapdoor0001"]);
+    // ...until its label goes from Dungeon. A label unticked there (in the picture now) takes its note away.
+    await updated(r, { "Ground floor": [{ ...ASSASSIN, gmOnly: undefined }] });
+    expect(levelScene(r, "Ground floor").dungeon).not.toHaveProperty("notes");
+    expect(notesIn(r).map((n) => n.text)).toEqual(["My own note"]);
+  });
+
+  it("aren't there for a map from before (none of its labels is the GM's), and come in from a dropped file too, unlinked", async () => {
+    const old = await broughtIn({});
+    expect(notesIn(old)).toEqual([]);
+    expect(Object.values(old.state.scenes).every((s) => !s.dungeon?.notes)).toBe(true);
+    // A .dd2vtt from Dungeon dropped onto the map: hidden notes all the same, with nothing to update them by.
+    const dropped = await broughtIn({ Cellar: [TRAP] }, false);
+    expect(notesIn(dropped)).toMatchObject([{ text: TRAP.text, hidden: true }]);
+    expect(Object.values(dropped.state.scenes).every((s) => !s.dungeon)).toBe(true);
+  });
+
+  it("are never sent to players with the scene: its link to Dungeon, notes and all, is the GM's", async () => {
+    const r = await broughtIn({ "Ground floor": [ASSASSIN] });
+    const ground = levelScene(r, "Ground floor");
+    expect(ground.dungeon!.notes).toHaveLength(1);
+    expect(JSON.stringify(playerScene(ground))).not.toContain("assassin0001");
+    expect(playerScene(ground)).not.toHaveProperty("dungeon");
   });
 });

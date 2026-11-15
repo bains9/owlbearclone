@@ -178,6 +178,14 @@ export interface SceneDungeon {
   asset: string;
   /** Whether Dungeon's lighting was painted into the picture (an update does the same). */
   lighting?: boolean;
+  /**
+   * The notes only the GM sees made from the level's labels only the GM sees (Dungeon's "Only the
+   * GM sees this"): which label (`id`, Dungeon's id for it) is which note (`item`), so Update from
+   * Dungeon changes, adds and removes them rather than adding copies. A label whose note the GM
+   * deleted here keeps its entry, so an update doesn't bring it back. Players never get this
+   * (worker/playerView.ts), and never the notes either: they're hidden.
+   */
+  notes?: { id: string; item: string }[];
 }
 
 /** A rectangle in world units, from (x0, y0) to (x1, y1). */

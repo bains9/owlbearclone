@@ -11,6 +11,7 @@
 // (its first bytes) for what pairing needs, and read in full by the attach worker.
 
 import { randomId } from "../shared/ids";
+import { LIMITS } from "../shared/sanitize";
 import type { GridType } from "../shared/types";
 import type { VttMeta } from "./dd/extract";
 import type { GridUnits } from "../shared/units";
@@ -49,6 +50,22 @@ export interface MapFile {
   scale?: GridUnits;
   /** A Universal VTT file's walls, doors and lights, for lighting and line of sight. */
   sight?: MapSight;
+  /** A map from Dungeon: its labels only the GM sees, which are in no picture (they become notes only the GM sees). */
+  gmNotes?: MapNote[];
+}
+
+/**
+ * A label only the GM sees, from a map from Dungeon ("Only the GM sees this"; Dungeon's
+ * src/io/payload.ts): Dungeon's id for it, its centre and its letters' height in squares from the
+ * picture's top-left corner, its words and its colour (#rrggbb).
+ */
+export interface MapNote {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+  text: string;
+  color: string;
 }
 
 /**
@@ -654,10 +671,41 @@ function vttMap(data: Record<string, unknown>, fileName: string, name = vttName(
     // The whole of the grid, and the level clues, for a Dungeondraft project file.
     ...(ppg && cols && rows ? { vtt: vttMetaOf(data, { x: originX, y: originY }, { x: cols, y: rows }, ppg) } : {}),
     ...withSight(sightOf(data, originX, originY)),
+    ...(fromDungeon ? { gmNotes: gmNotesOf(dungeon as Record<string, unknown>, originX, originY) } : {}),
   };
 }
 
 const withSight = (sight: MapSight | undefined) => (sight ? { sight } : {});
+
+/** Dungeon's ids for its labels. */
+const DUNGEON_TEXT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/**
+ * A map from Dungeon's labels only the GM sees: its map data's labels marked gmOnly, which Dungeon
+ * leaves out of the picture. Every other label is in the picture already. Each once, at most as
+ * many as a scene keeps links to (LIMITS.dungeonNotes); the origin is the picture's corner, in squares.
+ */
+export function gmNotesOf(dungeon: Record<string, unknown>, originX = 0, originY = 0): MapNote[] {
+  const out: MapNote[] = [];
+  const seen = new Set<string>();
+  for (const t of Array.isArray(dungeon.texts) ? dungeon.texts : []) {
+    if (out.length >= LIMITS.dungeonNotes) break;
+    const r = (t ?? {}) as Record<string, unknown>;
+    if (r.gmOnly !== true || typeof r.id !== "string" || !DUNGEON_TEXT_ID.test(r.id) || seen.has(r.id)) continue;
+    const text = typeof r.text === "string" ? r.text.trim().slice(0, LIMITS.noteText) : "";
+    if (!text || !finite(r.x) || !finite(r.y)) continue;
+    seen.add(r.id);
+    out.push({
+      id: r.id,
+      x: r.x - originX,
+      y: r.y - originY,
+      size: finite(r.size) && r.size > 0 ? Math.min(r.size, 50) : 0.6,
+      text,
+      color: typeof r.color === "string" && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color.toLowerCase() : "#ffffff",
+    });
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- everything together
 

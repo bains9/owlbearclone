@@ -19,6 +19,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Secret notes from Dungeon (15 November 2026)",
+        "steps": [
+          "In Dungeon, tick \"Only the GM sees this\" on a label, such as `An assassin waits in the cupboard`.",
+          "GM: bring the map in with **From Dungeon**, or click **Update from Dungeon** on its scenes."
+        ],
+        "notes": [
+          "Each of those labels comes in as a secret note, where it is on the map, in its colour and size. Only you see it: players never receive it, and Dungeon leaves it out of the map's picture.",
+          "**Update from Dungeon** keeps the notes in step, with no copies: a label changed in Dungeon changes its note, a new one adds a note, and one deleted or unticked there takes its note away. A note you've shown to players stays shown, and one you've deleted here stays deleted.",
+          "See **Maps from Dungeon** under **Adding maps**."
+        ]
+      },
+      {
         "title": "Windows in the walls you build (15 November 2026)",
         "steps": [
           "GM: in the Build tool, pick **Doors**, then **Window**.",
@@ -1957,7 +1969,8 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Players never receive the note.",
           "You see secret notes and drawings as see-through. They disappear when you switch on **Player view** in the fog tool.",
-          "The tick box only appears when you add a new note."
+          "The tick box only appears when you add a new note.",
+          "A map from Dungeon brings its own: labels ticked \"Only the GM sees this\" there come in as secret notes. See **Maps from Dungeon** under **Adding maps**."
         ]
       },
       {
@@ -2975,6 +2988,9 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "A map is listed once Dungeon has saved it online, which it does by itself a few seconds after each change. There's no file to export, and nothing is saved twice.",
           "To bring a map in again after changing it in Dungeon, click **Update from Dungeon** (the circling arrows) on one of its scenes in **Scenes**, then **Update**. The scenes that came in with it get their new pictures: tokens, fog, drawings and the grid stay put, and the old pictures are deleted once no scene uses them. Levels are matched by name; if they've changed, you see what will happen before anything does. Clicking the map in **From Dungeon** again makes new scenes instead, updated on their own.",
+          "Labels ticked \"Only the GM sees this\" in Dungeon aren't in the picture. Each comes in as a secret note that only you see, on its level's scene, where the label is, in its colour and size (level, and in Tabletop's lettering: notes here don't turn). Players never receive it. Hide or show it later as any note, with the eye button.",
+          "**Update from Dungeon** keeps those notes in step, with no copies: a label changed in Dungeon changes its note (where it is, its words, colour and size), a new label adds a note, and one deleted or unticked there takes its note away. Whether players see a note stays as you set it here, and a note you've deleted here stays deleted. Notes of your own are never touched.",
+          "A Universal VTT file exported from Dungeon and dropped on the map brings its secret notes too, but they aren't kept in step: there's no Dungeon map to update them from.",
           "Tabletop has no lighting or line of sight, so the walls, doors and lights Dungeon draws are only in the picture. Dungeon's map data does come with it, for exact seasons.",
           "Your other maker's files still come in with **Upload a map**."
         ]

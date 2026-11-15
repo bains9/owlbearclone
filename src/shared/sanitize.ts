@@ -37,6 +37,8 @@ export const LIMITS = {
   playerName: 32,
   chat: 1000,
   noteText: 500,
+  /** Notes only the GM sees from one Dungeon level's labels (SceneDungeon.notes). */
+  dungeonNotes: 500,
   rings: 8,
   tokenSizeMin: 0.25,
   tokenSizeMax: 30,
@@ -448,6 +450,7 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
   if (levelName(r.level) === null || !isId(r.asset)) return undefined;
   if (typeof r.index !== "number" || !Number.isInteger(r.index) || r.index < 0 || r.index > 99) return undefined;
   if (!Array.isArray(r.levels) || r.levels.length > 99 || !r.levels.every((n) => levelName(n) !== null)) return undefined;
+  const notes = dungeonNoteLinks(r.notes);
   return {
     map: r.map,
     batch: r.batch,
@@ -456,7 +459,28 @@ export function sanitizeDungeonLink(v: unknown): SceneDungeon | null | undefined
     levels: r.levels as string[],
     asset: r.asset,
     ...(r.lighting === true ? { lighting: true } : {}),
+    ...(notes.length ? { notes } : {}),
   };
+}
+
+/** Dungeon's ids for its labels (it makes them short, of letters and digits). */
+const DUNGEON_TEXT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/** Which of a Dungeon level's labels only the GM sees is which note (SceneDungeon.notes): each label and note once. */
+function dungeonNoteLinks(v: unknown): { id: string; item: string }[] {
+  if (!Array.isArray(v)) return [];
+  const out: { id: string; item: string }[] = [];
+  const ids = new Set<string>();
+  const items = new Set<string>();
+  for (const l of v.slice(0, LIMITS.dungeonNotes)) {
+    const e = l as { id?: unknown; item?: unknown } | null;
+    if (!e || typeof e.id !== "string" || !DUNGEON_TEXT_ID.test(e.id) || !isId(e.item)) continue;
+    if (ids.has(e.id) || items.has(e.item)) continue;
+    ids.add(e.id);
+    items.add(e.item);
+    out.push({ id: e.id, item: e.item });
+  }
+  return out;
 }
 
 /** A scene's level in a map with several (null: none any more; undefined: not one, or not a good one). */
