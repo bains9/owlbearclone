@@ -110,7 +110,8 @@ import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
 import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
-import { WORLD_SQUARE, floorCells, mapLooksOutdoors, mapObjects, toScene, toWorld, type MapPlacement } from "./view3dMapData";
+import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
+import type { ClearingMasks } from "./view3dClearing";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
 import { castBounds, tokenLookBounds, zoneBounds, type Effect3d } from "./view3dEffects";
 import { mapCliffs, type Cliff3d } from "./view3dCliffs";
@@ -160,6 +161,8 @@ const SPOTLIGHT_COLOR = "#ffd23f";
 const ZONE_FRAME_MS = 30;
 /** How far short of a wall a player's token stops, in squares. */
 const WALL_GAP = 0.05;
+/** The painted trees are taken off the 3D floor at this many pixels a square at most (view3dClearing.ts). */
+const CLEAR_PX = 48;
 /** How far a light the GM adds reaches to begin with, in squares. */
 const OWN_LIGHT_SQUARES = 6;
 /** A brush stroke is stored in pieces of at most this many points. */
@@ -791,6 +794,8 @@ export class Board implements BoardApi {
   private floor3dCanvas: HTMLCanvasElement | null = null;
   private cover3dCanvas: HTMLCanvasElement | null = null;
   private paint3dCanvas: HTMLCanvasElement | null = null;
+  /** The picture with its standing trees taken off, being worked out or done, and what from. */
+  private clearing3d: { img: CanvasImageSource; asset: string; w: number; h: number; canvas: HTMLCanvasElement | null; stop: () => void } | null = null;
   /** A picture map's rooms from its walls alone, as last worked out, and what from (its walls and grid). */
   private walledRooms3dOf: { vision: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /** The built map's buildings as last worked out, and what from (they change only with the build). */
@@ -867,6 +872,8 @@ export class Board implements BoardApi {
           this.listeners3d.delete(fn);
           if (this.listeners3d.size) return;
           for (const layer of [this.bgLayer, this.drawLayer, this.sightLayer, this.fogLayer, this.tokenLayer]) layer.off("draw.view3d");
+          this.clearing3d?.stop();
+          this.clearing3d = null;
         };
       },
     };
@@ -906,10 +913,14 @@ export class Board implements BoardApi {
       c.setTransform(k, 0, 0, k, -area.x0 * k, -area.y0 * k);
       c.fillStyle = scene.background;
       c.fillRect(area.x0, area.y0, w, h);
-      const img = this.mapNode.visible() ? this.mapNode.image() : undefined;
-      if (img) c.drawImage(img as CanvasImageSource, 0, 0, scene.width, scene.height);
-      if (!isHex(scene.grid)) this.drawBuilt3d(c, scene, area, cw, ch, k, gmView);
-      const paint = this.paint3d(canvas, scene, w, h);
+      const img = this.mapNode.visible() ? (this.mapNode.image() as CanvasImageSource | undefined) : undefined;
+      if (img) c.drawImage(img, 0, 0, scene.width, scene.height);
+      // The painted trees that stand up in 3D, taken off the picture (once that's worked out).
+      const cleared = img ? this.clearedPicture(scene, img, k) : null;
+      if (cleared) c.drawImage(cleared, 0, 0, scene.width, scene.height);
+      const built = isHex(scene.grid) ? null : this.drawBuilt3d(c, scene, area, cw, ch, k, gmView);
+      const objectPaint = this.paint3d(scene, img, null, built, w, h);
+      const paint = cleared ? this.paint3d(scene, img, cleared, built, w, h) : objectPaint;
       this.drawGridOver(c, area, k);
       this.drawLightGlows(c);
       // The drawings, as Konva draws them, over the scene's whole area (on screen or not).
@@ -944,14 +955,14 @@ export class Board implements BoardApi {
         cover = { x0: area.x0, y0: area.y0, k: ck, w: sw, h: sh, alpha };
         this.drawCover3d(c, scene, gmView);
       }
-      return { scene, canvas, cover, area, paint };
+      return { scene, canvas, cover, area, paint, objectPaint };
     } finally {
       this.making3d = false;
     }
   }
 
-  /** The built map onto the 3D floor (`c` set to scene units), without the objects standing up in 3D. */
-  private drawBuilt3d(c: CanvasRenderingContext2D, scene: Scene, area: SceneArea, cw: number, ch: number, k: number, gmView: boolean): void {
+  /** The built map onto the 3D floor (`c` set to scene units), without the objects standing up in 3D; and the canvas it's kept on. */
+  private drawBuilt3d(c: CanvasRenderingContext2D, scene: Scene, area: SceneArea, cw: number, ch: number, k: number, gmView: boolean): HTMLCanvasElement {
     const index = this.build.model.index;
     const hidden = this.build.model.hiddenSlots;
     const objects = !!dungeonObjects();
@@ -980,14 +991,23 @@ export class Board implements BoardApi {
       b = this.built3d = { canvas, index, hidden, scene, w: cw, h: ch, gm: gmView, objects, ready: this.buildReady };
     }
     c.drawImage(b.canvas, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+    return b.canvas;
   }
 
   /**
-   * The map as painted so far (`floor`: the picture and the built map, before the grid, drawings,
-   * the dark and the fog), small (about 10 pixels a square), read back: the 3D walls take their
-   * colours from it, so a map's stone, brick or wood walls stand up in their own colour.
+   * The map as painted (the picture, with `cleared` over it if given, and the built map; not the
+   * grid, drawings, the dark or the fog), small (about 10 pixels a square), read back: the 3D walls,
+   * cliffs and trees take their colours from it, so a map's stone, brick or wood walls and its trees
+   * stand up in their own colours.
    */
-  private paint3d(floor: HTMLCanvasElement, scene: Scene, w: number, h: number): PaintMap | null {
+  private paint3d(
+    scene: Scene,
+    img: CanvasImageSource | undefined,
+    cleared: HTMLCanvasElement | null,
+    built: HTMLCanvasElement | null,
+    w: number,
+    h: number,
+  ): PaintMap | null {
     const area = sceneBounds(scene);
     const k = Math.min(10 / scene.grid.size, 1024 / Math.max(w, h));
     const pw = Math.max(1, Math.round(w * k)), ph = Math.max(1, Math.round(h * k));
@@ -998,9 +1018,83 @@ export class Board implements BoardApi {
     }
     const x = canvas.getContext("2d", { willReadFrequently: true });
     if (!x) return null;
+    x.setTransform(1, 0, 0, 1, 0, 0);
     x.clearRect(0, 0, pw, ph);
-    x.drawImage(floor, 0, 0, pw, ph);
+    x.setTransform(pw / w, 0, 0, ph / h, (-area.x0 * pw) / w, (-area.y0 * ph) / h);
+    x.fillStyle = scene.background;
+    x.fillRect(area.x0, area.y0, w, h);
+    if (img) x.drawImage(img, 0, 0, scene.width, scene.height);
+    if (cleared) x.drawImage(cleared, 0, 0, scene.width, scene.height);
+    if (built) x.drawImage(built, area.x0, area.y0, w, h);
+    x.setTransform(1, 0, 0, 1, 0, 0);
     return { x0: area.x0, y0: area.y0, k, w: pw, h: ph, rgba: x.getImageData(0, 0, pw, ph).data };
+  }
+
+  /**
+   * The picture with the painted trees, bushes and rocks that stand up in 3D taken off
+   * (view3dClearing.ts), as a patch to lay over it: null while it's being worked out (a slice at a
+   * time, then the 3D view is told) and when there's nothing to take off. Worked out again when the
+   * picture changes (its season), its map data does, or the floor's size.
+   */
+  private clearedPicture(scene: Scene, img: CanvasImageSource, k: number): HTMLCanvasElement | null {
+    const md = this.mapData(scene);
+    const asset = scene.mapData?.assetId;
+    if (!md || !asset) return null;
+    const ks = Math.min(k, CLEAR_PX / Math.max(1, scene.grid.size));
+    const w = Math.max(1, Math.round(scene.width * ks)), h = Math.max(1, Math.round(scene.height * ks));
+    const now = this.clearing3d;
+    if (now && now.img === img && now.asset === asset && now.w === w && now.h === h) return now.canvas;
+    now?.stop();
+    let timer = 0, stopped = false;
+    const entry = {
+      img, asset, w, h,
+      canvas: null as HTMLCanvasElement | null,
+      stop: () => {
+        stopped = true;
+        clearTimeout(timer);
+      },
+    };
+    this.clearing3d = entry;
+    const holes = mapHoles(md.data.objects, md.data.meta, md.place, scene.grid.size, ks);
+    if (!holes.length) return null;
+    void Promise.all([import("./view3dClearing"), import("../dd/raster")]).then(([clearing, raster]) => {
+      if (stopped) return;
+      timer = window.setTimeout(() => {
+        if (stopped) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const x = canvas.getContext("2d", { willReadFrequently: true });
+        if (!x) return;
+        x.drawImage(img, 0, 0, w, h);
+        let pixels: ImageData;
+        let masks: ClearingMasks;
+        try {
+          pixels = x.getImageData(0, 0, w, h);
+          // What lies under the things standing up, from the map data drawn without them (at most 1024 across).
+          const objects = withoutStanding(md.data.objects, md.data.meta, md.place, scene.grid.size);
+          const f = Math.min(1, 1024 / Math.max(w, h));
+          const layers = raster.rasterSidecar({ ...md.data, objects }, { w: Math.max(1, Math.round(w * f)), h: Math.max(1, Math.round(h * f)) });
+          masks = clearing.clearingMasks(layers, objects.role);
+        } catch {
+          return; // a picture that can't be read, or map data that can't be drawn: it stays as painted
+        }
+        const job = new clearing.Clearing(w, h, pixels.data, holes, masks);
+        const slice = () => {
+          if (stopped) return;
+          const t0 = performance.now();
+          if (!job.step(() => performance.now() - t0 > 8)) {
+            timer = window.setTimeout(slice, 0);
+            return;
+          }
+          x.putImageData(pixels, 0, 0);
+          entry.canvas = canvas;
+          this.tell3d("floor");
+        };
+        slice();
+      }, 0);
+    });
+    return null;
   }
 
   /**

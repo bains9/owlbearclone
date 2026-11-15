@@ -318,7 +318,7 @@ export class View3D implements View3dControls {
     const plain = tile ? pieces.filter((p) => !(p.built && !p.door)) : pieces;
     if (plain.length) this.walls = this.lit(wallMesh(plain, this.cell));
     if (tile && textured.length) this.texturedWalls = this.lit(wallMesh(textured, this.cell, true), tile);
-    const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.paint);
+    const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.objectPaint);
     if (things.position.length) this.objects = this.lit(things);
     const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
     if (rock.position.length) this.cliffs = this.lit(rock);

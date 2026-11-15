@@ -40,6 +40,27 @@ const CREST = 0.25;
 /** Rock where the picture paints nothing. */
 const ROCK: readonly [number, number, number] = [0.52, 0.51, 0.5];
 
+/**
+ * Whether a colour (0-1 each) is something other than the rock: another hue (a tree's green on grey
+ * stone) or far lighter or darker (snow across it); a rock's own lighter and darker patches aren't.
+ */
+export function offRock(c: readonly number[], rock: readonly number[]): boolean {
+  const hue = Math.abs(c[0] - c[1] - (rock[0] - rock[1])) + Math.abs(c[1] - c[2] - (rock[1] - rock[2]));
+  const lum = (v: readonly number[]) => 0.3 * v[0] + 0.59 * v[1] + 0.11 * v[2];
+  return hue > 0.15 || Math.abs(lum(c) - lum(rock)) > 0.3;
+}
+
+/** The middle colour of those given, channel by channel (null when there are none). */
+export function medianColour(cols: readonly (ArrayLike<number> | null)[]): [number, number, number] | null {
+  const got = cols.filter((c): c is ArrayLike<number> => c !== null);
+  if (!got.length) return null;
+  const mid = (ch: number) => {
+    const v = got.map((c) => c[ch]).sort((a, b) => a - b);
+    return v[v.length >> 1];
+  };
+  return [mid(0), mid(1), mid(2)];
+}
+
 /** A cliff's height for its half width, both in squares. */
 export function cliffHeight(halfWidth: number): number {
   return Math.max(CLIFF_LOWEST, Math.min(CLIFF_HIGHEST, halfWidth * 2.4));
@@ -101,6 +122,10 @@ export function cliffMesh(cliffs: readonly Cliff3d[], cell: number, cover: Cover
     if (n < 2) continue;
     const hw = cliff.halfWidth / cell;
     const h0 = cliffHeight(hw);
+    // Its rock's colour: what the picture paints along most of it. A step painted far from that (a
+    // tree's crown over it, snow drifted across) takes the rock's colour instead of its own.
+    const painted = Array.from({ length: n }, (_, i) => paintAt(paint, line[i * 2], line[i * 2 + 1]));
+    const rock = medianColour(painted);
     // Each step's point, its sideways direction (averaged at a bend), height, colour and whether it's seen.
     const steps = Array.from({ length: n }, (_, i) => {
       const x = line[i * 2], y = line[i * 2 + 1];
@@ -112,8 +137,9 @@ export function cliffMesh(cliffs: readonly Cliff3d[], cell: number, cover: Cover
       const nx = -ty, ny = tx;
       const reach = cliff.halfWidth + 0.3 * cell;
       const light = Math.max(brightnessAt(cover, x, y), brightnessAt(cover, x + nx * reach, y + ny * reach), brightnessAt(cover, x - nx * reach, y - ny * reach));
-      const painted = paintAt(paint, x, y);
-      const base = painted ? wallTint(painted) : ROCK;
+      const own = painted[i];
+      const near = own && rock && !offRock(own, rock);
+      const base = own && near ? wallTint(own) : rock ? wallTint(rock) : ROCK;
       const s = shadeOf(light);
       return {
         x: x / cell,

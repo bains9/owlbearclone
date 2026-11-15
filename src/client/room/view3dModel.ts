@@ -389,8 +389,13 @@ export interface Floor3d {
   canvas: HTMLCanvasElement;
   /** What covers it (null: nothing, it's all clear). */
   cover: CoverMap | null;
-  /** The map as painted, small, for walls' colours (null: nothing painted). */
+  /**
+   * The map as painted, small, for the colours of walls, cliffs and roofs: with the painted trees
+   * that stand up taken off, once that's worked out (null: nothing painted).
+   */
   paint: PaintMap | null;
+  /** The same with its painted trees still on, for the colours of the trees and things standing up. */
+  objectPaint: PaintMap | null;
   /** The scene's area, in scene units. */
   area: SceneArea;
 }

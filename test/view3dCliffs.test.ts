@@ -9,7 +9,7 @@ import { parseAssetRef } from "../src/client/dd/assets";
 import { SECTION, SIDECAR_UNITS, decodeSidecar, encodeSidecar, type SeasonSidecar } from "../src/client/dd/sidecar";
 import { cliffLines, extractSidecar, pictureRect } from "../src/client/dd/extract";
 import { WALL_SEEN, type CoverMap } from "../src/client/room/view3dModel";
-import { CLIFF_HIGHEST, CLIFF_LOWEST, cliffHeight, cliffMesh, mapCliffs, resample } from "../src/client/room/view3dCliffs";
+import { CLIFF_HIGHEST, CLIFF_LOWEST, cliffHeight, cliffMesh, mapCliffs, medianColour, offRock, resample } from "../src/client/room/view3dCliffs";
 import { FIXTURE_SPRITES, PACK_PREFIX, mapText } from "./fixtures/ddSynthetic";
 import { fakeExportFromMap } from "./fixtures/fakeExport";
 
@@ -195,6 +195,18 @@ describe("cliffs standing up", () => {
     const hidden: CoverMap = { ...cover, alpha: new Uint8ClampedArray(16 * 12).fill(255) };
     expect(cliffMesh([c3], CELL, hidden, false, null).position.length).toBe(0);
     expect(WALL_SEEN).toBeGreaterThan(0);
+  });
+
+  it("takes its rock's colour where something else is painted over it (a tree's crown, snow)", () => {
+    expect(offRock([0.12, 0.37, 0.16], [0.24, 0.22, 0.2])).toBe(true);
+    expect(offRock([0.9, 0.92, 0.95], [0.24, 0.22, 0.2])).toBe(true);
+    expect(offRock([0.34, 0.32, 0.3], [0.24, 0.22, 0.2])).toBe(false);
+    expect(medianColour([[1, 1, 1], null, [0, 0, 0], [0.5, 0.4, 0.3]])).toEqual([0.5, 0.4, 0.3]);
+    // Grey rock, with a dark green crown painted over a stretch of it.
+    const rgba = new Uint8ClampedArray(16 * 12 * 4);
+    for (let i = 0; i < 16 * 12; i++) rgba.set(i % 16 >= 6 && i % 16 <= 8 ? [30, 95, 40, 255] : [100, 95, 90, 255], i * 4);
+    const m = cliffMesh([c3], CELL, null, false, { x0: 0, y0: 0, k: 1 / CELL, w: 16, h: 12, rgba });
+    for (let v = 0; v < m.color.length; v += 3) expect(m.color[v + 1] - m.color[v]).toBeLessThan(0.05);
   });
 
   it("takes the picture's colour where it runs", () => {

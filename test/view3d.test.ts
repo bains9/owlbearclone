@@ -511,6 +511,11 @@ describe("the guide", () => {
     expect(JSON.stringify(GUIDE)).toContain("Lighting and line of sight");
   });
 
+  it("says a map's painted trees come off the floor under the standing ones", () => {
+    expect(text).toContain("the painted ones come off the floor under them, with the ground from nearby in their place");
+    expect(text).toContain("Buildings, water and cliffs under a tree stay as painted.");
+  });
+
   it("says a Dungeondraft map's cliffs stand up, and that a project file attached before needs attaching again", () => {
     expect(text).toContain("A Dungeondraft map's cliffs (its cliff paths, Dungeondraft's own or an asset pack's) stand up as rock");
     expect(text).toContain("attach it again (**Dungeondraft data** › **Change…**)");

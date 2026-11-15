@@ -12,6 +12,7 @@ import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, ty
 import { AR, TR } from "../dd/roles";
 import { REACH_DIRS } from "../dd/raster";
 import type { Object3d, Shape } from "./view3dObjects";
+import type { Hole } from "./view3dClearing";
 
 /** Dungeondraft's world units a square. */
 export const WORLD_SQUARE = 256;
@@ -74,29 +75,80 @@ const SMALLEST = 0.3;
  */
 export function mapObjects(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number): Object3d[] {
   const out: Object3d[] = [];
-  const { sx, sy } = sceneScale(place);
-  // World units to the scene's squares (across and down agree for a picture laid on the grid).
-  const perSquareX = sx / cell, perSquareY = sy / cell;
   for (let i = 0; i < objects.n; i++) {
-    const idx = objects.name[i];
-    const name = idx !== NO_NAME ? (meta.names[idx] ?? null) : null;
-    const shape = roleShape(objects.role[i] as ObjectRole, name);
-    if (!shape) continue;
-    let sum = 0, ex = 0, ey = 0;
-    for (let k = 0; k < REACH_N; k++) {
-      const r = objects.reach[i * REACH_N + k] / SIDECAR_UNITS.reach;
-      sum += r;
-      ex = Math.max(ex, Math.abs(r * REACH_DIRS[k * 2]));
-      ey = Math.max(ey, Math.abs(r * REACH_DIRS[k * 2 + 1]));
-    }
-    const round = shape.kind !== "box" && shape.kind !== "rock";
-    const w = round ? (2 * sum) / REACH_N * perSquareX : 2 * ex * perSquareX;
-    const d = round ? (2 * sum) / REACH_N * perSquareY : 2 * ey * perSquareY;
-    if (Math.max(w, d) < SMALLEST) continue;
+    const s = standing(objects, meta, place, cell, i);
+    if (!s) continue;
     const at = toScene(place, objects.x[i] / SIDECAR_UNITS.coord, objects.y[i] / SIDECAR_UNITS.coord);
-    out.push({ id: null, shape, x: at.x, y: at.y, size: Math.max(w, d), w, d, deg: 0, color: null, paint: true });
+    out.push({ id: null, shape: s.shape, x: at.x, y: at.y, size: Math.max(s.w, s.d), w: s.w, d: s.d, deg: 0, color: null, paint: true });
   }
   return out;
+}
+
+/** Whether object `i` stands up in 3D, and as what and how big (squares across and down). */
+function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, i: number): { shape: Shape; w: number; d: number } | null {
+  const idx = objects.name[i];
+  const name = idx !== NO_NAME ? (meta.names[idx] ?? null) : null;
+  const shape = roleShape(objects.role[i] as ObjectRole, name);
+  if (!shape) return null;
+  // World units to the scene's squares (across and down agree for a picture laid on the grid).
+  const { sx, sy } = sceneScale(place);
+  const perSquareX = sx / cell, perSquareY = sy / cell;
+  let sum = 0, ex = 0, ey = 0;
+  for (let k = 0; k < REACH_N; k++) {
+    const r = objects.reach[i * REACH_N + k] / SIDECAR_UNITS.reach;
+    sum += r;
+    ex = Math.max(ex, Math.abs(r * REACH_DIRS[k * 2]));
+    ey = Math.max(ey, Math.abs(r * REACH_DIRS[k * 2 + 1]));
+  }
+  const round = shape.kind !== "box" && shape.kind !== "rock";
+  const w = round ? (2 * sum) / REACH_N * perSquareX : 2 * ex * perSquareX;
+  const d = round ? (2 * sum) / REACH_N * perSquareY : 2 * ey * perSquareY;
+  return Math.max(w, d) < SMALLEST ? null : { shape, w, d };
+}
+
+/**
+ * The painted footprints of the things mapObjects stands up, to take off the 3D floor
+ * (view3dClearing.ts): each one's middle and reach in REACH_DIRS' directions, in pixels of the
+ * picture drawn `k` pixels a scene unit.
+ */
+export function mapHoles(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, k: number): Hole[] {
+  const out: Hole[] = [];
+  const { sx, sy } = sceneScale(place);
+  for (let i = 0; i < objects.n; i++) {
+    if (!standing(objects, meta, place, cell, i)) continue;
+    const at = toScene(place, objects.x[i] / SIDECAR_UNITS.coord, objects.y[i] / SIDECAR_UNITS.coord);
+    const r = new Float64Array(REACH_N);
+    for (let d = 0; d < REACH_N; d++) {
+      const world = objects.reach[i * REACH_N + d] / SIDECAR_UNITS.reach;
+      r[d] = world * Math.hypot(REACH_DIRS[d * 2] * sx, REACH_DIRS[d * 2 + 1] * sy) * k;
+    }
+    out.push({ x: at.x * k, y: at.y * k, r });
+  }
+  return out;
+}
+
+/** The map's objects but those mapObjects stands up: drawn, they show what lies under the standing ones. */
+export function withoutStanding(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number): ObjectTable {
+  const keep: number[] = [];
+  for (let i = 0; i < objects.n; i++) if (!standing(objects, meta, place, cell, i)) keep.push(i);
+  const pick = <T extends { length: number; [i: number]: number }>(a: T, make: new (n: number) => T, per = 1): T => {
+    const out = new make(keep.length * per);
+    keep.forEach((i, j) => {
+      for (let q = 0; q < per; q++) out[j * per + q] = a[i * per + q];
+    });
+    return out;
+  };
+  return {
+    n: keep.length,
+    role: pick(objects.role, Uint8Array),
+    layer: pick(objects.layer, Int16Array),
+    x: pick(objects.x, Int32Array),
+    y: pick(objects.y, Int32Array),
+    rot: pick(objects.rot, Uint8Array),
+    flags: pick(objects.flags, Uint8Array),
+    name: pick(objects.name, Uint16Array),
+    reach: pick(objects.reach, Uint16Array, REACH_N),
+  };
 }
 
 /** Trees a map needs before it counts as outdoors by them alone. */
