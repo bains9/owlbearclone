@@ -519,32 +519,42 @@ describe("the 3D view on a device", () => {
     return m;
   }
 
-  it("is off to begin with, and remembered once turned on", () => {
-    stubStorage();
-    expect(loadMap3d()).toBe(false);
+  it("is offered to begin with (the map flat), and remembered once turned off", () => {
+    const m = stubStorage();
+    expect(loadMap3d()).toBe(true);
     expect(loadView3d()).toBe(false);
+    saveMap3d(false);
+    expect(loadMap3d()).toBe(false);
+    expect(m.get("tabletop-map-3d")).toBe("0");
     saveMap3d(true);
     saveView3d(true);
     expect(loadMap3d()).toBe(true);
     expect(loadView3d()).toBe(true);
-    saveMap3d(false);
-    expect(loadMap3d()).toBe(false);
   });
 
-  it("is off where the browser keeps nothing", () => {
+  it("is offered on a device that ticked it before it was offered to everyone", () => {
+    const m = stubStorage();
+    m.set("tabletop-map-3d", "1");
+    expect(loadMap3d()).toBe(true);
+  });
+
+  it("is offered where the browser keeps nothing", () => {
     vi.stubGlobal("localStorage", {
       getItem: () => {
         throw new Error("blocked");
       },
     });
-    expect(loadMap3d()).toBe(false);
-    expect(() => saveMap3d(true)).not.toThrow();
+    expect(loadMap3d()).toBe(true);
+    expect(loadView3d()).toBe(false);
+    expect(() => saveMap3d(false)).not.toThrow();
   });
 
   it("shows the map in 3D only where it's offered, and goes back to 2D when it stops being offered", () => {
     stubStorage();
     const room = new RoomClient("AbCdEf123456", { uid: "gmuid", name: "GM", color: "#ff0000" });
-    expect(room.state.map3d).toBe(false);
+    expect(room.state.map3d).toBe(true);
+    expect(room.state.view3d).toBe(false);
+    room.setMap3d(false);
     room.setView3d(true);
     expect(room.state.view3d).toBe(false);
     room.setMap3d(true);
@@ -595,8 +605,8 @@ describe("the guide", () => {
     const page = await source("src/client/ui/RoomPage.tsx");
     const display = await source("src/client/ui/TableDisplay.tsx");
     const zoom = await source("src/client/ui/Toolbar.tsx");
-    expect(text).toContain("**Offer a 3D view of the map (new)**");
-    expect(page).toContain("Offer a 3D view of the map (new)");
+    expect(text).toContain("**Offer a 3D view of the map**");
+    expect(page).toMatch(/Offer a 3D view of the map\s+<\/label>/);
     expect(text).toContain("**Show the map in 3D on the display (new)**");
     expect(display).toContain("Show the map in 3D on the display (new)");
     expect(text).toContain("**Flat map (2D)**");

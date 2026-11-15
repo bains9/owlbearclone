@@ -938,11 +938,11 @@ export function ProfileDialog(props: { onClose: () => void }) {
         <p class="small muted">Untick it if rolls make this device slow: they still show in the chat. Everyone else still sees them thrown.</p>
         <label class="check">
           <input type="checkbox" checked={map3d} onChange={(e) => room.setMap3d(e.currentTarget.checked)} />
-          Offer a 3D view of the map (new)
+          Offer a 3D view of the map
         </label>
         <p class="small muted">
-          Adds a <b>3D</b> button by the zoom buttons: the map tilted like a table, walls standing up and tokens as figures. Only on this
-          device, and it shows only what you'd see on the flat map.
+          The <b>3D</b> button by the zoom buttons: the map tilted like a table, walls standing up and tokens as figures. It shows only what
+          you'd see on the flat map. Untick it to take the button away on this device.
         </p>
         {gm && (
           <>

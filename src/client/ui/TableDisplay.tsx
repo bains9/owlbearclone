@@ -20,7 +20,7 @@ export function TableDisplayDialog(props: { onClose: () => void }) {
   const [plain, setPlain] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // The display in 3D: offered once this device offers the 3D view (it's new, and off to begin with).
+  // The display in 3D: offered where this device offers the 3D view (as it does unless it was turned off here).
   const offer3d = useRoomState((s) => s.map3d);
   const [in3d, setIn3d] = useState(false);
   const link = plain && display3dLink(plain, offer3d && in3d);

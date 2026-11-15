@@ -1,6 +1,7 @@
 // The map in 3D (room/view3d.ts) on this device: whether it's offered (This device, under Change your
-// name or colour: off to begin with while it's new), and whether the map was last shown in 3D, so it
-// opens that way again. A table display has no settings: its link says (?view=3d), and the GM's
+// name or colour: on to begin with, so every player has the 3D button; until 15 November 2026 it was
+// off to begin with while it was new), and whether the map was last shown in 3D, so it opens that way
+// again. A table display has no settings: its link says (?view=3d), and the GM's
 // Table display dialog adds that to it.
 
 const OFFER_KEY = "tabletop-map-3d";
@@ -23,13 +24,21 @@ function write(key: string, on: boolean): void {
   }
 }
 
-/** Whether this device offers the 3D view (a 3D button by the zoom buttons). */
+/** Whether this device offers the 3D view (a 3D button by the zoom buttons): yes, unless it was turned off here. */
 export function loadMap3d(): boolean {
-  return read(OFFER_KEY);
+  try {
+    return localStorage.getItem(OFFER_KEY) !== "0";
+  } catch {
+    return true;
+  }
 }
 
 export function saveMap3d(on: boolean): void {
-  write(OFFER_KEY, on);
+  try {
+    localStorage.setItem(OFFER_KEY, on ? "1" : "0");
+  } catch {
+    // Not remembered, but still applies until the page reloads.
+  }
 }
 
 /** Whether this device was last showing the map in 3D. */

@@ -83,13 +83,13 @@ describe("on the page", () => {
     const guide = GUIDE.find((s) => s.id === "initiative")!.parts.flatMap((p) => p.notes).join(" ");
     expect(guide).toContain("pulses gold rings on it and moves your map to it");
     expect(guide).toContain("the turn lands on a hidden creature");
-    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[5];
+    const news = GUIDE.find((s) => s.id === "whats-new")!.parts[6];
     expect(news.steps.join(" ")).toContain("**Next turn** and **Previous turn** show the same rings");
   });
 
   it("says so in What's new and the guide", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    const part = news.parts[5];
+    const part = news.parts[6];
     expect(part.title).toContain("find a creature");
     expect(part.steps.join(" ")).toContain("coloured dot");
     expect(part.notes.join(" ")).toContain("Only you see it");

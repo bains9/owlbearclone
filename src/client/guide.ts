@@ -19,6 +19,18 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "Everyone has the 3D button (15 November 2026)",
+        "steps": [
+          "Click **3D** by the zoom buttons to see the map in 3D, and again for the flat map."
+        ],
+        "notes": [
+          "Until now each player had to turn it on for themselves first, so most never saw it. Now every device has the button.",
+          "The map still opens flat: nothing changes until someone clicks **3D**.",
+          "To take the button away on a device, untick **Offer a 3D view of the map** under **Change your name or colour** in **Chat & dice**.",
+          "See **The map in 3D**."
+        ]
+      },
+      {
         "title": "Whisper in the chat (15 November 2026)",
         "steps": [
           "Type `/w`, a space, someone's name and your message, for example `/w Rowan meet me by the well`, and press Enter. Or click their name at the top of **Chat & dice** to start one.",
@@ -1150,18 +1162,17 @@ export const GUIDE: GuideSection[] = [
     "id": "map-3d",
     "title": "The map in 3D",
     "audience": "everyone",
-    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it in their own colours, a built map's trees, rocks and furniture stand up too, its buildings have roofs, tokens stand on it as cardboard figures, and the day's rain and snow fall on it. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
+    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it in their own colours, a built map's trees, rocks and furniture stand up too, its buildings have roofs, tokens stand on it as cardboard figures, and the day's rain and snow fall on it. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself with the **3D** button by the zoom buttons.",
     "parts": [
       {
         "title": "Turn it on",
         "steps": [
-          "Open **Chat & dice** and click **Change your name or colour**.",
-          "Under **This device**, tick **Offer a 3D view of the map (new)**.",
-          "Close the box. A **3D** button appears by the zoom buttons.",
-          "Click **3D** to see the map in 3D. Click it again for the flat map."
+          "Click **3D** by the zoom buttons to see the map in 3D.",
+          "Click it again for the flat map."
         ],
         "notes": [
-          "It's only on this device: other players, the GM and the table display don't change. Untick it to take the button away again.",
+          "It's only on this device: other players, the GM and the table display don't change.",
+          "Every device has the button. To take it away on one, open **Chat & dice**, click **Change your name or colour** and, under **This device**, untick **Offer a 3D view of the map**. Tick it to have the button back.",
           "A device that was showing 3D when it was closed opens in 3D next time.",
           "If a device can't show 3D (an old one, or one without WebGL), a message says so and the map stays flat."
         ]
@@ -1219,7 +1230,6 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "GM: check a build in 3D",
         "steps": [
-          "Tick **Offer a 3D view of the map (new)** on your own device first.",
           "Pick the Build tool, then click **3D**.",
           "On a computer or a big tablet, the 3D view opens beside the flat map: build on the flat map on the left, and every wall, door, roof and object shows on the right as you put it down.",
           "Drag in the 3D view to swing round what you've built, and use the wheel or a pinch there to look closer. The zoom buttons work the flat map.",
@@ -1234,7 +1244,6 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "GM: the table display in 3D",
         "steps": [
-          "Tick **Offer a 3D view of the map (new)** on your own device first.",
           "Click **More** (the three dots) in the top bar, then **Table display**.",
           "Tick **Show the map in 3D on the display (new)**.",
           "Click **Open display window**, or **Copy display link**: the link now opens the display in 3D."
