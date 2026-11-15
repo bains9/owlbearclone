@@ -160,14 +160,14 @@ describe("cliffs standing up", () => {
     expect(resample(c3.pts, CELL).length / 2).toBe(21);
   });
 
-  it("stands about 2.4 times its half width tall, within limits", () => {
-    expect(cliffHeight(0.5)).toBeCloseTo(1.2);
+  it("stands about 4 times its half width tall, within limits", () => {
+    expect(cliffHeight(0.5)).toBe(2);
     expect(cliffHeight(0.1)).toBe(CLIFF_LOWEST);
     expect(cliffHeight(5)).toBe(CLIFF_HIGHEST);
     const m = cliffMesh([c3], CELL, null, false, null);
     const ys = Array.from(m.position).filter((_, i) => i % 3 === 1);
     expect(Math.min(...ys)).toBe(0);
-    expect(Math.max(...ys)).toBeGreaterThan(0.9);
+    expect(Math.max(...ys)).toBeGreaterThan(1.6);
     expect(Math.max(...ys)).toBeLessThanOrEqual(cliffHeight(0.5) * 1.2);
   });
 

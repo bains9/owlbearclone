@@ -30,9 +30,9 @@ export function mapCliffs(cliffs: readonly CliffLine[], place: MapPlacement): Cl
   });
 }
 
-/** How tall a cliff stands for its width (squares): about 2.4 times its half width, within these. */
-export const CLIFF_LOWEST = 0.8;
-export const CLIFF_HIGHEST = 2.2;
+/** How tall a cliff stands for its width (squares): about 4 times its half width, within these (2.4 m to 6 m). */
+export const CLIFF_LOWEST = 1.6;
+export const CLIFF_HIGHEST = 4;
 /** A cliff's line is followed in steps at most this long (squares). */
 const STEP = 0.5;
 /** Its crest is this much of its width. */
@@ -63,7 +63,7 @@ export function medianColour(cols: readonly (ArrayLike<number> | null)[]): [numb
 
 /** A cliff's height for its half width, both in squares. */
 export function cliffHeight(halfWidth: number): number {
-  return Math.max(CLIFF_LOWEST, Math.min(CLIFF_HIGHEST, halfWidth * 2.4));
+  return Math.max(CLIFF_LOWEST, Math.min(CLIFF_HIGHEST, halfWidth * 4));
 }
 
 /** A number from 0 to 1, the same for the same place (the rock's ups and downs stay put). */

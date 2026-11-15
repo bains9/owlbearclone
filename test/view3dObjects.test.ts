@@ -117,7 +117,7 @@ describe("the shapes", () => {
 
   it("stands a tree taller than the walls, a rock low and a table at table height, on the floor", () => {
     const ys = (id: StampId, size: number) => points(objectMesh([at(id, size)], CELL, null, false)).map((q) => q[1]);
-    expect(Math.max(...ys(d("oak-tree-medium-rounded"), 2.76))).toBeGreaterThan(WALL_HEIGHT * 2);
+    expect(Math.max(...ys(d("oak-tree-medium-rounded"), 2.76))).toBeGreaterThan(WALL_HEIGHT * 1.5);
     expect(Math.max(...ys(d("pine-tree-large"), 3.74))).toBeGreaterThan(WALL_HEIGHT * 3);
     expect(Math.max(...ys(d("rock-grey-large"), 0.8))).toBeLessThan(0.5);
     expect(Math.max(...ys(d("table-square-pale-bare"), 1.2))).toBeCloseTo(0.5);

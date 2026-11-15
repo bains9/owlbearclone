@@ -266,6 +266,31 @@ class Builder {
     this.quad(p(x1, y0, z0), p(x1, y0, z1), p(x1, y1, z1), p(x1, y1, z0), col, mid);
   }
 
+  /**
+   * A tapered limb from `a` to `b` (a bare tree's branch, leaning any way): `segs` sides, `r0` thick
+   * at `a` and `r1` at `b`, open at both ends (too thin for its ends to show).
+   */
+  limb(a: V3, b: V3, r0: number, r1: number, col: Rgb, segs = 5): void {
+    const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    const len = Math.hypot(dx, dy, dz);
+    if (!(len > 1e-6)) return;
+    const d = [dx / len, dy / len, dz / len];
+    // Two directions across it.
+    const up = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    let ux = d[1] * up[2] - d[2] * up[1], uy = d[2] * up[0] - d[0] * up[2], uz = d[0] * up[1] - d[1] * up[0];
+    const ul = Math.hypot(ux, uy, uz);
+    ux /= ul;
+    uy /= ul;
+    uz /= ul;
+    const vx = d[1] * uz - d[2] * uy, vy = d[2] * ux - d[0] * uz, vz = d[0] * uy - d[1] * ux;
+    const ring = (p: V3, r: number, i: number): V3 => {
+      const t = (i / segs) * Math.PI * 2, c = Math.cos(t) * r, s = Math.sin(t) * r;
+      return [p[0] + ux * c + vx * s, p[1] + uy * c + vy * s, p[2] + uz * c + vz * s];
+    };
+    const mid: V3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+    for (let i = 0; i < segs; i++) this.quad(ring(a, r0, i), ring(a, r0, i + 1), ring(b, r1, i + 1), ring(b, r1, i), col, mid);
+  }
+
   /** An upright cylinder (or a cone, `rTop` 0) with a top, `segs` sides. */
   cylinder(cx: number, cz: number, rBottom: number, rTop: number, y0: number, y1: number, col: Rgb, segs = 8): void {
     const mid: V3 = [cx, (y0 + y1) / 2, cz];
@@ -299,6 +324,12 @@ class Builder {
       }
     }
   }
+}
+
+/** How tall a tree of this kind stands for its crown `s` squares across, at real-world scale (a square is 1.5 m), at most 30 m. */
+export function treeHeight(kind: ShapeKind, s: number): number {
+  const tall = kind === "pine" ? 2.9 * s + 0.5 : kind === "cypress" ? 3.5 * s + 0.5 : kind === "palm" ? 3 * s + 0.5 : 1.4 * s + 0.3;
+  return Math.min(20, tall);
 }
 
 /** What the picture paints where an object stands: the average of its middle and four points round it (null where it paints nothing). */
@@ -350,36 +381,55 @@ export function objectMesh(objects: readonly Object3d[], cell: number, cover: Co
 function addShape(b: Builder, sh: Shape, s: number, w: number, d: number, col: Rgb, bark: Rgb, seed: number): void {
   const m = Math.min(w, d);
   switch (sh.kind) {
+    // Trees at real-world scale (a square is 1.5 m): a leafy tree about 1.25 times as tall as its
+    // crown is wide, a pine about three times, a cypress three and a half, a palm's trunk three.
     case "tree":
     case "spreading": {
       const wide = sh.kind === "spreading";
-      const trunk = 0.35 * s + 0.3;
+      const tall = treeHeight(sh.kind, s);
+      const rx = (wide ? 0.48 : 0.42) * s, ry = (wide ? 0.34 : 0.48) * s;
+      const trunk = Math.max(0.3, tall - ry * 1.6);
       b.cylinder(0, 0, 0.05 * s + 0.05, 0.04 * s + 0.04, 0, trunk + 0.1, bark, 6);
-      const rx = (wide ? 0.48 : 0.42) * s, ry = (wide ? 0.26 : 0.34) * s;
       b.ball(0, trunk + ry * 0.6, 0, rx, ry, rx, col, 9, 5, 0.14, seed);
       return;
     }
     case "pine": {
-      b.cylinder(0, 0, 0.04 * s + 0.04, 0.03 * s + 0.03, 0, 0.25 * s + 0.1, bark, 6);
-      b.cylinder(0, 0, 0.45 * s, 0, 0.15 * s, 0.9 * s + 0.15, col, 9);
-      b.cylinder(0, 0, 0.32 * s, 0, 0.5 * s, 1.2 * s + 0.3, col, 9);
+      const tall = treeHeight("pine", s);
+      b.cylinder(0, 0, 0.04 * s + 0.04, 0.03 * s + 0.03, 0, 0.15 * tall, bark, 6);
+      b.cylinder(0, 0, 0.45 * s, 0, 0.1 * tall, 0.62 * tall, col, 9);
+      b.cylinder(0, 0, 0.38 * s, 0, 0.3 * tall, 0.82 * tall, col, 9);
+      b.cylinder(0, 0, 0.28 * s, 0, 0.52 * tall, tall, col, 9);
       return;
     }
     case "cypress": {
-      b.cylinder(0, 0, 0.04 * s + 0.03, 0.03 * s + 0.03, 0, 0.15 * s + 0.1, bark, 6);
-      b.cylinder(0, 0, 0.24 * s, 0, 0.1 * s, 1.3 * s + 0.3, col, 8);
+      const tall = treeHeight("cypress", s);
+      b.cylinder(0, 0, 0.04 * s + 0.03, 0.03 * s + 0.03, 0, 0.1 * tall, bark, 6);
+      b.cylinder(0, 0, 0.24 * s, 0, 0.06 * tall, tall, col, 8);
       return;
     }
     case "palm": {
-      const trunk = 0.75 * s + 0.4;
+      const trunk = treeHeight("palm", s);
       b.cylinder(0, 0, 0.04 * s + 0.04, 0.03 * s + 0.03, 0, trunk, bark, 6);
       b.ball(0, trunk, 0, 0.45 * s, 0.1 * s, 0.45 * s, col, 9, 4, 0.2, seed);
       return;
     }
     case "bare": {
-      const trunk = 0.6 * s + 0.3;
-      b.cylinder(0, 0, 0.05 * s + 0.04, 0.03 * s + 0.02, 0, trunk + 0.15 * s, bark, 6);
-      b.ball(0, trunk + 0.1 * s, 0, 0.3 * s, 0.22 * s, 0.3 * s, col, 7, 4, 0.35, seed);
+      // A trunk and branching limbs, no leaves: five limbs reaching up and out, two twigs off each.
+      const tall = treeHeight("bare", s);
+      const fork = tall * 0.42;
+      b.cylinder(0, 0, 0.05 * s + 0.05, 0.035 * s + 0.03, 0, fork + 0.05, bark, 6);
+      for (let i = 0; i < 5; i++) {
+        const ang = (i / 5) * Math.PI * 2 + noise(seed, i, 1) * 0.9;
+        const out = s * (0.28 + 0.14 * noise(seed, i, 2));
+        const from: V3 = [0, fork * (0.7 + 0.3 * noise(seed, i, 4)), 0];
+        const end: V3 = [Math.cos(ang) * out, from[1] + (tall - fork) * (0.6 + 0.35 * noise(seed, i, 3)), Math.sin(ang) * out];
+        b.limb(from, end, 0.025 * s + 0.025, 0.01 * s + 0.01, bark, 5);
+        for (const turn of [-0.7, 0.7]) {
+          const a2 = ang + turn;
+          const tip: V3 = [end[0] + Math.cos(a2) * out * 0.45, end[1] + (tall - fork) * 0.25, end[2] + Math.sin(a2) * out * 0.45];
+          b.limb(end, tip, 0.01 * s + 0.01, 0.003, bark, 4);
+        }
+      }
       return;
     }
     case "bush": {

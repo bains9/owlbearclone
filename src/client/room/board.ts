@@ -112,6 +112,8 @@ import { shapeOf, type Object3d } from "./view3dObjects";
 import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
 import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
 import type { ClearingMasks } from "./view3dClearing";
+import { findThings, foundHoles, foundObjects, type Found } from "./view3dFound";
+import { rockMask } from "./view3dRock";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
 import { castBounds, tokenLookBounds, zoneBounds, type Effect3d } from "./view3dEffects";
 import { mapCliffs, type Cliff3d } from "./view3dCliffs";
@@ -795,7 +797,9 @@ export class Board implements BoardApi {
   private cover3dCanvas: HTMLCanvasElement | null = null;
   private paint3dCanvas: HTMLCanvasElement | null = null;
   /** The picture with its standing trees taken off, being worked out or done, and what from. */
-  private clearing3d: { img: CanvasImageSource; asset: string; w: number; h: number; canvas: HTMLCanvasElement | null; stop: () => void } | null = null;
+  private clearing3d: { img: CanvasImageSource; key: unknown; w: number; h: number; canvas: HTMLCanvasElement | null; stop: () => void } | null = null;
+  /** A picture map's own trees, bushes and rocks, found in it (view3dFound.ts), and what from. */
+  private found3dOf: { scene: Scene; sum: number; list: Found[] } | null = null;
   /** A picture map's rooms from its walls alone, as last worked out, and what from (its walls and grid). */
   private walledRooms3dOf: { vision: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /** The built map's buildings as last worked out, and what from (they change only with the build). */
@@ -914,12 +918,16 @@ export class Board implements BoardApi {
       c.fillStyle = scene.background;
       c.fillRect(area.x0, area.y0, w, h);
       const img = this.mapNode.visible() ? (this.mapNode.image() as CanvasImageSource | undefined) : undefined;
+      const built = isHex(scene.grid) ? null : this.built3dCanvas(scene, area, cw, ch, k, gmView);
+      // The map as painted, its trees still on it: what standing things take their colours from, and
+      // where a picture without map data has its own trees found.
+      const objectPaint = this.paint3d(scene, img, null, built, w, h);
+      const found = img ? this.found3d(scene, objectPaint, img, built) : [];
       if (img) c.drawImage(img, 0, 0, scene.width, scene.height);
       // The painted trees that stand up in 3D, taken off the picture (once that's worked out).
-      const cleared = img ? this.clearedPicture(scene, img, k) : null;
+      const cleared = img ? this.clearedPicture(scene, img, k, found) : null;
       if (cleared) c.drawImage(cleared, 0, 0, scene.width, scene.height);
-      const built = isHex(scene.grid) ? null : this.drawBuilt3d(c, scene, area, cw, ch, k, gmView);
-      const objectPaint = this.paint3d(scene, img, null, built, w, h);
+      if (built) c.drawImage(built, area.x0, area.y0, w, h);
       const paint = cleared ? this.paint3d(scene, img, cleared, built, w, h) : objectPaint;
       this.drawGridOver(c, area, k);
       this.drawLightGlows(c);
@@ -961,8 +969,8 @@ export class Board implements BoardApi {
     }
   }
 
-  /** The built map onto the 3D floor (`c` set to scene units), without the objects standing up in 3D; and the canvas it's kept on. */
-  private drawBuilt3d(c: CanvasRenderingContext2D, scene: Scene, area: SceneArea, cw: number, ch: number, k: number, gmView: boolean): HTMLCanvasElement {
+  /** The built map as the 3D floor has it (without the objects standing up in 3D), on the canvas it's kept on, the floor's size. */
+  private built3dCanvas(scene: Scene, area: SceneArea, cw: number, ch: number, k: number, gmView: boolean): HTMLCanvasElement {
     const index = this.build.model.index;
     const hidden = this.build.model.hiddenSlots;
     const objects = !!dungeonObjects();
@@ -990,8 +998,51 @@ export class Board implements BoardApi {
       this.build.drawFloor3d(x, scene, k, gmView, (id) => shapeOf(id) !== null);
       b = this.built3d = { canvas, index, hidden, scene, w: cw, h: ch, gm: gmView, objects, ready: this.buildReady };
     }
-    c.drawImage(b.canvas, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
     return b.canvas;
+  }
+
+  /**
+   * A picture map's own trees, bushes, bare trees and rocks, found in the map as painted
+   * (view3dFound.ts): none on a map with map data (that says where its own are) or drawn on rock (a
+   * cave). Found again only when what's painted changes.
+   */
+  private found3d(scene: Scene, paint: PaintMap | null, img: CanvasImageSource, built: HTMLCanvasElement | null): Found[] {
+    const md = scene.mapData;
+    if (!paint || (md && !md.hold && md.forAssetId === scene.mapAssetId)) return [];
+    // What's painted, summed over a spread of its pixels: the same sum, the same things.
+    let sum = paint.w * 31 + paint.h;
+    for (let i = 0; i < paint.rgba.length; i += 37) sum = (sum * 33 + paint.rgba[i]) | 0;
+    const was = this.found3dOf;
+    if (was && was.scene === scene && was.sum === sum) return was.list;
+    const picture = { w: scene.width, h: scene.height };
+    let list: Found[] = [];
+    if (!rockMask(paint, picture, scene.grid.size)) {
+      // Looked at closer than the paint (about 20 pixels a square, at most 2048 across), so a bare tree's thin branches show.
+      const area = sceneBounds(scene);
+      const aw = area.x1 - area.x0, ah = area.y1 - area.y0;
+      const k = Math.min(20 / Math.max(1, scene.grid.size), 2048 / Math.max(aw, ah));
+      const dw = Math.max(1, Math.round(aw * k)), dh = Math.max(1, Math.round(ah * k));
+      const canvas = document.createElement("canvas");
+      canvas.width = dw;
+      canvas.height = dh;
+      const x = canvas.getContext("2d", { willReadFrequently: true });
+      if (x) {
+        x.setTransform(dw / aw, 0, 0, dh / ah, (-area.x0 * dw) / aw, (-area.y0 * dh) / ah);
+        x.fillStyle = scene.background;
+        x.fillRect(area.x0, area.y0, aw, ah);
+        x.drawImage(img, 0, 0, scene.width, scene.height);
+        if (built) x.drawImage(built, area.x0, area.y0, aw, ah);
+        x.setTransform(1, 0, 0, 1, 0, 0);
+        try {
+          const detail: PaintMap = { x0: area.x0, y0: area.y0, k: dw / aw, w: dw, h: dh, rgba: x.getImageData(0, 0, dw, dh).data };
+          list = findThings(detail, picture, scene.grid.size);
+        } catch {
+          list = findThings(paint, picture, scene.grid.size);
+        }
+      }
+    }
+    this.found3dOf = { scene, sum, list };
+    return list;
   }
 
   /**
@@ -1036,18 +1087,19 @@ export class Board implements BoardApi {
    * time, then the 3D view is told) and when there's nothing to take off. Worked out again when the
    * picture changes (its season), its map data does, or the floor's size.
    */
-  private clearedPicture(scene: Scene, img: CanvasImageSource, k: number): HTMLCanvasElement | null {
+  private clearedPicture(scene: Scene, img: CanvasImageSource, k: number, found: readonly Found[]): HTMLCanvasElement | null {
     const md = this.mapData(scene);
-    const asset = scene.mapData?.assetId;
-    if (!md || !asset) return null;
+    // What's taken off: the map data's standing things, else those found in the picture.
+    const key: unknown = md ? scene.mapData?.assetId : found.length ? found : null;
+    if (!key) return null;
     const ks = Math.min(k, CLEAR_PX / Math.max(1, scene.grid.size));
     const w = Math.max(1, Math.round(scene.width * ks)), h = Math.max(1, Math.round(scene.height * ks));
     const now = this.clearing3d;
-    if (now && now.img === img && now.asset === asset && now.w === w && now.h === h) return now.canvas;
+    if (now && now.img === img && now.key === key && now.w === w && now.h === h) return now.canvas;
     now?.stop();
     let timer = 0, stopped = false;
     const entry = {
-      img, asset, w, h,
+      img, key, w, h,
       canvas: null as HTMLCanvasElement | null,
       stop: () => {
         stopped = true;
@@ -1055,7 +1107,7 @@ export class Board implements BoardApi {
       },
     };
     this.clearing3d = entry;
-    const holes = mapHoles(md.data.objects, md.data.meta, md.place, scene.grid.size, ks);
+    const holes = md ? mapHoles(md.data.objects, md.data.meta, md.place, scene.grid.size, ks) : foundHoles(found, ks);
     if (!holes.length) return null;
     void Promise.all([import("./view3dClearing"), import("../dd/raster")]).then(([clearing, raster]) => {
       if (stopped) return;
@@ -1068,14 +1120,17 @@ export class Board implements BoardApi {
         if (!x) return;
         x.drawImage(img, 0, 0, w, h);
         let pixels: ImageData;
-        let masks: ClearingMasks;
+        let masks: ClearingMasks | null = null;
         try {
           pixels = x.getImageData(0, 0, w, h);
-          // What lies under the things standing up, from the map data drawn without them (at most 1024 across).
-          const objects = withoutStanding(md.data.objects, md.data.meta, md.place, scene.grid.size);
-          const f = Math.min(1, 1024 / Math.max(w, h));
-          const layers = raster.rasterSidecar({ ...md.data, objects }, { w: Math.max(1, Math.round(w * f)), h: Math.max(1, Math.round(h * f)) });
-          masks = clearing.clearingMasks(layers, objects.role);
+          // What lies under the things standing up, from the map data drawn without them (at most
+          // 1024 across). A picture without map data has nothing to say: only what was found comes off.
+          if (md) {
+            const objects = withoutStanding(md.data.objects, md.data.meta, md.place, scene.grid.size);
+            const f = Math.min(1, 1024 / Math.max(w, h));
+            const layers = raster.rasterSidecar({ ...md.data, objects }, { w: Math.max(1, Math.round(w * f)), h: Math.max(1, Math.round(h * f)) });
+            masks = clearing.clearingMasks(layers, objects.role);
+          }
         } catch {
           return; // a picture that can't be read, or map data that can't be drawn: it stays as painted
         }
@@ -1255,7 +1310,8 @@ export class Board implements BoardApi {
   private objects3d(): Object3d[] {
     const scene = this.renderedScene;
     if (!scene) return [];
-    const fromMap = this.mapObjects3d(scene);
+    const found = this.found3dOf?.scene === scene ? foundObjects(this.found3dOf.list) : [];
+    const fromMap = found.length ? [...this.mapObjects3d(scene), ...found] : this.mapObjects3d(scene);
     if (isHex(scene.grid)) return fromMap;
     const g = scene.grid;
     const area = sceneBounds(scene);

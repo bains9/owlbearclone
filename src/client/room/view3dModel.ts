@@ -15,12 +15,12 @@ import type { Effect3d } from "./view3dEffects";
 import type { Cliff3d } from "./view3dCliffs";
 import type { Weather } from "../../shared/calendar";
 
-/** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
-export const WALL_HEIGHT = 1.1;
+/** How tall walls stand, in squares: 3 m, at real-world scale (a square is 1.5 m, 5 ft). */
+export const WALL_HEIGHT = 2;
 /** How thick walls are, in squares. */
 export const WALL_THICK = 0.14;
-/** Shut doors: this much of a wall's height, and of its thickness. */
-export const DOOR_HEIGHT = 0.85;
+/** Shut doors: this much of a wall's height (2.1 m), and of its thickness. */
+export const DOOR_HEIGHT = 0.7;
 export const DOOR_THICK = 0.6;
 /** Walls are cut into pieces at most this long (squares); each is raised or not by what's been seen where it stands. */
 export const WALL_PIECE = 0.5;
