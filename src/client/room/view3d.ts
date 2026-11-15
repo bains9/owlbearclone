@@ -34,6 +34,7 @@ import {
   FLYING_LIFT,
   FOV,
   MAX_TILT,
+  WALL_HEIGHT,
   START_TILT,
   brightnessAt,
   cameraAt,
@@ -55,6 +56,7 @@ import {
 } from "./view3dModel";
 import { objectMesh } from "./view3dObjects";
 import { cliffMesh } from "./view3dCliffs";
+import { rockMask, rockSides, rockTop } from "./view3dRock";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
@@ -109,6 +111,9 @@ export class View3D implements View3dControls {
   private objects: Mesh | null = null;
   /** A Dungeondraft map's cliffs, standing up as rock (view3dCliffs.ts). */
   private cliffs: Mesh | null = null;
+  /** A cave or dungeon map's black, standing up as rock (view3dRock.ts): its faces, and its top as a picture laid over it. */
+  private rock: Mesh | null = null;
+  private rockTop: { mesh: Mesh; tex: CanvasTexture; canvas: HTMLCanvasElement; geo: PlaneGeometry; mat: MeshLambertMaterial } | null = null;
   /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
   private texturedWalls: Mesh | null = null;
   private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
@@ -322,6 +327,7 @@ export class View3D implements View3dControls {
     if (things.position.length) this.objects = this.lit(things);
     const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
     if (rock.position.length) this.cliffs = this.lit(rock);
+    this.makeRock(f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null, f.cover, all, f.paint);
     this.makeRoofs(all);
 
     // How far the camera may go, for this scene's size.
@@ -525,6 +531,31 @@ export class View3D implements View3dControls {
     const mesh = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true, map: map ?? null }));
     this.world.add(mesh);
     return mesh;
+  }
+
+  /**
+   * A cave or dungeon map's black as rock (view3dRock.ts): faces where it meets the ground, and its
+   * top, a picture of the rock laid flat at the rock's height (see-through where there's none).
+   */
+  private makeRock(m: ReturnType<typeof rockMask>, cover: CoverMap | null, all: boolean, paint: Parameters<typeof rockSides>[5]): void {
+    if (!m) return;
+    const sides = rockSides(m, this.cell, WALL_HEIGHT, cover, all, paint);
+    if (sides.position.length) this.rock = this.lit(sides);
+    const canvas = document.createElement("canvas");
+    canvas.width = m.w;
+    canvas.height = m.h;
+    const x = canvas.getContext("2d");
+    if (!x) return;
+    x.putImageData(new ImageData(rockTop(m, this.cell, cover, all), m.w, m.h), 0, 0);
+    const tex = new CanvasTexture(canvas);
+    const w = m.w / m.k / this.cell, h = m.h / m.k / this.cell;
+    const geo = new PlaneGeometry(w, h);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
+    const mesh = new Mesh(geo, mat);
+    mesh.position.set(m.x0 / this.cell + w / 2, WALL_HEIGHT, m.y0 / this.cell + h / 2);
+    this.world.add(mesh);
+    this.rockTop = { mesh, tex, canvas, geo, mat };
   }
 
   /** The scene's wall texture as a repeating texture (made once for its picture), or null while it has none or it isn't made yet. */
@@ -756,7 +787,7 @@ export class View3D implements View3dControls {
 
   /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.texturedWalls, this.objects, this.cliffs]) {
+    for (const m of [this.walls, this.texturedWalls, this.objects, this.cliffs, this.rock]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
@@ -766,6 +797,14 @@ export class View3D implements View3dControls {
     this.texturedWalls = null;
     this.objects = null;
     this.cliffs = null;
+    this.rock = null;
+    if (this.rockTop) {
+      this.world.remove(this.rockTop.mesh);
+      this.rockTop.geo.dispose();
+      this.rockTop.mat.dispose();
+      this.rockTop.tex.dispose();
+      this.rockTop = null;
+    }
     this.dropRoofs();
   }
 

@@ -511,6 +511,12 @@ describe("the guide", () => {
     expect(JSON.stringify(GUIDE)).toContain("Lighting and line of sight");
   });
 
+  it("says a cave map's black stands up as rock", () => {
+    expect(text).toContain("A cave or dungeon map drawn on black stands its black up as solid rock");
+    expect(text).toContain("has little to stand up: its black if it's drawn on black");
+    expect(text).not.toContain("like their shadows");
+  });
+
   it("says a map's painted trees come off the floor under the standing ones", () => {
     expect(text).toContain("the painted ones come off the floor under them, with the ground from nearby in their place");
     expect(text).toContain("Buildings, water and cliffs under a tree stay as painted.");
