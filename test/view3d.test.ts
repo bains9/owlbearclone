@@ -24,10 +24,13 @@ import {
   shadeOf,
   standeeLook,
   standeeShown,
+  paintAt,
   wallMesh,
   wallPieces,
+  wallTint,
   wallsOf,
   type CoverMap,
+  type PaintMap,
   type Standee,
   type Walls3d,
 } from "../src/client/room/view3dModel";
@@ -90,7 +93,8 @@ describe("the scene's walls", () => {
       { walls: [[1, 1, 3, 1]], doors: [{ key: 7, line: [3, 1, 4, 1] }, { key: 8, line: [4, 1, 5, 1] }] },
       { size: 50, offsetX: 10, offsetY: 20 },
     );
-    expect(w.walls).toEqual([[60, 70, 160, 70]]);
+    expect(w.walls).toEqual([]);
+    expect(w.built).toEqual([[60, 70, 160, 70]]);
     expect(w.doors).toEqual([
       { line: [160, 70, 210, 70], open: true },
       { line: [210, 70, 260, 70], open: false },
@@ -99,13 +103,14 @@ describe("the scene's walls", () => {
 
   it("has only built walls on a scene without lighting", () => {
     const w = wallsOf(undefined, { walls: [[0, 0, 1, 0]], doors: [{ key: 1, line: [1, 0, 2, 0] }] }, { size: CELL, offsetX: 0, offsetY: 0 });
-    expect(w.walls).toEqual([[0, 0, 100, 0]]);
+    expect(w.walls).toEqual([]);
+    expect(w.built).toEqual([[0, 0, 100, 0]]);
     expect(w.doors).toEqual([{ line: [100, 0, 200, 0], open: false }]);
   });
 });
 
 describe("walls raised", () => {
-  const long: Walls3d = { walls: [[0, 500, 300, 500]], doors: [] };
+  const long: Walls3d = { walls: [[0, 500, 300, 500]], built: [], doors: [] };
 
   it("cuts walls into half-square pieces that meet end to end", () => {
     const pieces = wallPieces(long, CELL, null, false);
@@ -153,6 +158,7 @@ describe("walls raised", () => {
     const pieces = wallPieces(
       {
         walls: [],
+        built: [],
         doors: [
           { line: [0, 0, 100, 0], open: false },
           { line: [100, 0, 200, 0], open: true },
@@ -167,7 +173,63 @@ describe("walls raised", () => {
   });
 
   it("skips walls of no length", () => {
-    expect(wallPieces({ walls: [[5, 5, 5, 5]], doors: [] }, CELL, null, true)).toEqual([]);
+    expect(wallPieces({ walls: [[5, 5, 5, 5]], built: [], doors: [] }, CELL, null, true)).toEqual([]);
+  });
+});
+
+describe("walls in their own material", () => {
+  /** A map 10 by 10 squares painted `rgb` everywhere, at 10 pixels a square. */
+  const painted = (rgb: [number, number, number]): PaintMap => {
+    const w = 100, h = 100;
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) rgba.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
+    return { x0: 0, y0: 0, k: 10 / CELL, w, h, rgba };
+  };
+
+  it("takes a wall's colour from what the map paints where it runs", () => {
+    const [p] = wallPieces({ walls: [[0, 500, 100, 500]], built: [], doors: [] }, CELL, null, false, painted([153, 76, 51]));
+    expect(p.color![0]).toBeCloseTo(0.6, 2);
+    expect(p.color![1]).toBeCloseTo(0.298, 2);
+    expect(paintAt(painted([1, 2, 3]), -5, 5)).toBeNull();
+  });
+
+  it("keeps a wall painted near black from standing up as a black slab", () => {
+    const dark = wallTint([0.04, 0.04, 0.05]);
+    expect(0.3 * dark[0] + 0.59 * dark[1] + 0.11 * dark[2]).toBeGreaterThan(0.2);
+    expect(wallTint([0.6, 0.3, 0.2])).toEqual([0.6, 0.3, 0.2]);
+  });
+
+  it("marks the Build tool's walls, which take the scene's wall texture, and paints doors in wood", () => {
+    const pieces = wallPieces(
+      { walls: [[0, 0, 100, 0]], built: [[0, 200, 100, 200]], doors: [{ line: [0, 400, 100, 400], open: false }] },
+      CELL,
+      null,
+      true,
+      painted([200, 200, 200]),
+    );
+    expect(pieces.map((p) => [!!p.built, p.door, !!p.color])).toEqual([
+      [false, false, true],
+      [false, false, true],
+      [true, false, true],
+      [true, false, true],
+      [false, true, false],
+      [false, true, false],
+    ]);
+  });
+
+  it("lays a texture along each wall and up it, and across the top, in squares", () => {
+    const m = wallMesh([{ x0: 0, y0: 300, x1: 100, y1: 300, door: false, light: 1, built: true }], CELL, true);
+    expect(m.uv!.length).toBe(WALL_PIECE_VERTICES * 2);
+    for (let v = 0; v < WALL_PIECE_VERTICES; v++) {
+      const y = m.position[v * 3 + 1], ny = m.normal[v * 3 + 1];
+      // Sides and ends: up the wall is up the texture.
+      if (ny < 0.5) expect(m.uv![v * 2 + 1]).toBeCloseTo(y);
+    }
+    // Along this wall (west to east), the texture runs with x.
+    const us = Array.from({ length: WALL_PIECE_VERTICES }, (_, v) => m.uv![v * 2]);
+    expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.9);
+    // White under a texture: the texture gives the colour.
+    expect([m.color[0], m.color[1], m.color[2]]).toEqual([1, 1, 1]);
   });
 });
 
@@ -427,8 +489,16 @@ describe("the guide", () => {
     expect(text).toContain("**Weather on this map**");
   });
 
+  it("says walls take their own colours and buildings get roofs that lift when the party's in", () => {
+    expect(text).toContain("Walls stand in their own colours");
+    expect(text).toContain("**Plain walls**");
+    expect(text).toContain("its roof lifts off so everyone sees in");
+    expect(text).toContain("no roofs");
+  });
+
   it("says players see no more in 3D than on the flat map", () => {
     expect(text).toContain("Players never see more in 3D than on the flat map");
     expect(text).toContain("A token or a built map's object under the fog doesn't stand up for players");
+    expect(text).toContain("a building's roof shows to a player only once they've seen the building");
   });
 });

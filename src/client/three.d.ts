@@ -100,6 +100,13 @@ declare module "three" {
 
   export const FrontSide: number;
   export const DoubleSide: number;
+  export const RepeatWrapping: number;
+
+  export class Vector2 {
+    x: number;
+    y: number;
+    set(x: number, y: number): this;
+  }
 
   export interface MaterialParameters {
     transparent?: boolean;
@@ -133,6 +140,7 @@ declare module "three" {
   export class MeshLambertMaterial extends Material {
     constructor(parameters?: MaterialParameters);
     color: Color;
+    depthWrite: boolean;
   }
 
   export class PointsMaterial extends Material {
@@ -169,6 +177,9 @@ declare module "three" {
     image: unknown;
     needsUpdate: boolean;
     anisotropy: number;
+    wrapS: number;
+    wrapT: number;
+    repeat: Vector2;
     dispose(): void;
   }
 

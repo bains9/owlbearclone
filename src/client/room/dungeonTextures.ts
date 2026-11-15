@@ -143,6 +143,15 @@ function tileFor(id: string): HTMLCanvasElement | null {
   return tile;
 }
 
+/**
+ * A texture's picture as the map draws it, for the 3D view's walls: `squares` squares across (and
+ * down), repeating. Null until it's made (whenTextureMade), or where it can't be.
+ */
+export function textureTile(id: string): { canvas: HTMLCanvasElement; squares: number } | null {
+  const tile = tiles.get(id);
+  return tile ? { canvas: tile, squares: tile.width / COPY_PX } : null;
+}
+
 /** Whether a texture has been made yet (or found it can't be): until then, it shows its swatch. */
 export function textureMade(id: string): boolean {
   return tiles.has(id);

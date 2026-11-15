@@ -1097,7 +1097,7 @@ export const GUIDE: GuideSection[] = [
     "id": "map-3d",
     "title": "The map in 3D",
     "audience": "everyone",
-    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it, a built map's trees, rocks and furniture stand up too, tokens stand on it as cardboard figures, and the day's rain and snow fall on it. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
+    "intro": "The 3D view shows the map tilted, like a map on a table: walls and shut doors stand up out of it in their own colours, a built map's trees, rocks and furniture stand up too, its buildings have roofs, tokens stand on it as cardboard figures, and the day's rain and snow fall on it. It shows what you'd see on the flat map, it follows the game as it happens, and each device turns it on for itself. It's new, so it starts off.",
     "parts": [
       {
         "title": "Turn it on",
@@ -1130,6 +1130,8 @@ export const GUIDE: GuideSection[] = [
         "steps": [
           "The floor is the map exactly as the flat map shows it: the picture, a built map, the grid, drawings, and the fog and darkness over them.",
           "Walls and shut doors stand up: walls from a map brought in from Dungeon or a Universal VTT file, and walls built with the Build tool. Open doors are gaps.",
+          "Walls stand in their own colours, as the map paints them, so stone, brick and wooden walls look like themselves. On a built map with one of Dungeon's wall textures (**Plain walls** in the Build tool's **Walls** bar), the Build tool's walls wear that texture.",
+          "On a built map with open ground (grass, or trees outside, or an outdoor picture under it), its rooms are buildings, and each has a roof. When one of the party's characters (or a token a player put down) goes inside, its roof lifts off so everyone sees in, and it comes back when they leave. Rooms on a map with no open ground are underground: no roofs.",
           "On a built map (made with the Build tool, or brought in from Dungeon), its objects stand up too, each in the colours of its drawing: trees with trunks and leafy tops, evergreens as tall cones, bushes and rocks as lumps, columns and statues, barrels and urns, tables on legs, and crates, chests, shelves, beds, counters and fences as blocks. Rugs, stains and other things lying on the floor stay painted, as do small things such as cups and candles.",
           "Tokens stand up as figures, their pictures turned towards you, on a stand in their colour. Props (furniture, doors and other objects put down as tokens) lie flat.",
           "When someone moves a token on the flat map, its figure slides there in 3D.",
@@ -1137,7 +1139,7 @@ export const GUIDE: GuideSection[] = [
         ],
         "notes": [
           "Players never see more in 3D than on the flat map. Walls stand only where you've seen: under the fog, or in darkness the party hasn't explored, there's nothing to give a room's shape away. Walls in places explored earlier are darker.",
-          "A token or a built map's object under the fog doesn't stand up for players either. The GM sees everything, with the fog and the dark dimmed, as on the flat map.",
+          "A token or a built map's object under the fog doesn't stand up for players either, and a building's roof shows to a player only once they've seen the building, from inside or out. The GM sees everything, with the fog and the dark dimmed, as on the flat map, and roofs half see-through.",
           "A map that's just a picture has nothing to stand up but its walls (from a map file): trees and houses painted in the picture stay flat. Build them with the Build tool, or bring the map in from Dungeon.",
           "The weather is the calendar's, where rain and snow fall on this map: GM, see **Weather on this map** in **Calendar**. On a device set to reduce motion, nothing falls in 3D and there's no lightning: only the mist shows.",
           "It only shows the map. Moving tokens, drawing, measuring, the fog and the Build tool all work on the flat map: picking a tool goes back to it. The arrow keys still move a selected token.",

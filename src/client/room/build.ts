@@ -1387,6 +1387,12 @@ export class Exposure {
     return this.last ? this.last[idx(col, row)] : DIST;
   }
 
+  /** Whether anywhere is outdoors (grass, or ground round a tree or bush). */
+  anyOutdoors(): boolean {
+    for (const a of this.chunks.values()) for (const b of a) if ((b & DIST) !== DIST) return true;
+    return false;
+  }
+
   /** Squares from grass, a tree or a bush, or SHELTERED. */
   dist(col: number, row: number): number {
     const d = this.byte(col, row) & DIST;
@@ -2068,6 +2074,31 @@ export class BuildRenderer {
     c.clip();
     this.drawWalls(c, scene, all.c0, all.r0, all.c1 + 1, all.r1 + 1, scale, gmView);
     c.restore();
+  }
+
+  /** What's outdoors as the 3D view asks it (worked out apart from the season's, so its repainting isn't upset). */
+  private outdoors3d: { of: TerrainIndex; any: boolean } | null = null;
+
+  /**
+   * Whether any of the built map is outdoors: grass, or ground round a tree or bush (as Seasons
+   * work it out). Its rooms are buildings then, with roofs in the 3D view; without, they're a
+   * dungeon's, underground.
+   */
+  hasOutdoors(): boolean {
+    const index = this.model.index;
+    if (this.outdoors3d?.of !== index) this.outdoors3d = { of: index, any: computeExposure(this.model).anyOutdoors() };
+    return this.outdoors3d.any;
+  }
+
+  /** Every square of a room the Building tool made (a walled floor: stone, wood, dirt), as [col, row]. */
+  roomCells(): [number, number][] {
+    const out: [number, number][] = [];
+    for (const ch of this.model.index.chunks.values()) {
+      for (let i = 0; i < CHUNK_CELLS; i++) {
+        if (isWalledFloor(ch.cells[i])) out.push([ch.cx * CHUNK + (i % CHUNK), ch.cy * CHUNK + Math.floor(i / CHUNK)]);
+      }
+    }
+    return out;
   }
 
   /** Every object on the built map (but those being dragged), where it stands, with its look in the season. */

@@ -10,6 +10,7 @@
 import type { GridSettings, Scene, SceneArea, SceneVision } from "../../shared/types";
 import { segmentsOf, type Seg } from "./vision";
 import type { Object3d } from "./view3dObjects";
+import type { Building3d } from "./view3dRoofs";
 import type { Weather } from "../../shared/calendar";
 
 /** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
@@ -64,7 +65,10 @@ export function brightnessAt(cover: CoverMap | null, x: number, y: number): numb
 
 /** The scene's walls and doors to raise, in scene units. */
 export interface Walls3d {
+  /** The map file's walls (from Dungeon, or a Universal VTT file). */
   walls: Seg[];
+  /** The Build tool's walls: in the scene's wall texture, when it has one. */
+  built: Seg[];
   doors: { line: Seg; open: boolean }[];
 }
 
@@ -84,7 +88,8 @@ export function wallsOf(vision: SceneVision | undefined, built: BuiltLines, grid
   const toScene = (l: readonly number[]): Seg => [offsetX + l[0] * size, offsetY + l[1] * size, offsetX + l[2] * size, offsetY + l[3] * size];
   const open = new Set(vision?.openEdges ?? []);
   return {
-    walls: [...segmentsOf(vision?.walls ?? []), ...built.walls.map(toScene)],
+    walls: segmentsOf(vision?.walls ?? []),
+    built: built.walls.map(toScene),
     doors: [
       ...(vision?.doors ?? []).map((d) => ({ line: d.line, open: d.open })),
       ...built.doors.map((d) => ({ line: toScene(d.line), open: open.has(d.key) })),
@@ -100,7 +105,48 @@ export interface WallPiece {
   y1: number;
   door: boolean;
   light: number;
+  /** One of the Build tool's walls (which take the scene's wall texture). */
+  built?: boolean;
+  /** Its colour as the map paints it (0 to 1 each), when that's known. */
+  color?: readonly [number, number, number];
 }
+
+/** The map as painted (picture, built map, before the dark and the fog), small, to read walls' colours from. */
+export interface PaintMap {
+  x0: number;
+  y0: number;
+  /** The map's pixels per scene unit. */
+  k: number;
+  w: number;
+  h: number;
+  /** RGBA, row by row. */
+  rgba: Uint8ClampedArray;
+}
+
+/** The map's colour at a scene point (0 to 1 each), or null off it or where nothing's painted. */
+export function paintAt(paint: PaintMap | null, x: number, y: number): [number, number, number] | null {
+  if (!paint) return null;
+  const c = Math.floor((x - paint.x0) * paint.k);
+  const r = Math.floor((y - paint.y0) * paint.k);
+  if (c < 0 || r < 0 || c >= paint.w || r >= paint.h) return null;
+  const i = (r * paint.w + c) * 4;
+  if (paint.rgba[i + 3] < 128) return null;
+  return [paint.rgba[i] / 255, paint.rgba[i + 1] / 255, paint.rgba[i + 2] / 255];
+}
+
+/**
+ * A wall's colour from the map's paint where it runs: what's painted there, kept from going
+ * black (a map's walls are often drawn very dark, which in 3D would be a black slab), so its
+ * stone, brick or wood still reads.
+ */
+export function wallTint(rgb: readonly [number, number, number]): [number, number, number] {
+  const lum = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2];
+  const t = lum < WALL_DARKEST ? (WALL_DARKEST - lum) / WALL_DARKEST : 0;
+  return [rgb[0] + (STONE[0] * 0.7 - rgb[0]) * t, rgb[1] + (STONE[1] * 0.7 - rgb[1]) * t, rgb[2] + (STONE[2] * 0.7 - rgb[2]) * t];
+}
+
+/** Below this brightness a wall's painted colour is lifted towards grey stone. */
+const WALL_DARKEST = 0.24;
 
 /**
  * The walls and shut doors cut into pieces (at most WALL_PIECE squares long), each with how lit it is:
@@ -108,9 +154,9 @@ export interface WallPiece {
  * otherwise only those seen, so a player never sees the shape of rooms under the fog or in the dark
  * they haven't explored. Open doors aren't raised: the way is clear.
  */
-export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean): WallPiece[] {
+export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallPiece[] {
   const out: WallPiece[] = [];
-  const add = (s: Seg, door: boolean) => {
+  const add = (s: Seg, door: boolean, built = false) => {
     const [ax, ay, bx, by] = s;
     const len = Math.hypot(bx - ax, by - ay);
     if (!(len > 1e-6) || !(cell > 0)) return;
@@ -124,10 +170,15 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
       const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
       const light = Math.max(brightnessAt(cover, mx + nx, my + ny), brightnessAt(cover, mx - nx, my - ny), brightnessAt(cover, mx, my));
       if (!all && light < WALL_SEEN) continue;
-      out.push({ x0, y0, x1, y1, door, light });
+      const piece: WallPiece = { x0, y0, x1, y1, door, light };
+      if (built) piece.built = true;
+      const painted = door ? null : paintAt(paint, mx, my);
+      if (painted) piece.color = wallTint(painted);
+      out.push(piece);
     }
   };
   for (const w of walls3d.walls) add(w, false);
+  for (const w of walls3d.built) add(w, false, true);
   for (const d of walls3d.doors) if (!d.open) add(d.line, true);
   return out;
 }
@@ -150,25 +201,46 @@ const STONE: readonly [number, number, number] = [0.62, 0.59, 0.55];
 const STONE_TOP: readonly [number, number, number] = [0.34, 0.32, 0.3];
 const WOOD: readonly [number, number, number] = [0.5, 0.33, 0.18];
 const WOOD_TOP: readonly [number, number, number] = [0.32, 0.2, 0.1];
+const WHITE: readonly [number, number, number] = [1, 1, 1];
+const WHITE_TOP: readonly [number, number, number] = [0.62, 0.62, 0.62];
 
 /** The pieces as one mesh's triangles (no shared corners, so each face is lit flat): positions, normals and colours, in squares. */
 export interface WallMesh {
   position: Float32Array;
   normal: Float32Array;
   color: Float32Array;
+  /** Where a texture falls on each corner, in squares (along a wall and up it; across the top). Walls only. */
+  uv?: Float32Array;
 }
 
 /** Vertices a piece of wall takes: five faces (no bottom), two triangles each. */
 export const WALL_PIECE_VERTICES = 30;
 
-/** The pieces as boxes standing on the floor: their sides in stone (doors in wood), their tops darker, each as lit as it is. */
-export function wallMesh(pieces: readonly WallPiece[], cell: number): WallMesh {
+/**
+ * The pieces as boxes standing on the floor, each as lit as it is: their sides in the colour the
+ * map paints them (grey stone where that isn't known; doors in wood), their tops darker. With
+ * `textured`, in white instead: a texture laid over them gives their colour (the scene's wall
+ * texture, on the Build tool's walls).
+ */
+export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = false): WallMesh {
   const count = pieces.length * WALL_PIECE_VERTICES;
   const position = new Float32Array(count * 3);
   const normal = new Float32Array(count * 3);
   const color = new Float32Array(count * 3);
+  const uv = new Float32Array(count * 2);
   let v = 0;
+  /** The texture's direction along the piece being made (its wall's), for its sides' u. */
+  let ux = 1, uz = 0;
   const put = (x: number, y: number, z: number, n: readonly number[], c: readonly number[]) => {
+    // Sides: along the wall and up; ends: across it and up; the top: across the map.
+    if (n[1] > 0.5) {
+      uv[v * 2] = x;
+      uv[v * 2 + 1] = z;
+    } else {
+      const along = Math.abs(n[0] * ux + n[2] * uz) < 0.5;
+      uv[v * 2] = along ? x * ux + z * uz : x * -uz + z * ux;
+      uv[v * 2 + 1] = y;
+    }
     position[v * 3] = x;
     position[v * 3 + 1] = y;
     position[v * 3 + 2] = z;
@@ -195,9 +267,12 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number): WallMesh {
     const h = (p.door ? DOOR_HEIGHT : 1) * WALL_HEIGHT;
     // Its two sides: the normal (-dz, dx) and its opposite.
     const ox = -dz * t, oz = dx * t;
+    ux = dx;
+    uz = dz;
     const shade = shadeOf(p.light);
-    const side = (p.door ? WOOD : STONE).map((x) => x * shade);
-    const top = (p.door ? WOOD_TOP : STONE_TOP).map((x) => x * shade);
+    const base = textured ? WHITE : p.door ? WOOD : (p.color ?? STONE);
+    const side = base.map((x) => x * shade);
+    const top = (textured ? WHITE_TOP : p.door ? WOOD_TOP : p.color ? p.color.map((x) => x * 0.6) : STONE_TOP).map((x) => x * shade);
     // Bottom corners: a and b, on the + side (1) and the - side (2); the tops are the same, h up.
     const a1 = [ax + ox, 0, az + oz], b1 = [bx + ox, 0, bz + oz], a2 = [ax - ox, 0, az - oz], b2 = [bx - ox, 0, bz - oz];
     const up = (q: number[]) => [q[0], h, q[2]];
@@ -209,7 +284,7 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number): WallMesh {
     quad(b1, up(b1), up(b2), b2, [dx, 0, dz], side);
     quad(up(a1), up(a2), up(b2), up(b1), [0, 1, 0], top);
   }
-  return { position, normal, color };
+  return { position, normal, color, uv };
 }
 
 /** A token as the 3D view shows it, from what the board shows (board.ts source3d). */
@@ -312,6 +387,8 @@ export interface Floor3d {
   canvas: HTMLCanvasElement;
   /** What covers it (null: nothing, it's all clear). */
   cover: CoverMap | null;
+  /** The map as painted, small, for walls' colours (null: nothing painted). */
+  paint: PaintMap | null;
   /** The scene's area, in scene units. */
   area: SceneArea;
 }
@@ -329,6 +406,10 @@ export interface Board3dSource {
   walls(): Walls3d;
   /** The built map's objects that stand up in 3D (trees, rocks, pillars, tables...). */
   objects(): Object3d[];
+  /** The scene's wall texture for the Build tool's walls, once it's made: its picture and how many squares it spans. */
+  wallTexture(): { canvas: HTMLCanvasElement; squares: number } | null;
+  /** The built map's buildings, for roofs: none on a map with no open ground (a dungeon underground). */
+  buildings(): Building3d[];
   /** The GM, not looking as players: sees everything, the fog and the dark dimmed. */
   gmView(): boolean;
   /** The middle and size of the 2D view, in scene units (null: no scene). */

@@ -22,6 +22,7 @@ import {
   MeshLambertMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  RepeatWrapping,
   Scene as World,
   Texture,
   Vector3,
@@ -53,6 +54,7 @@ import {
   type View3dControls,
 } from "./view3dModel";
 import { objectMesh } from "./view3dObjects";
+import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { weatherLook } from "./view3dWeather";
 import { WeatherFx3d } from "./view3dWeatherFx";
 import type { Weather } from "../../shared/calendar";
@@ -103,6 +105,15 @@ export class View3D implements View3dControls {
   private walls: Mesh | null = null;
   /** The built map's objects standing up: trees, rocks, pillars, tables... (view3dObjects.ts). */
   private objects: Mesh | null = null;
+  /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
+  private texturedWalls: Mesh | null = null;
+  private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
+  /**
+   * The buildings' roofs (view3dRoofs.ts), by building: how far each is lifted off (0 on, 1 off)
+   * and how far it's going, and how see-through it is at most (the GM's are half).
+   */
+  private roofs = new Map<string, { mesh: Mesh; mat: MeshLambertMaterial; lift: number; to: number; opacity: number }>();
+  private roofAt = 0;
   private figs = new Map<string, Fig>();
   /** Token pictures as textures, by picture (an image's address, or a disc's colour and initials). */
   private pictures = new Map<string, { tex: Texture; w: number; h: number }>();
@@ -282,13 +293,19 @@ export class View3D implements View3dControls {
       this.floorTex.needsUpdate = true;
     }
 
-    // The walls and the built map's objects, where this page has seen them.
+    // The walls, in their own colours (the Build tool's in the scene's wall texture, when it has
+    // one), the built map's objects, and the buildings' roofs: where this page has seen them.
     this.dropWalls();
     const all = this.src.gmView();
-    const pieces = wallPieces(this.src.walls(), this.cell, f.cover, all);
-    if (pieces.length) this.walls = this.lit(wallMesh(pieces, this.cell));
+    const pieces = wallPieces(this.src.walls(), this.cell, f.cover, all, f.paint);
+    const tile = this.wallTexture();
+    const textured = tile ? pieces.filter((p) => p.built && !p.door) : [];
+    const plain = tile ? pieces.filter((p) => !(p.built && !p.door)) : pieces;
+    if (plain.length) this.walls = this.lit(wallMesh(plain, this.cell));
+    if (tile && textured.length) this.texturedWalls = this.lit(wallMesh(textured, this.cell, true), tile);
     const things = objectMesh(this.src.objects(), this.cell, f.cover, all);
     if (things.position.length) this.objects = this.lit(things);
+    this.makeRoofs(all);
 
     // How far the camera may go, for this scene's size.
     const reach = Math.max(20, 2.5 * Math.hypot(w, h));
@@ -478,32 +495,121 @@ export class View3D implements View3dControls {
     this.floorKey = "";
   }
 
-  /** Triangles lit by the scene's lights, each in its own colour, added to the world. */
-  private lit(m: { position: Float32Array; normal: Float32Array; color: Float32Array }): Mesh {
+  /** Triangles lit by the scene's lights, each in its own colour (over `map`, when given), added to the world. */
+  private lit(m: { position: Float32Array; normal: Float32Array; color: Float32Array; uv?: Float32Array }, map?: CanvasTexture): Mesh {
     const geo = new BufferGeometry();
     geo.setAttribute("position", new BufferAttribute(m.position, 3));
     geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
     geo.setAttribute("color", new BufferAttribute(m.color, 3));
-    const mesh = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true }));
+    if (m.uv) geo.setAttribute("uv", new BufferAttribute(m.uv, 2));
+    const mesh = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true, map: map ?? null }));
     this.world.add(mesh);
     return mesh;
   }
 
-  /** Takes away the walls and the objects (they're made again together). */
+  /** The scene's wall texture as a repeating texture (made once for its picture), or null while it has none or it isn't made yet. */
+  private wallTexture(): CanvasTexture | null {
+    const tile = this.src.wallTexture();
+    if (!tile) return null;
+    if (this.wallTex?.canvas !== tile.canvas) {
+      this.wallTex?.tex.dispose();
+      const tex = new CanvasTexture(tile.canvas);
+      tex.wrapS = tex.wrapT = RepeatWrapping;
+      tex.repeat.set(1 / tile.squares, 1 / tile.squares);
+      tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+      this.wallTex = { canvas: tile.canvas, tex };
+    }
+    return this.wallTex.tex;
+  }
+
+  /**
+   * The buildings' roofs, made again (what's been seen, and how lit, may have changed): each
+   * keeps how far it's lifted off, so one already off stays off.
+   */
+  private makeRoofs(all: boolean): void {
+    const was = new Map([...this.roofs].map(([id, r]) => [id, r.lift]));
+    this.dropRoofs();
+    for (const b of this.src.buildings()) {
+      // Made while it's seen, lifted or not: lifting is only how far off it is.
+      if (!roofShown({ ...b, inside: false }, this.cover, all)) continue;
+      const m = roofMesh(b.rects, this.cell, roofColour(b.id), buildingLight(b, this.cover));
+      if (!m.position.length) continue;
+      const geo = new BufferGeometry();
+      geo.setAttribute("position", new BufferAttribute(m.position, 3));
+      geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
+      geo.setAttribute("color", new BufferAttribute(m.color, 3));
+      const mat = new MeshLambertMaterial({ vertexColors: true, transparent: true });
+      const mesh = new Mesh(geo, mat);
+      mesh.renderOrder = 3;
+      this.world.add(mesh);
+      const to = b.inside ? 1 : 0;
+      const roof = { mesh, mat, lift: was.get(b.id) ?? to, to, opacity: all ? 0.45 : 1 };
+      this.roofs.set(b.id, roof);
+      this.placeRoof(roof);
+    }
+  }
+
+  /** Whether the party is inside each building now (a token moved): its roof lifts off or comes back. */
+  private liftRoofs(): void {
+    if (!this.roofs.size) return;
+    for (const b of this.src.buildings()) {
+      const r = this.roofs.get(b.id);
+      if (r) r.to = b.inside ? 1 : 0;
+    }
+  }
+
+  /** A roof as far up and as faded as it's lifted. */
+  private placeRoof(r: { mesh: Mesh; mat: MeshLambertMaterial; lift: number; opacity: number }): void {
+    r.mesh.position.y = r.lift * 1.5;
+    r.mat.opacity = r.opacity * (1 - r.lift);
+    r.mat.depthWrite = r.mat.opacity > 0.9;
+    r.mesh.visible = r.lift < 0.99;
+  }
+
+  /** Lifts roofs on towards off or on again; true while any is still going. */
+  private stepRoofs(now: number): boolean {
+    const dt = this.roofAt ? Math.min(0.1, (now - this.roofAt) / 1000) : 0;
+    this.roofAt = now;
+    let going = false;
+    for (const r of this.roofs.values()) {
+      if (r.lift === r.to) continue;
+      const step = dt * 2.5;
+      r.lift = r.lift < r.to ? Math.min(r.to, r.lift + step) : Math.max(r.to, r.lift - step);
+      this.placeRoof(r);
+      going = true;
+    }
+    if (!going) this.roofAt = 0;
+    return going;
+  }
+
+  private dropRoofs(): void {
+    for (const r of this.roofs.values()) {
+      this.world.remove(r.mesh);
+      r.mesh.geometry.dispose();
+      r.mat.dispose();
+    }
+    this.roofs.clear();
+  }
+
+  /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.objects]) {
+    for (const m of [this.walls, this.texturedWalls, this.objects]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
       m.material.dispose();
     }
     this.walls = null;
+    this.texturedWalls = null;
     this.objects = null;
+    this.dropRoofs();
   }
 
   private clearScene(): void {
     this.dropFloor();
     this.dropWalls();
+    this.wallTex?.tex.dispose();
+    this.wallTex = null;
     for (const f of this.figs.values()) this.dropFig(f);
     this.figs.clear();
     this.sceneId = null;
@@ -602,11 +708,12 @@ export class View3D implements View3dControls {
     if (this.tokensQueued) {
       this.tokensQueued = false;
       this.refreshStandees();
+      this.liftRoofs();
     }
     const aiming = this.stepTween();
     const moved = this.controls.update();
     this.keepOnScene();
-    const sliding = this.stepFigs();
+    const sliding = this.stepFigs() || this.stepRoofs(performance.now());
     const weathering = this.weather.step(performance.now(), this.controls.target, this.camera.position.distanceTo(this.controls.target));
     if (moved || aiming || sliding || weathering || this.dirty) {
       // Every figure's card faces the camera's way.

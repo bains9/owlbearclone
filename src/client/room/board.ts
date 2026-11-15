@@ -57,7 +57,7 @@ import { distanceSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
 import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, toggledDoor } from "./vision";
 import { BoardSight, FOG_CACHE_MAX, drawGlows, type SceneArea, type SightGeometry } from "./boardSight";
-import { moonlightOf } from "../../shared/calendar";
+import { moonlightOf, weatherHere } from "../../shared/calendar";
 import type { Calendar } from "../../shared/calendar";
 import {
   BuildEdit,
@@ -107,8 +107,10 @@ import {
 import type { Placed } from "./stampGeom";
 import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
-import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type Standee, type Walls3d } from "./view3dModel";
+import { coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
+import { buildingsOf, samplesOf, type Building3d } from "./view3dRoofs";
+import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
 import { SeasonBaker, outdoorKey } from "./seasons";
@@ -784,6 +786,9 @@ export class Board implements BoardApi {
   private making3d = false;
   private floor3dCanvas: HTMLCanvasElement | null = null;
   private cover3dCanvas: HTMLCanvasElement | null = null;
+  private paint3dCanvas: HTMLCanvasElement | null = null;
+  /** The built map's buildings as last worked out, and what from (they change only with the build). */
+  private buildings3dOf: { index: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
   /**
@@ -809,6 +814,11 @@ export class Board implements BoardApi {
       standees: () => this.standees3d(),
       walls: () => this.walls3d(),
       objects: () => this.objects3d(),
+      wallTexture: () => {
+        const id = this.renderedScene?.wallTexture;
+        return id && !isHex(this.renderedScene!.grid) ? textureTile(id) : null;
+      },
+      buildings: () => this.buildings3d(),
       gmView: () => this.isGm && !this.room.state.fogOpts.preview,
       view: () => {
         if (!this.renderedScene) return null;
@@ -874,6 +884,7 @@ export class Board implements BoardApi {
       const img = this.mapNode.visible() ? this.mapNode.image() : undefined;
       if (img) c.drawImage(img as CanvasImageSource, 0, 0, scene.width, scene.height);
       if (!isHex(scene.grid)) this.drawBuilt3d(c, scene, area, cw, ch, k, gmView);
+      const paint = this.paint3d(canvas, scene, w, h);
       this.drawGridOver(c, area, k);
       this.drawLightGlows(c);
       // The drawings, as Konva draws them, over the scene's whole area (on screen or not).
@@ -908,7 +919,7 @@ export class Board implements BoardApi {
         cover = { x0: area.x0, y0: area.y0, k: ck, w: sw, h: sh, alpha };
         this.drawCover3d(c, scene, gmView);
       }
-      return { scene, canvas, cover, area };
+      return { scene, canvas, cover, area, paint };
     } finally {
       this.making3d = false;
     }
@@ -944,6 +955,72 @@ export class Board implements BoardApi {
       b = this.built3d = { canvas, index, hidden, scene, w: cw, h: ch, gm: gmView, objects, ready: this.buildReady };
     }
     c.drawImage(b.canvas, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+  }
+
+  /**
+   * The map as painted so far (`floor`: the picture and the built map, before the grid, drawings,
+   * the dark and the fog), small (about 10 pixels a square), read back: the 3D walls take their
+   * colours from it, so a map's stone, brick or wood walls stand up in their own colour.
+   */
+  private paint3d(floor: HTMLCanvasElement, scene: Scene, w: number, h: number): PaintMap | null {
+    const area = sceneBounds(scene);
+    const k = Math.min(10 / scene.grid.size, 1024 / Math.max(w, h));
+    const pw = Math.max(1, Math.round(w * k)), ph = Math.max(1, Math.round(h * k));
+    const canvas = (this.paint3dCanvas ??= document.createElement("canvas"));
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+    const x = canvas.getContext("2d", { willReadFrequently: true });
+    if (!x) return null;
+    x.clearRect(0, 0, pw, ph);
+    x.drawImage(floor, 0, 0, pw, ph);
+    return { x0: area.x0, y0: area.y0, k, w: pw, h: ph, rgba: x.getImageData(0, 0, pw, ph).data };
+  }
+
+  /**
+   * Whether the built map's rooms are buildings, with roofs in 3D: on a map with open ground (the
+   * build's grass, or ground round its trees; an outdoor picture under it; the GM keeping the
+   * weather on), and not where it's indoors or underground (as "Weather on this map" decides).
+   */
+  private roofsWanted(scene: Scene): boolean {
+    const share = scene.mapAssetId
+      ? this.room.state.mapOutdoor[outdoorKey(scene.mapAssetId, scene.mapData ? { assetId: scene.mapData.assetId } : undefined)]
+      : undefined;
+    if (!weatherHere(scene, share).on) return false;
+    return scene.weather === "on" || (!!scene.mapAssetId && share !== undefined) || this.build.hasOutdoors();
+  }
+
+  /** The built map's buildings (none where roofs aren't wanted), and whether the party is inside each. */
+  private buildings3d(): Building3d[] {
+    const scene = this.renderedScene;
+    if (!scene || isHex(scene.grid) || !this.roofsWanted(scene)) return [];
+    const index = this.build.model.index;
+    let made = this.buildings3dOf;
+    if (!made || made.index !== index || made.scene !== scene) {
+      const g = scene.grid;
+      const X = (col: number) => g.offsetX + col * g.size;
+      const Y = (row: number) => g.offsetY + row * g.size;
+      const list = buildingsOf(this.build.roomCells()).map((b) => ({
+        b: {
+          id: `${b.cells[0][0]},${b.cells[0][1]}`,
+          rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
+          samples: samplesOf(b, X, Y, g.size),
+          inside: false,
+        },
+        keys: new Set(b.cells.map(([c, r]) => `${c},${r}`)),
+      }));
+      made = this.buildings3dOf = { index, scene, list };
+    }
+    // Where the party stands now: the characters and the tokens players put down.
+    const g = scene.grid;
+    const party = new Set<string>();
+    for (const n of this.tokens.values()) {
+      const t = n.item;
+      if (!t || !isSightToken(t)) continue;
+      party.add(`${Math.floor((n.group.x() - g.offsetX) / g.size)},${Math.floor((n.group.y() - g.offsetY) / g.size)}`);
+    }
+    return made.list.map(({ b, keys }) => ({ ...b, inside: [...party].some((k) => keys.has(k)) }));
   }
 
   /** The built map's objects that stand up in 3D: where, how big, turned how, and their drawing's colour. */
@@ -1015,7 +1092,7 @@ export class Board implements BoardApi {
   /** The scene's walls and doors: the map file's and the Build tool's. */
   private walls3d(): Walls3d {
     const scene = this.renderedScene;
-    if (!scene) return { walls: [], doors: [] };
+    if (!scene) return { walls: [], built: [], doors: [] };
     const built = isHex(scene.grid) ? { walls: [], doors: [] } : this.build.model.sightLines();
     return wallsOf(scene.vision, built, scene.grid);
   }
