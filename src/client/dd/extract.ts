@@ -38,11 +38,11 @@
 import { GRID, MS_EDGE_BUFFER, type BitGrid, type DDMap, type Level, type MapObject, type WaterNode } from "./model";
 import { MEASURE, measureObjects, measureSummary, priorReach, type Measured, type SpriteSizes } from "./measure";
 import {
-  DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, encodeSidecar,
-  type BitmapLayer, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid,
+  CLIFF_CAPS, DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, encodeSidecar,
+  type BitmapLayer, type CliffLine, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid,
 } from "./sidecar";
 import {
-  AR, NAMED_ROLES, OR, TR, defaultName, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
+  AR, NAMED_ROLES, OR, TR, defaultName, isCliffPath, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
   type AreaRole, type ObjectRole, type TerrainRole,
 } from "./roles";
 import { REACH_DIRS, rasterSidecar } from "./raster";
@@ -571,7 +571,9 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     if (s) shapes.push(s);
   }
 
-  // Paths: the drawn width of default trails and roads, the whole ribbon of the rest.
+  // Paths: the drawn width of default trails and roads, the whole ribbon of the rest. Dungeondraft's
+  // own cliffs are kept apart too, as their centre lines, for the 3D view (cliffLines).
+  const cliffs: CliffLine[] = [];
   for (const p of L.paths) {
     const rb = pathRibbon(p);
     if (!ribbonReaches(rb, crop)) continue;
@@ -586,6 +588,7 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     for (const r of ribbonRings(rb, false, role === AR.PATH_KEEP ? 1 : pathDrawn(nm), EXTRACT.pathTol)) sb.ring(r);
     const s = sb.build();
     if (s) shapes.push(s);
+    if (isCliffPath(nm)) cliffs.push(...cliffLines(rb, crop));
   }
 
   // Pack objects, and the objects' share of the area.
@@ -610,6 +613,7 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     },
     terrain: tr.grid, bitmaps, shapes, objects,
   };
+  if (cliffs.length) sc.cliffs = cliffs.slice(0, CLIFF_CAPS.lines);
   fitMeta(sc);
 
   // Snowy or green (4.2), then water by what the picture shows (2.6).
@@ -982,6 +986,65 @@ function simplify(line: Float64Array, tol: number): number[] {
   const out: number[] = [];
   for (let i = 0; i < n; i++) if (keep[i]) out.push(i);
   return out;
+}
+
+/**
+ * A cliff path's centre line, cropped to the box (the picture and a square round it, 3.3), as one
+ * line for each stretch inside it, with half its average drawn width: in sidecar units.
+ */
+export function cliffLines(rb: Ribbon, b: Box): CliffLine[] {
+  const n = rb.line.length / 2;
+  if (n < 2) return [];
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += rb.halfWidth[i];
+  const halfWidth = Math.min(0xffff, Math.max(0, Math.round(sum / n)));
+  const out: CliffLine[] = [];
+  let run: number[] = [];
+  const close = () => {
+    if (run.length >= 4) out.push({ halfWidth, pts: Int32Array.from(run.map((v) => Math.round(v * SIDECAR_UNITS.coord))) });
+    run = [];
+  };
+  const count = rb.closed ? n : n - 1;
+  for (let i = 0; i < count; i++) {
+    const j = (i + 1) % n;
+    const seg = clipSegment(rb.line[i * 2], rb.line[i * 2 + 1], rb.line[j * 2], rb.line[j * 2 + 1], b);
+    if (!seg) {
+      close();
+      continue;
+    }
+    const [ax, ay, bx, by] = seg;
+    const last = run.length;
+    if (!last || run[last - 2] !== ax || run[last - 1] !== ay) {
+      close();
+      run.push(ax, ay);
+    }
+    run.push(bx, by);
+    // A stretch cut short at the box's edge ends there.
+    if (bx !== rb.line[j * 2] || by !== rb.line[j * 2 + 1]) close();
+  }
+  close();
+  return out;
+}
+
+/** A segment clipped to a box (Liang-Barsky), or null when none of it is inside. */
+function clipSegment(x0: number, y0: number, x1: number, y1: number, b: Box): [number, number, number, number] | null {
+  let t0 = 0, t1 = 1;
+  const dx = x1 - x0, dy = y1 - y0;
+  for (const [p, q] of [[-dx, x0 - b[0]], [dx, b[2] - x0], [-dy, y0 - b[1]], [dy, b[3] - y0]]) {
+    if (p === 0) {
+      if (q < 0) return null;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return null;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return null;
+      if (r < t1) t1 = r;
+    }
+  }
+  return [x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy];
 }
 
 function ribbonReaches(rb: Ribbon, b: Box): boolean {

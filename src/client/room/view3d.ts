@@ -54,6 +54,7 @@ import {
   type View3dControls,
 } from "./view3dModel";
 import { objectMesh } from "./view3dObjects";
+import { cliffMesh } from "./view3dCliffs";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
 import { weatherLook } from "./view3dWeather";
@@ -106,6 +107,8 @@ export class View3D implements View3dControls {
   private walls: Mesh | null = null;
   /** The built map's objects standing up: trees, rocks, pillars, tables... (view3dObjects.ts). */
   private objects: Mesh | null = null;
+  /** A Dungeondraft map's cliffs, standing up as rock (view3dCliffs.ts). */
+  private cliffs: Mesh | null = null;
   /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
   private texturedWalls: Mesh | null = null;
   private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
@@ -317,6 +320,8 @@ export class View3D implements View3dControls {
     if (tile && textured.length) this.texturedWalls = this.lit(wallMesh(textured, this.cell, true), tile);
     const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.paint);
     if (things.position.length) this.objects = this.lit(things);
+    const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
+    if (rock.position.length) this.cliffs = this.lit(rock);
     this.makeRoofs(all);
 
     // How far the camera may go, for this scene's size.
@@ -751,7 +756,7 @@ export class View3D implements View3dControls {
 
   /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.texturedWalls, this.objects]) {
+    for (const m of [this.walls, this.texturedWalls, this.objects, this.cliffs]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
@@ -760,6 +765,7 @@ export class View3D implements View3dControls {
     this.walls = null;
     this.texturedWalls = null;
     this.objects = null;
+    this.cliffs = null;
     this.dropRoofs();
   }
 

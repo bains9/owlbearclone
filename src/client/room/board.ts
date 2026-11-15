@@ -113,6 +113,7 @@ import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3d
 import { WORLD_SQUARE, floorCells, mapLooksOutdoors, mapObjects, toScene, toWorld, type MapPlacement } from "./view3dMapData";
 import { decodeSidecar, type SeasonSidecar } from "../dd/sidecar";
 import { castBounds, tokenLookBounds, zoneBounds, type Effect3d } from "./view3dEffects";
+import { mapCliffs, type Cliff3d } from "./view3dCliffs";
 import { textureTile } from "./dungeonTextures";
 import { NO_MAP_LOAD, sameMapLoad } from "./mapLoading";
 import type { MapLoad } from "./mapLoading";
@@ -798,7 +799,13 @@ export class Board implements BoardApi {
    * The scene's map data (a Dungeondraft or Dungeon map's sidecar), read for the 3D view: its
    * trees and its rooms. Fetched the first time 3D asks for the scene, then kept.
    */
-  private mapData3d: { assetId: string; data: SeasonSidecar | null; objects?: { scene: Scene; list: Object3d[] }; rooms?: { scene: Scene; list: { b: Building3d; keys: Set<string> }[] } } | null = null;
+  private mapData3d: {
+    assetId: string;
+    data: SeasonSidecar | null;
+    objects?: { scene: Scene; list: Object3d[] };
+    rooms?: { scene: Scene; list: { b: Building3d; keys: Set<string> }[] };
+    cliffs?: { scene: Scene; list: Cliff3d[] };
+  } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
   /**
@@ -830,6 +837,13 @@ export class Board implements BoardApi {
       },
       buildings: () => this.buildings3d(),
       effects: () => this.effects3d(),
+      cliffs: () => {
+        const scene = this.renderedScene;
+        const md = scene ? this.mapData(scene) : null;
+        if (!scene || !md?.data.cliffs?.length || !this.mapData3d) return [];
+        if (this.mapData3d.cliffs?.scene !== scene) this.mapData3d.cliffs = { scene, list: mapCliffs(md.data.cliffs, md.place) };
+        return this.mapData3d.cliffs.list;
+      },
       gmView: () => this.isGm && !this.room.state.fogOpts.preview,
       view: () => {
         if (!this.renderedScene) return null;

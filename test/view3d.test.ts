@@ -511,6 +511,11 @@ describe("the guide", () => {
     expect(JSON.stringify(GUIDE)).toContain("Lighting and line of sight");
   });
 
+  it("says a Dungeondraft map's cliffs stand up, and that a project file attached before needs attaching again", () => {
+    expect(text).toContain("A Dungeondraft map's cliffs (Dungeondraft's own cliff paths) stand up as rock");
+    expect(text).toContain("attach it again (**Dungeondraft data** › **Change…**)");
+  });
+
   it("says players see no more in 3D than on the flat map", () => {
     expect(text).toContain("Players never see more in 3D than on the flat map");
     expect(text).toContain("A token or a built map's object under the fog doesn't stand up for players");

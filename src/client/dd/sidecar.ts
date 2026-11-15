@@ -30,6 +30,10 @@
 //   5 OBJS  u32 n, then arrays of n: role u8, layer i16, x i32, y i32 (1/16 world unit), rot u8
 //           (a full turn / 256, clockwise), flags u8 (OBJ_FLAG), name u16 (0xFFFF none),
 //           then reach u16[16n] (1/4 world unit, 16 per object in REACH_DIRS order). 47 bytes an object
+//   6 CLIF  u32 nLines, then per line u16 halfWidth (world units), u32 nPts, nPts * (i32 x, i32 y)
+//           in 1/16 world unit: Dungeondraft's own cliff paths, their centre lines, for the 3D view's
+//           rock faces (at most once; only written when there are some, so a map without cliffs
+//           encodes as before, and a reader older than it skips it as an unknown section)
 //
 // World units: 256 a square, x right, y down (Dungeondraft's own). Every count and length is
 // checked against SIDECAR_CAPS and the bytes left before anything is allocated, so a crafted
@@ -43,7 +47,18 @@ export const SIDECAR_MAGIC = "TTSD";
 export const SIDECAR_HEADER_BYTES = 16;
 
 /** Section tags. */
-export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5 } as const;
+export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6 } as const;
+
+/** A cliff's centre line and how wide it's drawn: one of Dungeondraft's own cliff paths, cropped as the rest is. */
+export interface CliffLine {
+  /** Half its drawn width, in world units. */
+  halfWidth: number;
+  /** x, y pairs in 1/16 world unit. */
+  pts: Int32Array;
+}
+
+/** Limits on the cliffs a sidecar carries. */
+export const CLIFF_CAPS = { lines: 4000, points: 200_000 } as const;
 
 /** A name index or object name meaning "none" (pack, embedded or unknown source, or a role that keeps no name). */
 export const NO_NAME = 0xffff;
@@ -149,6 +164,8 @@ export interface SeasonSidecar {
   bitmaps: BitmapLayer[];
   shapes: ShapeLayer[];
   objects: ObjectTable;
+  /** The map's cliffs (CLIF), for the 3D view; missing when it has none (or was made before cliffs were kept). */
+  cliffs?: CliffLine[];
 }
 
 /** Limits checked by decodeSidecar before it allocates, and by the extractor (design 3.3). */
@@ -340,6 +357,17 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
   const o = s.objects;
   checkObjects(o, names);
   len += SECTION_HEAD + OBJS_HEAD + OBJ_BYTES * o.n;
+  const cliffs = s.cliffs ?? [];
+  if (!Array.isArray(cliffs) || cliffs.length > CLIFF_CAPS.lines) fail("more than 4,000 cliffs");
+  let clifLen = 4, clifPts = 0;
+  for (const c of cliffs) {
+    if (!(c.pts instanceof Int32Array) || c.pts.length % 2 || c.pts.length < 4) fail("a cliff's points are not pairs");
+    if (!Number.isInteger(c.halfWidth) || c.halfWidth < 0 || c.halfWidth > 0xffff) fail("a cliff's width is out of range");
+    clifPts += c.pts.length / 2;
+    clifLen += 6 + 4 * c.pts.length;
+  }
+  if (clifPts > CLIFF_CAPS.points) fail("more than 200,000 cliff points");
+  if (cliffs.length) len += SECTION_HEAD + clifLen;
   if (len > SIDECAR_CAPS.bytes) fail("the sidecar is over 8 MiB");
 
   const out = new Uint8Array(SIDECAR_HEADER_BYTES + len);
@@ -394,6 +422,15 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
   for (let i = 0; i < o.n; i++) u8(o.flags[i]);
   for (let i = 0; i < o.n; i++) u16(o.name[i]);
   for (let i = 0; i < o.n * REACH_N; i++) u16(o.reach[i]);
+  if (cliffs.length) {
+    section(SECTION.CLIF, clifLen);
+    u32(cliffs.length);
+    for (const c of cliffs) {
+      u16(c.halfWidth);
+      u32(c.pts.length / 2);
+      for (let k = 0; k < c.pts.length; k++) i32(c.pts[k]);
+    }
+  }
 
   dv.setUint32(12, crc32(out.subarray(SIDECAR_HEADER_BYTES)), true);
   return out;
@@ -422,7 +459,7 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
 
   // Pass 1: every section's place, counts and values, read in place. Nothing big is allocated
   // until the whole payload has passed.
-  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0;
+  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0, clifAt = -1, clifLen = 0;
   const bitsAt: number[] = [], shapAt: number[] = [], shapLen: number[] = [];
   for (let p = SIDECAR_HEADER_BYTES; p < end;) {
     if (end - p < SECTION_HEAD) fail("a section header is cut off");
@@ -449,6 +486,9 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
     } else if (tag === SECTION.SHAP) {
       if (shapAt.length >= SIDECAR_CAPS.rings) fail("more than 20,000 rings");
       shapAt.push(body); shapLen.push(sl);
+    } else if (tag === SECTION.CLIF) {
+      if (clifAt >= 0) fail("two CLIF sections");
+      clifAt = body; clifLen = sl;
     }
     p = body + sl;
   }
@@ -578,7 +618,34 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
     objects.flags.set(bytes.subarray(a + 12 * n, a + 13 * n));
     for (let i = 0; i < n * REACH_N; i++) objects.reach[i] = dv.getUint16(a + 15 * n + 2 * i, true);
   }
-  return { meta, terrain, bitmaps, shapes, objects };
+  const out: SeasonSidecar = { meta, terrain, bitmaps, shapes, objects };
+  if (clifAt >= 0) out.cliffs = readCliffs(dv, clifAt, clifLen);
+  return out;
+}
+
+/** CLIF's lines, every count checked against CLIFF_CAPS and the section's length before it's allocated. */
+function readCliffs(dv: DataView, at: number, len: number): CliffLine[] {
+  if (len < 4) fail("CLIF is cut off");
+  const end = at + len;
+  const n = dv.getUint32(at, true);
+  if (n > CLIFF_CAPS.lines) fail("more than 4,000 cliffs");
+  const lines: CliffLine[] = [];
+  let p = at + 4, total = 0;
+  for (let i = 0; i < n; i++) {
+    if (end - p < 6) fail("a cliff is cut off");
+    const halfWidth = dv.getUint16(p, true);
+    const pts = dv.getUint32(p + 2, true);
+    p += 6;
+    total += pts;
+    if (pts < 2 || total > CLIFF_CAPS.points) fail("a cliff's points are out of range");
+    if (end - p < pts * 8) fail("a cliff's points run past CLIF");
+    const xy = new Int32Array(pts * 2);
+    for (let k = 0; k < pts * 2; k++) xy[k] = dv.getInt32(p + 4 * k, true);
+    p += pts * 8;
+    lines.push({ halfWidth, pts: xy });
+  }
+  if (p !== end) fail("CLIF's length disagrees with its lines");
+  return lines;
 }
 
 /** The header's format number, or null when the bytes don't start with a sidecar header. Never throws. */

@@ -210,6 +210,15 @@ export function pathRole(name: string | null): AreaRole {
 }
 
 /**
+ * Whether a path is one of Dungeondraft's own cliffs ("paths/cliffs_snow"): kept apart (sidecar
+ * CLIF) so the 3D view can stand it up as a rock face. Seasons treat it as before (PATH_KEEP). A
+ * pack's cliff has no name kept, so it isn't one.
+ */
+export function isCliffPath(name: string | null): boolean {
+  return usable(name) && has(splitName(name), "cliff");
+}
+
+/**
  * A pattern's role: paving-like → PAVED (outdoor paving unless indoor), floor-like → FLOOR, else KEEP.
  * Paving words win over "tileset": a cobbled or brick pattern is as likely a yard or street as a
  * floor, and an enclosed one becomes FLOOR through the wall-loop rule anyway.

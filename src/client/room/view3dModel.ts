@@ -12,6 +12,7 @@ import { segmentsOf, type Seg } from "./vision";
 import type { Object3d } from "./view3dObjects";
 import type { Building3d } from "./view3dRoofs";
 import type { Effect3d } from "./view3dEffects";
+import type { Cliff3d } from "./view3dCliffs";
 import type { Weather } from "../../shared/calendar";
 
 /** How tall walls stand, in squares: a little taller than a figure, low enough to see into rooms over them. */
@@ -413,6 +414,8 @@ export interface Board3dSource {
   buildings(): Building3d[];
   /** The spells on the map: areas, looks on tokens, spells being cast (view3dEffects.ts). */
   effects(): Effect3d[];
+  /** A Dungeondraft map's cliffs, from its map data (view3dCliffs.ts). */
+  cliffs(): Cliff3d[];
   /** The GM, not looking as players: sees everything, the fog and the dark dimmed. */
   gmView(): boolean;
   /** The middle and size of the 2D view, in scene units (null: no scene). */
