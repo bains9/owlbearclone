@@ -46,6 +46,7 @@ import {
   flatSize,
   nameTagFade,
   nameTagSize,
+  hpBar,
   frameDistance,
   initialsOf,
   shadeOf,
@@ -190,7 +191,7 @@ export class View3D implements View3dControls {
   /** Token pictures as textures, by picture (an image's address, or a disc's colour and initials). */
   private pictures = new Map<string, { tex: Texture; w: number; h: number }>();
   /** Name plates' pictures, one for each name, and how many figures show it. */
-  private names = new Map<string, { tex: CanvasTexture; aspect: number; uses: number }>();
+  private names = new Map<string, { tex: CanvasTexture; aspect: number; rows: number; uses: number }>();
   /** The stands under figures: one disc, scaled to each. */
   private disc = new CylinderGeometry(1, 1, 0.06, 32);
   private sceneId: string | null = null;
@@ -660,14 +661,19 @@ export class View3D implements View3dControls {
   }
 
   /**
-   * A figure's name plate, when its token has a name: the flat map's label, a dark rounded tag with
-   * white letters, one small picture per name shared by every figure with it (made again only for a
-   * new name), as faded as the figure.
+   * A figure's name plate, when its token has a name or a health bar: as the flat map shows them
+   * under the token, the bar over a dark rounded tag with white letters. One small picture for each
+   * name and health, shared by every figure with them (made again only when one changes), as faded
+   * as the figure.
    */
   private nameTag(s: Standee, fig: Fig): NonNullable<Fig["tag"]> | null {
     const name = s.label.trim();
-    if (!name) return null;
-    let made = this.names.get(name);
+    const bar = hpBar(s.hp);
+    if (!name && !bar) return null;
+    const key = `${name}\n${bar ? s.hp : ""}`;
+    // The name's row: 64 pixels; the bar's over it, 16 and a gap.
+    const ROW = 64, BAR = 16, GAP = 8;
+    let made = this.names.get(key);
     if (!made) {
       const canvas = document.createElement("canvas");
       const c = canvas.getContext("2d");
@@ -677,35 +683,54 @@ export class View3D implements View3dControls {
       c.font = font(px);
       // A very long name in smaller letters, so its picture stays small.
       const room = 600;
-      const textW = c.measureText(name).width;
+      const textW = name ? c.measureText(name).width : 0;
       if (textW > room) px = Math.max(16, Math.floor((px * room) / textW));
       c.font = font(px);
-      const pad = 14, h = 64;
-      canvas.width = Math.ceil(Math.min(room, c.measureText(name).width) + pad * 2);
-      canvas.height = h;
-      c.font = font(px);
-      c.fillStyle = "rgba(15,17,21,0.82)";
-      // A rounded tag (by hand: older iPads have no roundRect).
-      const W = canvas.width, rr = 18;
-      c.beginPath();
-      c.moveTo(rr, 0);
-      c.arcTo(W, 0, W, h, rr);
-      c.arcTo(W, h, 0, h, rr);
-      c.arcTo(0, h, 0, 0, rr);
-      c.arcTo(0, 0, W, 0, rr);
-      c.closePath();
-      c.fill();
-      c.fillStyle = "#fff";
-      c.textAlign = "center";
-      c.textBaseline = "middle";
-      c.fillText(name, canvas.width / 2, h / 2 + 1, room);
+      const pad = 14;
+      const nameW = name ? Math.ceil(Math.min(room, c.measureText(name).width) + pad * 2) : 0;
+      // The bar about as wide as a medium token's stand, as the flat map draws it under the token.
+      const barW = 200;
+      const W = Math.max(nameW, bar ? barW + 8 : 0);
+      const H = (name ? ROW : 0) + (bar ? BAR + (name ? GAP : 0) : 0);
+      canvas.width = W;
+      canvas.height = H;
+      // A rounded box (by hand: older iPads have no roundRect).
+      const rounded = (x: number, y: number, w: number, h: number, r: number) => {
+        c.beginPath();
+        c.moveTo(x + r, y);
+        c.arcTo(x + w, y, x + w, y + h, r);
+        c.arcTo(x + w, y + h, x, y + h, r);
+        c.arcTo(x, y + h, x, y, r);
+        c.arcTo(x, y, x + w, y, r);
+        c.closePath();
+        c.fill();
+      };
+      if (bar) {
+        const x = (W - barW) / 2;
+        c.fillStyle = "rgba(15,17,21,0.85)";
+        rounded(x, 0, barW, BAR, BAR / 2);
+        if (bar.share > 0) {
+          c.fillStyle = bar.color;
+          rounded(x, 0, Math.max(BAR, barW * bar.share), BAR, BAR / 2);
+        }
+      }
+      if (name) {
+        const y = bar ? BAR + GAP : 0;
+        c.font = font(px);
+        c.fillStyle = "rgba(15,17,21,0.82)";
+        rounded((W - nameW) / 2, y, nameW, ROW, 18);
+        c.fillStyle = "#fff";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillText(name, W / 2, y + ROW / 2 + 1, room);
+      }
       const tex = new CanvasTexture(canvas);
       tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-      made = { tex, aspect: canvas.width / h, uses: 0 };
-      this.names.set(name, made);
+      made = { tex, aspect: W / H, rows: H / ROW, uses: 0 };
+      this.names.set(key, made);
     }
     made.uses++;
-    const { w, h } = nameTagSize(s.size, made.aspect);
+    const { w, h } = nameTagSize(s.size, made.aspect, made.rows);
     const geo = new PlaneGeometry(w, h);
     // Standing on its bottom edge, so it tips back from there.
     geo.translate(0, h / 2, 0);
@@ -713,7 +738,8 @@ export class View3D implements View3dControls {
     const mat = new MeshBasicMaterial({ map: made.tex, transparent: true, opacity: s.opacity, depthWrite: false, side: DoubleSide });
     const plate = new Mesh(geo, mat);
     plate.renderOrder = 3;
-    fig.tag = { name, turn: null, plate, mat, h, opacity: s.opacity };
+    // How tall a name's row is: what the fade goes by.
+    fig.tag = { name: key, turn: null, plate, mat, h: h / made.rows, opacity: s.opacity };
     return fig.tag;
   }
 

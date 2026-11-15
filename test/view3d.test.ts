@@ -21,6 +21,7 @@ import {
   clampTo,
   coverScale,
   flatSize,
+  hpBar,
   nameTagFade,
   nameTagSize,
   floorScale,
@@ -403,6 +404,23 @@ describe("figures", () => {
     const long = nameTagSize(1, 20);
     expect(long.w).toBeCloseTo(2.6);
     expect(long.h).toBeLessThan(short.h);
+  });
+
+  it("carry the flat map's health bar over the name, coloured as it is there", () => {
+    expect(hpBar("30/30")).toEqual({ share: 1, color: "#4caf50" });
+    expect(hpBar("12/30")!.color).toBe("#e0a030");
+    expect(hpBar("3/30")!.color).toBe("#d9534f");
+    // Below nothing, and above full, as far as the bar goes.
+    expect(hpBar("-4/30")!.share).toBe(0);
+    expect(hpBar("40/30")!.share).toBe(1);
+    // None to show: no bar.
+    expect(hpBar("")).toBeNull();
+    expect(hpBar(undefined)).toBeNull();
+    expect(hpBar("5/0")).toBeNull();
+    // A plate with a bar over the name is taller by the bar, the name the same size.
+    expect(nameTagSize(1, 3, 1.5).h).toBeCloseTo(nameTagSize(1, 3).h * 1.5);
+    // And a figure is made again when its health changes.
+    expect(standeeLook({ ...base, hp: "12/30" })).not.toBe(standeeLook({ ...base, hp: "11/30" }));
   });
 
   it("fade the names out as the camera goes far off, so a crowded map isn't a wall of text", () => {

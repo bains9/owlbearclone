@@ -409,6 +409,8 @@ export interface Standee {
   lifted: boolean;
   /** Treeform: it stands as a tree. */
   tree?: boolean;
+  /** Its health as the flat map's bar under it shows it ("12/30"), to the same people: "" for none. */
+  hp?: string;
   /**
    * Copies of it standing round it: Mirror Image's three drifting round it, Blur's shaking one,
    * or (`trail`) Haste's and a spectral beast's after-images where it was a moment ago. `seed`
@@ -419,7 +421,7 @@ export interface Standee {
 
 /** What a standee looks like, apart from where it is: when this changes, it's made again. */
 export function standeeLook(s: Standee): string {
-  return [s.picture?.src ?? "", s.flip, s.color, s.label, s.size, s.flat, s.flat ? s.rotation : 0, s.lifted, s.opacity.toFixed(2), !!s.tree, s.copies?.kind ?? "", s.copies?.seed ?? ""].join("|");
+  return [s.picture?.src ?? "", s.flip, s.color, s.label, s.size, s.flat, s.flat ? s.rotation : 0, s.lifted, s.opacity.toFixed(2), !!s.tree, s.copies?.kind ?? "", s.copies?.seed ?? "", s.hp ?? ""].join("|");
 }
 
 /**
@@ -433,15 +435,27 @@ export function cardSize(size: number, pw: number, ph: number): { w: number; h: 
 }
 
 /**
- * A token's name plate on its stand, in squares, for a name drawn `aspect` times as wide as it's
- * tall: about a third of a square tall on a medium token (as big as the flat map's name under a
- * token), bigger on a big one; a long name narrower so it's no wider than the stand's front.
+ * A token's name plate on its stand, in squares, for a picture `aspect` times as wide as it's tall
+ * and `rows` times as tall as a name alone (a health bar over the name makes it taller): a name
+ * about a third of a square tall on a medium token (as big as the flat map's name under a token),
+ * bigger on a big one; a long one narrower so it's no wider than the stand's front.
  */
-export function nameTagSize(size: number, aspect: number): { w: number; h: number } {
-  const h = Math.min(0.6, Math.max(0.24, size * 0.3));
+export function nameTagSize(size: number, aspect: number, rows = 1): { w: number; h: number } {
+  const h = Math.min(0.6, Math.max(0.24, size * 0.3)) * rows;
   const most = Math.max(1.2, size * 2.6);
   const w = h * Math.max(1, aspect);
   return w > most ? { w: most, h: (h * most) / w } : { w, h };
+}
+
+/**
+ * A health bar as the flat map draws it under a token: how full ("12/30" is 0.4), and its colour,
+ * green over half, amber over a quarter, red below. Null for no health to show.
+ */
+export function hpBar(hp: string | undefined): { share: number; color: string } | null {
+  const m = /^(-?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/.exec((hp ?? "").trim());
+  if (!m || !(Number(m[2]) > 0)) return null;
+  const share = Math.max(0, Math.min(1, Number(m[1]) / Number(m[2])));
+  return { share, color: share > 0.5 ? "#4caf50" : share > 0.25 ? "#e0a030" : "#d9534f" };
 }
 
 /**

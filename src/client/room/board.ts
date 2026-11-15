@@ -1481,6 +1481,8 @@ export class Board implements BoardApi {
         rotation: t.rotation,
         lifted: !!n.lifted,
         tree: !!with_("treeform"),
+        // The flat map's health bar: a character's for everyone, a monster's for the GM alone.
+        hp: this.hpOf(t),
         copies: copy ? { kind: copy.fx === "mirror" ? "mirror" : copy.fx === "blur" ? "blur" : "trail", seed: seedOf(copy.id) } : null,
       });
     }
