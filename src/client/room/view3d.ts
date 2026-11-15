@@ -58,6 +58,7 @@ import {
 import { objectMesh } from "./view3dObjects";
 import { cliffMesh } from "./view3dCliffs";
 import { rockMask, rockSides, rockTop } from "./view3dRock";
+import { groundOf, heightAt, onGround, type Ground } from "./view3dGround";
 import { edgeColour, groundMesh, rangeMesh, sceneryOf, skyMesh } from "./view3dScenery";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { EFFECT_SHEETS, EFFECT_STEP_MS, effectScale, sameSize, type Effect3d } from "./view3dEffects";
@@ -127,6 +128,8 @@ export class View3D implements View3dControls {
   /** The map's edge colour (the ground it runs on into) and whether it's a cave (no scenery), as the floor last had them. */
   private groundEdge: [number, number, number] | null = null;
   private cave = false;
+  /** High and low ground (view3dGround.ts): where cliffs cut land off, it lies a cliff's height lower. */
+  private ground: Ground | null = null;
   /** The Build tool's walls in the scene's wall texture, and that texture (made from its picture). */
   private texturedWalls: Mesh | null = null;
   private wallTex: { canvas: HTMLCanvasElement; tex: CanvasTexture } | null = null;
@@ -311,14 +314,29 @@ export class View3D implements View3dControls {
     const a = f.area;
     const w = (a.x1 - a.x0) / this.cell, h = (a.y1 - a.y0) / this.cell;
 
-    // The floor: a new texture when its size changes (WebGL keeps a texture's size), else the same one drawn again.
-    const key = `${a.x0},${a.y0},${a.x1},${a.y1},${this.cell},${f.canvas.width}x${f.canvas.height}`;
+    // High and low ground, from the cliffs.
+    const cliffs = this.src.cliffs();
+    const g = (this.ground = groundOf(cliffs, a, this.cell));
+    let lowSum = 0;
+    if (g) for (let p = 0; p < g.low.length; p += 7) lowSum = (lowSum * 31 + g.low[p] * p) | 0;
+
+    // The floor: a new texture when its size changes (WebGL keeps a texture's size), else the same one
+    // drawn again; bent to the ground where cliffs make high and low ground.
+    const key = `${a.x0},${a.y0},${a.x1},${a.y1},${this.cell},${f.canvas.width}x${f.canvas.height},${g ? `${g.w}x${g.h}:${g.drop}:${lowSum}` : "flat"}`;
     if (!this.floorMesh || !this.floorTex || key !== this.floorKey) {
       this.dropFloor();
       const tex = (this.floorTex = new CanvasTexture(f.canvas));
       tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-      const geo = new PlaneGeometry(w, h);
+      const geo = g ? new PlaneGeometry(w, h, Math.min(512, g.w), Math.min(512, g.h)) : new PlaneGeometry(w, h);
       geo.rotateX(-Math.PI / 2);
+      if (g) {
+        const pos = geo.getAttribute("position");
+        const cx = (a.x0 + a.x1) / 2, cz = (a.y0 + a.y1) / 2;
+        for (let i = 0; i < pos.count; i++) {
+          pos.array[i * 3 + 1] = heightAt(g, cx + pos.array[i * 3] * this.cell, cz + pos.array[i * 3 + 2] * this.cell);
+        }
+        pos.needsUpdate = true;
+      }
       this.floorMesh = new Mesh(geo, new MeshBasicMaterial({ map: tex }));
       this.floorMesh.position.set((a.x0 + a.x1) / 2 / this.cell, 0, (a.y0 + a.y1) / 2 / this.cell);
       this.world.add(this.floorMesh);
@@ -335,12 +353,19 @@ export class View3D implements View3dControls {
     const tile = this.wallTexture();
     const textured = tile ? pieces.filter((p) => p.built && !p.door) : [];
     const plain = tile ? pieces.filter((p) => !(p.built && !p.door)) : pieces;
-    if (plain.length) this.walls = this.lit(wallMesh(plain, this.cell));
-    if (tile && textured.length) this.texturedWalls = this.lit(wallMesh(textured, this.cell, true), tile);
+    // Each on the ground under it.
+    const grounded = <M extends { position: Float32Array }>(m: M): M => {
+      onGround(m.position, g, this.cell);
+      return m;
+    };
+    if (plain.length) this.walls = this.lit(grounded(wallMesh(plain, this.cell)));
+    if (tile && textured.length) this.texturedWalls = this.lit(grounded(wallMesh(textured, this.cell, true)), tile);
     const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.objectPaint);
+    grounded(things);
+    grounded(things.glow);
     if (things.position.length) this.objects = this.lit(things);
     if (things.glow.position.length) this.glowing = this.unlit(things.glow);
-    const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
+    const rock = cliffMesh(cliffs, this.cell, f.cover, all, f.paint, g);
     if (rock.position.length) this.cliffs = this.lit(rock);
     const rockMap = f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null;
     this.makeRock(rockMap, f.cover, all, f.paint);
@@ -392,13 +417,15 @@ export class View3D implements View3dControls {
         f = undefined;
       }
       const x = s.x / this.cell, z = s.y / this.cell;
+      // On the ground where it stands (below a cliff, a cliff's height down).
+      const y = heightAt(this.ground, s.x, s.y);
       if (!f) {
         f = this.makeFig(s, look);
-        f.group.position.set(x, 0, z);
+        f.group.position.set(x, y, z);
         this.world.add(f.group);
         this.figs.set(s.id, f);
       }
-      f.to.set(x, 0, z);
+      f.to.set(x, y, z);
       if (f.group.position.distanceTo(f.to) > JUMP) f.group.position.copy(f.to);
       // As lit as the floor it's on (the GM sees one under the fog dimmed, as in 2D).
       const shade = shadeOf(light);
@@ -621,6 +648,7 @@ export class View3D implements View3dControls {
       if (!roofShown({ ...b, inside: false }, this.cover, all)) continue;
       const m = roofMesh(b.rects, this.cell, roofColour(b.id), buildingLight(b, this.cover));
       if (!m.position.length) continue;
+      onGround(m.position, this.ground, this.cell);
       const geo = new BufferGeometry();
       geo.setAttribute("position", new BufferAttribute(m.position, 3));
       geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
@@ -751,7 +779,8 @@ export class View3D implements View3dControls {
   private placeSheet(s: { e: Effect3d; meshes: Mesh[] }): void {
     const b = s.e.bounds;
     const heights = EFFECT_SHEETS[s.e.level].heights;
-    s.meshes.forEach((m, i) => m.position.set((b.x0 + b.x1) / 2 / this.cell, heights[i], (b.y0 + b.y1) / 2 / this.cell));
+    const base = heightAt(this.ground, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+    s.meshes.forEach((m, i) => m.position.set((b.x0 + b.x1) / 2 / this.cell, base + heights[i], (b.y0 + b.y1) / 2 / this.cell));
   }
 
   /** Draws a spell onto its sheet as it is at `now`, and takes out what the fog and the dark cover. */

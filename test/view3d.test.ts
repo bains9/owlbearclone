@@ -530,6 +530,10 @@ describe("the guide", () => {
     expect(text).toContain("A map brought in from Dungeon before 15 November 2026 needs bringing in again for that.");
   });
 
+  it("says cliffs are drops, the larger side level with their tops", () => {
+    expect(text).toContain("they're a drop: the larger part stays level with the cliffs' tops, and the land cut off lies a cliff's height below");
+  });
+
   it("says a cave map's black stands up as rock", () => {
     expect(text).toContain("A cave or dungeon map drawn on black stands its black up as solid rock");
     expect(text).toContain("has its trees, bushes, bare trees and rocks found by their colour against the ground round them");

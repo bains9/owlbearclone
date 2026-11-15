@@ -9,6 +9,7 @@ import type { CliffLine } from "../dd/sidecar";
 import { SIDECAR_UNITS } from "../dd/sidecar";
 import { toScene, type MapPlacement } from "./view3dMapData";
 import { WALL_SEEN, brightnessAt, paintAt, shadeOf, wallTint, type CoverMap, type PaintMap, type WallMesh } from "./view3dModel";
+import { heightAt, type Ground } from "./view3dGround";
 
 /** A cliff in the scene: its centre line and half its width, in scene units. */
 export interface Cliff3d {
@@ -92,7 +93,7 @@ export function resample(pts: Float64Array, cell: number): number[] {
  * player sees a stretch only where the ground just either side of it, or its line, has been
  * seen; the GM (`all`) sees all of it.
  */
-export function cliffMesh(cliffs: readonly Cliff3d[], cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null): WallMesh {
+export function cliffMesh(cliffs: readonly Cliff3d[], cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null, ground: Ground | null = null): WallMesh {
   const position: number[] = [], normal: number[] = [], color: number[] = [];
   const face = (a: number[], b: number[], c: number[], col: readonly number[], out: readonly number[]) => {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
@@ -155,12 +156,24 @@ export function cliffMesh(cliffs: readonly Cliff3d[], cell: number, cover: Cover
       };
     });
     type Step = (typeof steps)[number];
-    const corners = (s: Step) => ({
-      l: [s.x + s.nx * hw, 0, s.z + s.nz * hw],
-      cl: [s.x + s.nx * hw * CREST, s.h, s.z + s.nz * hw * CREST],
-      cr: [s.x - s.nx * hw * CREST, s.h, s.z - s.nz * hw * CREST],
-      r: [s.x - s.nx * hw, 0, s.z - s.nz * hw],
-    });
+    // Where it parts high ground from low (view3dGround.ts), it's a face: its top flush with the high
+    // ground (a little lip of rock), dropping to the low ground just past its foot. Elsewhere, a ridge
+    // standing on the ground there.
+    const probe = ground ? cliff.halfWidth + 2 / ground.k : 0;
+    const corners = (s: Step) => {
+      const left = heightAt(ground, s.x * cell + s.nx * probe, s.z * cell + s.nz * probe);
+      const right = heightAt(ground, s.x * cell - s.nx * probe, s.z * cell - s.nz * probe);
+      const face = left !== right;
+      const top = face ? Math.max(left, right) + 0.08 + (s.h / h0) * 0.06 : left + s.h;
+      // The low side's foot reaches past the ground's step, so the face covers it.
+      const reachL = face && left < right ? probe / cell : hw, reachR = face && right < left ? probe / cell : hw;
+      return {
+        l: [s.x + s.nx * reachL, left, s.z + s.nz * reachL],
+        cl: [s.x + s.nx * hw * CREST, top, s.z + s.nz * hw * CREST],
+        cr: [s.x - s.nx * hw * CREST, top, s.z - s.nz * hw * CREST],
+        r: [s.x - s.nx * reachR, right, s.z - s.nz * reachR],
+      };
+    };
     const end = (s: Step, dir: number) => {
       const c = corners(s);
       const out = [s.tx * dir, 0, s.tz * dir];

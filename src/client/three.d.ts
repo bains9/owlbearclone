@@ -81,17 +81,20 @@ declare module "three" {
   export class BufferAttribute {
     constructor(array: Float32Array, itemSize: number, normalized?: boolean);
     needsUpdate: boolean;
+    array: Float32Array;
+    count: number;
   }
 
   export class BufferGeometry {
     setAttribute(name: string, attribute: BufferAttribute): this;
+    getAttribute(name: string): BufferAttribute;
     rotateX(angle: number): this;
     translate(x: number, y: number, z: number): this;
     dispose(): void;
   }
 
   export class PlaneGeometry extends BufferGeometry {
-    constructor(width?: number, height?: number);
+    constructor(width?: number, height?: number, widthSegments?: number, heightSegments?: number);
   }
 
   export class CylinderGeometry extends BufferGeometry {
