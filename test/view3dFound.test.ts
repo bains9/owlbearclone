@@ -144,3 +144,20 @@ describe("cliffs found in a picture", () => {
     expect(cliffs).toEqual([]);
   });
 });
+
+describe("a rock drawn by its outline", () => {
+  it("stands a snow-capped rock up: a grey ring round snow", () => {
+    const p = snowfield();
+    // A ring 2 pixels thick, 1.5 squares across, with the snow inside.
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot(x + 0.5 - 10 * S, y + 0.5 - 10 * S);
+        if (d < 0.75 * S && d > 0.75 * S - 2) p.rgba.set([120, 124, 130, 255], (y * W + x) * 4);
+      }
+    }
+    const found = findThings(p, picture, CELL);
+    expect(found).toHaveLength(1);
+    expect(found[0].shape.kind).toBe("rock");
+    expect(found[0].w).toBeCloseTo(1.5, 0);
+  });
+});

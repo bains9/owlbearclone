@@ -8,7 +8,8 @@
 // - a green patch, round and outlined, a square or more across: a tree (an evergreen when dark or
 //   spiky, a leafy tree when not); smaller, a bush;
 // - a brown or dark tangle (thin, spread out): a bare tree;
-// - a grey lump, round: a rock;
+// - a grey lump, round: a rock; and a grey outline closing in the ground's own colour (a snow-capped
+//   rock on snow): a rock too, white;
 // - a long grey band with a dark outline, half a square to a square and a half wide and three or
 //   more long: a cliff (a ledge's rock face), standing up along its middle as Dungeondraft's do
 //   (view3dCliffs.ts).
@@ -149,7 +150,7 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
     if (!members.length) continue;
     // How much darker its rim is than its middle (a drawn thing's outline; a patch of dirt has none).
     const outline = edge < members.length ? coreLum / (members.length - edge) - rimLum / Math.max(1, edge) : 0;
-    const f = classify(members, edge, outline, rgba, w, s);
+    const f = classify(members, edge, outline, rgba, w, s) ?? outlined(members, rgba, w, s);
     if (!f) continue;
     // Its middle and its reach in each direction, in scene units.
     let cx = 0, cy = 0;
@@ -303,6 +304,58 @@ function cliffOf(members: readonly number[], path: readonly number[], width: num
   const pts: number[] = [];
   for (let k = 0; k < bins; k++) if (cnt[k]) pts.push(sx[k] / cnt[k], sy[k] / cnt[k]);
   return pts.length >= 4 ? { pts, halfWidth: width / 2 } : null;
+}
+
+/**
+ * A round thing drawn only by its outline, its inside the ground's own colour (a snow-capped rock
+ * on snow): a grey ring closing in an inside, round, 0.6 to 5 squares across, the ring and what it
+ * closes in filling most of its round box. A rock, coloured from the picture (white, for snow on it).
+ */
+function outlined(members: readonly number[], rgba: Uint8ClampedArray, w: number, s: number): { shape: Shape; size: number } | null {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, r = 0, g = 0, b = 0;
+  for (const p of members) {
+    const x = p % w, y = (p - x) / w;
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+    r += rgba[p * 4];
+    g += rgba[p * 4 + 1];
+    b += rgba[p * 4 + 2];
+  }
+  const n = members.length;
+  r /= n;
+  g /= n;
+  b /= n;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const across = (bw + bh) / 2 / s;
+  if (across < 0.6 || across > 5 || Math.max(bw, bh) / Math.min(bw, bh) > 1.6) return null;
+  // Grey: not a green crown or a brown tangle.
+  if (Math.abs(r - g) > 14 || Math.abs(g - b) > 20) return null;
+  // What the ring closes in: its box less what's reached from the box's edge without crossing it.
+  const box = new Uint8Array(bw * bh);
+  for (const p of members) box[(Math.floor(p / w) - y0) * bw + (p % w) - x0] = 1;
+  const out = new Uint8Array(bw * bh);
+  const stack: number[] = [];
+  for (let x = 0; x < bw; x++) for (const y of [0, bh - 1]) if (!box[y * bw + x]) stack.push(y * bw + x);
+  for (let y = 0; y < bh; y++) for (const x of [0, bw - 1]) if (!box[y * bw + x]) stack.push(y * bw + x);
+  for (const q of stack) out[q] = 1;
+  while (stack.length) {
+    const q = stack.pop()!, x = q % bw, y = (q - x) / bw;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue;
+      const nq = ny * bw + nx;
+      if (box[nq] || out[nq]) continue;
+      out[nq] = 1;
+      stack.push(nq);
+    }
+  }
+  let inside = 0;
+  for (let q = 0; q < bw * bh; q++) if (!box[q] && !out[q]) inside++;
+  if (inside < n * 0.5) return null;
+  const filled = (n + inside) / ((Math.PI / 4) * bw * bh);
+  return filled >= 0.6 ? { shape: { kind: "rock", h: 0 }, size: across } : null;
 }
 
 /**
