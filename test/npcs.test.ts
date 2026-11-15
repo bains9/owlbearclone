@@ -188,7 +188,7 @@ describe("the icons (generated data)", () => {
   it("has every head, emblem and figure the races, classes and characters use, and no other", () => {
     const used = new Set([...NPC_RACES.map((r) => r.icon), ...NPC_CLASSES.map((c) => c.icon), ...table.PC_FIGURE_CHOICES.map((f) => f.icon)]);
     expect(Object.keys(NPC_ICONS).sort()).toEqual([...used].sort());
-    expect(Object.keys(NPC_ICONS)).toHaveLength(39);
+    expect(Object.keys(NPC_ICONS)).toHaveLength(40);
     for (const [id, icon] of Object.entries(NPC_ICONS)) expect(icon.source, id).toBe(id.replace("_", "/"));
   });
 

@@ -1587,7 +1587,7 @@ export const GUIDE: GuideSection[] = [
         "title": "A character's figure, or a picture of your own (GM)",
         "steps": [
           "Open **Tokens & images**.",
-          "Beside a character in the **Party**, click the figure button (a standing person) and choose their figure: their class's, or any other (a bowwoman, a swordwoman, a fencer...).",
+          "Beside a character in the **Party**, click the figure button (a standing person) and choose their figure: their class's, or any other (a bowwoman, a swordwoman, a fencer, a duelist with a rapier and a short sword...).",
           "Or click the picture button and choose an image of your own (a full-body picture with a see-through background looks best). To go back to their figure, click the arrow under the figure button."
         ],
         "notes": [

@@ -71,4 +71,5 @@ export const PC_FIGURE_CHOICES: readonly { icon: string; name: string }[] = [
   { icon: "lorc_meditation", name: "Meditation" },
   { icon: "delapouite_fencer", name: "Fencer" },
   { icon: "lorc_bowman-woman", name: "Bowwoman" },
+  { icon: "cathelineau_duelist", name: "Duelist" },
 ];
