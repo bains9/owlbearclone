@@ -38,7 +38,7 @@ function buildId(): string {
   };
   add("src");
   // A change to any of these can rename the built files without touching src/.
-  for (const file of ["package.json", "package-lock.json", "vite.config.ts", "index.html"]) {
+  for (const file of ["package.json", "package-lock.json", "vite.config.ts", "index.html", "look3d.html"]) {
     hash.update(file).update(readFileSync(join(root, file)));
   }
   return hash.digest("base64url").slice(0, 12);
@@ -60,5 +60,19 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 800,
+  },
+  environments: {
+    // The browser's pages (not the Worker's): the app, and Dungeon's builder's 3D view
+    // (look3d.html), which Dungeon frames.
+    client: {
+      build: {
+        rollupOptions: {
+          input: {
+            main: fileURLToPath(new URL("./index.html", import.meta.url)),
+            look3d: fileURLToPath(new URL("./look3d.html", import.meta.url)),
+          },
+        },
+      },
+    },
   },
 });

@@ -123,6 +123,26 @@ describe("static files", () => {
     expect(same.headers.get("ETag")).toBe('"19"');
   });
 
+  it("lets this table's Dungeon, and no other site, frame the builder's 3D view (look3d.html); every other page stays unframeable", async () => {
+    const policy = "default-src 'self'; frame-ancestors 'none'";
+    const assets = { fetch: async () => new Response("<!doctype html>", { headers: { "Content-Security-Policy": policy, "X-Frame-Options": "DENY", "Content-Type": "text/html" } }) };
+    const dungeon = { dungeon: "https://dungeon.example.test/" };
+    for (const path of ["/look3d", "/look3d.html"]) {
+      const res = await staticFile(new Request(`https://table.example.test${path}`), assets, dungeon);
+      expect(res.headers.get("X-Frame-Options"), path).toBeNull();
+      expect(res.headers.get("Content-Security-Policy"), path).toContain("frame-ancestors https://dungeon.example.test");
+      expect(res.headers.get("Content-Security-Policy"), path).not.toContain("'none'");
+    }
+    // No Dungeon: no one may frame it.
+    const alone = await staticFile(new Request("https://table.example.test/look3d"), assets, { dungeon: null });
+    expect(alone.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(alone.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
+    // Any other page, Dungeon or not.
+    const room = await staticFile(new Request("https://table.example.test/r/abc"), assets, dungeon);
+    expect(room.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(room.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
+  });
+
   it("answers a HEAD for a missing file the same way, without a body", async () => {
     const res = await get("/assets/gone.js", "HEAD");
     expect(res.status).toBe(404);

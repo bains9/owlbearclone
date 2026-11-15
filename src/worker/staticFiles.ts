@@ -48,6 +48,27 @@ export function siteCsp(policy: string, url: URL, dungeon: string | null): strin
     .join("; ");
 }
 
+/** Dungeon's builder's 3D view (look3d.html), which Dungeon frames: the one page another site may frame. */
+export const LOOK3D_PAGES = ["/look3d", "/look3d.html"];
+
+/**
+ * The 3D view page's headers: framed by this table's Dungeon and no other site (no Dungeon, no
+ * framing at all). Every other page keeps X-Frame-Options DENY and frame-ancestors 'none'.
+ */
+export function framedByDungeon(headers: Headers, dungeon: string | null): void {
+  let origin: string | null = null;
+  try {
+    origin = dungeon ? new URL(dungeon).origin : null;
+  } catch {
+    // Not an address: not framed.
+  }
+  if (!origin) return;
+  headers.delete("X-Frame-Options");
+  const csp = headers.get(CSP);
+  const ancestors = `frame-ancestors ${origin}`;
+  headers.set(CSP, !csp ? ancestors : /frame-ancestors[^;]*/.test(csp) ? csp.replace(/frame-ancestors[^;]*/, ancestors) : `${csp}; ${ancestors}`);
+}
+
 export async function staticFile(
   request: Request,
   assets: { fetch(request: Request): Promise<Response> },
@@ -58,10 +79,12 @@ export async function staticFile(
   const missing = url.pathname.startsWith(HASHED_FILES) && (res.headers.get("Content-Type") ?? "").toLowerCase().startsWith("text/html");
   const policy = res.headers.get(CSP);
   if (!missing) {
-    if (policy === null) return res;
+    const look3d = LOOK3D_PAGES.includes(url.pathname);
+    if (policy === null && !look3d) return res;
     // The file as it is, under the policy with this table's hosts in it.
     const out = new Response(res.body, res);
-    out.headers.set(CSP, siteCsp(policy, url, table.dungeon));
+    if (policy !== null) out.headers.set(CSP, siteCsp(policy, url, table.dungeon));
+    if (look3d) framedByDungeon(out.headers, table.dungeon);
     return out;
   }
   try {
