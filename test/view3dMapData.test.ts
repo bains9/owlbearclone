@@ -26,14 +26,27 @@ describe("a map's own trees and rocks", () => {
   const objects = mapObjects(sidecar.objects, sidecar.meta, place, PX);
   const kinds = (k: string) => objects.filter((o) => o.shape?.kind === k);
 
-  it("stands up the Old Keep's trees, pines, bushes and rocks, and not its furniture or candles", () => {
+  it("stands up the Old Keep's trees, pines, bushes and rocks", () => {
     expect(kinds("tree")).toHaveLength(FIXTURE.dungeon.objects.filter((o) => o.asset === "b:tree").length);
     expect(kinds("pine")).toHaveLength(2);
     expect(kinds("bush")).toHaveLength(4);
     expect(kinds("rock").length).toBeGreaterThanOrEqual(1);
     expect(objects.every((o) => o.id === null && o.paint)).toBe(true);
-    // Chairs, tables, candles and the like aren't nature: they stay painted.
-    expect(objects.length).toBeLessThan(20);
+  });
+
+  it("stands up everything else placed in Dungeon in its own shape, as the Build tool's do, turned as placed", () => {
+    const count = (asset: string) => FIXTURE.dungeon.objects.filter((o) => o.asset === asset).length;
+    expect(kinds("column")).toHaveLength(count("b:pillar"));
+    expect(kinds("statue")).toHaveLength(count("b:statue"));
+    expect(kinds("well")).toHaveLength(count("b:well"));
+    expect(kinds("table").length).toBeGreaterThanOrEqual(count("b:table"));
+    expect(kinds("barrel").length).toBeGreaterThanOrEqual(count("b:barrel"));
+    // Chairs, crates, beds and chests are blocks.
+    expect(kinds("box").length).toBeGreaterThanOrEqual(count("b:chair") + count("b:crate"));
+    // Candles, torches, a rug, bones and a campfire have no shape: they stay painted.
+    const flat = ["b:candles", "b:torch", "b:rug", "b:bones", "b:campfire"].reduce((n, a) => n + count(a), 0);
+    expect(objects.length).toBeLessThanOrEqual(FIXTURE.dungeon.objects.length - flat);
+    expect(objects.every((o) => Number.isFinite(o.deg))).toBe(true);
   });
 
   it("puts each tree where the map has it, in scene units", () => {

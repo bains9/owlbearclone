@@ -732,7 +732,8 @@ export function pictureSidecar(map: DDMap, levelKey: string, opts: FakeMapOption
     objects.y[k] = Math.round(o.position.y * C16);
     objects.rot[k] = rotByte(o.rotation);
     objects.flags[k] = (o.mirror ? OBJ_FLAG.MIRROR : 0) | (capped.has(i) ? OBJ_FLAG.CAPPED : 0) | OBJ_FLAG.MEASURED;
-    objects.name[k] = nm !== null && NAMED_ROLES.has(role) ? nameIx(nm) : NO_NAME;
+    // As the extractor: plants, wood and rocks keep their names, and everything placed in Dungeon.
+    objects.name[k] = nm !== null && (NAMED_ROLES.has(role) || nm.startsWith("dungeon/")) ? nameIx(nm) : NO_NAME;
     for (let d = 0; d < REACH_N; d++) objects.reach[k * REACH_N + d] = Math.min(65535, Math.round(reach[d] * SIDECAR_UNITS.reach));
   });
 

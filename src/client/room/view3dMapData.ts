@@ -11,7 +11,8 @@ import { OR, type ObjectRole } from "../dd/roles";
 import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, type ShapeLayer, type SidecarMeta, type TerrainGrid } from "../dd/sidecar";
 import { AR, TR } from "../dd/roles";
 import { REACH_DIRS } from "../dd/raster";
-import type { Object3d, Shape } from "./view3dObjects";
+import { shapeOf, type Object3d, type Shape } from "./view3dObjects";
+import type { BaseStampId, DungeonStampId } from "../../shared/terrain";
 import type { Hole } from "./view3dClearing";
 
 /** Dungeondraft's world units a square. */
@@ -64,6 +65,9 @@ export function roleShape(role: ObjectRole, name: string | null): Shape | null {
   }
 }
 
+/** Shapes sized by their average reach (round as painted); the rest by their reach along their sides. */
+const ROUND: ReadonlySet<string> = new Set(["tree", "spreading", "pine", "cypress", "palm", "bare", "bush"]);
+
 /** Below this, in squares, a thing isn't stood up: a pebble or a sprig stays painted. */
 const SMALLEST = 0.3;
 
@@ -79,31 +83,42 @@ export function mapObjects(objects: ObjectTable, meta: Pick<SidecarMeta, "names"
     const s = standing(objects, meta, place, cell, i);
     if (!s) continue;
     const at = toScene(place, objects.x[i] / SIDECAR_UNITS.coord, objects.y[i] / SIDECAR_UNITS.coord);
-    out.push({ id: null, shape: s.shape, x: at.x, y: at.y, size: Math.max(s.w, s.d), w: s.w, d: s.d, deg: 0, color: null, paint: true });
+    out.push({ id: null, shape: s.shape, x: at.x, y: at.y, size: Math.max(s.w, s.d), w: s.w, d: s.d, deg: s.deg, color: null, paint: true });
   }
   return out;
 }
 
 /** Whether object `i` stands up in 3D, and as what and how big (squares across and down). */
-function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, i: number): { shape: Shape; w: number; d: number } | null {
+function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, i: number): { shape: Shape; w: number; d: number; deg: number } | null {
   const idx = objects.name[i];
   const name = idx !== NO_NAME ? (meta.names[idx] ?? null) : null;
-  const shape = roleShape(objects.role[i] as ObjectRole, name);
+  // A thing placed in Dungeon stands up in its own shape, as the Build tool's do (a table on legs, a
+  // barrel, a statue); one it doesn't have (a rug, things on the floor) by its role, or stays painted.
+  const id = name?.startsWith("dungeon/") ? name.slice(8) : null;
+  // Its catalog's object, or one of the built-in few the Build tool shares (a chair, a barrel, a well).
+  const dungeon = id ? (shapeOf(`d:${id}` as DungeonStampId) ?? shapeOf(id as BaseStampId)) : null;
+  const shape = dungeon ?? roleShape(objects.role[i] as ObjectRole, name);
   if (!shape) return null;
   // World units to the scene's squares (across and down agree for a picture laid on the grid).
   const { sx, sy } = sceneScale(place);
   const perSquareX = sx / cell, perSquareY = sy / cell;
+  // How it's turned (a full turn is 256, clockwise), and its reach along its own sides.
+  const turn = (objects.rot[i] / 256) * Math.PI * 2;
+  const c = Math.cos(turn), s = Math.sin(turn);
   let sum = 0, ex = 0, ey = 0;
   for (let k = 0; k < REACH_N; k++) {
     const r = objects.reach[i * REACH_N + k] / SIDECAR_UNITS.reach;
     sum += r;
-    ex = Math.max(ex, Math.abs(r * REACH_DIRS[k * 2]));
-    ey = Math.max(ey, Math.abs(r * REACH_DIRS[k * 2 + 1]));
+    const dx = REACH_DIRS[k * 2], dy = REACH_DIRS[k * 2 + 1];
+    // A Dungeon thing's sides are its own (it's turned in 3D); others are measured along the map's.
+    const lx = dungeon ? dx * c + dy * s : dx, ly = dungeon ? -dx * s + dy * c : dy;
+    ex = Math.max(ex, Math.abs(r * lx));
+    ey = Math.max(ey, Math.abs(r * ly));
   }
-  const round = shape.kind !== "box" && shape.kind !== "rock";
+  const round = ROUND.has(shape.kind);
   const w = round ? (2 * sum) / REACH_N * perSquareX : 2 * ex * perSquareX;
   const d = round ? (2 * sum) / REACH_N * perSquareY : 2 * ey * perSquareY;
-  return Math.max(w, d) < SMALLEST ? null : { shape, w, d };
+  return Math.max(w, d) < SMALLEST ? null : { shape, w, d, deg: dungeon ? (turn * 180) / Math.PI : 0 };
 }
 
 /**

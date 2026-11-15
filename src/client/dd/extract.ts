@@ -1079,6 +1079,11 @@ class Names {
   }
 }
 
+/** A thing placed in Dungeon (the map maker), as fromDungeon.ts names it: "dungeon/<its catalog id>". */
+export function isDungeonName(name: string): boolean {
+  return name.startsWith("dungeon/");
+}
+
 function objectTable(objs: MapObject[], roles: ObjectRole[], ms: Measured[], kept: number[], names: Names): ObjectTable {
   const n = kept.length;
   const t: ObjectTable = {
@@ -1096,7 +1101,9 @@ function objectTable(objs: MapObject[], roles: ObjectRole[], ms: Measured[], kep
     t.flags[k] = (o.mirror ? OBJ_FLAG.MIRROR : 0) | (m.capped ? OBJ_FLAG.CAPPED : 0) |
       (o.customColor ? OBJ_FLAG.TINTED : 0) | (m.measured ? OBJ_FLAG.MEASURED : 0);
     const nm = defaultName(o.texture);
-    t.name[k] = nm !== null && NAMED_ROLES.has(role) ? names.of(nm) : NO_NAME;
+    // Plants, wood and rocks keep their names (seasons read them); so does everything placed in
+    // Dungeon (its catalog's id), so the 3D view stands each up in its own shape.
+    t.name[k] = nm !== null && (NAMED_ROLES.has(role) || isDungeonName(nm)) ? names.of(nm) : NO_NAME;
     for (let d = 0; d < REACH_N; d++) {
       const v = m.reach[d];
       t.reach[k * REACH_N + d] = Number.isFinite(v) ? Math.max(0, Math.min(65535, Math.round(v * R))) : 0;

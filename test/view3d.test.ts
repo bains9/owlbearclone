@@ -516,6 +516,11 @@ describe("the guide", () => {
     expect(text).toContain("jagged snow-capped peaks for Mountains");
   });
 
+  it("says everything placed in Dungeon stands up", () => {
+    expect(text).toContain("a map made in Dungeon has everything placed in it stand up, in the same shapes as the Build tool's");
+    expect(text).toContain("A map brought in from Dungeon before 15 November 2026 needs bringing in again for that.");
+  });
+
   it("says a cave map's black stands up as rock", () => {
     expect(text).toContain("A cave or dungeon map drawn on black stands its black up as solid rock");
     expect(text).toContain("has its trees, bushes, bare trees and rocks found by their colour against the ground round them");
