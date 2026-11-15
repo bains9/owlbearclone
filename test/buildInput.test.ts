@@ -9,6 +9,7 @@ import {
   canFold,
   formatDeg,
   formatSize,
+  pickUnder,
   pressX,
   selectionStatus,
   wheelIntent,
@@ -470,5 +471,52 @@ describe("erasing what's built", () => {
   it("tells the GM where the Build tool's eraser is, in the words the bars use", () => {
     expect(BUILD_TOASTS.eraserBuilt).toContain("Erase in the Build tool (B)");
     expect(BUILD_TOASTS.eraserBuilt).toContain("Building, Terrain or Objects");
+  });
+});
+
+describe("an object built into a wall, or over a door", () => {
+  // What's under a click in Build › Select, as the board lists it: a door first (drawn on top),
+  // then the objects there, the top one first.
+  const door = { door: "6,1,t" };
+  const stove = { obj: "stove" };
+  const rug = { obj: "rug" };
+  const pick = (under: object[], selected: object | null) => pickUnder(under, (t) => t === selected);
+
+  it("picks the door first, then on a second click the object under it, and round again", () => {
+    expect(pick([door, stove], null)).toBe(door);
+    expect(pick([door, stove], door)).toBe(stove);
+    expect(pick([door, stove], stove)).toBe(door);
+    expect(pick([door, stove, rug], stove)).toBe(rug);
+    expect(pick([door, stove, rug], rug)).toBe(door);
+  });
+
+  it("keeps what was always picked: the top object, the one under a selected one, a door alone", () => {
+    expect(pick([stove], null)).toBe(stove);
+    expect(pick([stove], stove)).toBe(stove);
+    expect(pick([stove, rug], stove)).toBe(rug);
+    expect(pick([door], door)).toBe(door);
+    expect(pick([], null)).toBeNull();
+  });
+
+  it("tells the GM, clicking one with Move & select, how to move or delete it, in the bars' words", () => {
+    const mouse = BUILD_TOASTS.movedBuilt(true);
+    expect(mouse).toMatch(/move or delete it, press X \(the Build tool's Select\)/);
+    expect(mouse).toContain("X again comes back here");
+    // As X really goes: from Move & select to Build › Select, and back again.
+    const into = pressX({ tool: "select", mode: "stamps", ret: null, gm: true, hex: false });
+    expect(into).toEqual({ tool: "build", mode: "select", ret: { tool: "select", buildMode: "stamps" } });
+    expect(pressX({ tool: "build", mode: "select", ret: { tool: "select", buildMode: "stamps" }, gm: true, hex: false })).toMatchObject({ tool: "select" });
+    // A phone has no X: the hammer is the Build tool's button, and Select is in its bar.
+    expect(BUILD_TOASTS.movedBuilt(false)).toContain("pick Build (the hammer), then Select");
+    expect(BUILD_TOASTS.movedBuilt(false)).not.toMatch(/\bX\b/);
+  });
+
+  it("is in the guide where Move & select, objects and Select are explained", () => {
+    const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
+    expect(GUIDE.flatMap((s) => s.parts).find((p) => p.title === "The selection bar")!.notes.join(" ")).toContain(
+      "**Move & select** passes over them. To move or delete one, press **X**",
+    );
+    expect(all("building-maps")).toContain("an object across a wall is picked like any other");
+    expect(all("building-maps")).toContain("Where an object covers a door, the first click picks the door");
   });
 });

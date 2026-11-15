@@ -358,6 +358,18 @@ export const TOUCH_HINTS: Record<BuildMode, string> = {
   select: "Tap an object or door to select it. Drag a selected object to move it; drag elsewhere to select with a box.",
 };
 
+/**
+ * Build › Select: of what's under a click (a door first, as it's drawn over objects, then the
+ * objects there, the top one first), the one the click picks: the first, or, when the one
+ * thing selected on its own is among them, the next one after it, round to the first again.
+ * So clicking again reaches an object under a door, or one under another object.
+ */
+export function pickUnder<T>(under: T[], selectedAlone: (t: T) => boolean): T | null {
+  if (!under.length) return null;
+  const k = under.findIndex(selectedAlone);
+  return under[k >= 0 ? (k + 1) % under.length : 0];
+}
+
 /** What Build › Select's bar says is selected: "Nothing selected", "1 object", "2 objects, 1 door". */
 export function selectionStatus(sel: { objects: number; doors: number }): string {
   const parts: string[] = [];
@@ -380,6 +392,11 @@ export const BUILD_TOASTS = {
   doorDrag: "Doors can't be moved: delete this one and place a new one with Doors.",
   eraserBuilt:
     "This eraser takes drawings, notes and tokens. To erase floors, walls or objects you built, use Erase in the Build tool (B): in Building, Terrain or Objects.",
+  /** Move & select clicked on an object built into the map, which it passes over. */
+  movedBuilt: (mouse: boolean) =>
+    mouse
+      ? "That's part of the map you built. To move or delete it, press X (the Build tool's Select) and click it. X again comes back here."
+      : "That's part of the map you built. To move or delete it, pick Build (the hammer), then Select, and tap it.",
   tooMany: "That's too many to copy at once: 256 objects at most.",
   copied: (n: number) => `Copied ${n} object${n === 1 ? "" : "s"}.`,
 };

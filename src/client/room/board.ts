@@ -78,7 +78,7 @@ import {
   wallsFor,
 } from "./build";
 import type { DoorHit, DoorRef, EditResult, Side, StampHit, StampRef } from "./build";
-import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, wheelIntent } from "./buildInput";
+import { BUILD_TOASTS, DUPLICATE_OFFSETS, HEX_TOAST, TOUCH_HINTS, WheelSteps, isMacPlatform, pickUnder, wheelIntent } from "./buildInput";
 import { SCATTER_BRUSHES, scatterDab } from "./scatter";
 import { FX_LOOKS, isFxLook, sizeAt, spellFx, tokenSpell, zoneSpell } from "../../shared/spellfx";
 import { ZONE_LOOKS, isZoneLook, spellLookMoves, type TokenLook } from "../../shared/zones";
@@ -2608,38 +2608,38 @@ export class Board implements BoardApi {
   }
 
   /**
-   * Build › Select: what's under a point, as a click there goes by: a door (drawn on top of
-   * objects, so it comes first), or the objects whose drawing is there, the top one first.
-   * A finger reaches a little further than a mouse. Nothing off the scene is found.
+   * Build › Select: what's under a point: a door (drawn on top of objects, so a click picks
+   * it first), and the objects whose drawing is there, the top one first (obj). A door in a
+   * wall never hides an object under it: a drag there moves the object, and a second click
+   * picks it (see clickTarget). A finger reaches a little further than a mouse. Nothing off
+   * the scene is found.
    */
   private selectHit(world: Point, mouse: boolean): { obj: StampHit | null; door: DoorHit | null; under: StampHit[] } {
     const scene = this.renderedScene!;
-    const none = { obj: null, door: null, under: [] };
     const area = sceneBounds(scene);
-    if (world.x < area.x0 || world.y < area.y0 || world.x > area.x1 || world.y > area.y1) return none;
+    if (world.x < area.x0 || world.y < area.y0 || world.x > area.x1 || world.y > area.y1) return { obj: null, door: null, under: [] };
     const { u, v } = this.cellsAt(world);
     // Screen pixels to a square.
     const px = this.cam.scale * scene.grid.size;
     const reach = Math.min(0.3, Math.max(0.08, (mouse ? DOOR_REACH_MOUSE : DOOR_REACH_TOUCH) / px));
     const door = this.build.model.doorAt(u, v, reach);
-    if (door) return { ...none, door };
     const pad = mouse ? 0 : Math.min(0.5, 12 / px);
     const all = this.sceneBounds(scene);
     const under = this.build.model.stampsAtPoint(u, v, pad).filter((h) => onScene(placedOf(h.cx, h.cy, h.stamp), all));
-    return { obj: under[0] ?? null, door: null, under };
+    return { obj: under[0] ?? null, door, under };
   }
 
   /**
-   * Of the objects under a click, the one it selects: the top one, or, when the one
-   * selected is already among them, the next one down (click again to reach one underneath).
+   * Of what's under a click, what it selects: the door, else the top object; or, when the
+   * one thing selected is already among them, the next one down (see pickUnder), so
+   * clicking again reaches an object under a door or under another object.
    */
-  private clickTarget(under: StampHit[]): StampHit {
+  private clickTarget(door: DoorHit | null, under: StampHit[]): { door: DoorRef } | { obj: StampHit } | null {
     const { objects, doors } = this.buildSel;
-    if (objects.length === 1 && !doors.length) {
-      const k = under.findIndex((h) => sameRef(objects[0], h));
-      if (k >= 0) return under[(k + 1) % under.length];
-    }
-    return under[0];
+    const alone = objects.length + doors.length === 1;
+    const list: ({ door: DoorRef } | { obj: StampHit })[] = under.map((obj) => ({ obj }));
+    if (door) list.unshift({ door: { col: door.col, row: door.row, side: door.side } });
+    return pickUnder(list, (t) => alone && ("door" in t ? !!doors[0] && sameDoor(doors[0], t.door) : !!objects[0] && sameRef(objects[0], t.obj)));
   }
 
   /**
@@ -2655,18 +2655,20 @@ export class Board implements BoardApi {
     let over = false;
     if (p && this.gesture.kind === "none" && this.renderedScene && !isHex(this.renderedScene.grid)) {
       const hit = this.selectHit(p, true);
-      if (hit.door) {
-        const d = { col: hit.door.col, row: hit.door.row, side: hit.door.side };
+      // A drag here moves an object, even one under a door.
+      over = hit.under.length > 0;
+      const t = this.clickTarget(hit.door, hit.under);
+      if (t && "door" in t) {
+        const d = t.door;
         if (!this.buildSel.doors.some((x) => sameDoor(x, d))) {
           door = d;
           key = `d${d.col},${d.row},${d.side}`;
         }
-      } else if (hit.under.length) {
-        over = true;
-        const t = this.clickTarget(hit.under);
-        if (!this.buildSel.objects.some((r) => sameRef(r, t))) {
-          obj = placedOf(t.cx, t.cy, t.stamp);
-          key = `o${t.cx},${t.cy},${t.i},${t.stamp.join()}`;
+      } else if (t) {
+        const o = t.obj;
+        if (!this.buildSel.objects.some((r) => sameRef(r, o))) {
+          obj = placedOf(o.cx, o.cy, o.stamp);
+          key = `o${o.cx},${o.cy},${o.i},${o.stamp.join()}`;
         }
       }
     }
@@ -3954,7 +3956,7 @@ export class Board implements BoardApi {
           this.room.store.set({ lightPick: null });
           this.uiLayer.batchDraw();
         }
-        this.selectDown(e.pointerId, pos, world, this.shiftHeld(e));
+        this.selectDown(e.pointerId, pos, world, this.shiftHeld(e), e.pointerType === "mouse");
         return;
       case "draw":
         this.drawDown(e.pointerId, world);
@@ -4018,7 +4020,7 @@ export class Board implements BoardApi {
     this.room.select(sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
   }
 
-  private selectDown(pointerId: number, pos: Point, world: Point, shift: boolean): void {
+  private selectDown(pointerId: number, pos: Point, world: Point, shift: boolean, mouse: boolean): void {
     const hit = this.fogged(pos) ? null : this.pickAt(pos);
     const s = this.room.state;
     if (hit && shift && hit.kind !== "fog") {
@@ -4078,7 +4080,14 @@ export class Board implements BoardApi {
       this.startPan(pointerId, pos, () => this.room.select([hit.id]));
       return;
     }
-    this.startPan(pointerId, pos, () => this.room.select([]));
+    this.startPan(pointerId, pos, () => {
+      // The GM clicked an object built into the map, with nothing selected to clear: this tool
+      // passes over those (so nobody picks one up by accident), so say where they're moved.
+      if (!hit && this.isGm && !this.room.state.selection.length && this.builtObjectAt(world)) {
+        this.room.toast(BUILD_TOASTS.movedBuilt(mouse));
+      }
+      this.room.select([]);
+    });
   }
 
   private drawDown(pointerId: number, world: Point): void {
@@ -4226,6 +4235,13 @@ export class Board implements BoardApi {
     if (!scene || isHex(scene.grid)) return false;
     const { u, v } = this.cellsAt(p);
     return this.build.model.cell(Math.floor(u), Math.floor(v)) !== EMPTY || !!this.build.model.stampAtPoint(u, v, 0);
+  }
+
+  /** Whether an object made with the Build tool is drawn at a point on the scene, as Build › Select would find it. */
+  private builtObjectAt(p: Point): boolean {
+    const scene = this.renderedScene;
+    if (!scene || isHex(scene.grid)) return false;
+    return !!this.selectHit(p, true).obj;
   }
 
   private fogDown(pointerId: number, world: Point): void {
@@ -5246,8 +5262,8 @@ export class Board implements BoardApi {
 
   /**
    * A click (or tap) in Select: a door or object alone, or with Shift one added or taken
-   * away; where objects overlap, clicking the one selected picks the one under it; empty
-   * floor selects nothing.
+   * away; where a door and objects overlap, clicking the one selected picks the one under
+   * it; empty floor selects nothing.
    */
   private selectClick(g: Extract<Gesture, { kind: "build-select" }>): void {
     // What's under the press as things are now (see the gesture).
@@ -5255,21 +5271,19 @@ export class Board implements BoardApi {
     const { objects, doors } = this.buildSel;
     const toggle = g.shift && g.mouse;
     this.newBurst();
-    if (door) {
+    if (!toggle) {
+      const t = this.clickTarget(door, under);
+      if (!t) this.setBuildSel([], []);
+      else if ("door" in t) this.setBuildSel([], [t.door]);
+      else this.setBuildSel([refOf(t.obj)], []);
+    } else if (door) {
       const d: DoorRef = { col: door.col, row: door.row, side: door.side };
       const at = doors.findIndex((x) => sameDoor(x, d));
-      if (!toggle) this.setBuildSel([], [d]);
-      else this.setBuildSel(objects, at >= 0 ? doors.filter((_, k) => k !== at) : [...doors, d]);
+      this.setBuildSel(objects, at >= 0 ? doors.filter((_, k) => k !== at) : [...doors, d]);
     } else if (under.length) {
-      if (!toggle) {
-        this.setBuildSel([refOf(this.clickTarget(under))], []);
-        return;
-      }
       const top = under[0];
       const at = objects.findIndex((r) => sameRef(r, top));
       this.setBuildSel(at >= 0 ? objects.filter((_, k) => k !== at) : [...objects, refOf(top)], doors);
-    } else if (!toggle) {
-      this.setBuildSel([], []);
     }
   }
 

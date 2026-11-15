@@ -157,6 +157,32 @@ describe("picking doors", () => {
     expect(m.doorAt(3.1, 2.05, 0.2)).toMatchObject({ col: 3, row: 2, side: "l" });
   });
 
+  describe("an object across a wall or a door", () => {
+    // A row of stone floor at (5..7, 0), walled along its bottom edge, and a stove two squares
+    // across standing on (5..6, 0..1): its middle on the wall, half in the room and half out,
+    // as a GM placed one in a kitchen.
+    const room = [...noCells];
+    for (let c = 5; c <= 7; c++) room[c] = "s";
+    const stove: Stamp = ["d:cook-stove-iron-cold", 5, 0, 0, 2];
+    const walled = model(chunk(0, 0, { cells: room.join(""), stamps: [stove] }));
+
+    it("finds the object on the wall line and on both sides of it", () => {
+      expect(walled.state(6, 1, "t")).not.toBe(0);
+      expect(walled.doorStyle({ col: 6, row: 1, side: "t" })).toBeNull();
+      for (const [u, v] of [[6, 1], [5.5, 1], [6.5, 0.6], [6.5, 1.4]]) expect(at(walled, u, v)).toEqual(["0,0:0"]);
+      // A wall is never what a click picks.
+      expect(walled.doorAt(6.5, 1, 0.3)).toBeNull();
+    });
+
+    it("with a door under it, finds both, so the object can still be reached", () => {
+      const edges = [...noEdges];
+      edges[edge(6, 1, "t")] = "d";
+      const door = model(chunk(0, 0, { cells: room.join(""), edges: edges.join(""), stamps: [stove] }));
+      expect(door.doorAt(6.5, 1.05, 0.3)).toMatchObject({ col: 6, row: 1, side: "t", style: "door" });
+      expect(at(door, 6.5, 1.05)).toEqual(["0,0:0"]);
+    });
+  });
+
   it("knows where a door is drawn", () => {
     const g = { size: 100, offsetX: 10, offsetY: 20 } as GridSettings;
     const px = (s: Record<string, number>) => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Math.round(v * 1e6) / 1e6]));

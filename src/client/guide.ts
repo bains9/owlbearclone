@@ -993,7 +993,8 @@ export const GUIDE: GuideSection[] = [
           "Select several things and the bar shows how many, for example \"3 selected\" (or \"3 drawings\" when they're all drawings or notes), with the buttons that work on all of them.",
           "Shift+click adds something to the selection, or takes it out if it's already selected. Shift+drag on empty space draws a box to select everything inside it.",
           "The arrow keys move selected tokens one square. Delete or Backspace removes what's selected.",
-          "You only see buttons for what you're allowed to change, and you can only delete things you're allowed to. Players only get **Duplicate** when the GM lets players add tokens."
+          "You only see buttons for what you're allowed to change, and you can only delete things you're allowed to. Players only get **Duplicate** when the GM lets players add tokens.",
+          "GM: objects made with the Build tool (a stove, a table) are part of the map, so **Move & select** passes over them. To move or delete one, press **X** for the Build tool's **Select** and click it; **X** again comes back. Clicking one with **Move & select** says so."
         ]
       },
       {
@@ -3200,7 +3201,7 @@ export const GUIDE: GuideSection[] = [
           "One of Dungeon's objects starts at its own size (its longer side: a dining table 2½ squares, an oak tree 3, a chair ½); picking one of Tabletop's sixteen after it goes back to 1. Change it with **Size** as usual.",
           "Objects are drawn in three layers, as in Dungeon: what lies on the floor (rugs, flowers, a trapdoor, a magic circle) is always under what stands on it, and treetops, tents, market stalls and chandeliers are over both. Within a layer, the one put down last is on top; clicking where they overlap picks the top one first. Tabletop's own sixteen all stand on the floor, so maps built before stay as they were.",
           "To take objects away, pick **Erase** in the bar (or hold **Alt**): click an object to erase the one on top there, or drag over several to erase every object the drag passes over. The floor under them stays. Each click or drag is one step for **Undo**.",
-          "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident. For something players should move or find (a chest to reveal later), use a token instead."
+          "Objects are part of the map, under tokens and drawings, so nobody picks one up by accident: **Move & select** passes over them. To move or delete one, press **X** for **Select**. For something players should move or find (a chest to reveal later), use a token instead."
         ]
       },
       {
@@ -3237,7 +3238,8 @@ export const GUIDE: GuideSection[] = [
           "Selected objects have a blue outline, and the one under the pointer a yellow one, as in Dungeondraft. The bar has the same actions as buttons.",
           "With **Snap to squares** unticked, dragging moves them smoothly, the arrow keys move them a quarter square (**Shift**: a square), and **Ctrl+V** pastes centred on the pointer itself. Objects off the grid keep their place within the square when moved with it ticked.",
           "Several objects turn together, round the middle of the squares they stand on: a quarter turn keeps a table and its chairs exactly as they were. Turned by less, objects on the grid keep to it, so they can shift a little; turn on and they fall back into place. With **Snap to squares** unticked, or any of them off the grid, they turn exactly round their middle. Sizing sizes each object where it stands.",
-          "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected.",
+          "Doors and secret doors can be clicked to select them, and **Delete** takes them away, leaving what was there before (a wall, or nothing). They can't be moved or copied: use **Doors**. Openings, walls and floors can't be selected, so an object across a wall is picked like any other.",
+          "Where an object covers a door, the first click picks the door (it's drawn on top) and a second click the object. Dragging there always moves the object.",
           "Each move, delete, duplicate or paste is one step for **Undo**, and so is each burst of turning, sizing or nudging. Undo also clears the selection.",
           "With nothing selected, the mouse wheel zooms as usual. With objects selected it turns them; **Ctrl** and the wheel always zoom. If your wheel or trackpad moves the map instead, hold **Z** while you scroll, or see **Place objects**.",
           "In a season, moving, turning or sizing a tree can change which kind of tree it is, because that depends on where it stands.",
