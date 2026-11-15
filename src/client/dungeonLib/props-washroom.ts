@@ -1,7 +1,8 @@
-// Copied from Dungeon (src/render/props-washroom.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-washroom.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
 import { rr, circle, radial, linear, flame, OUT } from "./propkit";
 import { WOODS, METALS, MASONRY, CLAYS, CLOTHS, GLASSES, GOLD, cross, vary, family, shade, ell, poly, fo, cbox, box, disc, plank, drape, glow, stroke, studs, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
+import * as S from "./solid";
 
 // The washroom for the big library (27 October 2026, at the GM's ask): toilets, privies and
 // squat holes, tubs, pools and showers, basins, tanks and boilers, the sauna, laundry, and
@@ -96,7 +97,7 @@ function hole(c: C, x: number, y: number, rx: number, ry: number): void {
 }
 
 const toilets: PropDef[] = [
-  ...family({ id: "toilet", name: "Toilet", category: W, group: "Toilets", w: 0.6, h: 0.8, layer: "object" },
+  ...family({ id: "toilet", name: "Toilet", category: W, group: "Toilets", w: 0.6, h: 0.8, layer: "object", form: (v) => S.solid([S.box(-0.23, 0.23, -0.38, -0.24, 0.35, 0.85, v.a), S.cyl(0.028, 0.85, 0.88, tapsFor(v.a), { x: 0.17, z: -0.31, n: 5 }), S.cyl(0.15, 0, 0.26, v.a, { z: 0.07, rz: 0.2, n: 10 }), v.b.key === "open" ? S.tub(0.235, 0.26, 0.42, v.a, 0.66, { z: 0.07, rz: 0.3, floor: 0.3 }) : S.cyl(0.235, 0.26, 0.42, v.a, { z: 0.07, rz: 0.3, n: 12 }), v.b.key === "open" ? S.cyl(0.15, 0.3, 0.32, WATER, { z: 0.07, rz: 0.2, n: 10 }) : S.cyl(0.16, 0.42, 0.45, wood("honey"), { z: 0.09, rz: 0.2, n: 12 })]) },
     cross([PORCELAIN, clay("cream"), clay("glazed-blue"), metal("brass"), metal("bronze"), metal("silver"), GOLD], OPEN_LIDDED), (c, v) => {
       const t = v.a;
       const seat = wood("honey");
@@ -116,7 +117,7 @@ const toilets: PropDef[] = [
         fo(c, radial(c, 0, 0.1, 0.14, WATER.light, WATER.dark), 0.012);
       } else disc(c, 0, 0.25, 0.022, tapsFor(t), 0.006);
     }),
-  ...family({ id: "urinal", name: "Urinal", category: W, group: "Toilets", w: 0.5, h: 0.4, layer: "object" }, [PORCELAIN, clay("cream"), metal("brass")], (c, v) => {
+  ...family({ id: "urinal", name: "Urinal", category: W, group: "Toilets", w: 0.5, h: 0.4, layer: "object", form: (v) => S.solid([S.slab([-0.21, -0.17, -0.18, -0.03, -0.1, 0.1, 0, 0.17, 0.1, 0.1, 0.18, -0.03, 0.21, -0.17], 0.45, 1.05, v, { hollow: 0.68, floor: 0.5 }), S.cyl(0.03, 1.05, 1.12, tapsFor(v), { z: -0.15, n: 5 })], { note: "on the wall: a bowl at waist height" }) }, [PORCELAIN, clay("cream"), metal("brass")], (c, v) => {
     // A bowl on the wall: flat against it, rounded below.
     c.beginPath();
     c.ellipse(0, -0.17, 0.21, 0.34, 0, 0, Math.PI);
@@ -129,7 +130,7 @@ const toilets: PropDef[] = [
     for (const x of [-0.03, 0, 0.03]) disc(c, x, 0.02, 0.01, HOLE, 0.004);
     disc(c, 0, -0.15, 0.03, tapsFor(v), 0.008);
   }),
-  ...family({ id: "bidet", name: "Bidet", category: W, group: "Toilets", w: 0.5, h: 0.7, layer: "object" }, [PORCELAIN, clay("cream"), metal("brass")], (c, v) => {
+  ...family({ id: "bidet", name: "Bidet", category: W, group: "Toilets", w: 0.5, h: 0.7, layer: "object", form: (v) => S.solid([S.tub(0.21, 0, 0.4, v, 0.67, { z: 0.04, rz: 0.29, floor: 0.25 }), S.cyl(0.03, 0.4, 0.48, tapsFor(v), { x: -0.08, z: -0.19, n: 5 }), S.cyl(0.03, 0.4, 0.48, tapsFor(v), { x: 0.08, z: -0.19, n: 5 })]) }, [PORCELAIN, clay("cream"), metal("brass")], (c, v) => {
     ell(c, 0, 0.04, 0.21, 0.29);
     fo(c, radial(c, 0, 0.04, 0.29, v.light, v.dark));
     ell(c, 0, 0.07, 0.14, 0.21);
@@ -137,7 +138,7 @@ const toilets: PropDef[] = [
     disc(c, 0, 0.14, 0.02, HOLE, 0.004);
     taps(c, 0, -0.19, 0.08, tapsFor(v));
   }),
-  ...family({ id: "close-stool", name: "Close stool", category: W, group: "Toilets", w: 0.7, h: 0.7, layer: "object" },
+  ...family({ id: "close-stool", name: "Close stool", category: W, group: "Toilets", w: 0.7, h: 0.7, layer: "object", form: (v) => S.solid([S.box(-0.32, 0.32, -0.32, 0.32, 0, 0.42, v.a), S.cbox(0.5, 0.5, 0.42, 0.48, v.b, 0, 0, { top: 0.9 })], { surface: 0.48 }) },
     cross(THREE_WOODS, [cloth("crimson"), cloth("navy"), cloth("green")]), (c, v) => {
       // A box with a padded lid, the pot inside: a noble's privy.
       cbox(c, 0, 0, 0.64, 0.64, v.a, 0.05);
@@ -146,7 +147,7 @@ const toilets: PropDef[] = [
       for (const [x, y] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1], [0, 0]]) disc(c, x, y, 0.018, GOLD, 0.005);
       for (const x of [-0.31, 0.31]) disc(c, x, 0, 0.03, metal("brass"), 0.008);
     }),
-  ...family({ id: "chamber-pot", name: "Chamber pot", category: W, group: "Toilets", w: 0.45, h: 0.4, layer: "object" },
+  ...family({ id: "chamber-pot", name: "Chamber pot", category: W, group: "Toilets", w: 0.45, h: 0.4, layer: "object", form: (v) => S.solid([v.b.key === "lidded" ? S.cyl(0.16, 0, 0.18, v.a, { x: -0.03, n: 10 }) : S.tub(0.16, 0, 0.18, v.a, 0.76, { x: -0.03, floor: 0.04 }), ...(v.b.key === "lidded" ? [S.cyl(0.13, 0.18, 0.2, v.a, { x: -0.03, n: 10 }), S.cyl(0.03, 0.2, 0.24, v.a, { x: -0.03, n: 5 })] : []), S.limb([0.12, 0.05, -0.06], [0.19, 0.11, 0], 0.015, 0.015, v.a, { n: 4 }), S.limb([0.19, 0.11, 0], [0.12, 0.15, 0.06], 0.015, 0.015, v.a, { n: 4 })]) },
     cross([clay("terracotta"), clay("glazed-blue"), clay("cream"), metal("brass"), metal("silver"), GOLD], OPEN_LIDDED), (c, v) => {
       const t = v.a;
       handle(c, 0.13, 0, 0.065, -Math.PI / 2, Math.PI / 2, t);
@@ -166,7 +167,7 @@ const HOLES = [
 const SQUAT: Tone[] = [...["granite", "marble", "sandstone", "slate"].map((k) => masonry(k)), { ...wood("honey"), key: "wooden", name: "wooden boards" }, PORCELAIN, metal("brass")];
 
 const privies: PropDef[] = [
-  ...family({ id: "privy-seat", name: "Privy seat", category: W, group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object" }, cross(WOODS, OPEN_LIDDED), (c, v) => {
+  ...family({ id: "privy-seat", name: "Privy seat", category: W, group: "Privies and latrines", w: 0.9, h: 0.7, layer: "object", form: (v) => S.solid([S.box(-0.44, 0.44, -0.34, -0.2, 0, 0.95, v.a), S.box(-0.44, 0.44, -0.2, 0.33, 0, 0.45, v.a), S.cyl(v.b.key === "open" ? 0.15 : 0.18, 0.45, 0.46, v.b.key === "open" ? "#1a120c" : v.a.light, { z: 0.06, rz: v.b.key === "open" ? 0.13 : 0.16, n: 10 })], { surface: 0.45 }) }, cross(WOODS, OPEN_LIDDED), (c, v) => {
     // A wooden box seat along the wall, with a hole, or its lid on.
     plank(c, -0.44, -0.34, 0.88, 0.14, v.a, 4701);
     plank(c, -0.44, -0.2, 0.88, 0.53, v.a, 4703);
@@ -177,7 +178,7 @@ const privies: PropDef[] = [
       disc(c, 0, 0.17, 0.025, metal("iron"), 0.006);
     }
   }),
-  ...family({ id: "squat-hole", name: "Squat hole", category: W, group: "Privies and latrines", w: 1, h: 1, layer: "floor" }, SQUAT, (c, v) => {
+  ...family({ id: "squat-hole", name: "Squat hole", category: W, group: "Privies and latrines", w: 1, h: 1, layer: "floor", form: () => S.flat("a hole in the floor, with places for the feet") }, SQUAT, (c, v) => {
     if (v.key === "wooden") for (let i = 0; i < 5; i++) plank(c, -0.48 + i * 0.192, -0.48, 0.192, 0.96, v, 4710 + i);
     else if (v.key === "porcelain" || v.key === "brass") {
       // A pan set in the floor.
@@ -196,13 +197,13 @@ const privies: PropDef[] = [
     fo(c, linear(c, 0, -0.12, 0, 0.04, HOLE.dark, shade(v.dark, -0.3)), 0.012);
     hole(c, 0, -0.17, 0.1, 0.12);
   }),
-  ...family({ id: "latrine-bench", name: "Latrine bench", category: W, group: "Privies and latrines", w: 1.6, h: 0.7, layer: "object" }, cross(THREE_WOODS, HOLES), (c, v) => {
+  ...family({ id: "latrine-bench", name: "Latrine bench", category: W, group: "Privies and latrines", w: 1.6, h: 0.7, layer: "object", form: (v) => (w, h) => S.solid([S.box(-w / 2 + 0.02, w / 2 - 0.02, -0.33, -0.19, 0, 0.95, v.a), S.box(-w / 2 + 0.02, w / 2 - 0.02, -0.19, 0.33, 0, 0.45, v.a), Array.from({ length: v.b.n }, (_, i) => S.cyl(0.14, 0.45, 0.46, "#1a120c", { x: (i + 0.5) * 0.8 - v.b.n * 0.4, z: 0.06, rz: 0.12, n: 10 }))]) }, cross(THREE_WOODS, HOLES), (c, v) => {
     const half = v.b.n * 0.4 - 0.02;
     plank(c, -half, -0.33, half * 2, 0.14, v.a, 4720);
     plank(c, -half, -0.19, half * 2, 0.52, v.a, 4721);
     for (let i = 0; i < v.b.n; i++) hole(c, (i + 0.5) * 0.8 - v.b.n * 0.4, 0.06, 0.14, 0.12);
   }, { size: (v) => [v.b.n * 0.8, 0.7] }),
-  ...family({ id: "garderobe", name: "Garderobe", category: W, group: "Privies and latrines", w: 1, h: 1, layer: "object" }, MASONRY, (c, v) => {
+  ...family({ id: "garderobe", name: "Garderobe", category: W, group: "Privies and latrines", w: 1, h: 1, layer: "object", form: (v) => S.solid([S.box(-0.5, 0.5, -0.5, -0.28, 0, 2.2, v), S.box(-0.5, -0.3, -0.28, 0.5, 0, 2.2, v), S.box(0.3, 0.5, -0.28, 0.5, 0, 2.2, v), S.box(-0.3, 0.3, -0.28, 0.14, 0, 0.45, wood("walnut")), S.cyl(0.12, 0.45, 0.46, "#1a120c", { z: -0.08, rz: 0.11, n: 10 })], { note: "a seat in a stone alcove, open in front" }) }, MASONRY, (c, v) => {
     // A castle's privy: an alcove in the wall, a plank seat across it over the shaft.
     box(c, -0.5, -0.5, 1, 0.22, v, 0.02);
     box(c, -0.5, -0.28, 0.2, 0.78, v, 0.02);
@@ -210,14 +211,14 @@ const privies: PropDef[] = [
     plank(c, -0.3, -0.28, 0.6, 0.42, wood("walnut"), 4730);
     hole(c, 0, -0.08, 0.12, 0.11);
   }),
-  ...family({ id: "slop-pail", name: "Slop pail", category: W, group: "Privies and latrines", w: 0.45, h: 0.45, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "slop-pail", name: "Slop pail", category: W, group: "Privies and latrines", w: 0.45, h: 0.45, layer: "object", form: (v) => S.solid([S.cyl(0.19, 0, 0.36, v, { n: 10 }), S.cyl(0.14, 0.36, 0.38, v.light, { n: 10 }), S.cyl(0.03, 0.38, 0.42, metal("iron"), { n: 5 }), S.limb([-0.19, 0.34, 0], [0, 0.5, -0.08], 0.012, 0.012, metal("iron"), { n: 4 }), S.limb([0, 0.5, -0.08], [0.19, 0.34, 0], 0.012, 0.012, metal("iron"), { n: 4 })]) }, THREE_WOODS, (c, v) => {
     handle(c, 0, 0, 0.2, Math.PI * 1.15, Math.PI * 1.85, metal("iron"), 0.015);
     disc(c, 0, 0, 0.19, v);
     hoop(c, 0, 0, 0.175);
     disc(c, 0, 0, 0.14, tone(shade(v.light, 0.1), v.dark), 0.015);
     disc(c, 0, 0, 0.03, metal("iron"), 0.008);
   }),
-  ...family({ id: "privy-stall", name: "Privy stall", category: W, group: "Privies and latrines", w: 1, h: 1.4, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "privy-stall", name: "Privy stall", category: W, group: "Privies and latrines", w: 1, h: 1.4, layer: "object", form: (v) => S.solid([S.box(-0.5, 0.5, -0.7, -0.6, 0, 2.1, v), S.box(-0.5, -0.42, -0.6, 0.68, 0, 2.1, v), S.box(0.42, 0.5, -0.6, 0.68, 0, 2.1, v), S.box(-0.42, 0.42, -0.6, -0.2, 0, 0.45, v.light), S.cyl(0.13, 0.45, 0.46, "#1a120c", { z: -0.4, rz: 0.1, n: 10 }), S.box(-0.42, 0.42, 0.6, 0.68, 0.05, 1.9, v), S.cyl(0.025, 0.95, 1.0, metal("iron"), { x: 0.3, z: 0.69, n: 5 })], { note: "a booth with no roof: you see in from above" }) }, THREE_WOODS, (c, v) => {
     // Plank walls on three sides, the seat at the back and the door shut at the front.
     plank(c, -0.5, -0.7, 1, 0.1, v, 4740);
     plank(c, -0.5, -0.6, 0.08, 1.28, v, 4741);
@@ -236,13 +237,13 @@ const BATH_TONES: (Variant & { tone: Tone })[] = [
 ];
 
 const tubs: PropDef[] = [
-  ...family({ id: "bath", name: "Bath", category: W, group: "Tubs", w: 1.6, h: 0.9, layer: "object" }, BATH_TONES, (c, v) => {
+  ...family({ id: "bath", name: "Bath", category: W, group: "Tubs", w: 1.6, h: 0.9, layer: "object", form: (v) => S.solid([S.tub(0.76, 0, 0.6, v.tone, 0.84, { rz: 0.42, floor: 0.25, n: 14 }), S.cyl(0.64, 0.25, 0.45, WATER, { rz: 0.35, n: 14 })]) }, BATH_TONES, (c, v) => {
     rr(c, -0.76, -0.42, 1.52, 0.84, 0.3);
     fo(c, linear(c, -0.7, -0.4, 0.7, 0.4, v.tone.light, v.tone.dark));
     rr(c, -0.64, -0.3, 1.28, 0.6, 0.24);
     fo(c, radial(c, 0, 0, 0.7, "#cfe6f2", "#6a9ab4"), 0.015);
   }),
-  ...family({ id: "clawfoot-tub", name: "Clawfoot tub", category: W, group: "Tubs", w: 1.7, h: 0.85, layer: "object" },
+  ...family({ id: "clawfoot-tub", name: "Clawfoot tub", category: W, group: "Tubs", w: 1.7, h: 0.85, layer: "object", form: (v) => S.solid([[-0.6, 0.6].flatMap((x) => [-0.36, 0.36].map((z) => S.ball(0.055, 0, 0.16, tapsFor(v.a), { x, z, n: 6 }))), S.tub(0.8, 0.14, 0.76, v.a, 0.84, { rz: 0.36, floor: 0.34, n: 14 }), ...(v.b.key === "empty" ? [] : [S.cyl(0.67, 0.34, 0.62, WATER, { rz: 0.3, n: 14 })]), ...(v.b.key === "suds" ? [S.ball(0.6, 0.55, 0.72, "#f2f6fa", { rz: 0.25, lump: 0.35, n: 10 })] : []), S.cyl(0.03, 0.76, 0.86, tapsFor(v.a), { x: -0.7, z: -0.11, n: 5 }), S.cyl(0.03, 0.76, 0.86, tapsFor(v.a), { x: -0.7, z: 0.11, n: 5 })]) },
     cross([...ENAMELS, COPPER, metal("brass"), metal("silver")], [...FILL, vary("suds", "with suds")]), (c, v) => {
       const t = v.a;
       const feet = tapsFor(t);
@@ -264,7 +265,7 @@ const tubs: PropDef[] = [
       // The taps and spout at the foot end.
       taps(c, -0.7, 0, 0.11, feet, false);
     }),
-  ...family({ id: "slipper-bath", name: "Slipper bath", category: W, group: "Tubs", w: 1.6, h: 0.8, layer: "object" },
+  ...family({ id: "slipper-bath", name: "Slipper bath", category: W, group: "Tubs", w: 1.6, h: 0.8, layer: "object", form: (v) => S.solid([[-0.55, 0.55].flatMap((x) => [-0.34, 0.34].map((z) => S.ball(0.05, 0, 0.14, metal("brass"), { x, z, n: 6 }))), S.tub(0.76, 0.12, 0.72, v.a, 0.84, { rz: 0.34, floor: 0.3, n: 14 }), S.ball(0.28, 0.55, 1.05, v.a, { x: 0.48, rz: 0.33, n: 9 }), ...(v.b.key === "filled" ? [S.cyl(0.6, 0.3, 0.6, WATER, { x: -0.05, rz: 0.26, n: 12 })] : [])]) },
     cross([ENAMELS[0], ENAMELS[2], COPPER, metal("brass")], FILL), (c, v) => {
       const t = v.a;
       const feet = metal("brass");
@@ -281,7 +282,7 @@ const tubs: PropDef[] = [
       fo(c, linear(c, 0.4, -0.3, 0.76, 0.3, shade(t.light, 0.2), t.dark), 0.015);
       taps(c, -0.68, 0, 0.1, feet, false);
     }),
-  ...family({ id: "hip-bath", name: "Hip bath", category: W, group: "Tubs", w: 0.9, h: 0.8, layer: "object" }, cross([TIN, COPPER, metal("brass")], FILL), (c, v) => {
+  ...family({ id: "hip-bath", name: "Hip bath", category: W, group: "Tubs", w: 0.9, h: 0.8, layer: "object", form: (v) => S.solid([S.tub(0.4, 0, 0.45, v.a, 0.75, { z: 0.04, rz: 0.34, floor: 0.1 }), S.cyl(0.4, 0.45, 0.85, v.a, { z: -0.12, rz: 0.2, top: 0.8, n: 12 }), ...(v.b.key === "filled" ? [S.cyl(0.3, 0.1, 0.35, WATER, { z: 0.08, rz: 0.25, n: 12 })] : [])]) }, cross([TIN, COPPER, metal("brass")], FILL), (c, v) => {
     const t = v.a;
     ell(c, 0, 0.04, 0.4, 0.34);
     fo(c, radial(c, 0, 0.04, 0.4, t.light, t.dark));
@@ -294,7 +295,7 @@ const tubs: PropDef[] = [
     c.closePath();
     fo(c, linear(c, 0, -0.33, 0, -0.1, shade(t.light, 0.2), t.dark), 0.015);
   }),
-  ...family({ id: "barrel-tub", name: "Barrel tub", category: W, group: "Tubs", w: 1.1, h: 1.1, layer: "object" }, cross(THREE_WOODS, FILL), (c, v) => {
+  ...family({ id: "barrel-tub", name: "Barrel tub", category: W, group: "Tubs", w: 1.1, h: 1.1, layer: "object", form: (v) => S.solid([S.tub(0.52, 0, 1.0, v.a, 0.83, { floor: 0.1, n: 14 }), S.cyl(0.53, 0.2, 0.25, "#3c3d43", { n: 14 }), S.cyl(0.53, 0.75, 0.8, "#3c3d43", { n: 14 }), ...(v.b.key === "filled" ? [S.cyl(0.43, 0.1, 0.8, WATER, { n: 14 })] : [])]) }, cross(THREE_WOODS, FILL), (c, v) => {
     const t = v.a;
     disc(c, 0, 0, 0.52, t);
     for (let i = 0; i < 18; i++) {
@@ -308,7 +309,7 @@ const tubs: PropDef[] = [
 ];
 
 const pools: PropDef[] = [
-  ...family({ id: "sunken-bath", name: "Sunken bath", category: W, group: "Pools and showers", w: 3, h: 2, layer: "floor" }, cross(MASONRY, [vary("filled"), vary("drained")]), (c, v) => {
+  ...family({ id: "sunken-bath", name: "Sunken bath", category: W, group: "Pools and showers", w: 3, h: 2, layer: "floor", form: () => S.flat("a bath sunk into the floor: its water lies level with it") }, cross(MASONRY, [vary("filled"), vary("drained")]), (c, v) => {
     const m = v.a;
     cbox(c, 0, 0, 2.96, 1.96, m, 0.06);
     c.strokeStyle = "rgba(0,0,0,0.18)";
@@ -328,7 +329,7 @@ const pools: PropDef[] = [
       stroke(c, [-0.1, 0.35, 0.5, 0.3], 0.02, "rgba(255,255,255,0.4)");
     } else disc(c, 0.6, 0, 0.08, metal("iron"), 0.012);
   }),
-  ...family({ id: "plunge-pool", name: "Plunge pool", category: W, group: "Pools and showers", w: 2, h: 2, layer: "floor" }, MASONRY, (c, v) => {
+  ...family({ id: "plunge-pool", name: "Plunge pool", category: W, group: "Pools and showers", w: 2, h: 2, layer: "floor", form: () => S.flat("a pool sunk into the floor: its water lies level with it") }, MASONRY, (c, v) => {
     disc(c, 0, 0, 0.96, v);
     disc(c, 0, 0, 0.76, tone(shade(v.light, -0.25), shade(v.dark, -0.35)), 0.015);
     // Two steps down on the near side, under the water.
@@ -346,7 +347,7 @@ const pools: PropDef[] = [
     c.fill();
     c.restore();
   }),
-  ...family({ id: "shower-stall", name: "Shower stall", category: W, group: "Pools and showers", w: 1, h: 1, layer: "object" },
+  ...family({ id: "shower-stall", name: "Shower stall", category: W, group: "Pools and showers", w: 1, h: 1, layer: "object", form: (v) => S.solid([S.cbox(0.96, 0.96, 0, 0.08, v.b), S.box(-0.48, 0.48, -0.48, -0.4, 0.08, 2.2, v.b), S.limb([0.3, 0.08, -0.38], [0.3, 2.0, -0.38], 0.02, 0.02, v.a.dark, { n: 4 }), S.limb([0.3, 2.0, -0.38], [0, 2.0, -0.3], 0.02, 0.02, v.a.dark, { n: 4 }), S.cyl(0.1, 1.9, 1.98, v.a, { z: -0.16, top: 1.2, n: 8 }), S.limb([0, 2.0, -0.3], [0, 1.96, -0.2], 0.02, 0.02, v.a.dark, { n: 4 })], { note: "a tray with the wall and its pipe behind" }) },
     cross([metal("brass"), metal("iron"), COPPER], [masonry("marble"), masonry("slate")]), (c, v) => {
       const p = v.a;
       const m = v.b;
@@ -361,7 +362,7 @@ const pools: PropDef[] = [
       stroke(c, [0.08, -0.1, 0.2, 0.05], 0.01, p.dark);
       disc(c, 0.2, 0.06, 0.025, p, 0.008);
     }),
-  ...family({ id: "bucket-shower", name: "Bucket shower", category: W, group: "Pools and showers", w: 0.9, h: 0.9, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "bucket-shower", name: "Bucket shower", category: W, group: "Pools and showers", w: 0.9, h: 0.9, layer: "object", form: (v) => S.solid([S.cbox(0.86, 0.86, 0, 0.06, v), S.post(-0.4, -0.4, 0.04, 0, 2.4, v), S.post(0.4, -0.4, 0.04, 0, 2.4, v), S.limb([-0.4, 2.35, -0.4], [0.4, 2.35, -0.4], 0.03, 0.03, v, { n: 4 }), S.limb([0, 2.35, -0.4], [0, 2.3, -0.04], 0.025, 0.025, v, { n: 4 }), S.tub(0.22, 1.95, 2.3, v, 0.8, { z: -0.04, floor: 2.0 }), S.limb([0.15, 1.95, 0.12], [0.33, 1.2, 0.33], 0.008, 0.008, "#c8b080", { n: 3 })], { note: "a bucket hung overhead on a frame" }) }, THREE_WOODS, (c, v) => {
     // A slatted floor, the bucket above it and the rope that tips it.
     for (let i = 0; i < 5; i++) plank(c, -0.43 + i * 0.172, -0.43, 0.15, 0.86, v, 4765 + i);
     disc(c, 0, -0.04, 0.22, v);
@@ -370,7 +371,7 @@ const pools: PropDef[] = [
     stroke(c, [0.15, 0.12, 0.33, 0.33], 0.018, "#c8b080");
     disc(c, 0.34, 0.34, 0.03, wood("pale"), 0.008);
   }),
-  ...family({ id: "foot-bath", name: "Foot bath", category: W, group: "Pools and showers", w: 0.55, h: 0.45, layer: "object" }, [clay("terracotta"), COPPER, metal("brass")], (c, v) => {
+  ...family({ id: "foot-bath", name: "Foot bath", category: W, group: "Pools and showers", w: 0.55, h: 0.45, layer: "object", form: (v) => S.solid([S.tub(0.25, 0, 0.18, v, 0.76, { rz: 0.19, floor: 0.04, n: 12 }), S.cyl(0.19, 0.04, 0.12, WATER, { rz: 0.14, n: 12 })]) }, [clay("terracotta"), COPPER, metal("brass")], (c, v) => {
     ell(c, 0, 0, 0.25, 0.19);
     fo(c, radial(c, 0, 0, 0.25, v.light, v.dark));
     ell(c, 0, 0.01, 0.19, 0.14);
@@ -379,12 +380,12 @@ const pools: PropDef[] = [
 ];
 
 const basins: PropDef[] = [
-  ...family({ id: "washstand", name: "Washstand", category: W, group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object" }, WOODS, (c, v) => {
+  ...family({ id: "washstand", name: "Washstand", category: W, group: "Basins and washstands", w: 0.7, h: 0.5, layer: "object", form: (v) => S.plus(S.tall(0.8, v), S.tub(0.17, 0.8, 0.92, "#f2f2f2", 0.65, { floor: 0.84 }), S.cyl(0.11, 0.84, 0.88, WATER, { n: 10 })) }, WOODS, (c, v) => {
     box(c, -0.33, -0.23, 0.66, 0.46, v, 0.04);
     disc(c, 0, 0, 0.17, { key: "", name: "", light: "#ffffff", dark: "#b8c4cc" });
     disc(c, 0, 0, 0.11, { key: "", name: "", light: "#cfe6f2", dark: "#7aa4bc" }, 0.01);
   }),
-  ...family({ id: "pedestal-basin", name: "Pedestal basin", category: W, group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object" },
+  ...family({ id: "pedestal-basin", name: "Pedestal basin", category: W, group: "Basins and washstands", w: 0.6, h: 0.5, layer: "object", form: (v) => S.solid([S.cyl(0.08, 0, 0.75, v, { z: 0.02, top: 1.3, n: 8 }), S.tub(0.28, 0.75, 0.9, v, 0.65, { rz: 0.23, floor: 0.8, n: 12 }), S.cyl(0.03, 0.9, 0.98, tapsFor(v), { x: -0.11, z: -0.17, n: 5 }), S.cyl(0.03, 0.9, 0.98, tapsFor(v), { x: 0.11, z: -0.17, n: 5 })]) },
     [PORCELAIN, clay("cream"), clay("glazed-blue"), masonry("marble"), metal("brass"), COPPER], (c, v) => {
       c.beginPath();
       c.moveTo(-0.28, -0.23);
@@ -398,7 +399,7 @@ const basins: PropDef[] = [
       disc(c, 0, 0.06, 0.018, HOLE, 0.004);
       taps(c, 0, -0.17, 0.11, tapsFor(v));
     }),
-  ...family({ id: "basin-ewer", name: "Basin and ewer", category: W, group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object" },
+  ...family({ id: "basin-ewer", name: "Basin and ewer", category: W, group: "Basins and washstands", w: 0.5, h: 0.5, layer: "object", form: (v) => S.resting(S.solid([S.tub(0.2, 0, 0.1, v, 0.75, { x: -0.04, z: 0.04, floor: 0.03 }), S.cyl(0.15, 0.03, 0.08, WATER, { x: -0.04, z: 0.04, n: 10 }), S.vaseAt(0.09, -0.09, 0.1, 0.3, v, { mouth: 0.5 }), S.limb([0.17, 0.25, -0.13], [0.21, 0.2, -0.05], 0.012, 0.012, v, { n: 4 })])) },
     [clay("terracotta"), clay("glazed-blue"), clay("glazed-green"), clay("cream"), metal("brass"), metal("silver"), GOLD], (c, v) => {
       disc(c, -0.04, 0.04, 0.2, v);
       disc(c, -0.04, 0.04, 0.15, WATER, 0.012);
@@ -409,7 +410,7 @@ const basins: PropDef[] = [
       disc(c, 0.09, -0.09, 0.1, v);
       disc(c, 0.09, -0.09, 0.045, tone(shade(v.dark, -0.2), shade(v.dark, -0.5)), 0.01);
     }),
-  ...family({ id: "wall-basin", name: "Wall basin", category: W, group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object" }, [PORCELAIN, clay("cream"), metal("brass"), COPPER], (c, v) => {
+  ...family({ id: "wall-basin", name: "Wall basin", category: W, group: "Basins and washstands", w: 0.5, h: 0.35, layer: "object", form: (v) => S.solid([S.slab([-0.23, -0.16, -0.2, -0.02, -0.12, 0.1, 0, 0.15, 0.12, 0.1, 0.2, -0.02, 0.23, -0.16], 0.72, 0.9, v, { hollow: 0.68, floor: 0.78 }), S.cyl(0.025, 0.9, 0.98, tapsFor(v), { z: -0.1, n: 5 })], { note: "on the wall: a basin at waist height" }) }, [PORCELAIN, clay("cream"), metal("brass"), COPPER], (c, v) => {
     c.beginPath();
     c.ellipse(0, -0.16, 0.23, 0.31, 0, 0, Math.PI);
     c.closePath();
@@ -420,7 +421,7 @@ const basins: PropDef[] = [
     fo(c, radial(c, 0, -0.05, 0.2, shade(v.light, 0.25), shade(v.dark, -0.05)), 0.012);
     disc(c, 0, -0.1, 0.025, tapsFor(v), 0.008);
   }),
-  ...family({ id: "basin-stand", name: "Basin stand", category: W, group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object" }, METALS, (c, v) => {
+  ...family({ id: "basin-stand", name: "Basin stand", category: W, group: "Basins and washstands", w: 0.55, h: 0.55, layer: "object", form: (v) => S.solid([[0, 1, 2].map((i) => { const a = -Math.PI / 2 + (i * Math.PI * 2) / 3; return S.limb([Math.cos(a) * 0.24, 0, Math.sin(a) * 0.24], [Math.cos(a) * 0.14, 0.8, Math.sin(a) * 0.14], 0.02, 0.02, v.dark, { n: 4 }); }), S.tub(0.17, 0.78, 0.9, v, 0.7, { floor: 0.82 }), S.cyl(0.12, 0.82, 0.86, WATER, { n: 10 })]) }, METALS, (c, v) => {
     // Three legs splayed out under the bowl.
     for (let i = 0; i < 3; i++) {
       const a = -Math.PI / 2 + (i * Math.PI * 2) / 3;
@@ -430,7 +431,7 @@ const basins: PropDef[] = [
     disc(c, 0, 0, 0.17, v);
     disc(c, 0, 0, 0.12, WATER, 0.012);
   }),
-  ...family({ id: "wash-trough", name: "Wash trough", category: W, group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object" },
+  ...family({ id: "wash-trough", name: "Wash trough", category: W, group: "Basins and washstands", w: 2.4, h: 0.7, layer: "object", form: (v) => S.solid([S.box(-1.18, 1.18, -0.31, 0.31, 0, 0.75, v, { wall: 0.12, floor: 0.4 }), S.box(-1.06, 1.06, -0.19, 0.19, 0.4, 0.62, WATER), [-0.7, 0, 0.7].map((x) => [S.limb([x, 0.75, -0.3], [x, 1.0, -0.3], 0.02, 0.02, metal("iron").dark, { n: 4 }), S.limb([x, 1.0, -0.3], [x, 0.95, -0.18], 0.018, 0.018, metal("iron").dark, { n: 4 })])], { surface: 0.75 }) },
     [masonry("granite"), masonry("sandstone"), masonry("slate"), wood("honey"), wood("walnut")], (c, v) => {
       if (WOODS.includes(v)) plank(c, -1.18, -0.31, 2.36, 0.62, v, 4770);
       else cbox(c, 0, 0, 2.36, 0.62, v, 0.05);
@@ -442,7 +443,7 @@ const basins: PropDef[] = [
         disc(c, x, -0.29, 0.035, metal("iron"), 0.008);
       }
     }),
-  ...family({ id: "vanity", name: "Vanity", category: W, group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object" }, WOODS, (c, v) => {
+  ...family({ id: "vanity", name: "Vanity", category: W, group: "Basins and washstands", w: 1.2, h: 0.55, layer: "object", form: (v) => S.plus(S.tall(0.8, v), S.box(-0.42, 0.42, -0.27, -0.21, 0.8, 1.6, v), S.box(-0.38, 0.38, -0.21, -0.2, 0.86, 1.55, "#c8dce8"), S.tub(0.2, 0.8, 0.92, "#f2f2f2", 0.7, { x: 0.15, z: 0.05, rz: 0.15, floor: 0.84 }), S.cyl(0.028, 0.92, 1.0, metal("brass"), { x: 0.15, z: -0.13, n: 5 }), [[-0.44, 0], [-0.34, 3], [-0.25, 4]].map(([x, g]) => S.cyl(0.035, 0.8, 0.95, GLASSES[g], { x, z: -0.02, n: 6 }))) }, WOODS, (c, v) => {
     // A wooden top with a basin let into it, a mirror along the wall and a few bottles.
     plank(c, -0.58, -0.26, 1.16, 0.52, v, 4775);
     rr(c, -0.42, -0.27, 0.84, 0.07, 0.02);
@@ -454,7 +455,7 @@ const basins: PropDef[] = [
     disc(c, 0.15, -0.13, 0.028, metal("brass"), 0.008);
     for (const [x, g] of [[-0.44, 0], [-0.34, 3], [-0.25, 4]] as const) disc(c, x, -0.02, 0.035, GLASSES[g], 0.01);
   }),
-  ...family({ id: "pump-sink", name: "Sink with a pump", category: W, group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object" },
+  ...family({ id: "pump-sink", name: "Sink with a pump", category: W, group: "Basins and washstands", w: 0.8, h: 0.55, layer: "object", form: (v) => S.solid([S.box(-0.39, 0.39, -0.23, 0.27, 0, 0.8, v.a, { wall: 0.08, floor: 0.6 }), S.cyl(0.065, 0.8, 1.35, v.b, { x: -0.22, z: -0.18, n: 8 }), S.limb([-0.18, 1.3, -0.2], [0.18, 1.45, -0.22], 0.015, 0.015, v.b.dark, { n: 4 }), S.limb([-0.22, 1.15, -0.18], [-0.12, 1.1, -0.05], 0.02, 0.02, v.b.dark, { n: 4 })], { surface: 0.8 }) },
     cross([masonry("granite"), masonry("slate")], [metal("iron"), metal("brass")]), (c, v) => {
       const m = v.a;
       const p = v.b;
@@ -471,7 +472,7 @@ const basins: PropDef[] = [
 ];
 
 const tanks: PropDef[] = [
-  ...family({ id: "cistern", name: "Cistern", category: W, group: "Tanks and boilers", w: 1, h: 1, layer: "object" },
+  ...family({ id: "cistern", name: "Cistern", category: W, group: "Tanks and boilers", w: 1, h: 1, layer: "object", form: (v) => v.b.key === "open" ? S.solid([S.box(-0.48, 0.48, -0.48, 0.48, 0, 1.2, v.a, { wall: 0.07, floor: 0.4 }), S.box(-0.41, 0.41, -0.41, 0.41, 0.4, 1.05, WATER)]) : S.solid([S.box(-0.48, 0.48, -0.48, 0.48, 0, 1.2, v.a), S.cbox(0.26, 0.26, 1.2, 1.25, v.a, 0.18, 0.18)], { surface: 1.2 }) },
     cross([{ ...wood("honey"), key: "wooden", name: "wooden" }, COPPER, LEAD], [vary("open"), vary("lidded")]), (c, v) => {
       const t = v.a;
       const wooden = t.key === "wooden";
@@ -491,7 +492,7 @@ const tanks: PropDef[] = [
         studs(c, -0.44, 0.44, 0.44, 0.44, 7, 0.014, t);
       }
     }),
-  ...family({ id: "water-boiler", name: "Water boiler", category: W, group: "Tanks and boilers", w: 0.9, h: 0.9, layer: "object" }, [COPPER, metal("iron"), metal("brass")], (c, v) => {
+  ...family({ id: "water-boiler", name: "Water boiler", category: W, group: "Tanks and boilers", w: 0.9, h: 0.9, layer: "object", form: (v) => S.solid([S.cbox(0.86, 0.86, 0, 0.55, "#8a4a32"), S.cyl(0.32, 0.55, 1.6, v, { z: -0.05, n: 12 }), S.cyl(0.2, 1.6, 1.65, v.light, { z: -0.05, n: 10 }), S.limb([0.31, 1.3, -0.05], [0.43, 1.3, -0.05], 0.03, 0.03, v.dark, { n: 4 }), S.box(-0.12, 0.12, 0.3, 0.44, 0.08, 0.3, "#ff8a3a", { glow: true })]) }, [COPPER, metal("iron"), metal("brass")], (c, v) => {
     // A brick firebox with its door glowing, and the boiler on top.
     cbox(c, 0, 0, 0.86, 0.86, tone("#a8583a", "#5a2a18"), 0.04);
     for (const y of [-0.2, 0, 0.2]) stroke(c, [-0.43, y, 0.43, y], 0.008, "rgba(30,15,8,0.45)");
@@ -513,7 +514,7 @@ const TIERS = [
 ];
 
 const sauna: PropDef[] = [
-  ...family({ id: "sauna-bench", name: "Sauna bench", category: W, group: "Sauna", w: 2, h: 0.5, layer: "object" }, cross(SAUNA_WOODS, TIERS), (c, v) => {
+  ...family({ id: "sauna-bench", name: "Sauna bench", category: W, group: "Sauna", w: 2, h: 0.5, layer: "object", form: (v) => (w, h) => S.solid(Array.from({ length: v.b.n }, (_, i) => S.box(-0.99, 0.99, -h / 2 + 0.025 + i * 0.45, -h / 2 + 0.025 + i * 0.45 + 0.42, 0, 0.45 * (v.b.n - i), v.a)), { surface: 0.45 }) }, cross(SAUNA_WOODS, TIERS), (c, v) => {
     // Slatted tiers, the highest against the wall, each lower one darker with a shadow under its edge.
     const h = 0.45 * v.b.n + 0.05;
     for (let i = 0; i < v.b.n; i++) {
@@ -523,14 +524,14 @@ const sauna: PropDef[] = [
       for (let s = 0; s < 3; s++) plank(c, -0.96, y + 0.015 + s * 0.13, 1.92, 0.11, t, 4790 + i * 3 + s);
     }
   }, { size: (v) => [2, 0.45 * v.b.n + 0.05] }),
-  ...family({ id: "sauna-stove", name: "Sauna stove", category: W, group: "Sauna", w: 0.8, h: 0.8, layer: "object" }, METALS.slice(0, 3), (c, v) => {
+  ...family({ id: "sauna-stove", name: "Sauna stove", category: W, group: "Sauna", w: 0.8, h: 0.8, layer: "object", form: (v) => S.solid([S.cbox(0.74, 0.74, 0, 0.75, v), S.ball(0.3, 0.6, 0.95, "#8a8884", { z: -0.02, lump: 0.35, n: 8 }), S.box(-0.12, 0.12, 0.33, 0.38, 0.1, 0.3, "#ff8a3a", { glow: true })]) }, METALS.slice(0, 3), (c, v) => {
     // A metal box heaped with hot lumps to throw water on.
     cbox(c, 0, 0, 0.74, 0.74, v, 0.06);
     cbox(c, 0, -0.02, 0.58, 0.58, tone(shade(v.dark, -0.2), shade(v.dark, -0.5)), 0.04);
     for (const [x, y, k] of scatter(16, 0.22, 4795)) disc(c, x, y - 0.02, 0.055 + k * 0.03, tone("#a8a6a0", "#5e5c58"), 0.01);
     glow(c, 0, 0.36, 0.22, "255,140,60", 0.45);
   }, { light: FIRE_LIGHT }),
-  ...family({ id: "sauna-bucket", name: "Sauna bucket and ladle", category: W, group: "Sauna", w: 0.5, h: 0.5, layer: "object" }, SAUNA_WOODS, (c, v) => {
+  ...family({ id: "sauna-bucket", name: "Sauna bucket and ladle", category: W, group: "Sauna", w: 0.5, h: 0.5, layer: "object", form: (v) => S.resting(S.solid([S.tub(0.18, 0, 0.28, v, 0.78, { x: -0.04, z: 0.04, floor: 0.04 }), S.cyl(0.14, 0.04, 0.22, WATER, { x: -0.04, z: 0.04, n: 10 }), S.limb([-0.02, 0.2, 0.03], [0.2, 0.35, -0.2], 0.018, 0.018, v.dark, { n: 4 })])) }, SAUNA_WOODS, (c, v) => {
     disc(c, -0.04, 0.04, 0.18, v);
     hoop(c, -0.04, 0.04, 0.165);
     disc(c, -0.04, 0.04, 0.14, WATER, 0.012);
@@ -540,7 +541,7 @@ const sauna: PropDef[] = [
 ];
 
 const laundry: PropDef[] = [
-  ...family({ id: "washboard-tub", name: "Washtub and washboard", category: W, group: "Laundry", w: 0.9, h: 0.9, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "washboard-tub", name: "Washtub and washboard", category: W, group: "Laundry", w: 0.9, h: 0.9, layer: "object", form: (v) => S.solid([S.tub(0.42, 0, 0.5, v, 0.81, { z: 0.02, floor: 0.1 }), S.cyl(0.34, 0.1, 0.4, WATER, { z: 0.02, n: 12 }), S.ball(0.28, 0.35, 0.48, "#f2f6fa", { z: 0.1, rz: 0.2, lump: 0.35, n: 8 }), S.box(-0.13, 0.13, -0.44, -0.38, 0, 0.75, v, { sz: 0.38 })]) }, THREE_WOODS, (c, v) => {
     disc(c, 0, 0.02, 0.42, v);
     hoop(c, 0, 0.02, 0.39);
     circle(c, 0, 0.02, 0.34);
@@ -555,7 +556,7 @@ const laundry: PropDef[] = [
     box(c, -0.09, -0.36, 0.18, 0.34, TIN, 0.01);
     for (let i = 0; i < 7; i++) stroke(c, [-0.08, -0.33 + i * 0.045, 0.08, -0.33 + i * 0.045], 0.01, shade(TIN.dark, -0.2));
   }),
-  ...family({ id: "mangle", name: "Mangle", category: W, group: "Laundry", w: 0.9, h: 0.6, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "mangle", name: "Mangle", category: W, group: "Laundry", w: 0.9, h: 0.6, layer: "object", form: (v) => S.solid([S.box(-0.43, -0.33, -0.28, 0.28, 0, 1.15, v), S.box(0.27, 0.37, -0.28, 0.28, 0, 1.15, v), S.limb([-0.33, 0.95, -0.08], [0.27, 0.95, -0.08], 0.065, 0.065, metal("iron"), { n: 8 }), S.limb([-0.33, 0.95, 0.08], [0.27, 0.95, 0.08], 0.065, 0.065, metal("iron"), { n: 8 }), S.limb([0.37, 1.0, 0], [0.42, 1.0, 0], 0.08, 0.08, metal("iron"), { n: 8 }), S.limb([0.42, 1.0, 0], [0.42, 1.25, 0.22], 0.02, 0.02, v.dark, { n: 4 })]) }, THREE_WOODS, (c, v) => {
     const iron = metal("iron");
     for (const x of [-0.38, 0.32]) cbox(c, x, 0, 0.1, 0.56, v, 0.02);
     for (const y of [-0.08, 0.08]) {
@@ -570,7 +571,7 @@ const laundry: PropDef[] = [
     }
     stroke(c, [0.36, 0, 0.42, 0.22], 0.025, v.dark);
   }),
-  ...family({ id: "drying-rack", name: "Drying rack", category: W, group: "Laundry", w: 1.2, h: 0.5, layer: "object" },
+  ...family({ id: "drying-rack", name: "Drying rack", category: W, group: "Laundry", w: 1.2, h: 0.5, layer: "object", form: (v) => S.solid([S.box(-0.59, -0.53, -0.23, 0.23, 0, 1.4, v.a), S.box(0.53, 0.59, -0.23, 0.23, 0, 1.4, v.a), [[-0.15, 0.7], [0, 1.05], [0.15, 1.38]].map(([z, y]) => S.limb([-0.55, y, z], [0.55, y, z], 0.015, 0.015, v.a.dark, { n: 4 })), ...(v.b.key === "linens" ? [S.box(-0.5, -0.08, -0.17, -0.13, 0.25, 0.7, "#f6f2e8"), S.box(-0.02, 0.48, -0.02, 0.02, 0.55, 1.05, "#efe6d0"), S.box(-0.4, -0.04, 0.13, 0.17, 0.85, 1.38, CLOTHS[1])] : [])]) },
     cross(THREE_WOODS, [vary("bare"), vary("linens", "hung with linens")]), (c, v) => {
       for (const y of [-0.15, 0, 0.15]) stroke(c, [-0.55, y, 0.55, y], 0.03, shade(v.a.dark, -0.1));
       if (v.b.key === "linens") {
@@ -580,7 +581,7 @@ const laundry: PropDef[] = [
       }
       for (const x of [-0.56, 0.56]) cbox(c, x, 0, 0.06, 0.46, v.a, 0.02);
     }),
-  ...family({ id: "clothesline", name: "Clothesline", category: W, group: "Laundry", w: 3, h: 0.5, layer: "object" },
+  ...family({ id: "clothesline", name: "Clothesline", category: W, group: "Laundry", w: 3, h: 0.5, layer: "object", form: (v) => S.solid([S.post(-1.43, 0, 0.05, 0, 2.0, wood("weathered")), S.post(1.43, 0, 0.05, 0, 2.0, wood("weathered")), S.limb([-1.43, 1.9, 0], [1.43, 1.9, 0], 0.01, 0.01, "#d8d0b8", { n: 3 }), (v.key === "linens" ? [[-1.25, 0.6, "#f6f2e8"], [-0.55, 0.6, "#efe6d0"], [0.15, 0.55, "#f6f2e8"], [0.82, 0.5, "#e8eef4"]] : v.key === "clothes" ? [[-1.25, 0.3, CLOTHS[1].light], [-0.85, 0.36, CLOTHS[0].light], [-0.4, 0.26, CLOTHS[3].light], [-0.05, 0.4, "#f6f2e8"], [0.45, 0.3, CLOTHS[2].light], [0.85, 0.34, CLOTHS[4].light]] : [[-1.2, 0.42, "#f6f2e8"], [-0.7, 0.42, CLOTHS[7].light], [-0.2, 0.42, CLOTHS[0].light], [0.3, 0.42, "#f6f2e8"], [0.8, 0.42, CLOTHS[1].light]]).map(([x, w, c]) => S.box(x as number, (x as number) + (w as number), -0.03, 0.03, v.key === "linens" ? 1.1 : 1.3, 1.9, c as string))], { note: "washing hung on a line between two posts" }) },
     [vary("linens", "hung with linens"), vary("clothes", "hung with clothes"), vary("towels", "hung with towels")], (c, v) => {
       stroke(c, [-1.4, 0, 1.4, 0], 0.014, "#d8d0b8");
       const hung: [number, number, Tone][] =
@@ -597,7 +598,7 @@ const laundry: PropDef[] = [
 ];
 
 const towels: PropDef[] = [
-  ...family({ id: "towel-rail", name: "Towel rail", category: W, group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object" },
+  ...family({ id: "towel-rail", name: "Towel rail", category: W, group: "Towels, soap and mirrors", w: 0.8, h: 0.3, layer: "object", form: (v) => S.solid([S.limb([-0.37, 1.1, -0.1], [0.37, 1.1, -0.1], 0.02, 0.02, v.a.dark, { n: 5 }), S.box(-0.32, -0.02, -0.13, -0.07, 0.62, 1.11, v.b.key === "white" ? "#f6f2e8" : CLOTHS[0].light), S.box(0.03, 0.31, -0.13, -0.07, 0.65, 1.11, v.b.key === "white" ? "#efe6d0" : CLOTHS[7].light)], { note: "on the wall: its towels hang down from the rail" }) },
     cross([wood("honey"), wood("walnut"), metal("brass"), metal("silver")], [vary("white", "white towels"), vary("coloured", "coloured towels")]), (c, v) => {
       stroke(c, [-0.36, -0.1, 0.36, -0.1], 0.035, v.a.dark);
       for (const x of [-0.37, 0.37]) disc(c, x, -0.1, 0.035, v.a, 0.01);
@@ -605,7 +606,7 @@ const towels: PropDef[] = [
       drape(c, -0.32, -0.12, 0.3, 0.24, a, 4831);
       drape(c, 0.03, -0.12, 0.28, 0.24, b, 4832);
     }),
-  ...family({ id: "towel-stack", name: "Folded towels", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object" }, TOWELS, (c, v) => {
+  ...family({ id: "towel-stack", name: "Folded towels", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.4, layer: "object", form: (v) => S.resting(S.solid([0, 1, 2].map((i) => S.box(-0.19 + i * 0.012, 0.17 + i * 0.012, -0.17 + i * 0.03, 0.11 + i * 0.03, i * 0.06, i * 0.06 + 0.06, v)))) }, TOWELS, (c, v) => {
     for (let i = 0; i < 3; i++) {
       const x = -0.19 + i * 0.012;
       const y = -0.17 + i * 0.03;
@@ -614,28 +615,28 @@ const towels: PropDef[] = [
     }
     stroke(c, [-0.15, -0.0, 0.18, -0.0], 0.012, shade(v.dark, -0.2));
   }),
-  ...family({ id: "soap-dish", name: "Soap dish", category: W, group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object" },
+  ...family({ id: "soap-dish", name: "Soap dish", category: W, group: "Towels, soap and mirrors", w: 0.35, h: 0.3, layer: "object", form: (v) => S.resting(S.solid([S.cyl(0.15, 0, 0.03, v, { rz: 0.11, n: 10 }), S.cbox(0.15, 0.09, 0.03, 0.07, "#f0e6cc")])) },
     [clay("cream"), clay("glazed-blue"), metal("brass"), metal("silver")], (c, v) => {
       ell(c, 0, 0, 0.15, 0.11);
       fo(c, radial(c, 0, 0, 0.15, v.light, v.dark), 0.015);
       rr(c, -0.075, -0.045, 0.15, 0.09, 0.035);
       fo(c, radial(c, 0, 0, 0.1, SOAP.light, SOAP.dark), 0.01);
     }),
-  ...family({ id: "bath-oils", name: "Bath oils", category: W, group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object" }, GLASSES, (c, v) => {
+  ...family({ id: "bath-oils", name: "Bath oils", category: W, group: "Towels, soap and mirrors", w: 0.5, h: 0.35, layer: "object", form: (v) => S.resting(S.solid([S.box(-0.23, 0.23, -0.15, 0.15, 0, 0.03, wood("walnut")), [[-0.14, 0.05], [-0.02, 0.06], [0.1, 0.045], [0.18, 0.035]].map(([x, r]) => [S.cyl(r, 0.03, 0.18, v, { x, n: 6 }), S.cyl(r * 0.4, 0.18, 0.24, "#a8805a", { x, n: 5 })])])) }, GLASSES, (c, v) => {
     plank(c, -0.23, -0.15, 0.46, 0.3, wood("walnut"), 4840);
     for (const [x, r] of [[-0.14, 0.05], [-0.02, 0.06], [0.1, 0.045], [0.18, 0.035]]) {
       disc(c, x, 0, r, v, 0.01);
       disc(c, x, 0, r * 0.4, tone("#c8a070", "#8a6040"), 0.006);
     }
   }),
-  ...family({ id: "wall-mirror", name: "Wall mirror", category: W, group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object" },
+  ...family({ id: "wall-mirror", name: "Wall mirror", category: W, group: "Towels, soap and mirrors", w: 0.8, h: 0.2, layer: "object", form: (v) => S.solid([S.box(-0.38, 0.38, -0.07, 0.05, 1.15, 1.85, v), S.box(-0.33, 0.33, 0.05, 0.06, 1.2, 1.8, "#c8dce8")], { note: "on the wall, at head height" }) },
     [metal("brass"), metal("silver"), GOLD, wood("honey"), wood("walnut")], (c, v) => {
       rr(c, -0.38, -0.07, 0.76, 0.12, 0.03);
       fo(c, linear(c, -0.38, 0, 0.38, 0, v.light, v.dark), 0.015);
       rr(c, -0.33, -0.04, 0.66, 0.06, 0.02);
       fo(c, linear(c, -0.33, 0, 0.33, 0, GLASS[0], GLASS[1]), 0.01);
     }),
-  ...family({ id: "shaving-stand", name: "Shaving stand", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" },
+  ...family({ id: "shaving-stand", name: "Shaving stand", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object", form: (v) => S.solid([S.cyl(0.12, 0, 0.04, v, { n: 8 }), S.cyl(0.025, 0.04, 0.9, v, { n: 5 }), S.cyl(0.2, 0.9, 0.93, v, { n: 12 }), S.tub(0.08, 0.93, 1.02, "#f2f2f2", 0.75, { x: -0.06, z: -0.05, floor: 0.95 }), S.cyl(0.045, 0.93, 1.05, "#c8b08a", { x: 0.08, z: 0.06, n: 6 })]) },
     [metal("brass"), metal("silver"), metal("iron")], (c, v) => {
       // A tray with a lather bowl, a brush, a razor and a hand mirror.
       disc(c, 0, 0, 0.2, v);
@@ -645,7 +646,7 @@ const towels: PropDef[] = [
       stroke(c, [-0.02, 0.13, 0.04, 0.02], 0.022, "#d8dce2");
       disc(c, 0.09, -0.09, 0.045, tone(GLASS[0], GLASS[1]), 0.01);
     }),
-  ...family({ id: "bath-mat", name: "Bath mat", category: W, group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor" }, TOWELS, (c, v) => {
+  ...family({ id: "bath-mat", name: "Bath mat", category: W, group: "Towels, soap and mirrors", w: 1, h: 0.6, layer: "floor", form: () => S.flat("a mat on the floor") }, TOWELS, (c, v) => {
     rr(c, -0.46, -0.27, 0.92, 0.54, 0.05);
     fo(c, linear(c, -0.46, -0.27, 0.46, 0.27, v.light, v.dark), 0.015);
     for (let i = 0; i < 9; i++) stroke(c, [-0.4 + i * 0.1, -0.22, -0.4 + i * 0.1, 0.22], 0.02, shade(v.light, v.key === "white" ? -0.12 : 0.18));
@@ -655,7 +656,7 @@ const towels: PropDef[] = [
       stroke(c, [x, y, x + (x < 0 ? -0.025 : 0.025), y], 0.012, v.light);
     }
   }),
-  ...family({ id: "bath-stool", name: "Bath stool", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object" }, THREE_WOODS, (c, v) => {
+  ...family({ id: "bath-stool", name: "Bath stool", category: W, group: "Towels, soap and mirrors", w: 0.45, h: 0.45, layer: "object", form: (v) => S.stool(0.35, v) }, THREE_WOODS, (c, v) => {
     for (let i = 0; i < 3; i++) {
       const a = (i * Math.PI * 2) / 3 + 0.5;
       disc(c, Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0.04, tone(shade(v.dark, -0.1), shade(v.dark, -0.3)), 0.01);

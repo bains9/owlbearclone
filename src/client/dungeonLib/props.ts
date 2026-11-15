@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
+// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
 // Built-in props, drawn in code. Each draws itself centred on (0, 0) in cell units inside a
 // w-by-h box; sprites are cached at SPRITE_PX pixels per cell.
 
@@ -6,12 +6,13 @@ import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
 import { MORE_PROPS } from "./props-more";
 import { LIBRARY_PROPS } from "./library";
+import * as S from "./solid";
 
 export type { PropDef } from "./propkit";
 
 const BASE_PROPS: PropDef[] = [
   {
-    id: "table", name: "Table", category: "Furniture", w: 2, h: 1, layer: "object",
+    id: "table", name: "Table", category: "Furniture", w: 2, h: 1, layer: "object", form: S.table(0.76, "#946438"),
     draw: (c) => {
       board(c, -1, -0.5, 2, 0.34, "#9a6a3e", "#7a5030", 1);
       board(c, -1, -0.16, 2, 0.33, "#946438", "#744a2c", 2);
@@ -19,7 +20,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "round-table", name: "Round table", category: "Furniture", w: 1.4, h: 1.4, layer: "object",
+    id: "round-table", name: "Round table", category: "Furniture", w: 1.4, h: 1.4, layer: "object", form: S.roundTable(0.76, "#8c5e38"),
     draw: (c) => {
       circle(c, 0, 0, 0.68);
       c.fillStyle = radial(c, 0, 0, 0.68, "#a8774a", "#6e4628");
@@ -32,18 +33,18 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "chair", name: "Chair", category: "Furniture", w: 0.6, h: 0.6, layer: "object",
+    id: "chair", name: "Chair", category: "Furniture", w: 0.6, h: 0.6, layer: "object", form: S.seat(0.46, 0.95, "#8a5c34"),
     draw: (c) => {
       board(c, -0.26, -0.22, 0.52, 0.48, "#9a6a3e", "#6e4628", 4);
       board(c, -0.3, -0.3, 0.6, 0.12, "#7a5030", "#5a3820", 5);
     },
   },
   {
-    id: "bench", name: "Bench", category: "Furniture", w: 2, h: 0.5, layer: "object",
+    id: "bench", name: "Bench", category: "Furniture", w: 2, h: 0.5, layer: "object", form: S.table(0.45, "#946438", "#7a5030"),
     draw: (c) => board(c, -1, -0.22, 2, 0.44, "#9a6a3e", "#6e4628", 6),
   },
   {
-    id: "bed", name: "Bed", category: "Furniture", w: 1.1, h: 2, layer: "object",
+    id: "bed", name: "Bed", category: "Furniture", w: 1.1, h: 2, layer: "object", form: S.bed(0.55, 1.0, "#7a5030", "#33507e"),
     draw: (c) => {
       board(c, -0.55, -1, 1.1, 2, "#7a5030", "#5a3820", 7);
       rr(c, -0.47, -0.92, 0.94, 1.84, 0.06);
@@ -67,7 +68,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "bookshelf", name: "Bookshelf", category: "Furniture", w: 2, h: 0.5, layer: "object",
+    id: "bookshelf", name: "Bookshelf", category: "Furniture", w: 2, h: 0.5, layer: "object", form: S.bookcase(2.0, "#5c3a22"),
     draw: (c) => {
       board(c, -1, -0.25, 2, 0.5, "#6e4628", "#4a2e1a", 8);
       const r = rng(9);
@@ -83,7 +84,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "rug", name: "Rug", category: "Furniture", w: 2, h: 3, layer: "floor",
+    id: "rug", name: "Rug", category: "Furniture", w: 2, h: 3, layer: "floor", form: S.flat("a rug on the floor"),
     draw: (c) => {
       rr(c, -1, -1.5, 2, 3, 0.05);
       c.fillStyle = "#7a2228";
@@ -117,7 +118,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "barrel", name: "Barrel", category: "Containers", w: 0.8, h: 0.8, layer: "object",
+    id: "barrel", name: "Barrel", category: "Containers", w: 0.8, h: 0.8, layer: "object", form: S.barrel(1.1, "#8a5c34"),
     draw: (c) => {
       circle(c, 0, 0, 0.38);
       c.fillStyle = radial(c, 0, 0, 0.38, "#a87444", "#5e3a1e");
@@ -140,7 +141,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "crate", name: "Crate", category: "Containers", w: 0.9, h: 0.9, layer: "object",
+    id: "crate", name: "Crate", category: "Containers", w: 0.9, h: 0.9, layer: "object", form: S.block(0.95, "#a07848", { surface: true }),
     draw: (c) => {
       board(c, -0.43, -0.43, 0.86, 0.86, "#b08452", "#80582e", 10);
       c.strokeStyle = "#6a4422";
@@ -157,7 +158,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "chest", name: "Chest", category: "Containers", w: 1, h: 0.7, layer: "object",
+    id: "chest", name: "Chest", category: "Containers", w: 1, h: 0.7, layer: "object", form: S.chest(0.75, "#7a4e2a", "#8c8c94"),
     draw: (c) => {
       board(c, -0.48, -0.32, 0.96, 0.64, "#8a5a30", "#5a3820", 11);
       c.fillStyle = "#8c8c94";
@@ -174,7 +175,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "sack", name: "Sack", category: "Containers", w: 0.6, h: 0.6, layer: "object",
+    id: "sack", name: "Sack", category: "Containers", w: 0.6, h: 0.6, layer: "object", form: S.solid([S.ball(0.27, 0, 0.72, "#c4ad80", { z: 0.04, rz: 0.24, lump: 0.1 }), S.cyl(0.07, 0.62, 0.82, "#8a7246", { z: -0.08, top: 1.3, n: 6 })]),
     draw: (c) => {
       c.beginPath();
       c.ellipse(0, 0.04, 0.27, 0.24, 0, 0, Math.PI * 2);
@@ -189,11 +190,11 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "tree", name: "Tree", category: "Nature", w: 2.6, h: 2.6, layer: "canopy",
+    id: "tree", name: "Tree", category: "Nature", w: 2.6, h: 2.6, layer: "canopy", form: S.leafyTree(S.paint("#2f5a24")),
     draw: (c) => canopy(c, 1.15, 21, "#1f3a18", "#2f5a24", "#5f8e3c"),
   },
   {
-    id: "pine", name: "Pine tree", category: "Nature", w: 2, h: 2, layer: "canopy",
+    id: "pine", name: "Pine tree", category: "Nature", w: 2, h: 2, layer: "canopy", form: S.conifer(S.paint("#24462a")),
     draw: (c) => {
       for (let i = 0; i < 3; i++) {
         const r = 0.95 - i * 0.28;
@@ -211,13 +212,13 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "bush", name: "Bush", category: "Nature", w: 1, h: 1, layer: "object",
+    id: "bush", name: "Bush", category: "Nature", w: 1, h: 1, layer: "object", form: S.shrub(S.paint("#355e28")),
     draw: (c) => canopy(c, 0.42, 22, "#203c1a", "#355e28", "#6a9a44"),
   },
-  { id: "rock", name: "Rock", category: "Nature", w: 0.9, h: 0.9, layer: "object", draw: (c) => rockShape(c, 0.42, 0.36, 23) },
-  { id: "boulder", name: "Boulder", category: "Nature", w: 1.8, h: 1.8, layer: "object", draw: (c) => rockShape(c, 0.86, 0.74, 24) },
+  { id: "rock", name: "Rock", category: "Nature", w: 0.9, h: 0.9, layer: "object", form: S.stone("#86847e"), draw: (c) => rockShape(c, 0.42, 0.36, 23) },
+  { id: "boulder", name: "Boulder", category: "Nature", w: 1.8, h: 1.8, layer: "object", form: S.stone("#86847e", { tall: 0.55 }), draw: (c) => rockShape(c, 0.86, 0.74, 24) },
   {
-    id: "log", name: "Log", category: "Nature", w: 1.8, h: 0.5, layer: "object",
+    id: "log", name: "Log", category: "Nature", w: 1.8, h: 0.5, layer: "object", form: S.solid([S.limb([-0.83, 0.3, 0], [0.83, 0.3, 0], 0.2, 0.19, "#6a4a30", { n: 8 })], { surface: 0.6 }),
     draw: (c) => {
       rr(c, -0.85, -0.2, 1.7, 0.4, 0.2);
       c.fillStyle = linear(c, 0, -0.2, 0, 0.2, "#8a6040", "#4a3020");
@@ -231,7 +232,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "pillar", name: "Pillar", category: "Dungeon", w: 1, h: 1, layer: "object",
+    id: "pillar", name: "Pillar", category: "Dungeon", w: 1, h: 1, layer: "object", form: S.solid([S.cbox(0.92, 0.92, 0, 0.3, "#6e6a64"), S.cyl(0.36, 0.3, 2.75, "#a29e96", { n: 10 }), S.cbox(0.84, 0.84, 2.75, 3.0, "#8a867e")]),
     draw: (c) => {
       rr(c, -0.46, -0.46, 0.92, 0.92, 0.06);
       c.fillStyle = "#6e6a64";
@@ -244,7 +245,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "statue", name: "Statue", category: "Dungeon", w: 1, h: 1, layer: "object",
+    id: "statue", name: "Statue", category: "Dungeon", w: 1, h: 1, layer: "object", form: S.solid([S.cbox(0.92, 0.92, 0, 0.6, "#77736c"), S.cyl(0.3, 0.6, 1.9, "#b8b4aa", { z: 0.05, rz: 0.18, top: 0.75 }), S.ball(0.13, 1.85, 2.25, "#c8c4ba", { z: -0.08 })]),
     draw: (c) => {
       rr(c, -0.46, -0.46, 0.92, 0.92, 0.04);
       c.fillStyle = "#77736c";
@@ -261,7 +262,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "altar", name: "Altar", category: "Dungeon", w: 2, h: 1, layer: "object",
+    id: "altar", name: "Altar", category: "Dungeon", w: 2, h: 1, layer: "object", form: S.solid([S.cbox(1.9, 0.9, 0, 1.0, "#8e8a82"), S.box(-0.3, 0.3, -0.465, 0.465, 0.05, 1.015, "#6a1a24")], { surface: 1.0 }),
     draw: (c) => {
       rr(c, -0.95, -0.45, 1.9, 0.9, 0.05);
       c.fillStyle = linear(c, 0, -0.45, 0, 0.45, "#a8a49c", "#6e6a64");
@@ -275,7 +276,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "coffin", name: "Coffin", category: "Dungeon", w: 0.8, h: 2, layer: "object",
+    id: "coffin", name: "Coffin", category: "Dungeon", w: 0.8, h: 2, layer: "object", form: S.solid([S.slab([0, -0.95, 0.3, -0.65, 0.36, -0.4, 0.22, 0.95, -0.22, 0.95, -0.36, -0.4, -0.3, -0.65], 0, 0.55, "#6a4428", { top: 0.94 })], { surface: 0.55 }),
     draw: (c) => {
       c.beginPath();
       c.moveTo(0, -0.95);
@@ -300,7 +301,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "well", name: "Well", category: "Dungeon", w: 1.4, h: 1.4, layer: "object",
+    id: "well", name: "Well", category: "Dungeon", w: 1.4, h: 1.4, layer: "object", form: S.solid([S.tub(0.66, 0, 0.8, "#7a766e", 0.67, { n: 14, floor: 0.35 }), S.cyl(0.44, 0.34, 0.36, "#173246", { n: 14 })]),
     draw: (c) => {
       circle(c, 0, 0, 0.66);
       c.fillStyle = "#7a766e";
@@ -322,7 +323,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "stairs", name: "Stairs", category: "Dungeon", w: 1, h: 2, layer: "floor",
+    id: "stairs", name: "Stairs", category: "Dungeon", w: 1, h: 2, layer: "floor", form: S.flat("a way to another level: the 3D view shows one level, so its steps stay painted"),
     draw: (c) => {
       for (let i = 0; i < 8; i++) {
         const y = -1 + i * 0.25;
@@ -337,7 +338,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "cauldron", name: "Cauldron", category: "Dungeon", w: 0.9, h: 0.9, layer: "object",
+    id: "cauldron", name: "Cauldron", category: "Dungeon", w: 0.9, h: 0.9, layer: "object", form: S.solid([S.cyl(0.33, 0, 0.12, "#2a2a30", { top: 1.2, n: 10 }), S.tub(0.42, 0.12, 0.62, "#2e2e34", 0.78, { top: 0.88, floor: 0.4 }), S.cyl(0.33, 0.4, 0.5, "#6ad040", { n: 10, glow: true })]),
     draw: (c) => {
       circle(c, 0, 0, 0.42);
       c.fillStyle = radial(c, 0, 0, 0.42, "#4a4a50", "#151518");
@@ -354,7 +355,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "anvil", name: "Anvil", category: "Dungeon", w: 0.9, h: 0.5, layer: "object",
+    id: "anvil", name: "Anvil", category: "Dungeon", w: 0.9, h: 0.5, layer: "object", form: S.solid([S.cyl(0.2, 0, 0.45, "#6a4a30"), S.box(-0.12, 0.3, -0.12, 0.12, 0.45, 0.6, "#4a4a50"), S.box(-0.18, 0.42, -0.2, 0.2, 0.6, 0.82, "#5a5a62"), S.limb([-0.18, 0.74, 0], [-0.44, 0.78, 0], 0.11, 0.02, "#5a5a62")], { surface: 0.82 }),
     draw: (c) => {
       c.beginPath();
       c.moveTo(-0.44, -0.08);
@@ -370,7 +371,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "bones", name: "Bones", category: "Dungeon", w: 0.8, h: 0.8, layer: "floor",
+    id: "bones", name: "Bones", category: "Dungeon", w: 0.8, h: 0.8, layer: "floor", form: S.flat("bones lie on the floor"),
     draw: (c) => {
       const bone = (x: number, y: number, a: number, len: number) => {
         c.save();
@@ -400,7 +401,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "torch", name: "Wall torch", category: "Light", w: 0.5, h: 0.5, layer: "object",
+    id: "torch", name: "Wall torch", category: "Light", w: 0.5, h: 0.5, layer: "object", form: S.solid([S.limb([0, 1.5, 0.2], [0, 1.85, -0.02], 0.045, 0.06, "#5a3820"), S.fire(0, -0.04, 1.85, 0.32, 0.09)], { note: "a wall torch: its flame's glow is drawn round it" }),
     light: { radius: 6, color: "#ffb46a", intensity: 1 },
     draw: (c) => {
       rr(c, -0.06, 0.02, 0.12, 0.2, 0.02);
@@ -411,7 +412,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "brazier", name: "Brazier", category: "Light", w: 0.9, h: 0.9, layer: "object",
+    id: "brazier", name: "Brazier", category: "Light", w: 0.9, h: 0.9, layer: "object", form: S.solid([S.cyl(0.25, 0, 0.05, "#2e2e32"), S.cyl(0.06, 0.05, 0.7, "#2e2e32", { n: 6 }), S.tub(0.4, 0.7, 0.95, "#4a4a50", 0.75, { top: 1.0, floor: 0.85 }), S.cyl(0.29, 0.85, 0.9, "#ff8a2a", { n: 10, glow: true }), S.fire(0, 0, 0.9, 0.5, 0.16)]),
     light: { radius: 8, color: "#ffa050", intensity: 1 },
     draw: (c) => {
       circle(c, 0, 0, 0.4);
@@ -425,7 +426,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "campfire", name: "Campfire", category: "Light", w: 1.2, h: 1.2, layer: "object",
+    id: "campfire", name: "Campfire", category: "Light", w: 1.2, h: 1.2, layer: "object", form: S.solid([[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => S.ball(0.12, 0, 0.2, "#7e7c76", { x: Math.cos((i / 9) * Math.PI * 2) * 0.46, z: Math.sin((i / 9) * Math.PI * 2) * 0.46, lump: 0.2, n: 6 })), [0.4, 1.9, 3.3].map((a) => S.limb([Math.cos(a) * 0.3, 0.06, Math.sin(a) * 0.3], [-Math.cos(a) * 0.15, 0.22, -Math.sin(a) * 0.15], 0.05, 0.04, "#4a3020", { n: 5 })), S.fire(0, 0, 0.05, 0.75, 0.22)]),
     light: { radius: 9, color: "#ff9a4a", intensity: 1 },
     draw: (c) => {
       const r = rng(31);
@@ -449,7 +450,7 @@ const BASE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "candles", name: "Candles", category: "Light", w: 0.5, h: 0.5, layer: "object",
+    id: "candles", name: "Candles", category: "Light", w: 0.5, h: 0.5, layer: "object", form: S.solid([[[-0.1, 0.06, 0.22], [0.1, 0.08, 0.17], [0, -0.1, 0.27]].map(([x, z, y]) => [S.cyl(0.05, 0, y, "#efe6cc", { x, z, n: 6 }), S.fire(x, z, y, 0.07, 0.03)]).flat(2)], { rests: true, note: "the candles' glow is drawn round them" }),
     light: { radius: 3, color: "#ffd090", intensity: 0.8 },
     draw: (c) => {
       for (const [x, y] of [[-0.1, 0.06], [0.1, 0.08], [0, -0.1]]) {

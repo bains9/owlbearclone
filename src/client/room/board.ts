@@ -1194,12 +1194,20 @@ export class Board implements BoardApi {
       this.mapData3d = entry;
       void this.sidecars.get(this.room.roomId, md.assetId).then((r) => {
         if (this.mapData3d !== entry || !r.ok) return;
+        let data: SeasonSidecar;
         try {
-          entry.data = decodeSidecar(r.bytes);
+          data = decodeSidecar(r.bytes);
         } catch {
           return;
         }
-        this.tell3d("floor");
+        // Things placed in Dungeon stand up in its library's forms: loaded first (dungeonStamps.ts).
+        const ready = () => {
+          if (this.mapData3d !== entry) return;
+          entry.data = data;
+          this.tell3d("floor");
+        };
+        if (data.meta.names.some((n) => n.startsWith("dungeon/"))) whenDungeonObjects(ready);
+        else ready();
       });
     }
     const data = this.mapData3d.data;

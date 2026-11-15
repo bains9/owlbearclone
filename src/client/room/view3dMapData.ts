@@ -12,7 +12,7 @@ import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, ty
 import { AR, TR } from "../dd/roles";
 import { REACH_DIRS } from "../dd/raster";
 import { shapeOf, type Object3d, type Shape } from "./view3dObjects";
-import type { BaseStampId, DungeonStampId } from "../../shared/terrain";
+import type { BaseStampId, DungeonStampId, StampId } from "../../shared/terrain";
 import type { Hole } from "./view3dClearing";
 
 /** Dungeondraft's world units a square. */
@@ -83,22 +83,25 @@ export function mapObjects(objects: ObjectTable, meta: Pick<SidecarMeta, "names"
     const s = standing(objects, meta, place, cell, i);
     if (!s) continue;
     const at = toScene(place, objects.x[i] / SIDECAR_UNITS.coord, objects.y[i] / SIDECAR_UNITS.coord);
-    out.push({ id: null, shape: s.shape, x: at.x, y: at.y, size: Math.max(s.w, s.d), w: s.w, d: s.d, deg: s.deg, color: null, paint: true });
+    // One of Dungeon's (or the Build tool's own) stands in its library form, by its id; others by their kind of shape.
+    out.push({ id: s.id ?? null, ...(s.shape ? { shape: s.shape } : {}), x: at.x, y: at.y, size: Math.max(s.w, s.d), w: s.w, d: s.d, deg: s.deg, color: null, paint: true });
   }
   return out;
 }
 
 /** Whether object `i` stands up in 3D, and as what and how big (squares across and down). */
-function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, i: number): { shape: Shape; w: number; d: number; deg: number } | null {
+function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place: MapPlacement, cell: number, i: number): { id?: StampId; shape?: Shape; w: number; d: number; deg: number } | null {
   const idx = objects.name[i];
   const name = idx !== NO_NAME ? (meta.names[idx] ?? null) : null;
   // A thing placed in Dungeon stands up in its own shape, as the Build tool's do (a table on legs, a
   // barrel, a statue); one it doesn't have (a rug, things on the floor) by its role, or stays painted.
   const id = name?.startsWith("dungeon/") ? name.slice(8) : null;
-  // Its catalog's object, or one of the built-in few the Build tool shares (a chair, a barrel, a well).
-  const dungeon = id ? (shapeOf(`d:${id}` as DungeonStampId) ?? shapeOf(id as BaseStampId)) : null;
-  const shape = dungeon ?? roleShape(objects.role[i] as ObjectRole, name);
-  if (!shape) return null;
+  // Its catalog's object, or one of the built-in few the Build tool shares (a chair, a barrel, a well),
+  // in the form the library gives it (view3dObjects.ts shapeOf).
+  const stamp: StampId | null = !id ? null : shapeOf(`d:${id}` as DungeonStampId) ? (`d:${id}` as DungeonStampId) : shapeOf(id as BaseStampId) ? (id as BaseStampId) : null;
+  const dungeon = stamp !== null;
+  const shape = dungeon ? null : roleShape(objects.role[i] as ObjectRole, name);
+  if (!dungeon && !shape) return null;
   // World units to the scene's squares (across and down agree for a picture laid on the grid).
   const { sx, sy } = sceneScale(place);
   const perSquareX = sx / cell, perSquareY = sy / cell;
@@ -115,10 +118,11 @@ function standing(objects: ObjectTable, meta: Pick<SidecarMeta, "names">, place:
     ex = Math.max(ex, Math.abs(r * lx));
     ey = Math.max(ey, Math.abs(r * ly));
   }
-  const round = ROUND.has(shape.kind);
+  const round = !!shape && ROUND.has(shape.kind);
   const w = round ? (2 * sum) / REACH_N * perSquareX : 2 * ex * perSquareX;
   const d = round ? (2 * sum) / REACH_N * perSquareY : 2 * ey * perSquareY;
-  return Math.max(w, d) < SMALLEST ? null : { shape, w, d, deg: dungeon ? (turn * 180) / Math.PI : 0 };
+  if (Math.max(w, d) < SMALLEST) return null;
+  return stamp ? { id: stamp, w, d, deg: (turn * 180) / Math.PI } : { shape: shape!, w, d, deg: 0 };
 }
 
 /**

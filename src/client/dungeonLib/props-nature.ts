@@ -1,8 +1,9 @@
-// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
 import { rng } from "./noise";
 import { radial, linear, canopy } from "./propkit";
 import { cross, vary, family, shade, ell, poly, fo, disc, stroke, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
+import * as S from "./solid";
 
 // Nature for the big library. Every id names what grows or lies there (oak-tree, pine-tree,
 // stump, fallen-branch, flower-bush, reeds, rock, snowdrift...), because Table's
@@ -62,8 +63,21 @@ function leafy(c: C, s: Species, r: number, spreading: boolean, seed: number): v
   if (s.dots) for (const [x, y] of scatter(Math.round(r * 14), r * 0.75, seed + 5)) disc(c, x, y, 0.05, tone(shade(s.dots, 0.35), s.dots), 0.008);
 }
 
+/**
+ * A leafy tree in 3D (solid.ts): a crown in the drawing's own greens (they change with the seasons)
+ * on a trunk, about 1.4 times as tall as it is wide. Poplars and aspens are narrow and tall, as
+ * they're drawn; a spreading tree's crown is wide and shallow; a willow's hangs almost to the ground;
+ * birches and aspens have white bark.
+ */
+function leafyForm(s: Species, spreading: boolean): S.FormSpec {
+  const trunk = s.id === "birch-tree" || s.id === "aspen-tree" ? "#e4e0d6" : S.BARK;
+  if (s.tall) return S.leafyTree(S.paint(s.greens[1]), { sx: 0.66, sz: 0.98, tall: 1.3, deep: 1.3, trunk });
+  if (s.id === "willow-tree") return S.leafyTree(S.paint(s.greens[1]), { deep: spreading ? 1.0 : 1.2, sx: spreading ? 0.98 : 0.95, sz: spreading ? 0.82 : 0.95, trunk });
+  return S.leafyTree(S.paint(s.greens[1]), spreading ? { sx: 0.98, sz: 0.82, deep: 0.68, trunk } : { trunk });
+}
+
 const leafyTrees: PropDef[] = LEAFY.flatMap((s, i) =>
-  family({ id: s.id, name: s.name, category: N, group: "Leafy trees", w: 2, h: 2, layer: "canopy" }, cross(TREE_SIZES, TREE_SHAPES), (c, v) => leafy(c, s, v.a.r, v.b.key === "spreading", 300 + i * 17 + v.a.r * 10), {
+  family({ id: s.id, name: s.name, category: N, group: "Leafy trees", w: 2, h: 2, layer: "canopy", form: (v) => leafyForm(s, v.b.key === "spreading") }, cross(TREE_SIZES, TREE_SHAPES), (c, v) => leafy(c, s, v.a.r, v.b.key === "spreading", 300 + i * 17 + v.a.r * 10), {
     size: (v) => [v.a.r * 2.3, v.a.r * 2.3],
   }),
 );
@@ -100,14 +114,39 @@ const EVERGREEN: Species[] = [
   { id: "juniper-tree", name: "Juniper tree", greens: ["#2e4a3a", "#426a52", "#6a9478"] },
 ];
 
+/**
+ * An evergreen in 3D (solid.ts): tiered cones about three times as tall as they're wide, in the
+ * drawing's own greens. Spruces and firs have more tiers; a cedar is broad and lower; a cypress is a
+ * narrow spire; yews and junipers, drawn round, are a dense dark crown and a bushy cone.
+ */
+function evergreenForm(s: Species): S.FormSpec {
+  const needles = S.paint(s.greens[1]);
+  switch (s.id) {
+    case "cypress-tree":
+      // Drawn long down the map, as a tall thing seen at a slant: in 3D, a round, narrow spire.
+      return { ...(S.conifer(needles, { kind: "cypress", tiers: 1, narrow: 0.55 })(2, 2) as S.Solid), note: "drawn long, for its height: it stands as a narrow spire" };
+    case "yew-tree":
+      return S.leafyTree(needles, { tall: 0.8, deep: 1.1, lump: 0.12 });
+    case "juniper-tree":
+      return S.conifer(needles, { tiers: 2, tall: 0.55, narrow: 0.9 });
+    case "cedar-tree":
+      return S.conifer(needles, { tall: 0.8 });
+    case "spruce-tree":
+    case "fir-tree":
+      return S.conifer(needles, { tiers: 4 });
+    default:
+      return S.conifer(needles);
+  }
+}
+
 const evergreens: PropDef[] = [
   ...EVERGREEN.flatMap((s, i) =>
-    family({ id: s.id, name: s.name, category: N, group: "Evergreens", w: 2, h: 2, layer: "canopy" }, TREE_SIZES, (c, v) => {
+    family({ id: s.id, name: s.name, category: N, group: "Evergreens", w: 2, h: 2, layer: "canopy", form: () => evergreenForm(s) }, TREE_SIZES, (c, v) => {
       if (s.id === "yew-tree" || s.id === "juniper-tree") canopy(c, v.r * 0.9, 400 + i * 13, s.greens[0], s.greens[1], s.greens[2]);
       else conifer(c, v.r, s.greens, s.id === "spruce-tree" ? 12 : 9, 4, s.tall ? 0.55 : 1);
     }, { size: (v) => [v.r * 2.2, v.r * 2.2] }),
   ),
-  ...family({ id: "palm-tree", name: "Palm tree", category: N, group: "Evergreens", w: 2.4, h: 2.4, layer: "canopy" }, TREE_SIZES, (c, v) => {
+  ...family({ id: "palm-tree", name: "Palm tree", category: N, group: "Evergreens", w: 2.4, h: 2.4, layer: "canopy", form: () => S.palmTree(S.paint("#4a8a32")) }, TREE_SIZES, (c, v) => {
     const fronds = 8;
     for (let i = 0; i < fronds; i++) {
       const a = (i / fronds) * Math.PI * 2 + 0.2;
@@ -137,10 +176,16 @@ function branches(c: C, r: number, seed: number, color: string): void {
 
 const WOOD_BARK = "#5a4632";
 
+/** A stick lying on the ground in 3D (solid.ts), from (x0, z0) to (x1, z1) turned `a`, `r` thick: as the drawing's turned strokes. */
+function stick(x0: number, z0: number, x1: number, z1: number, a: number, r: number, c: string): S.LimbPart {
+  const [px, pz] = S.turned([x0, z0], a), [qx, qz] = S.turned([x1, z1], a);
+  return S.limb([px, r * S.SQUARE_M, pz], [qx, r * S.SQUARE_M * 0.8, qz], r, r * 0.7, c, { n: 5 });
+}
+
 const deadwood: PropDef[] = [
-  ...family({ id: "dead-tree", name: "Dead tree", category: N, group: "Bare and fallen wood", w: 2, h: 2, layer: "canopy" }, [...TREE_SIZES, { key: "twisted", name: "twisted", r: 1.1 }, { key: "pale", name: "pale and dry", r: 1.2 }], (c, v) =>
+  ...family({ id: "dead-tree", name: "Dead tree", category: N, group: "Bare and fallen wood", w: 2, h: 2, layer: "canopy", form: (v) => S.bareTree(v.key === "pale" ? "#9a8e7a" : WOOD_BARK, { seed: v.key === "twisted" ? 77 : 41 }) }, [...TREE_SIZES, { key: "twisted", name: "twisted", r: 1.1 }, { key: "pale", name: "pale and dry", r: 1.2 }], (c, v) =>
     branches(c, v.r, v.key === "twisted" ? 77 : 41 + v.r * 10, v.key === "pale" ? "#9a8e7a" : WOOD_BARK), { size: (v) => [v.r * 2.2, v.r * 2.2] }),
-  ...family({ id: "stump", name: "Stump", category: N, group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object" }, [vary("cut"), vary("broken"), vary("rotten"), vary("mossy"), vary("wide"), vary("small")], (c, v) => {
+  ...family({ id: "stump", name: "Stump", category: N, group: "Bare and fallen wood", w: 0.8, h: 0.8, layer: "object", form: (v) => { const r = v.key === "wide" ? 0.36 : v.key === "small" ? 0.2 : 0.3; const top = v.key === "rotten" ? "#4a3a2a" : v.key === "mossy" ? "#5a8a3a" : "#c8a070"; return v.key === "broken" ? S.solid([S.cyl(r, 0, 0.38, "#5a3e26", { top: 0.9, n: 9 }), S.cone(r * 0.85, 0.38, 0.8, "#8a6a46", { n: 5 })]) : S.solid([S.cyl(r, 0, v.key === "small" ? 0.3 : 0.45, "#5a3e26", { top: 0.9, n: 9 }), S.cyl(r * 0.88, v.key === "small" ? 0.3 : 0.45, (v.key === "small" ? 0.3 : 0.45) + 0.01, top, { n: 9 })], { surface: v.key === "small" ? 0.3 : 0.45 }); } }, [vary("cut"), vary("broken"), vary("rotten"), vary("mossy"), vary("wide"), vary("small")], (c, v) => {
     const r = v.key === "wide" ? 0.36 : v.key === "small" ? 0.2 : 0.3;
     disc(c, 0, 0, r, tone("#8a6a46", "#4a3220"));
     if (v.key === "broken") {
@@ -158,7 +203,7 @@ const deadwood: PropDef[] = [
     }
     if (v.key === "mossy") for (const [x, y] of scatter(9, r, 9)) disc(c, x, y, 0.06, tone("#7aa04a", "#3a6020"), 0);
   }),
-  ...family({ id: "log", name: "Log", category: N, group: "Bare and fallen wood", w: 2, h: 0.6, layer: "object" }, [vary("short"), vary("long"), vary("mossy"), vary("hollow"), vary("split"), vary("burnt")], (c, v) => {
+  ...family({ id: "log", name: "Log", category: N, group: "Bare and fallen wood", w: 2, h: 0.6, layer: "object", form: (v) => { const L = v.key === "short" ? 1.1 : v.key === "long" ? 2.4 : 1.7; return S.solid([S.limb([-L / 2 + 0.04, 0.33, 0], [L / 2 - 0.04, 0.32, 0], 0.21, 0.2, v.key === "burnt" ? "#2a1e18" : "#7a5a3a", { n: 8 }), ...(v.key === "mossy" ? [S.ball(0.12, 0.45, 0.7, "#5a8a3a", { x: -0.3, lump: 0.3, n: 6 }), S.ball(0.1, 0.45, 0.68, "#5a8a3a", { x: 0.35, z: 0.05, lump: 0.3, n: 6 })] : [])], { surface: 0.6 }); } }, [vary("short"), vary("long"), vary("mossy"), vary("hollow"), vary("split"), vary("burnt")], (c, v) => {
     const L = v.key === "short" ? 1.1 : v.key === "long" ? 2.4 : 1.7;
     c.beginPath();
     c.roundRect(-L / 2, -0.22, L, 0.44, 0.2);
@@ -168,7 +213,7 @@ const deadwood: PropDef[] = [
     if (v.key === "split") stroke(c, [-L / 2 + 0.1, 0, L / 2 - 0.1, 0], 0.025, "#2a1a10");
     if (v.key === "mossy") for (const [x, y] of scatter(12, 0.5, 13)) disc(c, x * 1.6, y * 0.3, 0.06, tone("#7aa04a", "#3a6020"), 0);
   }, { size: (v) => [v.key === "short" ? 1.2 : v.key === "long" ? 2.5 : 1.8, 0.6] }),
-  ...family({ id: "fallen-branch", name: "Fallen branch", category: N, group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object" }, [vary("small"), vary("large"), vary("forked"), vary("pile", "pile of brushwood")], (c, v) => {
+  ...family({ id: "fallen-branch", name: "Fallen branch", category: N, group: "Bare and fallen wood", w: 1.6, h: 1, layer: "object", form: (v) => { const L = v.key === "small" ? 0.5 : 0.7, r = v.key === "large" ? 0.045 : 0.03; if (v.key === "pile") { const rand = rng(v.key.length * 7); return S.solid(Array.from({ length: 7 }, () => { const a = rand() * Math.PI; return [stick(-L, 0, L, 0, a, r, WOOD_BARK), stick(0.1, 0, 0.4, -0.25, a, 0.02, WOOD_BARK)]; })); } return S.solid([stick(-L, 0, L, 0, 0.2, r, WOOD_BARK), stick(0.1, 0, 0.4, -0.25, 0.2, 0.02, WOOD_BARK), ...(v.key === "forked" ? [stick(-0.2, 0, -0.5, 0.3, 0.2, 0.025, WOOD_BARK)] : [])]); } }, [vary("small"), vary("large"), vary("forked"), vary("pile", "pile of brushwood")], (c, v) => {
     const n = v.key === "pile" ? 7 : 1;
     const rand = rng(v.key.length * 7);
     for (let i = 0; i < n; i++) {
@@ -181,7 +226,7 @@ const deadwood: PropDef[] = [
       c.restore();
     }
   }),
-  ...family({ id: "driftwood", name: "Driftwood", category: N, group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object" }, [vary("short"), vary("long"), vary("tangle")], (c, v) => {
+  ...family({ id: "driftwood", name: "Driftwood", category: N, group: "Bare and fallen wood", w: 1.6, h: 0.8, layer: "object", form: (v) => { const n = v.key === "tangle" ? 4 : 1, L = 0.7 * (v.key === "short" ? 0.6 : 1); return S.solid(Array.from({ length: n }, (_, i) => [stick(-L, 0, L, 0.05, i * 0.8, 0.04, "#c8bcaa"), stick(0.2, 0.02, 0.45, -0.18, i * 0.8, 0.02, "#c8bcaa")])); } }, [vary("short"), vary("long"), vary("tangle")], (c, v) => {
     const pale = "#c8bcaa";
     const n = v.key === "tangle" ? 4 : 1;
     for (let i = 0; i < n; i++) {
@@ -217,19 +262,19 @@ const BLOSSOMS: (Variant & { color: string })[] = [
 ];
 
 const bushes: PropDef[] = [
-  ...family({ id: "bush", name: "Bush", category: N, group: "Bushes and hedges", w: 1.2, h: 1.2, layer: "object" }, cross([vary("round"), vary("wide"), vary("ragged")], [vary("small"), vary("large")]), (c, v) => {
+  ...family({ id: "bush", name: "Bush", category: N, group: "Bushes and hedges", w: 1.2, h: 1.2, layer: "object", form: (v) => S.shrub(S.paint("#407a32"), { tall: v.a.key === "wide" ? 0.55 : v.a.key === "ragged" ? 0.8 : 0.7, lump: v.a.key === "ragged" ? 0.3 : 0.18 }) }, cross([vary("round"), vary("wide"), vary("ragged")], [vary("small"), vary("large")]), (c, v) => {
     const r = v.b.key === "small" ? 0.36 : 0.55;
     bushShape(c, r, 500 + v.a.key.length * 7, BUSH_GREENS, v.a.key === "wide" ? 1.3 : 1, v.a.key === "ragged" ? 1.15 : 1);
   }, { size: (v) => (v.b.key === "small" ? [0.9, 0.9] : [1.4, 1.4]) }),
-  ...family({ id: "berry-bush", name: "Berry bush", category: N, group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" }, BERRIES, (c, v) => {
+  ...family({ id: "berry-bush", name: "Berry bush", category: N, group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object", form: () => S.shrub(S.paint("#407a32")) }, BERRIES, (c, v) => {
     bushShape(c, 0.48, 521, BUSH_GREENS);
     for (const [x, y] of scatter(16, 0.36, 523)) disc(c, x, y, 0.035, tone(shade(v.color, 0.35), v.color), 0.006);
   }),
-  ...family({ id: "flower-bush", name: "Flowering bush", category: N, group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object" }, BLOSSOMS, (c, v) => {
+  ...family({ id: "flower-bush", name: "Flowering bush", category: N, group: "Bushes and hedges", w: 1.1, h: 1.1, layer: "object", form: () => S.shrub(S.paint("#407a32")) }, BLOSSOMS, (c, v) => {
     bushShape(c, 0.48, 531, BUSH_GREENS);
     for (const [x, y] of scatter(20, 0.38, 533)) disc(c, x, y, 0.045, tone("#fffbe8", v.color), 0.006);
   }),
-  ...family({ id: "hedge", name: "Hedge", category: N, group: "Bushes and hedges", w: 2, h: 0.7, layer: "object" }, [vary("short"), vary("long"), vary("corner"), vary("round", "round, clipped")], (c, v) => {
+  ...family({ id: "hedge", name: "Hedge", category: N, group: "Bushes and hedges", w: 2, h: 0.7, layer: "object", form: (v) => (w, h) => v.key === "round" ? S.solid([S.ball(w / 2 - 0.05, -0.05, 1.15, S.paint("#3a6a2e"), { rz: h / 2 - 0.05, lump: 0.05, n: 9 })]) : v.key === "corner" ? S.solid([S.box(-0.58, -0.22, -0.58, 0.58, 0, 1.3, S.paint("#3a6a2e"), { top: 0.9 }), S.box(-0.22, 0.58, -0.58, -0.22, 0, 1.3, S.paint("#3a6a2e"), { top: 0.9 })]) : S.solid([S.box(-w / 2 + 0.05, w / 2 - 0.05, -h / 2 + 0.06, h / 2 - 0.06, 0, 1.3, S.paint("#3a6a2e"), { top: 0.88 })]) }, [vary("short"), vary("long"), vary("corner"), vary("round", "round, clipped")], (c, v) => {
     const g = ["#2a4e22", "#3a6a2e", "#5a8e46"] as [string, string, string];
     if (v.key === "round") return bushShape(c, 0.42, 541, g);
     if (v.key === "corner") {
@@ -249,7 +294,7 @@ const bushes: PropDef[] = [
       c.restore();
     }
   }, { size: (v) => (v.key === "short" ? [1.2, 0.7] : v.key === "long" ? [2, 0.7] : v.key === "corner" ? [1.2, 1.2] : [1, 1]) }),
-  ...family({ id: "fern", name: "Fern", category: N, group: "Bushes and hedges", w: 1, h: 1, layer: "object" }, [vary("small"), vary("large"), vary("cluster")], (c, v) => {
+  ...family({ id: "fern", name: "Fern", category: N, group: "Bushes and hedges", w: 1, h: 1, layer: "object", form: (v) => v.key === "cluster" ? S.solid([[[-0.2, -0.1], [0.2, 0], [0, 0.22]].map(([x, z]) => S.ball(0.26, -0.03, 0.55, S.paint("#4a8a34"), { x, z, lump: 0.35, n: 7 }))]) : S.shrub(S.paint("#4a8a34"), { tall: 0.55, lump: 0.35 }) }, [vary("small"), vary("large"), vary("cluster")], (c, v) => {
     const fronds = (cx: number, cy: number, r: number) => {
       for (let i = 0; i < 7; i++) {
         const a = (i / 7) * Math.PI * 2;
@@ -264,7 +309,7 @@ const bushes: PropDef[] = [
     if (v.key === "cluster") for (const [x, y] of [[-0.2, -0.1], [0.2, 0], [0, 0.22]] as const) fronds(x, y, 0.26);
     else fronds(0, 0, v.key === "small" ? 0.3 : 0.46);
   }),
-  ...family({ id: "bramble", name: "Bramble", category: N, group: "Bushes and hedges", w: 1.4, h: 1, layer: "object" }, [vary("small"), vary("large")], (c, v) => {
+  ...family({ id: "bramble", name: "Bramble", category: N, group: "Bushes and hedges", w: 1.4, h: 1, layer: "object", form: () => S.shrub(S.paint("#4a5a2a"), { tall: 0.6, lump: 0.4 }) }, [vary("small"), vary("large")], (c, v) => {
     const k = v.key === "small" ? 0.7 : 1;
     const rand = rng(571);
     for (let i = 0; i < 14; i++) {
@@ -277,7 +322,7 @@ const bushes: PropDef[] = [
       c.stroke();
     }
   }),
-  ...family({ id: "thorn-bush", name: "Thorn bush", category: N, group: "Bushes and hedges", w: 1, h: 1, layer: "object" }, [vary("green"), vary("dry")], (c, v) => {
+  ...family({ id: "thorn-bush", name: "Thorn bush", category: N, group: "Bushes and hedges", w: 1, h: 1, layer: "object", form: (v) => S.shrub(S.paint(v.key === "dry" ? "#7a6a3a" : "#3a5e2a"), { lump: 0.35 }) }, [vary("green"), vary("dry")], (c, v) => {
     bushShape(c, 0.4, 581, v.key === "dry" ? ["#5a4a2a", "#7a6a3a", "#a8925a"] : ["#2a4a22", "#3a5e2a", "#5a7e42"]);
     const rand = rng(583);
     for (let i = 0; i < 20; i++) {
@@ -311,10 +356,10 @@ function blooms(c: C, colors: string[], n: number, r: number, seed: number, size
 const TULIPS = FLOWER_COLORS.filter((f) => ["red", "yellow", "pink", "white", "purple"].includes(f.key));
 
 const flowers: PropDef[] = [
-  ...family({ id: "flowers", name: "Flowers", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor" }, cross(FLOWER_COLORS, [vary("patch"), vary("scattered")]), (c, v) =>
+  ...family({ id: "flowers", name: "Flowers", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor", form: (v) => (w, h) => S.solid([S.ball(v.b.key === "patch" ? 0.38 : w / 2 - 0.05, -0.05, v.b.key === "patch" ? 0.35 : 0.22, S.paint(v.a.colors[0]), { rz: v.b.key === "patch" ? 0.38 : h / 2 - 0.05, lump: 0.35, n: 7 })]) }, cross(FLOWER_COLORS, [vary("patch"), vary("scattered")]), (c, v) =>
     blooms(c, v.a.colors, v.b.key === "patch" ? 18 : 8, v.b.key === "patch" ? 0.32 : 0.45, 600 + v.a.key.length),
   ),
-  ...family({ id: "tulip-bed", name: "Tulip bed", category: N, group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" }, TULIPS, (c, v) => {
+  ...family({ id: "tulip-bed", name: "Tulip bed", category: N, group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor", form: () => (w, h) => S.solid([S.ball(w / 2 - 0.04, -0.05, 0.42, S.paint("#6a8a3a"), { rz: h / 2 - 0.04, lump: 0.25, n: 8 })]) }, TULIPS, (c, v) => {
     for (let row = 0; row < 3; row++) for (let i = 0; i < 6; i++) {
       const x = -0.45 + i * 0.18;
       const y = -0.22 + row * 0.22;
@@ -323,11 +368,11 @@ const flowers: PropDef[] = [
       fo(c, radial(c, x, y, 0.06, shade(v.colors[0], 0.3), v.colors[0]), 0.006);
     }
   }),
-  ...family({ id: "poppies", name: "Poppies", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor" }, [vary("red"), vary("mixed")], (c, v) =>
+  ...family({ id: "poppies", name: "Poppies", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor", form: () => (w, h) => S.solid([S.ball(w / 2 - 0.05, -0.05, 0.4, S.paint("#7a6a3a"), { rz: h / 2 - 0.05, lump: 0.35, n: 7 })]) }, [vary("red"), vary("mixed")], (c, v) =>
     blooms(c, v.key === "red" ? ["#d82a1a"] : ["#d82a1a", "#f08a2a", "#fbf8ee"], 14, 0.38, 611, 0.06)),
-  ...family({ id: "daisies", name: "Daisies", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor" }, [vary("white"), vary("yellow")], (c, v) =>
+  ...family({ id: "daisies", name: "Daisies", category: N, group: "Flowers and grass", w: 1, h: 1, layer: "floor", form: () => (w, h) => S.solid([S.ball(w / 2 - 0.05, -0.05, 0.28, S.paint("#9aa86a"), { rz: h / 2 - 0.05, lump: 0.35, n: 7 })]) }, [vary("white"), vary("yellow")], (c, v) =>
     blooms(c, [v.key === "white" ? "#fbf8ee" : "#f4d030"], 20, 0.4, 621, 0.04)),
-  ...family({ id: "lavender", name: "Lavender", category: N, group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor" }, [vary("patch"), vary("row")], (c, v) => {
+  ...family({ id: "lavender", name: "Lavender", category: N, group: "Flowers and grass", w: 1.2, h: 0.8, layer: "floor", form: (v) => (w, h) => v.key === "row" ? S.solid([S.box(-0.58, 0.58, -0.12, 0.12, 0, 0.55, S.paint("#7a7a9a"), { top: 0.75 })]) : S.solid([S.ball(w / 2 - 0.15, -0.05, 0.5, S.paint("#7a7a9a"), { rz: h / 2 - 0.1, lump: 0.3, n: 7 })]) }, [vary("patch"), vary("row")], (c, v) => {
     const pts = v.key === "row" ? Array.from({ length: 7 }, (_, i) => [-0.5 + i * 0.17, 0] as const) : scatter(9, 0.3, 631).map(([x, y]) => [x, y] as const);
     for (const [x, y] of pts) {
       bushShape(c, 0.1, 633 + x * 10, ["#4a6a4a", "#6a8a62", "#98b08a"]);
@@ -337,7 +382,7 @@ const flowers: PropDef[] = [
       c.restore();
     }
   }),
-  ...family({ id: "grass-tuft", name: "Grass tuft", category: N, group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor" }, [vary("short"), vary("tall"), vary("dry"), vary("lush")], (c, v) => {
+  ...family({ id: "grass-tuft", name: "Grass tuft", category: N, group: "Flowers and grass", w: 0.7, h: 0.7, layer: "floor", form: (v) => (w, h) => S.solid([S.ball(w / 2 - 0.08, -0.05, v.key === "tall" ? 0.6 : 0.3, S.paint(v.key === "dry" ? "#b8a05a" : "#6a9a3a"), { rz: h / 2 - 0.08, lump: 0.45, n: 7 })]) }, [vary("short"), vary("tall"), vary("dry"), vary("lush")], (c, v) => {
     const col = v.key === "dry" ? "#b8a05a" : v.key === "lush" ? "#4aa03a" : "#6a9a3a";
     const len = v.key === "tall" ? 0.3 : 0.18;
     const rand = rng(641 + v.key.length);
@@ -346,11 +391,11 @@ const flowers: PropDef[] = [
       stroke(c, [0, 0, Math.cos(a) * len * (0.6 + rand() * 0.6), Math.sin(a) * len * (0.6 + rand() * 0.6)], 0.022, i % 2 ? col : shade(col, -0.25));
     }
   }),
-  ...family({ id: "tall-grass", name: "Tall grass", category: N, group: "Flowers and grass", w: 1.4, h: 1, layer: "object" }, [vary("patch"), vary("wide", "wide patch")], (c, v) => {
+  ...family({ id: "tall-grass", name: "Tall grass", category: N, group: "Flowers and grass", w: 1.4, h: 1, layer: "object", form: () => (w, h) => S.solid([S.ball(w / 2 - 0.05, -0.08, 0.95, S.paint("#6a9038"), { rz: h / 2 - 0.05, lump: 0.4, n: 8 })]) }, [vary("patch"), vary("wide", "wide patch")], (c, v) => {
     const pts = scatter(v.key === "wide" ? 26 : 14, v.key === "wide" ? 0.6 : 0.38, 651);
     for (const [x, y, k] of pts) stroke(c, [x, y, x + (k - 0.5) * 0.2, y - 0.25], 0.025, k > 0.5 ? "#7aa040" : "#5a8030");
   }, { size: (v) => (v.key === "wide" ? [1.6, 1.2] : [1, 0.9]) }),
-  ...family({ id: "weed-patch", name: "Weeds", category: N, group: "Flowers and grass", w: 0.9, h: 0.9, layer: "floor" }, [vary("small"), vary("large")], (c, v) => {
+  ...family({ id: "weed-patch", name: "Weeds", category: N, group: "Flowers and grass", w: 0.9, h: 0.9, layer: "floor", form: (v) => (w, h) => S.solid([S.ball(v.key === "small" ? 0.25 : w / 2 - 0.05, -0.04, 0.22, S.paint("#7a9a42"), { rz: v.key === "small" ? 0.25 : h / 2 - 0.05, lump: 0.4, n: 7 })]) }, [vary("small"), vary("large")], (c, v) => {
     for (const [x, y, k] of scatter(v.key === "small" ? 7 : 14, v.key === "small" ? 0.2 : 0.36, 661)) {
       disc(c, x, y, 0.05 + k * 0.03, tone("#8ab04a", "#4a6a22"), 0.008);
     }
@@ -382,12 +427,12 @@ function rockOf(c: C, rx: number, ry: number, seed: number, t: Tone, mossy = fal
 }
 
 const rocks: PropDef[] = [
-  ...family({ id: "rock", name: "Rock", category: N, group: "Rocks", w: 0.8, h: 0.7, layer: "object" }, cross(ROCK_TONES, [vary("small"), vary("large")]), (c, v) => {
+  ...family({ id: "rock", name: "Rock", category: N, group: "Rocks", w: 0.8, h: 0.7, layer: "object", form: (v) => S.stone(v.a.tone, { tall: 0.5 }) }, cross(ROCK_TONES, [vary("small"), vary("large")]), (c, v) => {
     const k = v.b.key === "small" ? 0.6 : 1;
     rockOf(c, 0.36 * k, 0.3 * k, 700 + v.a.key.length, v.a.tone, v.a.key === "mossy");
   }, { size: (v) => (v.b.key === "small" ? [0.5, 0.45] : [0.8, 0.7]) }),
-  ...family({ id: "boulder", name: "Boulder", category: N, group: "Rocks", w: 1.6, h: 1.4, layer: "object" }, ROCK_TONES, (c, v) => rockOf(c, 0.76, 0.64, 710 + v.key.length, v.tone, v.key === "mossy")),
-  ...family({ id: "rocks", name: "Rocks", category: N, group: "Rocks", w: 1.2, h: 1, layer: "object" }, ROCK_TONES, (c, v) => {
+  ...family({ id: "boulder", name: "Boulder", category: N, group: "Rocks", w: 1.6, h: 1.4, layer: "object", form: (v) => S.stone(v.tone, { tall: 0.6 }) }, ROCK_TONES, (c, v) => rockOf(c, 0.76, 0.64, 710 + v.key.length, v.tone, v.key === "mossy")),
+  ...family({ id: "rocks", name: "Rocks", category: N, group: "Rocks", w: 1.2, h: 1, layer: "object", form: (v) => S.solid(scatter(5, 0.32, 721).map(([x, z, k]) => S.ball(0.12 + k * 0.1, -0.05, (0.12 + k * 0.1) * 1.4, v.tone, { x, z, rz: 0.1 + k * 0.08, lump: 0.25, n: 7 }))) }, ROCK_TONES, (c, v) => {
     for (const [x, y, k] of scatter(5, 0.32, 721)) {
       c.save();
       c.translate(x, y);
@@ -395,7 +440,7 @@ const rocks: PropDef[] = [
       c.restore();
     }
   }),
-  ...family({ id: "rubble", name: "Rubble", category: N, group: "Rocks", w: 1.2, h: 1, layer: "floor" }, cross(ROCK_TONES.slice(0, 4), [vary("small"), vary("wide")]), (c, v) => {
+  ...family({ id: "rubble", name: "Rubble", category: N, group: "Rocks", w: 1.2, h: 1, layer: "floor", form: (v) => (w, h) => S.solid([S.ball(w / 2 - 0.06, -0.12, 0.28, v.a.tone, { rz: h / 2 - 0.08, lump: 0.4, n: 8 })]) }, cross(ROCK_TONES.slice(0, 4), [vary("small"), vary("wide")]), (c, v) => {
     const wide = v.b.key === "wide";
     for (const [x, y, k] of scatter(wide ? 22 : 12, wide ? 0.6 : 0.36, 731)) {
       c.save();
@@ -404,14 +449,14 @@ const rocks: PropDef[] = [
       c.restore();
     }
   }, { size: (v) => (v.b.key === "wide" ? [1.5, 1.2] : [0.9, 0.8]) }),
-  ...family({ id: "rock-spire", name: "Rock spire", category: N, group: "Rocks", w: 0.9, h: 0.9, layer: "object" }, ROCK_TONES.filter((r) => ["grey", "brown", "pale"].includes(r.key)), (c, v) => {
+  ...family({ id: "rock-spire", name: "Rock spire", category: N, group: "Rocks", w: 0.9, h: 0.9, layer: "object", form: (v) => S.solid([S.cone(0.42, 0, 2.6, v.tone, { n: 7 }), S.ball(0.3, -0.1, 0.5, v.tone, { x: 0.12, z: 0.1, lump: 0.3, n: 6 })]) }, ROCK_TONES.filter((r) => ["grey", "brown", "pale"].includes(r.key)), (c, v) => {
     for (let i = 0; i < 4; i++) {
       const r = 0.4 - i * 0.09;
       star(c, 7, r, 0.82, i * 0.4);
       fo(c, radial(c, 0, 0, r, v.tone.light, v.tone.dark), 0.02);
     }
   }),
-  ...family({ id: "cairn", name: "Cairn", category: N, group: "Rocks", w: 0.8, h: 0.8, layer: "object" }, [vary("small"), vary("tall")], (c, v) => {
+  ...family({ id: "cairn", name: "Cairn", category: N, group: "Rocks", w: 0.8, h: 0.8, layer: "object", form: (v) => S.solid(Array.from({ length: v.key === "small" ? 3 : 5 }, (_, i) => { const n = v.key === "small" ? 3 : 5, r = 0.34 - i * (0.26 / n), y = Array.from({ length: i }, (_, j) => (0.34 - j * (0.26 / n)) * 0.9).reduce((a, b) => a + b, 0); return S.ball(r, y, y + r * 1.1, ROCK_TONES[0].tone, { rz: r * 0.85, lump: 0.15, n: 7 }); })) }, [vary("small"), vary("tall")], (c, v) => {
     const n = v.key === "small" ? 3 : 5;
     for (let i = 0; i < n; i++) {
       const r = 0.34 - i * (0.26 / n);
@@ -421,11 +466,11 @@ const rocks: PropDef[] = [
 ];
 
 const waterPlants: PropDef[] = [
-  ...family({ id: "reeds", name: "Reeds", category: N, group: "Water plants", w: 1, h: 1, layer: "object" }, [vary("small"), vary("large"), vary("dense")], (c, v) => {
+  ...family({ id: "reeds", name: "Reeds", category: N, group: "Water plants", w: 1, h: 1, layer: "object", form: (v) => { const n = v.key === "small" ? 5 : v.key === "dense" ? 11 : 8, r = v.key === "small" ? 0.22 : 0.4; return S.solid([S.ball(r, -0.05, 0.3, S.paint("#6a8a3a"), { lump: 0.3, n: 7 }), scatter(n, r * 0.9, 801).map(([x, z, k]) => S.cone(0.045, 0.1, 1.1 + k * 0.5, S.paint("#7a9a42"), { x, z, n: 4 }))], { note: "drawn leaning up the map: the stems stand upright" }); } }, [vary("small"), vary("large"), vary("dense")], (c, v) => {
     const n = v.key === "small" ? 10 : v.key === "dense" ? 28 : 18;
     for (const [x, y, k] of scatter(n, v.key === "small" ? 0.25 : 0.42, 801)) stroke(c, [x, y, x + (k - 0.5) * 0.12, y - 0.3], 0.02, k > 0.5 ? "#8aa84a" : "#5a7a32");
   }),
-  ...family({ id: "cattail-clump", name: "Cattails", category: N, group: "Water plants", w: 0.8, h: 0.8, layer: "object" }, [vary("small"), vary("large"), vary("dense")], (c, v) => {
+  ...family({ id: "cattail-clump", name: "Cattails", category: N, group: "Water plants", w: 0.8, h: 0.8, layer: "object", form: (v) => { const n = v.key === "small" ? 4 : v.key === "dense" ? 9 : 6; return S.solid([S.ball(0.28, -0.05, 0.25, S.paint("#6a8a3a"), { lump: 0.3, n: 7 }), scatter(n, 0.3, 811).map(([x, z, k]) => [S.cyl(0.015, 0, 1.3 + k * 0.3, "#6a8a3a", { x, z, n: 4 }), S.cyl(0.035, 1.05 + k * 0.3, 1.25 + k * 0.3, "#6a3a1a", { x, z, n: 5 })])], { note: "drawn leaning up the map: the stems stand upright" }); } }, [vary("small"), vary("large"), vary("dense")], (c, v) => {
     const n = v.key === "small" ? 6 : v.key === "dense" ? 16 : 10;
     for (const [x, y, k] of scatter(n, 0.3, 811)) {
       stroke(c, [x, y + 0.15, x + (k - 0.5) * 0.08, y - 0.15], 0.018, "#6a8a3a");
@@ -433,7 +478,7 @@ const waterPlants: PropDef[] = [
       fo(c, "#6a3a1a", 0.006);
     }
   }),
-  ...family({ id: "lily-pads", name: "Lily pads", category: N, group: "Water plants", w: 1, h: 1, layer: "floor" }, [vary("plain"), vary("white", "white flowers"), vary("pink", "pink flowers"), vary("large", "large pads")], (c, v) => {
+  ...family({ id: "lily-pads", name: "Lily pads", category: N, group: "Water plants", w: 1, h: 1, layer: "floor", form: () => S.flat("lily pads float flat on the water") }, [vary("plain"), vary("white", "white flowers"), vary("pink", "pink flowers"), vary("large", "large pads")], (c, v) => {
     for (const [x, y, k] of scatter(v.key === "large" ? 4 : 6, 0.32, 821)) {
       const r = (v.key === "large" ? 0.16 : 0.1) + k * 0.04;
       c.beginPath();
@@ -444,11 +489,11 @@ const waterPlants: PropDef[] = [
       if ((v.key === "white" || v.key === "pink") && k > 0.4) disc(c, x, y, 0.045, tone("#ffffff", v.key === "white" ? "#e8e4d8" : "#f08ab8"), 0.008);
     }
   }),
-  ...family({ id: "seaweed", name: "Seaweed", category: N, group: "Water plants", w: 1, h: 1, layer: "floor" }, [vary("green"), vary("brown")], (c, v) => {
+  ...family({ id: "seaweed", name: "Seaweed", category: N, group: "Water plants", w: 1, h: 1, layer: "floor", form: () => S.flat("seaweed lies flat in the water or along the shore") }, [vary("green"), vary("brown")], (c, v) => {
     const col = v.key === "green" ? "#3a7a4a" : "#6a5a2a";
     for (const [x, y, k] of scatter(8, 0.35, 831)) stroke(c, [x, y, x + 0.1, y - 0.12, x - 0.05, y - 0.25 - k * 0.1], 0.03, col);
   }),
-  ...family({ id: "kelp", name: "Kelp", category: N, group: "Water plants", w: 1.2, h: 1.2, layer: "floor" }, [vary("thin"), vary("thick")], (c, v) => {
+  ...family({ id: "kelp", name: "Kelp", category: N, group: "Water plants", w: 1.2, h: 1.2, layer: "floor", form: () => S.flat("kelp lies flat in the water") }, [vary("thin"), vary("thick")], (c, v) => {
     for (const [x, y, k] of scatter(6, 0.4, 841)) {
       ell(c, x, y, v.key === "thin" ? 0.05 : 0.09, 0.22, k * Math.PI);
       fo(c, linear(c, x, y - 0.2, x, y + 0.2, "#7a8a3a", "#3a4a1a"), 0.01);
@@ -471,10 +516,10 @@ function cap(c: C, x: number, y: number, r: number, color: string, spots: boolea
 }
 
 const mushrooms: PropDef[] = [
-  ...family({ id: "mushrooms", name: "Mushrooms", category: N, group: "Mushrooms", w: 0.6, h: 0.6, layer: "object" }, SHROOM_COLORS, (c, v) => {
+  ...family({ id: "mushrooms", name: "Mushrooms", category: N, group: "Mushrooms", w: 0.6, h: 0.6, layer: "object", form: (v) => S.solid(scatter(5, 0.18, 901).map(([x, z, k]) => { const r = 0.05 + k * 0.05; return [S.cyl(r * 0.3, 0, r * 1.3, "#efe6d4", { x, z, n: 5 }), S.ball(r, r * 1.1, r * 1.9, v.cap, { x, z, n: 7 })]; })) }, SHROOM_COLORS, (c, v) => {
     for (const [x, y, k] of scatter(5, 0.18, 901)) cap(c, x, y, 0.05 + k * 0.05, v.cap, v.key === "red");
   }),
-  ...family({ id: "giant-mushroom", name: "Giant mushroom", category: N, group: "Mushrooms", w: 1.4, h: 1.4, layer: "canopy" }, SHROOM_COLORS.filter((s) => ["red", "brown", "purple"].includes(s.key)), (c, v) => {
+  ...family({ id: "giant-mushroom", name: "Giant mushroom", category: N, group: "Mushrooms", w: 1.4, h: 1.4, layer: "canopy", form: (v) => S.solid([S.cyl(0.16, 0, 2.05, "#efe6d4", { top: 0.8, n: 8 }), S.cyl(0.62, 1.95, 2.15, v.cap, { top: 0.62, n: 14 }), S.cone(0.385, 2.15, 2.5, v.cap, { n: 14 })], { note: "a tall cap on a stalk: you see under it" }) }, SHROOM_COLORS.filter((s) => ["red", "brown", "purple"].includes(s.key)), (c, v) => {
     cap(c, 0, 0, 0.62, v.cap, v.key === "red");
     c.strokeStyle = "rgba(0,0,0,0.15)";
     c.lineWidth = 0.02;
@@ -484,27 +529,27 @@ const mushrooms: PropDef[] = [
       c.stroke();
     }
   }),
-  ...family({ id: "mushroom-ring", name: "Mushroom ring", category: N, group: "Mushrooms", w: 1.6, h: 1.6, layer: "floor" }, [vary("brown"), vary("white")], (c, v) => {
+  ...family({ id: "mushroom-ring", name: "Mushroom ring", category: N, group: "Mushrooms", w: 1.6, h: 1.6, layer: "floor", form: (v) => S.solid(Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * Math.PI * 2; return S.cone(0.07, 0, 0.1, v.key === "brown" ? "#8a5a32" : "#f4eee0", { x: Math.cos(a) * 0.65, z: Math.sin(a) * 0.65, n: 5 }); }), { note: "a ring of small mushrooms" }) }, [vary("brown"), vary("white")], (c, v) => {
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
       cap(c, Math.cos(a) * 0.65, Math.sin(a) * 0.65, 0.07, v.key === "brown" ? "#8a5a32" : "#f4eee0", false);
     }
   }),
-  ...family({ id: "toadstool", name: "Toadstool", category: N, group: "Mushrooms", w: 0.5, h: 0.5, layer: "object" }, [vary("single"), vary("pair")], (c, v) => {
+  ...family({ id: "toadstool", name: "Toadstool", category: N, group: "Mushrooms", w: 0.5, h: 0.5, layer: "object", form: (v) => S.solid((v.key === "single" ? [[0, 0, 0.2]] : [[-0.08, -0.04, 0.14], [0.12, 0.08, 0.1]]).map(([x, z, r]) => [S.cyl(r * 0.3, 0, r * 1.3, "#efe6d4", { x, z, n: 6 }), S.ball(r, r * 1.1, r * 1.9, "#c82a1a", { x, z, n: 8 })])) }, [vary("single"), vary("pair")], (c, v) => {
     if (v.key === "single") cap(c, 0, 0, 0.2, "#c82a1a", true);
     else for (const [x, y, r] of [[-0.08, -0.04, 0.14], [0.12, 0.08, 0.1]] as const) cap(c, x, y, r, "#c82a1a", true);
   }),
 ];
 
 const snow: PropDef[] = [
-  ...family({ id: "snowdrift", name: "Snowdrift", category: N, group: "Snow and ice", w: 1.6, h: 1, layer: "floor" }, [vary("small"), vary("large"), vary("long")], (c, v) => {
+  ...family({ id: "snowdrift", name: "Snowdrift", category: N, group: "Snow and ice", w: 1.6, h: 1, layer: "floor", form: () => (w, h) => S.solid([S.ball(w / 2 - 0.06, -0.18, 0.45, S.paint("#eef2f8"), { rz: h / 2 - 0.06, lump: 0.1, n: 9 })]) }, [vary("small"), vary("large"), vary("long")], (c, v) => {
     const [rx, ry] = v.key === "small" ? [0.45, 0.3] : v.key === "long" ? [1, 0.3] : [0.75, 0.48];
     for (const [x, y, k] of scatter(5, Math.min(rx, ry) * 0.5, 951)) {
       ell(c, x * (rx / ry), y, rx * (0.55 + k * 0.3), ry * (0.6 + k * 0.3));
       fo(c, radial(c, x, y, rx, "#ffffff", "#c8d8e8"), 0.015);
     }
   }, { size: (v) => (v.key === "small" ? [1, 0.7] : v.key === "long" ? [2.1, 0.7] : [1.6, 1]) }),
-  ...family({ id: "icicle-rocks", name: "Rocks with icicles", category: N, group: "Snow and ice", w: 1, h: 0.9, layer: "object" }, [vary("small"), vary("large")], (c, v) => {
+  ...family({ id: "icicle-rocks", name: "Rocks with icicles", category: N, group: "Snow and ice", w: 1, h: 0.9, layer: "object", form: (v) => { const k = v.key === "small" ? 0.7 : 1; return S.solid([S.ball(0.4 * k, -0.1, 0.75 * k, ROCK_TONES[0].tone, { rz: 0.32 * k, lump: 0.22, n: 7 }), Array.from({ length: 6 }, (_, i) => S.cyl(0.005, 0.12 * k, 0.45 * k, "#dcefff", { x: (-0.3 + i * 0.12) * k, z: 0.22 * k, top: 6, n: 4 }))]); } }, [vary("small"), vary("large")], (c, v) => {
     const k = v.key === "small" ? 0.7 : 1;
     rockOf(c, 0.4 * k, 0.32 * k, 971, ROCK_TONES[0].tone);
     for (let i = 0; i < 6; i++) {
@@ -523,14 +568,14 @@ const LEAF_COLORS: (Variant & { colors: string[] })[] = [
 ];
 
 const groundCover: PropDef[] = [
-  ...family({ id: "fallen-leaves", name: "Fallen leaves", category: N, group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" }, LEAF_COLORS, (c, v) => {
+  ...family({ id: "fallen-leaves", name: "Fallen leaves", category: N, group: "Leaves and roots", w: 1.2, h: 1, layer: "floor", form: () => S.flat("fallen leaves lie flat on the ground") }, LEAF_COLORS, (c, v) => {
     for (const [x, y, k] of scatter(26, 0.48, 1001)) {
       ell(c, x, y * 0.8, 0.05, 0.03, k * Math.PI);
       c.fillStyle = v.colors[Math.floor(k * v.colors.length)];
       c.fill();
     }
   }),
-  ...family({ id: "roots", name: "Roots", category: N, group: "Leaves and roots", w: 1.2, h: 1, layer: "floor" }, [vary("small"), vary("large"), vary("tangle")], (c, v) => {
+  ...family({ id: "roots", name: "Roots", category: N, group: "Leaves and roots", w: 1.2, h: 1, layer: "floor", form: () => S.flat("roots run along the ground") }, [vary("small"), vary("large"), vary("tangle")], (c, v) => {
     const rand = rng(1011 + v.key.length);
     const n = v.key === "small" ? 4 : v.key === "tangle" ? 10 : 6;
     for (let i = 0; i < n; i++) {

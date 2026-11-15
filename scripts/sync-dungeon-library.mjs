@@ -28,8 +28,8 @@ import { localEnv } from "./local.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dungeon = process.env.DUNGEON_DIR ?? localEnv().DUNGEON_DIR ?? fileURLToPath(new URL("../../dungeon/", import.meta.url));
-/** The library's files in Dungeon's src/render: the drawing kit, the textures, the objects, the scatter brush. */
-export const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|scatter|props(-[a-z]+)?)\.ts$/;
+/** The library's files in Dungeon's src/render: the drawing kit, the textures, the objects, the scatter brush, the objects' 3D forms, the builder's 3D view's messages. */
+export const LIBRARY_FILE = /^(noise|color|textures|propkit|propvariants|library|scatter|solid|look3d|props(-[a-z]+)?)\.ts$/;
 export const HEADER_PREFIX = "// Copied from Dungeon (src/render/";
 
 if (!existsSync(`${dungeon}/src/render/props.ts`)) {

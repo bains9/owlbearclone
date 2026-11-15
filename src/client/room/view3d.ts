@@ -111,6 +111,8 @@ export class View3D implements View3dControls {
   private walls: Mesh | null = null;
   /** The built map's objects standing up: trees, rocks, pillars, tables... (view3dObjects.ts). */
   private objects: Mesh | null = null;
+  /** Their parts that glow by themselves (flames, magic), drawn unlit. */
+  private glowing: Mesh | null = null;
   /** A Dungeondraft map's cliffs, standing up as rock (view3dCliffs.ts). */
   private cliffs: Mesh | null = null;
   /** A cave or dungeon map's black, standing up as rock (view3dRock.ts): its faces, and its top as a picture laid over it. */
@@ -337,6 +339,7 @@ export class View3D implements View3dControls {
     if (tile && textured.length) this.texturedWalls = this.lit(wallMesh(textured, this.cell, true), tile);
     const things = objectMesh(this.src.objects(), this.cell, f.cover, all, f.objectPaint);
     if (things.position.length) this.objects = this.lit(things);
+    if (things.glow.position.length) this.glowing = this.unlit(things.glow);
     const rock = cliffMesh(this.src.cliffs(), this.cell, f.cover, all, f.paint);
     if (rock.position.length) this.cliffs = this.lit(rock);
     const rockMap = f.scene.mapAssetId ? rockMask(f.objectPaint, { w: f.scene.width, h: f.scene.height }, this.cell) : null;
@@ -541,6 +544,17 @@ export class View3D implements View3dControls {
     this.floorTex?.dispose();
     this.floorTex = null;
     this.floorKey = "";
+  }
+
+  /** Triangles in their own colours, not lit by the scene's lights (flames, glowing magic), added to the world. */
+  private unlit(m: { position: Float32Array; normal: Float32Array; color: Float32Array }): Mesh {
+    const geo = new BufferGeometry();
+    geo.setAttribute("position", new BufferAttribute(m.position, 3));
+    geo.setAttribute("normal", new BufferAttribute(m.normal, 3));
+    geo.setAttribute("color", new BufferAttribute(m.color, 3));
+    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true }));
+    this.world.add(mesh);
+    return mesh;
   }
 
   /** Triangles lit by the scene's lights, each in its own colour (over `map`, when given), added to the world. */
@@ -809,7 +823,7 @@ export class View3D implements View3dControls {
 
   /** Takes away the walls, the objects and the roofs (they're made again together). */
   private dropWalls(): void {
-    for (const m of [this.walls, this.texturedWalls, this.objects, this.cliffs, this.rock]) {
+    for (const m of [this.walls, this.texturedWalls, this.objects, this.glowing, this.cliffs, this.rock]) {
       if (!m) continue;
       this.world.remove(m);
       m.geometry.dispose();
@@ -818,6 +832,7 @@ export class View3D implements View3dControls {
     this.walls = null;
     this.texturedWalls = null;
     this.objects = null;
+    this.glowing = null;
     this.cliffs = null;
     this.rock = null;
     if (this.rockTop) {

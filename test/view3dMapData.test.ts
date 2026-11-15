@@ -2,12 +2,13 @@
 // shrubs and rocks standing where the picture paints them, its rooms as buildings, and whether
 // it's outdoors. On the Old Keep fixture (a real Dungeon export), through the same sidecar the
 // seasons read.
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { parseDungeonPayload } from "../src/client/dd/fromDungeon";
 import { OR } from "../src/client/dd/roles";
 import { NO_NAME, REACH_N, SIDECAR_UNITS, type ObjectTable } from "../src/client/dd/sidecar";
 import { WORLD_SQUARE, floorCells, inside, mapLooksOutdoors, mapObjects, roleShape, toScene, toWorld, type MapPlacement } from "../src/client/room/view3dMapData";
-import { objectMesh } from "../src/client/room/view3dObjects";
+import { objectMesh, type Object3d } from "../src/client/room/view3dObjects";
+import { loadDungeonObjects } from "../src/client/room/dungeonStamps";
 import { buildingsOf } from "../src/client/room/view3dRoofs";
 import { pictureSidecar } from "./fixtures/fakeExport";
 
@@ -23,29 +24,30 @@ const PX = 128;
 const place: MapPlacement = { rect: sidecar.meta.rect, width: ((sidecar.meta.rect[2] - sidecar.meta.rect[0]) / WORLD_SQUARE) * PX, height: ((sidecar.meta.rect[3] - sidecar.meta.rect[1]) / WORLD_SQUARE) * PX };
 
 describe("a map's own trees and rocks", () => {
-  const objects = mapObjects(sidecar.objects, sidecar.meta, place, PX);
-  const kinds = (k: string) => objects.filter((o) => o.shape?.kind === k);
+  // Everything placed in Dungeon stands up in its library's form (dungeonLib/solid.ts), once the
+  // library's loaded, as the board waits for it to be.
+  let objects: Object3d[] = [];
+  beforeAll(async () => {
+    await loadDungeonObjects();
+    objects = mapObjects(sidecar.objects, sidecar.meta, place, PX);
+  });
+  const placed = (asset: string) => objects.filter((o) => o.id === `d:${asset.slice(2)}`);
+  const count = (asset: string) => FIXTURE.dungeon.objects.filter((o) => o.asset === asset).length;
+  const kinds = (_: "tree") => placed("b:tree");
 
-  it("stands up the Old Keep's trees, pines, bushes and rocks", () => {
-    expect(kinds("tree")).toHaveLength(FIXTURE.dungeon.objects.filter((o) => o.asset === "b:tree").length);
-    expect(kinds("pine")).toHaveLength(2);
-    expect(kinds("bush")).toHaveLength(4);
-    expect(kinds("rock").length).toBeGreaterThanOrEqual(1);
-    expect(objects.every((o) => o.id === null && o.paint)).toBe(true);
+  it("stands up the Old Keep's trees, pines, bushes and rocks, in their own forms, coloured from the picture", () => {
+    expect(placed("b:tree")).toHaveLength(count("b:tree"));
+    expect(placed("b:pine")).toHaveLength(count("b:pine"));
+    expect(placed("b:bush")).toHaveLength(count("b:bush"));
+    expect(placed("b:rock").length + placed("b:boulder").length).toBeGreaterThanOrEqual(1);
+    expect(objects.every((o) => o.paint)).toBe(true);
   });
 
-  it("stands up everything else placed in Dungeon in its own shape, as the Build tool's do, turned as placed", () => {
-    const count = (asset: string) => FIXTURE.dungeon.objects.filter((o) => o.asset === asset).length;
-    expect(kinds("column")).toHaveLength(count("b:pillar"));
-    expect(kinds("statue")).toHaveLength(count("b:statue"));
-    expect(kinds("well")).toHaveLength(count("b:well"));
-    expect(kinds("table").length).toBeGreaterThanOrEqual(count("b:table"));
-    expect(kinds("barrel").length).toBeGreaterThanOrEqual(count("b:barrel"));
-    // Chairs, crates, beds and chests are blocks.
-    expect(kinds("box").length).toBeGreaterThanOrEqual(count("b:chair") + count("b:crate"));
-    // Candles, torches, a rug, bones and a campfire have no shape: they stay painted.
-    const flat = ["b:candles", "b:torch", "b:rug", "b:bones", "b:campfire"].reduce((n, a) => n + count(a), 0);
-    expect(objects.length).toBeLessThanOrEqual(FIXTURE.dungeon.objects.length - flat);
+  it("stands up everything else placed in Dungeon in its own form, turned as placed, and leaves what lies flat painted", () => {
+    for (const a of ["b:pillar", "b:statue", "b:well", "b:table", "b:barrel", "b:chair", "b:crate", "b:candles", "b:torch", "b:campfire"]) {
+      expect(placed(a), a).toHaveLength(count(a));
+    }
+    for (const a of ["b:rug", "b:bones", "b:stairs"]) expect(placed(a), a).toHaveLength(0);
     expect(objects.every((o) => Number.isFinite(o.deg))).toBe(true);
   });
 

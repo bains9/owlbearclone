@@ -1,6 +1,7 @@
-// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
 import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
+import * as S from "./solid";
 
 // The larger prop library (26 October 2026). Ids are plain words because Table's
 // Seasons read a role from them (tree, pine, fir, dead tree, stump, log, bush, hedge, fern,
@@ -109,9 +110,9 @@ const flameProp = (x: number, y: number, r: number) => (c: C) => flame(c, x, y, 
 
 export const MORE_PROPS: PropDef[] = [
   // ---------------------------------------------------------------- Furniture
-  { id: "small-table", name: "Small table", category: "Furniture", w: 1, h: 1, layer: "object", draw: (c) => board(c, -0.45, -0.45, 0.9, 0.9, WOOD_L, WOOD_D, 101) },
+  { id: "small-table", name: "Small table", category: "Furniture", w: 1, h: 1, layer: "object", form: S.table(0.74, "#8c5e38"), draw: (c) => board(c, -0.45, -0.45, 0.9, 0.9, WOOD_L, WOOD_D, 101) },
   {
-    id: "desk", name: "Desk", category: "Furniture", w: 1.6, h: 0.9, layer: "object",
+    id: "desk", name: "Desk", category: "Furniture", w: 1.6, h: 0.9, layer: "object", form: S.plus(S.table(0.76, "#8a5c34"), S.box(-0.48, -0.12, -0.18, 0.08, 0.76, 0.765, "#efe6cc"), S.box(0.2, 0.5, -0.25, -0.05, 0.76, 0.81, "#7a2a2a"), S.cyl(0.05, 0.76, 0.82, "#1a1a1a", { x: 0.5, z: 0.18, n: 6 })),
     draw: (c) => {
       board(c, -0.78, -0.42, 1.56, 0.84, "#9a6a3e", "#6a4426", 102);
       c.fillStyle = "#efe6cc";
@@ -122,7 +123,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "dining-table", name: "Dining table", category: "Furniture", w: 2.6, h: 1.2, layer: "object",
+    id: "dining-table", name: "Dining table", category: "Furniture", w: 2.6, h: 1.2, layer: "object", form: S.plus(S.table(0.76, "#8a5c34"), S.box(-1.05, 1.05, -0.45, 0.45, 0.76, 0.77, "#f2ece0"), [-0.75, -0.25, 0.25, 0.75].flatMap((x) => [S.cyl(0.13, 0.77, 0.79, "#e8e2d4", { x, z: -0.22, n: 8 }), S.cyl(0.13, 0.77, 0.79, "#e8e2d4", { x, z: 0.22, n: 8 })]), S.cyl(0.08, 0.77, 0.98, "#8a1a24", { n: 6 })),
     draw: (c) => {
       board(c, -1.25, -0.55, 2.5, 1.1, "#9a6a3e", "#6a4426", 103);
       cloth(c, -1.05, -0.45, 2.1, 0.9, "#f2ece0", "#d8cfbe");
@@ -131,22 +132,22 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "long-table", name: "Long table", category: "Furniture", w: 3.2, h: 1, layer: "object",
+    id: "long-table", name: "Long table", category: "Furniture", w: 3.2, h: 1, layer: "object", form: S.table(0.76, "#946438"),
     draw: (c) => { for (let i = 0; i < 3; i++) board(c, -1.55, -0.48 + i * 0.32, 3.1, 0.32, "#9a6a3e", "#744a2c", 104 + i); },
   },
   {
-    id: "stool", name: "Stool", category: "Furniture", w: 0.5, h: 0.5, layer: "object",
+    id: "stool", name: "Stool", category: "Furniture", w: 0.5, h: 0.5, layer: "object", form: S.stool(0.46, "#8c5e38"),
     draw: (c) => { circle(c, 0, 0, 0.22); fo(c, radial(c, 0, 0, 0.22, WOOD_L, WOOD_D)); },
   },
   {
-    id: "armchair", name: "Armchair", category: "Furniture", w: 1, h: 1, layer: "object",
+    id: "armchair", name: "Armchair", category: "Furniture", w: 1, h: 1, layer: "object", form: S.seat(0.42, 0.95, "#6e2024", { cushion: "#a8343a", armY: 0.65, legs: false, backDepth: 0.22 }),
     draw: (c) => {
       rr(c, -0.45, -0.45, 0.9, 0.9, 0.14); fo(c, linear(c, 0, -0.45, 0, 0.45, "#8a2a2e", "#5a1418"));
       rr(c, -0.3, -0.2, 0.6, 0.55, 0.1); fo(c, radial(c, 0, 0.05, 0.4, "#b23a40", "#7a2228"), 0.02);
     },
   },
   {
-    id: "throne", name: "Throne", category: "Furniture", w: 1.2, h: 1.1, layer: "object",
+    id: "throne", name: "Throne", category: "Furniture", w: 1.2, h: 1.1, layer: "object", form: S.seat(0.5, 1.8, "#c4a040", { cushion: "#8a2232", armY: 0.8, legs: false, backDepth: 0.24 }),
     draw: (c) => {
       rr(c, -0.55, -0.5, 1.1, 1, 0.08); fo(c, linear(c, 0, -0.5, 0, 0.5, "#e6c45a", "#9a7a22"));
       rr(c, -0.35, -0.25, 0.7, 0.65, 0.06); fo(c, radial(c, 0, 0.05, 0.45, "#a02a3a", "#5a1020"), 0.02);
@@ -154,7 +155,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "double-bed", name: "Double bed", category: "Furniture", w: 2, h: 2.1, layer: "object",
+    id: "double-bed", name: "Double bed", category: "Furniture", w: 2, h: 2.1, layer: "object", form: S.bed(0.55, 1.05, "#6a4428", "#4a3068"),
     draw: (c) => {
       board(c, -0.98, -1.02, 1.96, 2.04, "#7a5030", "#5a3820", 105);
       rr(c, -0.88, -0.94, 1.76, 1.86, 0.06); fo(c, "#e8e0cc", 0.02);
@@ -163,7 +164,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "straw-bed", name: "Straw bed", category: "Furniture", w: 1, h: 2, layer: "floor",
+    id: "straw-bed", name: "Straw bed", category: "Furniture", w: 1, h: 2, layer: "floor", form: S.solid([S.box(-0.45, 0.45, -0.92, 0.92, 0, 0.2, "#c8a456", { top: 0.92 }), S.box(-0.35, 0.35, 0.1, 0.8, 0.2, 0.23, "#6a5a40")]),
     draw: (c) => {
       rr(c, -0.45, -0.92, 0.9, 1.84, 0.2); fo(c, radial(c, 0, 0, 1, "#e0c070", "#a8863a"), 0.02);
       c.strokeStyle = "rgba(120,90,30,0.6)"; c.lineWidth = 0.012; const r = rng(106);
@@ -172,7 +173,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "wardrobe", name: "Wardrobe", category: "Furniture", w: 1.6, h: 0.7, layer: "object",
+    id: "wardrobe", name: "Wardrobe", category: "Furniture", w: 1.6, h: 0.7, layer: "object", form: S.tall(2.0, "#62401f", { front: "#74502e" }),
     draw: (c) => {
       board(c, -0.78, -0.33, 1.56, 0.66, "#7a5030", "#4a2e1a", 107);
       c.strokeStyle = OUT; c.lineWidth = 0.02; c.beginPath(); c.moveTo(0, -0.33); c.lineTo(0, 0.33); c.stroke();
@@ -180,7 +181,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "dresser", name: "Dresser", category: "Furniture", w: 1.2, h: 0.6, layer: "object",
+    id: "dresser", name: "Dresser", category: "Furniture", w: 1.2, h: 0.6, layer: "object", form: S.plus(S.tall(0.95, "#8a5c34", { front: "#946438" }), S.cyl(0.12, 0.95, 0.96, "#cfd8e0", { x: 0.25, z: -0.08, rz: 0.08 })),
     draw: (c) => {
       board(c, -0.58, -0.28, 1.16, 0.56, "#9a6a3e", "#6a4426", 108);
       for (const x of [-0.3, 0, 0.3]) { c.fillStyle = GOLD; circle(c, x, 0.12, 0.025); c.fill(); }
@@ -188,14 +189,14 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "scroll-rack", name: "Scroll rack", category: "Furniture", w: 1.6, h: 0.5, layer: "object",
+    id: "scroll-rack", name: "Scroll rack", category: "Furniture", w: 1.6, h: 0.5, layer: "object", form: S.plus(S.tall(1.1, "#5a3a22"), Array.from({ length: 9 }, (_, i) => S.cyl(0.065, 1.1, 1.28, "#efe6cc", { x: -0.66 + i * 0.165, n: 6 }))),
     draw: (c) => {
       board(c, -0.78, -0.23, 1.56, 0.46, "#6e4628", "#4a2e1a", 109);
       for (let i = 0; i < 9; i++) { const x = -0.66 + i * 0.165; circle(c, x, 0, 0.065); fo(c, radial(c, x, 0, 0.065, "#f4ecd2", "#c8b890"), 0.012); }
     },
   },
   {
-    id: "rug-blue", name: "Blue rug", category: "Furniture", w: 2, h: 3, layer: "floor",
+    id: "rug-blue", name: "Blue rug", category: "Furniture", w: 2, h: 3, layer: "floor", form: S.flat("a rug on the floor"),
     draw: (c) => {
       rr(c, -1, -1.5, 2, 3, 0.05); c.fillStyle = "#24406a"; c.fill();
       c.strokeStyle = "#d8c27a"; c.lineWidth = 0.07; rr(c, -0.82, -1.32, 1.64, 2.64, 0.04); c.stroke();
@@ -204,46 +205,46 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "rug-round", name: "Round rug", category: "Furniture", w: 2, h: 2, layer: "floor",
+    id: "rug-round", name: "Round rug", category: "Furniture", w: 2, h: 2, layer: "floor", form: S.flat("a rug on the floor"),
     draw: (c) => {
       circle(c, 0, 0, 0.98); c.fillStyle = "#6a3a1a"; c.fill();
       for (const [r, col] of [[0.8, "#c88a3a"], [0.62, "#8a2a1a"], [0.42, "#e0b060"], [0.22, "#8a2a1a"]] as const) { circle(c, 0, 0, r); c.fillStyle = col; c.fill(); }
     },
   },
   {
-    id: "fur-rug", name: "Fur rug", category: "Furniture", w: 2, h: 2.4, layer: "floor",
+    id: "fur-rug", name: "Fur rug", category: "Furniture", w: 2, h: 2.4, layer: "floor", form: S.flat("a fur rug on the floor"),
     draw: (c) => {
       poly(c, [0, -1.15, 0.35, -0.85, 0.85, -0.95, 0.65, -0.45, 0.8, 0.4, 0.95, 0.95, 0.4, 0.75, 0, 1.15, -0.4, 0.75, -0.95, 0.95, -0.8, 0.4, -0.65, -0.45, -0.85, -0.95, -0.35, -0.85]);
       fo(c, radial(c, 0, 0, 1.1, "#c8a882", "#7a5a3a"), 0.025);
     },
   },
   {
-    id: "bathtub", name: "Bathtub", category: "Washroom", w: 1, h: 2, layer: "object",
+    id: "bathtub", name: "Bathtub", category: "Washroom", w: 1, h: 2, layer: "object", form: S.solid([S.tub(0.45, 0, 0.62, "#e0dcd2", 0.76, { rz: 0.92, n: 14, floor: 0.3 }), S.cyl(0.34, 0.3, 0.48, "#6aaac4", { rz: 0.8, n: 14 })]),
     draw: (c) => {
       rr(c, -0.45, -0.92, 0.9, 1.84, 0.4); fo(c, linear(c, -0.45, 0, 0.45, 0, "#e8e4dc", "#b8b2a6"));
       rr(c, -0.34, -0.8, 0.68, 1.6, 0.32); fo(c, radial(c, 0, 0, 0.8, "#9ad0e0", "#4a8aa8"), 0.02);
     },
   },
   {
-    id: "washbasin", name: "Washbasin", category: "Washroom", w: 0.7, h: 0.7, layer: "object",
+    id: "washbasin", name: "Washbasin", category: "Washroom", w: 0.7, h: 0.7, layer: "object", form: S.solid([S.cyl(0.07, 0, 0.75, "#a8a49c", { n: 6 }), S.tub(0.3, 0.75, 0.92, "#c8c4bc", 0.67, { floor: 0.82 }), S.cyl(0.2, 0.82, 0.86, "#7ab8d0", { n: 10 })]),
     draw: (c) => { circle(c, 0, 0, 0.3); fo(c, radial(c, 0, 0, 0.3, "#d8d4cc", "#9a968e")); circle(c, 0, 0, 0.2); fo(c, radial(c, 0, 0, 0.2, "#a8d8e8", "#5a9ab8"), 0.015); },
   },
   {
-    id: "folding-screen", name: "Folding screen", category: "Furniture", w: 2, h: 0.4, layer: "object",
+    id: "folding-screen", name: "Folding screen", category: "Furniture", w: 2, h: 0.4, layer: "object", form: S.solid([S.panel(-0.95, 0.1, -0.5, -0.12, 0.05, 0, 1.75, "#c8a85a"), S.panel(-0.5, -0.12, 0, 0.1, 0.05, 0, 1.75, "#c8a85a"), S.panel(0, 0.1, 0.5, -0.12, 0.05, 0, 1.75, "#c8a85a"), S.panel(0.5, -0.12, 0.95, 0.1, 0.05, 0, 1.75, "#c8a85a")]),
     draw: (c) => {
       c.beginPath(); c.moveTo(-0.95, 0.1); c.lineTo(-0.5, -0.12); c.lineTo(0, 0.1); c.lineTo(0.5, -0.12); c.lineTo(0.95, 0.1);
       c.lineWidth = 0.1; c.strokeStyle = OUT; c.lineJoin = "round"; c.stroke(); c.lineWidth = 0.065; c.strokeStyle = "#c8a85a"; c.stroke();
     },
   },
   {
-    id: "cushions", name: "Floor cushions", category: "Furniture", w: 1.4, h: 1.4, layer: "floor",
+    id: "cushions", name: "Floor cushions", category: "Furniture", w: 1.4, h: 1.4, layer: "floor", form: S.solid([[-0.32, -0.3, "#8a2a3a"], [0.32, -0.28, "#2a5a7a"], [-0.3, 0.32, "#c88a2a"], [0.3, 0.3, "#4a7a3a"]].map(([x, z, c]) => S.ball(0.25, 0, 0.2, c as string, { x: x as number, z: z as number, lump: 0.05, n: 8 }))),
     draw: (c) => {
       const cols = ["#8a2a3a", "#2a5a7a", "#c88a2a", "#4a7a3a"];
       [[-0.32, -0.3], [0.32, -0.28], [-0.3, 0.32], [0.3, 0.3]].forEach(([x, y], i) => { rr(c, x - 0.26, y - 0.26, 0.52, 0.52, 0.16); fo(c, radial(c, x, y, 0.35, "#ffffff22", cols[i]), 0.02); c.fillStyle = cols[i]; rr(c, x - 0.22, y - 0.22, 0.44, 0.44, 0.13); c.fill(); });
     },
   },
   {
-    id: "chess-table", name: "Chess table", category: "Furniture", w: 1, h: 1, layer: "object",
+    id: "chess-table", name: "Chess table", category: "Furniture", w: 1, h: 1, layer: "object", form: S.plus(S.table(0.76, "#8c5e38"), S.box(-0.33, 0.33, -0.33, 0.33, 0.76, 0.77, "#8a7a64")),
     draw: (c) => {
       board(c, -0.46, -0.46, 0.92, 0.92, WOOD_L, WOOD_D, 110);
       const s = 0.08;
@@ -251,20 +252,20 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "lectern", name: "Lectern", category: "Furniture", w: 0.8, h: 0.7, layer: "object",
+    id: "lectern", name: "Lectern", category: "Furniture", w: 0.8, h: 0.7, layer: "object", form: S.solid([S.cbox(0.5, 0.4, 0, 0.06, "#5a3820"), S.cbox(0.12, 0.12, 0, 1.0, "#6a4428"), S.box(-0.36, 0.36, -0.3, 0.3, 1.0, 1.18, "#7a5030", { drop: 0.16 }), S.box(-0.27, 0.27, -0.2, 0.18, 1.18, 1.2, "#f4ecd2", { drop: 0.12 })]),
     draw: (c) => { board(c, -0.36, -0.3, 0.72, 0.6, "#7a5030", "#4a2e1a", 111); book(c, -0.27, -0.2, 0.26, 0.38, "#f4ecd2"); book(c, 0.01, -0.2, 0.26, 0.38, "#f4ecd2"); },
   },
 
   // ---------------------------------------------------------------- Containers
   {
-    id: "barrel-lying", name: "Barrel on its side", category: "Containers", w: 1, h: 0.8, layer: "object",
+    id: "barrel-lying", name: "Barrel on its side", category: "Containers", w: 1, h: 0.8, layer: "object", form: S.barrelLying("#8a5c34"),
     draw: (c) => {
       rr(c, -0.46, -0.34, 0.92, 0.68, 0.22); fo(c, linear(c, 0, -0.34, 0, 0.34, "#a87444", "#5e3a1e"));
       c.strokeStyle = IRON_D; c.lineWidth = 0.04; for (const x of [-0.28, 0.28]) { c.beginPath(); c.moveTo(x, -0.33); c.lineTo(x, 0.33); c.stroke(); }
     },
   },
   {
-    id: "barrels", name: "Barrels", category: "Containers", w: 1.6, h: 1.4, layer: "object",
+    id: "barrels", name: "Barrels", category: "Containers", w: 1.6, h: 1.4, layer: "object", form: S.solid([[-0.38, -0.3], [0.38, -0.3], [0, 0.35]].map(([x, z]) => S.barrelAt(x, z, 0.36, 1.05, "#8a5c34"))),
     draw: (c) => {
       for (const [x, y] of [[-0.38, -0.3], [0.38, -0.3], [0, 0.35]]) {
         circle(c, x, y, 0.36); fo(c, radial(c, x, y, 0.36, "#a87444", "#5e3a1e"));
@@ -273,11 +274,11 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "crate-small", name: "Small crate", category: "Containers", w: 0.6, h: 0.6, layer: "object",
+    id: "crate-small", name: "Small crate", category: "Containers", w: 0.6, h: 0.6, layer: "object", form: S.block(0.6, "#a07848", { surface: true }),
     draw: (c) => { board(c, -0.27, -0.27, 0.54, 0.54, "#b08452", "#80582e", 112); c.strokeStyle = "#6a4422"; c.lineWidth = 0.05; c.beginPath(); c.moveTo(-0.22, -0.22); c.lineTo(0.22, 0.22); c.stroke(); },
   },
   {
-    id: "crates", name: "Crates", category: "Containers", w: 1.6, h: 1.4, layer: "object",
+    id: "crates", name: "Crates", category: "Containers", w: 1.6, h: 1.4, layer: "object", form: S.solid([S.rbox(-0.35, 0.2, 0.8, 0.8, 0.12, 0, 0.85, "#a07848"), S.rbox(0.42, 0.25, 0.65, 0.65, -0.12, 0, 0.7, "#9a7244"), S.rbox(0.05, -0.38, 0.6, 0.6, 0, 0, 0.65, "#a47c4c")], { surface: 0.7 }),
     draw: (c) => {
       for (const [x, y, s, seed] of [[-0.35, 0.2, 0.8, 113], [0.42, 0.25, 0.65, 114], [0.05, -0.38, 0.6, 115]]) {
         c.save(); c.translate(x, y); c.rotate((seed % 3) * 0.12 - 0.12);
@@ -288,7 +289,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "chest-open", name: "Open chest", category: "Containers", w: 1, h: 1, layer: "object",
+    id: "chest-open", name: "Open chest", category: "Containers", w: 1, h: 1, layer: "object", form: S.chest(0.75, "#7a4e2a", "#3e3e44", { open: true, fill: "#e0b440" }),
     draw: (c) => {
       board(c, -0.48, -0.45, 0.96, 0.32, "#6a4426", "#4a2e1a", 116);
       board(c, -0.48, -0.1, 0.96, 0.56, "#8a5a30", "#5a3820", 117);
@@ -297,13 +298,13 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "sacks", name: "Sacks", category: "Containers", w: 1.4, h: 1.2, layer: "object",
+    id: "sacks", name: "Sacks", category: "Containers", w: 1.4, h: 1.2, layer: "object", form: S.solid([[-0.3, 0.15, 1], [0.32, 0.18, 0.9], [0, -0.28, 0.85]].map(([x, z, s]) => [S.ball(0.27 * s, 0, 0.72 * s, "#c4ad80", { x, z, rz: 0.24 * s, lump: 0.1 }), S.cyl(0.07, 0.62 * s, 0.82 * s, "#8a7246", { x, z: z - 0.1 * s, top: 1.3, n: 6 })]).flat()),
     draw: (c) => {
       for (const [x, y, s] of [[-0.3, 0.15, 1], [0.32, 0.18, 0.9], [0, -0.28, 0.85]]) { ell(c, x, y, 0.27 * s, 0.24 * s); fo(c, radial(c, x, y, 0.3 * s, "#d8c294", "#9a8256")); ell(c, x, y - 0.2 * s, 0.07, 0.05); fo(c, "#8a7246", 0.015); }
     },
   },
   {
-    id: "basket", name: "Basket of apples", category: "Containers", w: 0.7, h: 0.7, layer: "object",
+    id: "basket", name: "Basket of apples", category: "Containers", w: 0.7, h: 0.7, layer: "object", form: S.resting(S.solid([S.tub(0.3, 0, 0.32, "#a07a44", 0.86, { floor: 0.12 }), S.ball(0.25, 0.12, 0.4, "#c0302a", { lump: 0.25, n: 7 })])),
     draw: (c) => {
       circle(c, 0, 0, 0.3); fo(c, radial(c, 0, 0, 0.3, "#c8a060", "#7a5a2a"));
       c.strokeStyle = "rgba(60,40,15,0.5)"; c.lineWidth = 0.012; for (let r = 0.1; r < 0.3; r += 0.05) { circle(c, 0, 0, r); c.stroke(); }
@@ -311,21 +312,21 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "urn", name: "Urn", category: "Containers", w: 0.7, h: 0.7, layer: "object",
+    id: "urn", name: "Urn", category: "Containers", w: 0.7, h: 0.7, layer: "object", form: S.vase(0.8, "#b06a40"),
     draw: (c) => { circle(c, 0, 0, 0.3); fo(c, radial(c, 0, 0, 0.3, "#d08a5a", "#8a4a26")); circle(c, 0, 0, 0.13); fo(c, "#3a2214", 0.02); },
   },
   {
-    id: "pots", name: "Clay pots", category: "Containers", w: 1.2, h: 1, layer: "object",
+    id: "pots", name: "Clay pots", category: "Containers", w: 1.2, h: 1, layer: "object", form: S.solid([S.vaseAt(-0.3, 0.1, 0.24, 0.6, "#b06a40"), S.vaseAt(0.28, 0.12, 0.2, 0.5, "#b06a40"), S.vaseAt(0, -0.25, 0.18, 0.45, "#a8603a")]),
     draw: (c) => {
       for (const [x, y, r] of [[-0.3, 0.1, 0.24], [0.28, 0.12, 0.2], [0, -0.25, 0.18]]) { circle(c, x, y, r); fo(c, radial(c, x, y, r, "#d08a5a", "#8a4a26")); circle(c, x, y, r * 0.42); fo(c, "#3a2214", 0.015); }
     },
   },
   {
-    id: "bucket", name: "Bucket", category: "Containers", w: 0.5, h: 0.5, layer: "object",
+    id: "bucket", name: "Bucket", category: "Containers", w: 0.5, h: 0.5, layer: "object", form: S.resting(S.solid([S.tub(0.21, 0, 0.32, "#8a5c34", 0.72, { top: 1.1, floor: 0.04 }), S.cyl(0.15, 0.04, 0.26, "#3a7aa0", { n: 10 })])),
     draw: (c) => { circle(c, 0, 0, 0.21); fo(c, radial(c, 0, 0, 0.21, "#a87444", "#5e3a1e")); circle(c, 0, 0, 0.15); fo(c, radial(c, 0, 0, 0.15, "#6aa8c8", "#2a5a7a"), 0.015); },
   },
   {
-    id: "treasure", name: "Treasure pile", category: "Containers", w: 1.4, h: 1.2, layer: "object",
+    id: "treasure", name: "Treasure pile", category: "Containers", w: 1.4, h: 1.2, layer: "object", form: S.solid([S.ball(0.62, -0.25, 0.5, "#e0b040", { rz: 0.5, lump: 0.2, n: 9 })]),
     draw: (c) => {
       ell(c, 0, 0, 0.62, 0.5); fo(c, radial(c, -0.1, -0.1, 0.65, "#ffe080", "#b08020"));
       const r = rng(119);
@@ -333,20 +334,20 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "strongbox", name: "Strongbox", category: "Containers", w: 0.8, h: 0.6, layer: "object",
+    id: "strongbox", name: "Strongbox", category: "Containers", w: 0.8, h: 0.6, layer: "object", form: S.chest(0.5, "#6a6a72", "#3a3a40", { rests: true }),
     draw: (c) => { metalBox(c, -0.36, -0.26, 0.72, 0.52); c.fillStyle = GOLD; rr(c, -0.06, -0.06, 0.12, 0.14, 0.02); c.fill(); for (const x of [-0.3, 0.3]) for (const y of [-0.2, 0.2]) { c.fillStyle = IRON_D; circle(c, x, y, 0.025); c.fill(); } },
   },
 
   // ---------------------------------------------------------------- Kitchen & tavern
   {
-    id: "bar-counter", name: "Bar counter", category: "Kitchen & tavern", w: 3.2, h: 0.8, layer: "object",
+    id: "bar-counter", name: "Bar counter", category: "Kitchen & tavern", w: 3.2, h: 0.8, layer: "object", form: S.plus(S.counter(1.05, "#5e3a20", "#7a4a28"), [-1.1, -0.5, 0.4, 1.1].map((x) => S.cyl(0.08, 1.05, 1.22, "#c8c0b0", { x, z: -0.05, n: 8 }))),
     draw: (c) => {
       board(c, -1.55, -0.36, 3.1, 0.72, "#7a4a28", "#4a2a14", 120);
       for (const x of [-1.1, -0.5, 0.4, 1.1]) { circle(c, x, -0.05, 0.08); fo(c, radial(c, x, -0.05, 0.08, "#d8d0c0", "#8a8478"), 0.015); circle(c, x, -0.05, 0.055); c.fillStyle = "#d8a040"; c.fill(); }
     },
   },
   {
-    id: "keg", name: "Keg on a stand", category: "Kitchen & tavern", w: 1.1, h: 0.8, layer: "object",
+    id: "keg", name: "Keg on a stand", category: "Kitchen & tavern", w: 1.1, h: 0.8, layer: "object", form: S.solid([S.box(-0.52, 0.52, -0.36, -0.24, 0, 0.36, "#5a3820"), S.box(-0.52, 0.52, 0.24, 0.36, 0, 0.36, "#5a3820"), S.limb([-0.44, 0.78, 0], [0.44, 0.78, 0], 0.27, 0.27, "#9a683c", { n: 10 }), S.limb([0.44, 0.78, 0], [0.52, 0.78, 0], 0.03, 0.03, "#9a9aa2", { n: 5 })], { surface: 1.18 }),
     draw: (c) => {
       board(c, -0.52, -0.36, 1.04, 0.12, WOOD_D, "#4a2e1a", 121); board(c, -0.52, 0.24, 1.04, 0.12, WOOD_D, "#4a2e1a", 122);
       rr(c, -0.44, -0.28, 0.88, 0.56, 0.2); fo(c, linear(c, 0, -0.28, 0, 0.28, "#b07a48", "#6a4224"));
@@ -354,7 +355,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "food-platter", name: "Food platter", category: "Kitchen & tavern", w: 1, h: 0.8, layer: "object",
+    id: "food-platter", name: "Food platter", category: "Kitchen & tavern", w: 1, h: 0.8, layer: "object", form: S.resting(S.solid([S.cyl(0.45, 0, 0.03, "#c8c0b0", { rz: 0.34, n: 12 }), S.ball(0.22, 0.03, 0.2, "#b06a2a", { x: -0.1, rz: 0.14, n: 8 }), S.ball(0.06, 0.03, 0.12, "#c22a2a", { x: 0.22, z: -0.1, n: 6 }), S.ball(0.06, 0.03, 0.12, "#6aa82a", { x: 0.25, z: 0.1, n: 6 }), S.ball(0.06, 0.03, 0.12, "#e8c24a", { x: 0.12, z: 0.17, n: 6 })])),
     draw: (c) => {
       ell(c, 0, 0, 0.45, 0.34); fo(c, linear(c, 0, -0.34, 0, 0.34, "#d8d0c0", "#9a948a"));
       ell(c, -0.1, 0, 0.22, 0.14, 0.3); fo(c, radial(c, -0.1, 0, 0.22, "#d8904a", "#8a4a1a"), 0.015);
@@ -362,7 +363,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "oven", name: "Bread oven", category: "Kitchen & tavern", w: 1.4, h: 1.4, layer: "object",
+    id: "oven", name: "Bread oven", category: "Kitchen & tavern", w: 1.4, h: 1.4, layer: "object", form: S.solid([S.ball(0.66, -0.25, 1.45, "#a87a60", { lump: 0.04, n: 10 }), S.box(-0.2, 0.2, 0.5, 0.66, 0.15, 0.55, "#ff9a3a", { glow: true })], { note: "the oven's mouth glows" }),
     light: { radius: 3, color: "#ff9a4a", intensity: 0.7 },
     draw: (c) => {
       circle(c, 0, 0, 0.66); fo(c, radial(c, -0.1, -0.1, 0.7, "#c89a7a", "#7a5040"));
@@ -371,7 +372,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "kitchen-counter", name: "Kitchen counter", category: "Kitchen & tavern", w: 2, h: 0.8, layer: "object",
+    id: "kitchen-counter", name: "Kitchen counter", category: "Kitchen & tavern", w: 2, h: 0.8, layer: "object", form: S.plus(S.counter(0.9, "#7a5030", "#9a6a3e"), S.box(-0.7, -0.2, -0.22, 0.14, 0.9, 0.92, "#d8b88a"), [[0.2, -0.05, "#e07a2a"], [0.35, 0.1, "#6aa82a"], [0.55, -0.12, "#c22a2a"], [0.7, 0.08, "#e8d8a0"]].map(([x, z, c]) => S.ball(0.07, 0.9, 1.0, c as string, { x: x as number, z: z as number, n: 6 }))),
     draw: (c) => {
       board(c, -0.98, -0.37, 1.96, 0.74, "#9a6a3e", "#6a4426", 123);
       rr(c, -0.7, -0.22, 0.5, 0.36, 0.03); fo(c, "#d8b88a", 0.015);
@@ -380,7 +381,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "cookware", name: "Pots and pans", category: "Kitchen & tavern", w: 1.2, h: 0.8, layer: "object",
+    id: "cookware", name: "Pots and pans", category: "Kitchen & tavern", w: 1.2, h: 0.8, layer: "object", form: S.resting(S.solid([S.tub(0.27, 0, 0.3, "#2a2a30", 0.72, { x: -0.3, floor: 0.2 }), S.cyl(0.19, 0.2, 0.24, "#8a5a2a", { x: -0.3, n: 10 }), S.cyl(0.2, 0, 0.07, "#a8683a", { x: 0.28, z: 0.05, n: 10 }), S.limb([0.39, 0.05, -0.12], [0.55, 0.06, -0.32], 0.03, 0.03, "#3a2a1a", { n: 4 })])),
     draw: (c) => {
       circle(c, -0.3, 0, 0.27); fo(c, radial(c, -0.3, 0, 0.27, "#5a5a62", "#1a1a1e")); circle(c, -0.3, 0, 0.19); fo(c, "#8a5a2a", 0.015);
       circle(c, 0.28, 0.05, 0.2); fo(c, radial(c, 0.28, 0.05, 0.2, "#c87a4a", "#7a3a1a"));
@@ -388,25 +389,25 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "wine-rack", name: "Wine rack", category: "Kitchen & tavern", w: 1.6, h: 0.5, layer: "object",
+    id: "wine-rack", name: "Wine rack", category: "Kitchen & tavern", w: 1.6, h: 0.5, layer: "object", form: S.tall(1.6, "#5a3a22", { front: "#3a2418", plinth: 0.05 }),
     draw: (c) => {
       board(c, -0.78, -0.23, 1.56, 0.46, "#6e4628", "#4a2e1a", 124);
       for (let i = 0; i < 7; i++) for (let j = 0; j < 2; j++) { const x = -0.6 + i * 0.2; const y = -0.08 + j * 0.16; circle(c, x, y, 0.06); fo(c, j ? "#2a4a1a" : "#4a1a2a", 0.012); }
     },
   },
   {
-    id: "tankards", name: "Tankards", category: "Kitchen & tavern", w: 0.6, h: 0.6, layer: "object",
+    id: "tankards", name: "Tankards", category: "Kitchen & tavern", w: 0.6, h: 0.6, layer: "object", form: S.resting(S.solid([[-0.12, -0.08], [0.12, -0.06], [0, 0.13]].map(([x, z]) => [S.cyl(0.09, 0, 0.17, "#b0a898", { x, z, n: 8 }), S.cyl(0.065, 0.17, 0.19, "#fff4d8", { x, z, n: 8 })]).flat())),
     draw: (c) => { for (const [x, y] of [[-0.12, -0.08], [0.12, -0.06], [0, 0.13]]) { circle(c, x, y, 0.09); fo(c, radial(c, x, y, 0.09, "#d8d0c0", "#7a7468"), 0.015); circle(c, x, y, 0.06); c.fillStyle = "#e8b040"; c.fill(); c.fillStyle = "#fff8e0"; circle(c, x - 0.015, y - 0.015, 0.03); c.fill(); } },
   },
   {
-    id: "cheese-wheel", name: "Cheese wheels", category: "Kitchen & tavern", w: 0.9, h: 0.7, layer: "object",
+    id: "cheese-wheel", name: "Cheese wheels", category: "Kitchen & tavern", w: 0.9, h: 0.7, layer: "object", form: S.resting(S.solid([S.cyl(0.2, 0, 0.14, "#e8c860", { x: -0.18, n: 10 }), S.cyl(0.2, 0, 0.14, "#e8c860", { x: 0.2, z: 0.05, n: 10 })])),
     draw: (c) => {
       for (const [x, y] of [[-0.18, 0], [0.2, 0.05]]) { circle(c, x, y, 0.2); fo(c, radial(c, x, y, 0.2, "#ffe48a", "#c89a2a")); }
       c.fillStyle = "#c89a2a"; c.beginPath(); c.moveTo(0.2, 0.05); c.arc(0.2, 0.05, 0.2, -0.4, 0.5); c.closePath(); c.fill();
     },
   },
   {
-    id: "spit-roast", name: "Spit roast", category: "Kitchen & tavern", w: 1.6, h: 1, layer: "object",
+    id: "spit-roast", name: "Spit roast", category: "Kitchen & tavern", w: 1.6, h: 1, layer: "object", form: S.solid([S.limb([-0.68, 0, 0], [-0.68, 0.95, 0], 0.04, 0.035, "#6e4628"), S.limb([0.68, 0, 0], [0.68, 0.95, 0], 0.04, 0.035, "#6e4628"), S.limb([-0.72, 0.9, 0], [0.72, 0.9, 0], 0.025, 0.025, "#3a2a1a", { n: 4 }), S.ball(0.32, 0.7, 1.1, "#a0582a", { z: -0.02, rz: 0.17, n: 8 }), S.fire(0, 0.12, 0, 0.5, 0.2)]),
     light: { radius: 6, color: "#ff9a4a", intensity: 0.9 },
     draw: (c) => {
       c.strokeStyle = "#3a2a1a"; c.lineWidth = 0.05; c.beginPath(); c.moveTo(-0.72, 0); c.lineTo(0.72, 0); c.stroke();
@@ -417,10 +418,10 @@ export const MORE_PROPS: PropDef[] = [
   },
 
   // ---------------------------------------------------------------- Nature
-  { id: "oak-tree", name: "Oak tree", category: "Nature", w: 3.2, h: 3.2, layer: "canopy", draw: (c) => canopy(c, 1.45, 131, "#1c3614", "#2c5220", "#5a8a36") },
-  { id: "birch-tree", name: "Birch tree", category: "Nature", w: 2, h: 2, layer: "canopy", draw: (c) => canopy(c, 0.88, 132, "#3a5a20", "#5a8a32", "#a8cc66") },
+  { id: "oak-tree", name: "Oak tree", category: "Nature", w: 3.2, h: 3.2, layer: "canopy", form: S.leafyTree(S.paint("#2c5220"), { deep: 0.8 }), draw: (c) => canopy(c, 1.45, 131, "#1c3614", "#2c5220", "#5a8a36") },
+  { id: "birch-tree", name: "Birch tree", category: "Nature", w: 2, h: 2, layer: "canopy", form: S.leafyTree(S.paint("#5a8a32"), { tall: 1.15, trunk: "#e4e0d6" }), draw: (c) => canopy(c, 0.88, 132, "#3a5a20", "#5a8a32", "#a8cc66") },
   {
-    id: "willow-tree", name: "Willow tree", category: "Nature", w: 3, h: 3, layer: "canopy",
+    id: "willow-tree", name: "Willow tree", category: "Nature", w: 3, h: 3, layer: "canopy", form: S.leafyTree(S.paint("#4a7a30"), { deep: 1.15, spread: 0.98 }),
     draw: (c) => {
       canopy(c, 1.3, 133, "#2a4a1c", "#4a7a30", "#8ab05a");
       c.strokeStyle = "rgba(150,190,90,0.6)"; c.lineWidth = 0.025; const r = rng(134);
@@ -428,7 +429,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "fir-tree", name: "Fir tree", category: "Nature", w: 1.6, h: 1.6, layer: "canopy",
+    id: "fir-tree", name: "Fir tree", category: "Nature", w: 1.6, h: 1.6, layer: "canopy", form: S.conifer(S.paint("#1e4024"), { tiers: 4 }),
     draw: (c) => {
       for (let i = 0; i < 4; i++) {
         const r = 0.76 - i * 0.18; c.beginPath();
@@ -438,7 +439,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "dead-tree", name: "Dead tree", category: "Nature", w: 2.2, h: 2.2, layer: "canopy",
+    id: "dead-tree", name: "Dead tree", category: "Nature", w: 2.2, h: 2.2, layer: "canopy", form: S.bareTree("#4a3a2c", { seed: 135 }),
     draw: (c) => {
       c.strokeStyle = "#3a2c22"; c.lineCap = "round"; const r = rng(135);
       const branch = (x: number, y: number, a: number, len: number, w: number, depth: number) => {
@@ -451,7 +452,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "stump", name: "Tree stump", category: "Nature", w: 0.8, h: 0.8, layer: "object",
+    id: "stump", name: "Tree stump", category: "Nature", w: 0.8, h: 0.8, layer: "object", form: S.solid([S.cyl(0.34, 0, 0.45, "#5a3e26", { top: 0.88, n: 9 }), S.cyl(0.28, 0.45, 0.46, "#c8a070", { n: 9 })], { surface: 0.46 }),
     draw: (c) => {
       circle(c, 0, 0, 0.34); fo(c, "#5a3e26");
       circle(c, 0, 0, 0.28); fo(c, radial(c, 0, 0, 0.28, "#e0c08a", "#b08a5a"), 0.015);
@@ -459,7 +460,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "fallen-branch", name: "Fallen branch", category: "Nature", w: 1.6, h: 0.8, layer: "object",
+    id: "fallen-branch", name: "Fallen branch", category: "Nature", w: 1.6, h: 0.8, layer: "object", form: S.solid([S.limb([-0.7, 0.08, 0.15], [0, 0.1, -0.02], 0.065, 0.05, "#6a4a2e"), S.limb([0, 0.1, -0.02], [0.7, 0.07, 0.05], 0.05, 0.03, "#6a4a2e"), S.limb([0, 0.1, -0.02], [0.25, 0.2, -0.3], 0.035, 0.02, "#6a4a2e", { n: 4 }), S.limb([-0.3, 0.09, 0.04], [-0.45, 0.16, -0.25], 0.03, 0.015, "#6a4a2e", { n: 4 }), S.ball(0.13, 0.05, 0.3, S.paint("#4a7a30"), { x: 0.25, z: -0.3, lump: 0.3, n: 6 })]),
     draw: (c) => {
       c.lineCap = "round"; c.strokeStyle = OUT; c.lineWidth = 0.13; c.beginPath(); c.moveTo(-0.7, 0.15); c.quadraticCurveTo(0, -0.1, 0.7, 0.05); c.moveTo(0, -0.02); c.lineTo(0.25, -0.3); c.moveTo(-0.3, 0.04); c.lineTo(-0.45, -0.25); c.stroke();
       c.strokeStyle = "#6a4a2e"; c.lineWidth = 0.08; c.stroke();
@@ -467,17 +468,17 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "flower-bush", name: "Flowering bush", category: "Nature", w: 1, h: 1, layer: "object",
+    id: "flower-bush", name: "Flowering bush", category: "Nature", w: 1, h: 1, layer: "object", form: S.shrub(S.paint("#355e28")),
     draw: (c) => { canopy(c, 0.42, 137, "#203c1a", "#355e28", "#6a9a44"); flowerDots(c, 0, 0, 0.36, 9, 138, "#e86aa8"); },
   },
   {
-    id: "hedge", name: "Hedge", category: "Nature", w: 2.2, h: 0.8, layer: "object",
+    id: "hedge", name: "Hedge", category: "Nature", w: 2.2, h: 0.8, layer: "object", form: S.solid([S.box(-1.05, 1.05, -0.33, 0.33, 0, 1.25, S.paint("#2e5624"), { top: 0.88 })]),
     draw: (c) => {
       for (let i = 0; i < 5; i++) { c.save(); c.translate(-0.8 + i * 0.4, 0); canopy(c, 0.3, 140 + i, "#1e3a18", "#2e5624", "#4a7a32"); c.restore(); }
     },
   },
   {
-    id: "fern", name: "Fern", category: "Nature", w: 0.9, h: 0.9, layer: "object",
+    id: "fern", name: "Fern", category: "Nature", w: 0.9, h: 0.9, layer: "object", form: S.shrub(S.paint("#4a8a34"), { tall: 0.6, lump: 0.32 }),
     draw: (c) => {
       for (let i = 0; i < 7; i++) {
         const a = (i / 7) * Math.PI * 2; c.save(); c.rotate(a);
@@ -488,33 +489,33 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "grass-tuft", name: "Grass tuft", category: "Nature", w: 0.7, h: 0.7, layer: "object",
+    id: "grass-tuft", name: "Grass tuft", category: "Nature", w: 0.7, h: 0.7, layer: "object", form: S.solid([S.ball(0.3, -0.06, 0.32, S.paint("#5a8a32"), { lump: 0.4, n: 7 })]),
     draw: (c) => {
       const r = rng(145); c.lineCap = "round";
       for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2; const l = 0.12 + r() * 0.18; c.strokeStyle = ["#3a6a24", "#5a8a32", "#7aa846"][Math.floor(r() * 3)]; c.lineWidth = 0.018; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * l, Math.sin(a) * l); c.stroke(); }
     },
   },
   {
-    id: "flowers-red", name: "Red flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor",
+    id: "flowers-red", name: "Red flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor", form: S.solid([S.ball(0.33, -0.05, 0.28, S.paint("#5a6a32"), { lump: 0.3, n: 7 })]),
     draw: (c) => { leaves(c, 0, 0, 0.32, 30, 146, ["#3a6a24", "#5a8a32"]); flowerDots(c, 0, 0, 0.3, 8, 147, "#d8323a"); },
   },
   {
-    id: "flowers-yellow", name: "Yellow flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor",
+    id: "flowers-yellow", name: "Yellow flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor", form: S.solid([S.ball(0.33, -0.05, 0.28, S.paint("#7a8a32"), { lump: 0.3, n: 7 })]),
     draw: (c) => { leaves(c, 0, 0, 0.32, 30, 148, ["#3a6a24", "#5a8a32"]); flowerDots(c, 0, 0, 0.3, 8, 149, "#f2c838"); },
   },
   {
-    id: "flowers-purple", name: "Purple flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor",
+    id: "flowers-purple", name: "Purple flowers", category: "Nature", w: 0.8, h: 0.8, layer: "floor", form: S.solid([S.ball(0.33, -0.05, 0.28, S.paint("#5a5a52"), { lump: 0.3, n: 7 })]),
     draw: (c) => { leaves(c, 0, 0, 0.32, 30, 150, ["#3a6a24", "#5a8a32"]); flowerDots(c, 0, 0, 0.3, 8, 151, "#9a5ad8"); },
   },
   {
-    id: "reeds", name: "Reeds", category: "Nature", w: 0.9, h: 0.9, layer: "object",
+    id: "reeds", name: "Reeds", category: "Nature", w: 0.9, h: 0.9, layer: "object", form: S.solid([S.ball(0.3, -0.05, 0.25, S.paint("#5a7a3a"), { lump: 0.3, n: 7 }), [[-0.18, -0.1], [0.12, -0.18], [0.2, 0.12], [-0.08, 0.2], [0, 0], [-0.22, 0.12]].map(([x, z], i) => S.cone(0.05, 0.1, 1.05 + (i % 3) * 0.15, S.paint("#5a7a3a"), { x, z, n: 4 }))]),
     draw: (c) => {
       const r = rng(152); c.lineCap = "round";
       for (let i = 0; i < 26; i++) { const x = (r() - 0.5) * 0.6; const y = (r() - 0.5) * 0.6; c.strokeStyle = "#5a7a3a"; c.lineWidth = 0.025; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 0.25, y - 0.15 - r() * 0.15); c.stroke(); if (r() > 0.6) { c.fillStyle = "#6a4a2a"; ell(c, x, y - 0.1, 0.02, 0.05); c.fill(); } }
     },
   },
   {
-    id: "lily-pads", name: "Lily pads", category: "Nature", w: 1, h: 1, layer: "floor",
+    id: "lily-pads", name: "Lily pads", category: "Nature", w: 1, h: 1, layer: "floor", form: S.flat("lily pads float flat on the water"),
     draw: (c) => {
       for (const [x, y, r] of [[-0.2, -0.15, 0.17], [0.2, 0.05, 0.14], [-0.1, 0.25, 0.12], [0.25, -0.28, 0.1]]) {
         c.beginPath(); c.moveTo(x, y); c.arc(x, y, r, 0.3, Math.PI * 2 - 0.05); c.closePath(); fo(c, radial(c, x, y, r, "#7aaa4a", "#3a6a24"), 0.015);
@@ -523,39 +524,39 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "mushrooms", name: "Mushrooms", category: "Nature", w: 0.6, h: 0.6, layer: "object",
+    id: "mushrooms", name: "Mushrooms", category: "Nature", w: 0.6, h: 0.6, layer: "object", form: S.resting(S.solid([[-0.1, -0.05, 0.11], [0.1, 0.06, 0.08], [-0.04, 0.15, 0.06]].map(([x, z, r]) => [S.cyl(r * 0.3, 0, r * 1.4, "#f0e8d8", { x, z, n: 5 }), S.ball(r, r * 1.1, r * 2, "#c8382e", { x, z, n: 7 })]).flat())),
     draw: (c) => { for (const [x, y, r] of [[-0.1, -0.05, 0.11], [0.1, 0.06, 0.08], [-0.04, 0.15, 0.06]]) { circle(c, x, y, r); fo(c, radial(c, x - r * 0.3, y - r * 0.3, r, "#e85a4a", "#9a1a14"), 0.015); c.fillStyle = "#fff4e0"; circle(c, x - r * 0.3, y, r * 0.18); c.fill(); circle(c, x + r * 0.3, y - r * 0.3, r * 0.14); c.fill(); } },
   },
   {
-    id: "rocks", name: "Rocks", category: "Nature", w: 1.2, h: 1, layer: "object",
+    id: "rocks", name: "Rocks", category: "Nature", w: 1.2, h: 1, layer: "object", form: S.solid([[-0.3, 0.1, 0.24], [0.25, 0.15, 0.2], [0, -0.25, 0.18], [0.42, -0.2, 0.1]].map(([x, z, s]) => S.ball(s, -s * 0.2, s * 1.2, "#86847e", { x, z, rz: s * 0.85, lump: 0.24, n: 7 }))),
     draw: (c) => { for (const [x, y, s, seed] of [[-0.3, 0.1, 0.24, 154], [0.25, 0.15, 0.2, 155], [0, -0.25, 0.18, 156], [0.42, -0.2, 0.1, 157]]) { c.save(); c.translate(x, y); rockShape(c, s, s * 0.85, seed); c.restore(); } },
   },
   {
-    id: "rubble", name: "Rubble", category: "Nature", w: 1.4, h: 1.2, layer: "object",
+    id: "rubble", name: "Rubble", category: "Nature", w: 1.4, h: 1.2, layer: "object", form: S.solid([S.ball(0.58, -0.12, 0.3, "#86827a", { rz: 0.46, lump: 0.35, n: 8 })]),
     draw: (c) => {
       const r = rng(158);
       for (let i = 0; i < 14; i++) { const x = (r() - 0.5) * 1.1; const y = (r() - 0.5) * 0.9; const s = 0.06 + r() * 0.1; c.save(); c.translate(x, y); c.rotate(r() * 6); poly(c, [-s, -s * 0.7, s * 0.8, -s, s, s * 0.6, -s * 0.6, s]); fo(c, linear(c, -s, -s, s, s, "#a8a49c", "#625e58"), 0.015); c.restore(); }
     },
   },
   {
-    id: "snowdrift", name: "Snowdrift", category: "Nature", w: 1.6, h: 1.2, layer: "floor",
+    id: "snowdrift", name: "Snowdrift", category: "Nature", w: 1.6, h: 1.2, layer: "floor", form: S.solid([S.ball(0.72, -0.2, 0.4, S.paint("#eef2f8"), { rz: 0.5, lump: 0.08, n: 9 })]),
     draw: (c) => { ell(c, 0, 0, 0.72, 0.5, 0.2); fo(c, radial(c, -0.15, -0.15, 0.8, "#ffffff", "#c8d4e4"), 0.015); ell(c, 0.3, 0.1, 0.32, 0.22); c.fillStyle = "#e4ecf6"; c.fill(); },
   },
 
   // ---------------------------------------------------------------- Camp & outdoors
   {
-    id: "tent", name: "Tent", category: "Camp & outdoors", w: 2.6, h: 2.6, layer: "canopy",
+    id: "tent", name: "Tent", category: "Camp & outdoors", w: 2.6, h: 2.6, layer: "canopy", form: S.solid([S.cone(1.2, 0, 2.4, "#c4ae84", { n: 4 })]),
     draw: (c) => {
       poly(c, [0, -1.2, 1.2, 0, 0, 1.2, -1.2, 0]); fo(c, linear(c, -1.2, -1.2, 1.2, 1.2, "#d8c49a", "#8a7450"));
       c.strokeStyle = "rgba(60,45,25,0.6)"; c.lineWidth = 0.025; c.beginPath(); c.moveTo(0, -1.2); c.lineTo(0, 1.2); c.moveTo(-1.2, 0); c.lineTo(1.2, 0); c.stroke();
     },
   },
   {
-    id: "bedroll", name: "Bedroll", category: "Camp & outdoors", w: 0.8, h: 2, layer: "floor",
+    id: "bedroll", name: "Bedroll", category: "Camp & outdoors", w: 0.8, h: 2, layer: "floor", form: S.solid([S.box(-0.35, 0.35, -0.9, 0.9, 0, 0.14, "#55653c", { top: 0.9 }), S.ball(0.22, 0.1, 0.24, "#c8b890", { z: -0.65, rz: 0.13, n: 7 })]),
     draw: (c) => { rr(c, -0.35, -0.9, 0.7, 1.8, 0.2); fo(c, linear(c, -0.35, 0, 0.35, 0, "#6a7a4a", "#3a4a2a")); ell(c, 0, -0.65, 0.22, 0.13); fo(c, "#c8b890", 0.015); },
   },
   {
-    id: "wagon", name: "Wagon", category: "Camp & outdoors", w: 2, h: 3.6, layer: "object",
+    id: "wagon", name: "Wagon", category: "Camp & outdoors", w: 2, h: 3.6, layer: "object", form: S.solid([[-1.1, 1.1].flatMap((z) => [S.wheel(-0.92, z, 0.38, 0.14), S.wheel(0.92, z, 0.38, 0.14)]), S.box(-0.8, 0.8, -1.5, 1.5, 0.55, 1.0, "#8a5c34", { wall: 0.06, floor: 0.6 }), S.limb([0, 0.5, 1.5], [0, 0.35, 1.78], 0.04, 0.04, "#6e4628", { n: 4 }), S.limb([0, 1.0, -1.4], [0, 1.0, 0.1], 0.7, 0.7, "#e4dac0", { n: 10 })]),
     draw: (c) => {
       for (const y of [-1.1, 1.1]) for (const x of [-0.92, 0.92]) { rr(c, x - 0.08, y - 0.38, 0.16, 0.76, 0.04); fo(c, "#3a2a1a"); }
       board(c, -0.8, -1.5, 1.6, 3, "#9a6a3e", "#6a4426", 160);
@@ -564,7 +565,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "cart", name: "Hand cart", category: "Camp & outdoors", w: 1.6, h: 2, layer: "object",
+    id: "cart", name: "Hand cart", category: "Camp & outdoors", w: 1.6, h: 2, layer: "object", form: S.solid([S.wheel(-0.72, 0, 0.3, 0.12), S.wheel(0.72, 0, 0.3, 0.12), S.box(-0.6, 0.6, -0.7, 0.5, 0.45, 0.8, "#9a6a3e", { wall: 0.05, floor: 0.5 }), S.limb([-0.3, 0.6, 0.5], [-0.3, 0.75, 0.95], 0.03, 0.03, "#6e4628", { n: 4 }), S.limb([0.3, 0.6, 0.5], [0.3, 0.75, 0.95], 0.03, 0.03, "#6e4628", { n: 4 })]),
     draw: (c) => {
       for (const x of [-0.72, 0.72]) { rr(c, x - 0.07, -0.3, 0.14, 0.6, 0.04); fo(c, "#3a2a1a"); }
       board(c, -0.6, -0.7, 1.2, 1.2, "#a8774a", WOOD_D, 161);
@@ -572,21 +573,21 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "fence", name: "Fence", category: "Camp & outdoors", w: 2, h: 0.4, layer: "object",
+    id: "fence", name: "Fence", category: "Camp & outdoors", w: 2, h: 0.4, layer: "object", form: S.solid([[-0.9, -0.3, 0.3, 0.9].map((x) => S.cbox(0.14, 0.24, 0, 1.15, "#6a4426", x)), S.box(-0.98, 0.98, -0.05, 0.05, 0.5, 0.62, "#7a5030"), S.box(-0.98, 0.98, -0.05, 0.05, 0.88, 1.0, "#7a5030")]),
     draw: (c) => {
       board(c, -0.98, -0.06, 1.96, 0.12, "#8a5e36", "#5a3a20", 162);
       for (const x of [-0.9, -0.3, 0.3, 0.9]) { rr(c, x - 0.07, -0.12, 0.14, 0.24, 0.02); fo(c, "#6a4426", 0.02); }
     },
   },
   {
-    id: "signpost", name: "Signpost", category: "Camp & outdoors", w: 1.2, h: 0.8, layer: "object",
+    id: "signpost", name: "Signpost", category: "Camp & outdoors", w: 1.2, h: 0.8, layer: "object", form: S.solid([S.cyl(0.08, 0, 2.1, "#5a3a20", { n: 6 }), S.slab(S.turned([-0.5, -0.1, 0.42, -0.1, 0.55, 0, 0.42, 0.1, -0.5, 0.1], 0.15, 0, -0.18), 1.75, 1.95, "#9a7046"), S.slab(S.turned([-0.5, -0.1, 0.42, -0.1, 0.55, 0, 0.42, 0.1, -0.5, 0.1], -0.2, 0, 0.12), 1.45, 1.65, "#9a7046")]),
     draw: (c) => {
       for (const [a, y] of [[0.15, -0.18], [-0.2, 0.12]]) { c.save(); c.rotate(a); c.translate(0, y); poly(c, [-0.5, -0.1, 0.42, -0.1, 0.55, 0, 0.42, 0.1, -0.5, 0.1]); fo(c, linear(c, 0, -0.1, 0, 0.1, "#b88a5a", "#7a5430"), 0.02); c.restore(); }
       circle(c, 0, 0, 0.08); fo(c, "#5a3a20");
     },
   },
   {
-    id: "haystack", name: "Haystack", category: "Camp & outdoors", w: 1.6, h: 1.6, layer: "object",
+    id: "haystack", name: "Haystack", category: "Camp & outdoors", w: 1.6, h: 1.6, layer: "object", form: S.solid([S.ball(0.72, -0.2, 1.6, "#d8b860", { lump: 0.08, n: 10 })]),
     draw: (c) => {
       circle(c, 0, 0, 0.72); fo(c, radial(c, -0.15, -0.15, 0.8, "#f0d88a", "#b08a3a"));
       c.strokeStyle = "rgba(140,100,30,0.55)"; c.lineWidth = 0.012; const r = rng(163);
@@ -594,13 +595,13 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "log-pile", name: "Log pile", category: "Camp & outdoors", w: 1.4, h: 1, layer: "object",
+    id: "log-pile", name: "Log pile", category: "Camp & outdoors", w: 1.4, h: 1, layer: "object", form: S.solid([[-0.33, -0.11, 0.11, 0.33].map((z) => S.limb([-0.62, 0.135, z], [0.62, 0.135, z], 0.09, 0.09, "#6a4a30")), [-0.22, 0, 0.22].map((z) => S.limb([-0.6, 0.37, z], [0.6, 0.37, z], 0.09, 0.09, "#6e4e32")), [-0.11, 0.11].map((z) => S.limb([-0.58, 0.6, z], [0.58, 0.6, z], 0.09, 0.09, "#6a4a30"))]),
     draw: (c) => {
       for (let i = 0; i < 4; i++) { const y = -0.33 + i * 0.22; rr(c, -0.62, y - 0.09, 1.24, 0.18, 0.09); fo(c, linear(c, 0, y - 0.09, 0, y + 0.09, "#8a6040", "#4a3020"), 0.02); circle(c, 0.6, y, 0.085); fo(c, radial(c, 0.6, y, 0.085, "#e0c08a", "#a07a4a"), 0.012); }
     },
   },
   {
-    id: "scarecrow", name: "Scarecrow", category: "Camp & outdoors", w: 1.2, h: 0.8, layer: "object",
+    id: "scarecrow", name: "Scarecrow", category: "Camp & outdoors", w: 1.2, h: 0.8, layer: "object", form: S.solid([S.cyl(0.04, 0, 1.95, "#5a3a20", { n: 5 }), S.limb([-0.5, 1.45, 0], [0.5, 1.45, 0], 0.03, 0.03, "#5a3a20", { n: 4 }), S.cbox(0.52, 0.34, 0.95, 1.5, "#6a5a8a", 0, 0, { top: 0.9 }), S.ball(0.16, 1.5, 1.85, "#d8b860", { z: -0.02 }), S.cyl(0.24, 1.82, 1.86, "#5a4a2a", { z: -0.04, rz: 0.1, n: 10 }), S.cone(0.12, 1.86, 2.05, "#5a4a2a", { z: -0.04, n: 8 })]),
     draw: (c) => {
       c.strokeStyle = "#5a3a20"; c.lineWidth = 0.06; c.beginPath(); c.moveTo(-0.5, 0); c.lineTo(0.5, 0); c.stroke();
       rr(c, -0.28, -0.2, 0.56, 0.4, 0.06); fo(c, "#6a5a8a", 0.02);
@@ -609,11 +610,11 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "archery-target", name: "Archery target", category: "Camp & outdoors", w: 1, h: 1, layer: "object",
+    id: "archery-target", name: "Archery target", category: "Camp & outdoors", w: 1, h: 1, layer: "object", form: S.solid([S.limb([-0.3, 0, 0.15], [-0.1, 1.35, -0.02], 0.025, 0.025, "#6e4628", { n: 4 }), S.limb([0.3, 0, 0.15], [0.1, 1.35, -0.02], 0.025, 0.025, "#6e4628", { n: 4 }), S.limb([0, 0, -0.35], [0, 1.25, -0.06], 0.025, 0.025, "#6e4628", { n: 4 }), S.limb([0, 0.95, 0.06], [0, 0.98, -0.04], 0.44, 0.44, "#e8e0d0", { n: 14 }), S.limb([0, 0.96, 0.08], [0, 0.98, 0.0], 0.25, 0.25, "#2a6ac2", { n: 12 }), S.limb([0, 0.965, 0.1], [0, 0.98, 0.03], 0.12, 0.12, "#c22a2a", { n: 10 })], { note: "the drawing shows the target's face: it stands upright on its easel" }),
     draw: (c) => { for (const [r, col] of [[0.44, "#e8e0d0"], [0.34, "#2a2a2a"], [0.25, "#2a6ac2"], [0.16, "#c22a2a"], [0.07, "#f2c838"]] as const) { circle(c, 0, 0, r); fo(c, col, 0.015); } },
   },
   {
-    id: "market-stall", name: "Market stall", category: "Camp & outdoors", w: 2.4, h: 1.8, layer: "canopy",
+    id: "market-stall", name: "Market stall", category: "Camp & outdoors", w: 2.4, h: 1.8, layer: "canopy", form: S.solid([[[-1.08, -0.78], [1.08, -0.78], [-1.08, 0.78], [1.08, 0.78]].map(([x, z]) => S.post(x, z, 0.04, 0, 2.05, "#6e4628")), S.gable(-1.15, 1.15, -0.85, 0.85, 2.0, 2.5, "x", "#d07070"), S.box(-1.0, 1.0, 0.3, 0.75, 0, 0.9, "#8a5c34")], { note: "you see under its awning, to the counter" }),
     draw: (c) => {
       rr(c, -1.15, -0.85, 2.3, 1.7, 0.05); c.fillStyle = "#f2ece0"; c.fill(); outline(c);
       c.save(); c.clip(); for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? "#c23a3a" : "#f2ece0"; c.fillRect(-1.15 + i * 0.29, -0.85, 0.29, 1.7); } c.restore();
@@ -621,7 +622,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "rowboat", name: "Rowboat", category: "Camp & outdoors", w: 1.2, h: 3, layer: "object",
+    id: "rowboat", name: "Rowboat", category: "Camp & outdoors", w: 1.2, h: 3, layer: "object", form: S.solid([S.slab([0, -1.42, 0.3, -1.1, 0.48, -0.6, 0.55, 0.0, 0.5, 0.9, 0.35, 1.38, -0.35, 1.38, -0.5, 0.9, -0.55, 0.0, -0.48, -0.6, -0.3, -1.1], 0, 0.6, "#7a5030", { hollow: 0.88, floor: 0.15 }), [-0.5, 0.2, 0.9].map((z) => S.box(-0.42, 0.42, z - 0.06, z + 0.06, 0.38, 0.42, "#a8774a"))]),
     draw: (c) => {
       c.beginPath(); c.moveTo(0, -1.42); c.quadraticCurveTo(0.6, -0.6, 0.5, 0.9); c.lineTo(0.35, 1.38); c.lineTo(-0.35, 1.38); c.lineTo(-0.5, 0.9); c.quadraticCurveTo(-0.6, -0.6, 0, -1.42); c.closePath();
       fo(c, linear(c, -0.6, 0, 0.6, 0, "#8a5e36", "#5a3a20"));
@@ -630,16 +631,16 @@ export const MORE_PROPS: PropDef[] = [
   },
 
   // ---------------------------------------------------------------- Dungeon
-  { id: "pillar-square", name: "Square pillar", category: "Dungeon", w: 1, h: 1, layer: "object", draw: (c) => { block(c, -0.46, -0.46, 0.92, 0.92, "#8a867e", "#5a5650"); block(c, -0.34, -0.34, 0.68, 0.68); } },
+  { id: "pillar-square", name: "Square pillar", category: "Dungeon", w: 1, h: 1, layer: "object", form: S.solid([S.cbox(0.92, 0.92, 0, 0.35, "#7a766e"), S.cbox(0.68, 0.68, 0.35, 2.7, "#a29e96"), S.cbox(0.86, 0.86, 2.7, 3.0, "#7a766e")]), draw: (c) => { block(c, -0.46, -0.46, 0.92, 0.92, "#8a867e", "#5a5650"); block(c, -0.34, -0.34, 0.68, 0.68); } },
   {
-    id: "pillar-broken", name: "Broken pillar", category: "Dungeon", w: 1.6, h: 1.2, layer: "object",
+    id: "pillar-broken", name: "Broken pillar", category: "Dungeon", w: 1.6, h: 1.2, layer: "object", form: S.solid([S.cyl(0.36, 0, 1.1, "#a29e96", { x: -0.35, n: 10, top: 0.9 }), S.slab(S.turned([-0.35, -0.18, 0.35, -0.18, 0.35, 0.18, -0.35, 0.18], 0.4).map((v, i) => v + (i % 2 ? 0.15 : 0.35)), 0, 0.5, "#98948c")]),
     draw: (c) => {
       circle(c, -0.35, 0, 0.36); fo(c, radial(c, -0.35, 0, 0.36, STONE_L, STONE_D));
       c.save(); c.translate(0.35, 0.15); c.rotate(0.4); rr(c, -0.35, -0.18, 0.7, 0.36, 0.08); fo(c, linear(c, 0, -0.18, 0, 0.18, STONE_L, STONE_D)); c.restore();
     },
   },
   {
-    id: "sarcophagus", name: "Sarcophagus", category: "Dungeon", w: 1.2, h: 2.4, layer: "object",
+    id: "sarcophagus", name: "Sarcophagus", category: "Dungeon", w: 1.2, h: 2.4, layer: "object", form: S.solid([S.cbox(1.12, 2.3, 0, 0.75, "#8e8a82"), S.cbox(0.8, 1.9, 0.75, 0.95, "#aeaaa0", 0, 0, { top: 0.85 }), S.cyl(0.16, 0.95, 1.05, "#a09c92", { z: -0.65, n: 8 })], { surface: 0.95 }),
     draw: (c) => {
       block(c, -0.56, -1.15, 1.12, 2.3, "#a8a49c", "#6a665e", 0.06);
       rr(c, -0.4, -0.95, 0.8, 1.9, 0.3); fo(c, linear(c, -0.4, 0, 0.4, 0, "#c8c4ba", "#8a867e"), 0.02);
@@ -647,36 +648,36 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "stairs-spiral", name: "Spiral stairs", category: "Dungeon", w: 2, h: 2, layer: "floor",
+    id: "stairs-spiral", name: "Spiral stairs", category: "Dungeon", w: 2, h: 2, layer: "floor", form: S.flat("a way to another level: the 3D view shows one level, so its steps stay painted"),
     draw: (c) => {
       for (let i = 0; i < 12; i++) { const a0 = (i / 12) * Math.PI * 2; const a1 = ((i + 1) / 12) * Math.PI * 2; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 0.95, a0, a1); c.closePath(); const t = 150 - i * 8; fo(c, `rgb(${t},${t - 4},${t - 10})`, 0.02); }
       circle(c, 0, 0, 0.16); fo(c, STONE_D);
     },
   },
   {
-    id: "trapdoor", name: "Trapdoor", category: "Dungeon", w: 1, h: 1, layer: "floor",
+    id: "trapdoor", name: "Trapdoor", category: "Dungeon", w: 1, h: 1, layer: "floor", form: S.flat("a trapdoor lies in the floor"),
     draw: (c) => { board(c, -0.45, -0.45, 0.9, 0.9, "#7a5030", "#4a2e1a", 170); c.fillStyle = IRON_D; for (const y of [-0.25, 0.25]) c.fillRect(-0.4, y - 0.04, 0.8, 0.08); circle(c, 0.3, 0, 0.06); c.strokeStyle = IRON_D; c.lineWidth = 0.025; c.stroke(); },
   },
   {
-    id: "cage", name: "Cage", category: "Dungeon", w: 1.2, h: 1.2, layer: "object",
+    id: "cage", name: "Cage", category: "Dungeon", w: 1.2, h: 1.2, layer: "object", form: S.solid([S.box(-0.55, 0.55, -0.55, 0.55, 0, 0.06, "#3a3a40"), S.box(-0.55, 0.55, -0.55, 0.55, 1.9, 1.96, "#3a3a40"), [-0.55, -0.367, -0.183, 0, 0.183, 0.367, 0.55].flatMap((x) => [S.post(x, -0.53, 0.02, 0.06, 1.9, "#3a3a40", 4), S.post(x, 0.53, 0.02, 0.06, 1.9, "#3a3a40", 4)]), [-0.367, -0.183, 0, 0.183, 0.367].flatMap((z) => [S.post(-0.53, z, 0.02, 0.06, 1.9, "#3a3a40", 4), S.post(0.53, z, 0.02, 0.06, 1.9, "#3a3a40", 4)])], { note: "you see through its bars" }),
     draw: (c) => {
       rr(c, -0.55, -0.55, 1.1, 1.1, 0.04); c.strokeStyle = IRON_D; c.lineWidth = 0.06; c.stroke();
       c.lineWidth = 0.03; for (let i = 1; i < 6; i++) { const x = -0.55 + i * 0.183; c.beginPath(); c.moveTo(x, -0.55); c.lineTo(x, 0.55); c.stroke(); }
     },
   },
   {
-    id: "chains", name: "Chains", category: "Dungeon", w: 1.2, h: 0.6, layer: "floor",
+    id: "chains", name: "Chains", category: "Dungeon", w: 1.2, h: 0.6, layer: "floor", form: S.flat("chains lie in a heap on the floor"),
     draw: (c) => { c.strokeStyle = IRON_D; c.lineWidth = 0.025; for (let i = 0; i < 10; i++) { const x = -0.5 + i * 0.11; ell(c, x, Math.sin(i * 0.9) * 0.1, 0.06, 0.035, i % 2 ? 0 : Math.PI / 2); c.stroke(); } c.fillStyle = IRON_L; circle(c, 0.55, 0.05, 0.06); c.fill(); },
   },
   {
-    id: "weapon-rack", name: "Weapon rack", category: "Dungeon", w: 1.6, h: 0.6, layer: "object",
+    id: "weapon-rack", name: "Weapon rack", category: "Dungeon", w: 1.6, h: 0.6, layer: "object", form: S.solid([S.box(-0.78, 0.78, -0.12, 0.12, 0, 0.06, "#5a3820"), S.box(-0.78, 0.78, -0.12, -0.06, 0, 1.5, "#5a3820"), S.box(-0.78, 0.78, -0.12, 0.1, 1.0, 1.06, "#5a3820"), [-0.6, -0.3, 0, 0.3, 0.6].map((x, i) => S.limb([x, 0.06, 0.25], [x, i % 2 ? 1.8 : 1.6, -0.2], 0.02, 0.02, i % 2 ? "#9a9aa2" : "#c8ccd4", { n: 4 }))]),
     draw: (c) => {
       board(c, -0.78, -0.12, 1.56, 0.24, "#6e4628", "#4a2e1a", 171);
       for (let i = 0; i < 5; i++) { const x = -0.6 + i * 0.3; c.strokeStyle = "#5a3a20"; c.lineWidth = 0.035; c.beginPath(); c.moveTo(x, 0.25); c.lineTo(x, -0.1); c.stroke(); c.fillStyle = i % 2 ? IRON_L : "#c8ccd4"; poly(c, i % 2 ? [x, -0.28, x + 0.05, -0.1, x - 0.05, -0.1] : [x - 0.08, -0.18, x + 0.08, -0.18, x + 0.05, -0.08, x - 0.05, -0.08]); fo(c, i % 2 ? IRON_L : "#c8ccd4", 0.012); }
     },
   },
   {
-    id: "armor-stand", name: "Armour stand", category: "Dungeon", w: 0.9, h: 0.7, layer: "object",
+    id: "armor-stand", name: "Armour stand", category: "Dungeon", w: 0.9, h: 0.7, layer: "object", form: S.solid([S.cyl(0.2, 0, 0.05, "#5a3820", { n: 8 }), S.cyl(0.03, 0.05, 1.0, "#5a3820", { n: 5 }), S.cyl(0.36, 1.0, 1.45, "#9ca0a8", { z: 0.05, rz: 0.2, top: 0.85, n: 10 }), S.ball(0.14, 1.5, 1.8, "#b4b8c0", { z: -0.04 }), S.cbox(0.04, 0.08, 1.75, 1.95, "#a02a2a", 0, -0.14)]),
     draw: (c) => {
       ell(c, 0, 0.05, 0.38, 0.22); fo(c, linear(c, 0, -0.2, 0, 0.3, "#c8ccd4", "#6a6e78"));
       circle(c, 0, -0.04, 0.14); fo(c, radial(c, 0, -0.04, 0.14, "#e0e4ec", "#7a7e88"), 0.02);
@@ -684,7 +685,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "forge", name: "Forge", category: "Dungeon", w: 1.6, h: 1.2, layer: "object",
+    id: "forge", name: "Forge", category: "Dungeon", w: 1.6, h: 1.2, layer: "object", form: S.solid([S.cbox(1.5, 1.1, 0, 0.85, "#6e6a64"), S.box(-0.5, 0.5, -0.35, 0.35, 0.85, 0.88, "#ff8a2a", { glow: true }), S.fire(0, 0, 0.85, 0.35, 0.3, "#ff7a2a")], { note: "the coals' glow is drawn round it" }),
     light: { radius: 5, color: "#ff7a2a", intensity: 0.9 },
     draw: (c) => {
       block(c, -0.75, -0.55, 1.5, 1.1, "#7a766e", "#4a4640", 0.08);
@@ -693,7 +694,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "skulls", name: "Skull pile", category: "Dungeon", w: 0.9, h: 0.8, layer: "object",
+    id: "skulls", name: "Skull pile", category: "Dungeon", w: 0.9, h: 0.8, layer: "object", form: S.resting(S.solid([[-0.18, 0.1, 0], [0.18, 0.12, 0], [0, -0.14, 0], [0.3, -0.12, 0], [-0.3, -0.1, 0], [0, 0.0, 0.2]].map(([x, z, y]) => S.ball(0.12, y, y + 0.22, "#e8e0cc", { x, z, n: 7 })))),
     draw: (c) => {
       for (const [x, y] of [[-0.18, 0.1], [0.18, 0.12], [0, -0.14], [0.3, -0.12], [-0.3, -0.1]]) {
         circle(c, x, y, 0.12); fo(c, radial(c, x - 0.03, y - 0.03, 0.12, "#f4ecd8", "#b8ae98"), 0.015);
@@ -702,7 +703,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "spider-web", name: "Spider web", category: "Dungeon", w: 1.6, h: 1.6, layer: "canopy",
+    id: "spider-web", name: "Spider web", category: "Dungeon", w: 1.6, h: 1.6, layer: "canopy", form: S.flat("a web is too fine to stand up: it stays painted where it is drawn"),
     draw: (c) => {
       c.strokeStyle = "rgba(235,235,240,0.7)"; c.lineWidth = 0.012;
       for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 0.75, Math.sin(a) * 0.75); c.stroke(); }
@@ -710,18 +711,18 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "debris", name: "Debris", category: "Dungeon", w: 1.2, h: 1, layer: "floor",
+    id: "debris", name: "Debris", category: "Dungeon", w: 1.2, h: 1, layer: "floor", form: S.flat("broken bits scattered on the floor"),
     draw: (c) => {
       const r = rng(172);
       for (let i = 0; i < 12; i++) { const x = (r() - 0.5) * 1; const y = (r() - 0.5) * 0.8; c.save(); c.translate(x, y); c.rotate(r() * 6); const w = 0.08 + r() * 0.18; c.fillStyle = r() > 0.5 ? "#7a5030" : "#8a867e"; c.fillRect(-w / 2, -0.03, w, 0.06); c.strokeStyle = OUT; c.lineWidth = 0.01; c.strokeRect(-w / 2, -0.03, w, 0.06); c.restore(); }
     },
   },
   {
-    id: "lever", name: "Lever", category: "Dungeon", w: 0.6, h: 0.6, layer: "object",
+    id: "lever", name: "Lever", category: "Dungeon", w: 0.6, h: 0.6, layer: "object", form: S.solid([S.cbox(0.36, 0.24, 0, 0.25, "#5a5a62"), S.limb([0, 0.25, 0], [0.18, 0.95, -0.2], 0.025, 0.025, "#5a3a20", { n: 4 }), S.ball(0.05, 0.92, 1.02, "#a02a2a", { x: 0.19, z: -0.21, n: 6 })]),
     draw: (c) => { rr(c, -0.18, -0.12, 0.36, 0.24, 0.03); fo(c, linear(c, 0, -0.12, 0, 0.12, IRON_L, IRON_D)); c.strokeStyle = "#5a3a20"; c.lineWidth = 0.05; c.lineCap = "round"; c.beginPath(); c.moveTo(0, 0); c.lineTo(0.18, -0.2); c.stroke(); c.fillStyle = "#a02a2a"; circle(c, 0.19, -0.21, 0.05); c.fill(); },
   },
   {
-    id: "magic-circle", name: "Magic circle", category: "Dungeon", w: 3, h: 3, layer: "floor",
+    id: "magic-circle", name: "Magic circle", category: "Dungeon", w: 3, h: 3, layer: "floor", form: S.flat("a circle drawn on the floor"),
     light: { radius: 4, color: "#8a7aff", intensity: 0.6 },
     draw: (c) => {
       glow(c, 0, 0, 1.45, "150,130,255", 0.25);
@@ -731,7 +732,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "arcane-portal", name: "Arcane portal", category: "Dungeon", w: 2, h: 2, layer: "object",
+    id: "arcane-portal", name: "Arcane portal", category: "Dungeon", w: 2, h: 2, layer: "object", form: S.solid([S.tub(0.9, 0, 0.5, "#6a665e", 0.78, { n: 16, floor: 0.45 }), S.cyl(0.7, 0.45, 0.5, "#4ab8f0", { n: 16, glow: true })], { note: "a ring of stone round a glowing pool" }),
     light: { radius: 6, color: "#6ac8ff", intensity: 0.9 },
     draw: (c) => {
       circle(c, 0, 0, 0.9); fo(c, radial(c, 0, 0, 0.9, "#7a766e", "#4a4640"));
@@ -740,19 +741,19 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "pit", name: "Pit", category: "Dungeon", w: 2, h: 2, layer: "floor",
+    id: "pit", name: "Pit", category: "Dungeon", w: 2, h: 2, layer: "floor", form: S.flat("a pit goes down into the floor"),
     draw: (c) => { circle(c, 0, 0, 0.92); fo(c, radial(c, 0, 0, 0.92, "#000000", "#3a342e")); c.strokeStyle = "#6a6258"; c.lineWidth = 0.06; circle(c, 0, 0, 0.92); c.stroke(); },
   },
   {
-    id: "drain", name: "Floor drain", category: "Dungeon", w: 0.8, h: 0.8, layer: "floor",
+    id: "drain", name: "Floor drain", category: "Dungeon", w: 0.8, h: 0.8, layer: "floor", form: S.flat("a grate in the floor"),
     draw: (c) => { rr(c, -0.32, -0.32, 0.64, 0.64, 0.03); fo(c, "#1a1a1c"); c.fillStyle = IRON_L; for (let i = 0; i < 5; i++) c.fillRect(-0.28, -0.26 + i * 0.12, 0.56, 0.04); },
   },
   {
-    id: "obelisk", name: "Obelisk", category: "Dungeon", w: 1, h: 1, layer: "object",
+    id: "obelisk", name: "Obelisk", category: "Dungeon", w: 1, h: 1, layer: "object", form: S.solid([S.cbox(0.92, 0.92, 0, 0.4, "#56565e"), S.cbox(0.46, 0.46, 0.4, 3.4, "#7a7a86", 0, 0, { top: 0.55 }), S.cone(0.18, 3.4, 3.7, "#8a8a96", { n: 4 })]),
     draw: (c) => { block(c, -0.46, -0.46, 0.92, 0.92, "#6a6a72", "#3a3a42"); poly(c, [0, -0.32, 0.32, 0, 0, 0.32, -0.32, 0]); fo(c, linear(c, -0.32, -0.32, 0.32, 0.32, "#9a9aa8", "#4a4a56"), 0.02); },
   },
   {
-    id: "fountain", name: "Fountain", category: "Dungeon", w: 2.2, h: 2.2, layer: "object",
+    id: "fountain", name: "Fountain", category: "Dungeon", w: 2.2, h: 2.2, layer: "object", form: S.solid([S.tub(1.02, 0, 0.6, "#a29e96", 0.83, { n: 18, floor: 0.25 }), S.cyl(0.85, 0.25, 0.45, "#5aa8c8", { n: 18 }), S.cyl(0.22, 0.25, 1.3, "#a29e96", { n: 10, top: 0.6 }), S.tub(0.35, 1.3, 1.45, "#a29e96", 0.7, { n: 10, floor: 1.35 })]),
     draw: (c) => {
       circle(c, 0, 0, 1.02); fo(c, radial(c, 0, 0, 1.02, STONE_L, STONE_D));
       circle(c, 0, 0, 0.85); fo(c, radial(c, 0, 0, 0.85, "#8ad0e8", "#2a6a8a"), 0.02);
@@ -761,18 +762,18 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "idol", name: "Golden idol", category: "Dungeon", w: 1, h: 1, layer: "object",
+    id: "idol", name: "Golden idol", category: "Dungeon", w: 1, h: 1, layer: "object", form: S.solid([S.cbox(0.84, 0.84, 0, 0.9, "#6e6a64"), S.ball(0.22, 0.9, 1.45, "#e0b840", { n: 9 })]),
     draw: (c) => { block(c, -0.42, -0.42, 0.84, 0.84, "#7a766e", "#4a4640"); circle(c, 0, 0, 0.22); fo(c, radial(c, -0.06, -0.06, 0.24, "#fff0a0", "#b08a20"), 0.02); c.fillStyle = "#c22a3a"; circle(c, -0.06, -0.03, 0.03); c.fill(); circle(c, 0.06, -0.03, 0.03); c.fill(); },
   },
 
   // ---------------------------------------------------------------- Light
   {
-    id: "standing-torch", name: "Standing torch", category: "Light", w: 0.6, h: 0.6, layer: "object",
+    id: "standing-torch", name: "Standing torch", category: "Light", w: 0.6, h: 0.6, layer: "object", form: S.solid([S.cyl(0.13, 0, 0.05, "#3a2a1a", { n: 6 }), S.cyl(0.035, 0.05, 1.6, "#3a2a1a", { n: 5 }), S.cyl(0.07, 1.55, 1.72, "#4a3020", { top: 1.2, n: 6 }), S.fire(0, -0.02, 1.72, 0.4, 0.1)], { note: "its flame's glow is drawn round it" }),
     light: { radius: 6, color: "#ffb46a", intensity: 1 },
     draw: (c) => { circle(c, 0, 0, 0.13); fo(c, "#3a2a1a"); flame(c, 0, -0.02, 0.1); },
   },
   {
-    id: "candelabra", name: "Candelabra", category: "Light", w: 0.7, h: 0.7, layer: "object",
+    id: "candelabra", name: "Candelabra", category: "Light", w: 0.7, h: 0.7, layer: "object", form: S.resting(S.solid([S.cyl(0.12, 0, 0.03, "#c8a040", { n: 8 }), S.cyl(0.025, 0.03, 0.5, "#c8a040", { n: 5 }), S.limb([-0.22, 0.5, 0], [0.22, 0.5, 0], 0.015, 0.015, "#c8a040", { n: 4 }), S.limb([0, 0.5, -0.22], [0, 0.5, 0.22], 0.015, 0.015, "#c8a040", { n: 4 }), [[0, 0], [-0.22, 0], [0.22, 0], [0, -0.22], [0, 0.22]].map(([x, z]) => [S.cyl(0.04, 0.5, 0.66, "#efe6cc", { x, z, n: 5 }), S.fire(x, z, 0.66, 0.07, 0.025)]).flat(2)], { note: "its candles' glow is drawn round it" })),
     light: { radius: 4, color: "#ffd090", intensity: 0.9 },
     draw: (c) => {
       c.strokeStyle = GOLD; c.lineWidth = 0.03; c.beginPath(); c.moveTo(-0.22, 0); c.lineTo(0.22, 0); c.moveTo(0, -0.22); c.lineTo(0, 0.22); c.stroke();
@@ -780,7 +781,7 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "chandelier", name: "Chandelier", category: "Light", w: 1.6, h: 1.6, layer: "canopy",
+    id: "chandelier", name: "Chandelier", category: "Light", w: 1.6, h: 1.6, layer: "canopy", form: S.solid([S.cyl(0.015, 2.2, 3.0, "#3a3a3e", { n: 4 }), S.tub(0.62, 2.2, 2.26, "#c8a040", 0.92, { n: 16, floor: 2.22 }), Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2; return [S.cyl(0.045, 2.26, 2.4, "#efe6cc", { x: Math.cos(a) * 0.6, z: Math.sin(a) * 0.6, n: 5 }), S.fire(Math.cos(a) * 0.6, Math.sin(a) * 0.6, 2.4, 0.08, 0.03)]; }).flat(2)], { note: "it hangs from the ceiling: you see under it" }),
     light: { radius: 8, color: "#ffd090", intensity: 1 },
     draw: (c) => {
       c.strokeStyle = GOLD; c.lineWidth = 0.035; circle(c, 0, 0, 0.6); c.stroke(); circle(c, 0, 0, 0.25); c.stroke();
@@ -788,12 +789,12 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "lantern", name: "Lantern", category: "Light", w: 0.5, h: 0.5, layer: "object",
+    id: "lantern", name: "Lantern", category: "Light", w: 0.5, h: 0.5, layer: "object", form: S.resting(S.solid([S.cbox(0.24, 0.24, 0, 0.04, "#3a3a40"), S.cbox(0.2, 0.2, 0.04, 0.3, "#ffd88a", 0, 0, { glow: true }), S.cbox(0.24, 0.24, 0.3, 0.34, "#3a3a40", 0, 0, { top: 0.6 }), S.limb([0, 0.34, 0], [0, 0.42, 0], 0.03, 0.03, "#3a3a40", { n: 4 })], { note: "its glow is drawn round it" })),
     light: { radius: 5, color: "#ffc27a", intensity: 0.9 },
     draw: (c) => { glow(c, 0, 0, 0.24, "255,200,110", 0.5); rr(c, -0.12, -0.12, 0.24, 0.24, 0.04); fo(c, "rgba(255,220,140,0.85)", 0.025); c.strokeStyle = IRON_D; c.lineWidth = 0.02; c.beginPath(); c.moveTo(0, -0.12); c.lineTo(0, 0.12); c.moveTo(-0.12, 0); c.lineTo(0.12, 0); c.stroke(); },
   },
   {
-    id: "fireplace", name: "Fireplace", category: "Light", w: 2, h: 1, layer: "object",
+    id: "fireplace", name: "Fireplace", category: "Light", w: 2, h: 1, layer: "object", form: S.solid([S.box(-0.95, 0.95, -0.45, 0.1, 0, 1.2, "#8a867e"), S.box(-0.95, -0.55, 0.1, 0.45, 0, 1.2, "#8a867e"), S.box(0.55, 0.95, 0.1, 0.45, 0, 1.2, "#8a867e"), S.box(-0.55, 0.55, 0.1, 0.45, 0.8, 1.2, "#8a867e"), S.box(-1.0, 1.0, -0.5, 0.5, 1.2, 1.32, "#7a766e"), S.box(-0.55, 0.55, 0.1, 0.45, 0, 0.08, "#1a1410"), S.limb([-0.35, 0.12, 0.34], [0.35, 0.12, 0.22], 0.04, 0.04, "#4a3020", { n: 4 }), S.fire(0, 0.28, 0.1, 0.55, 0.18)], { surface: 1.32, note: "a hearth against the wall, its fire in its mouth" }),
     light: { radius: 7, color: "#ff9a4a", intensity: 1 },
     draw: (c) => {
       block(c, -0.95, -0.45, 1.9, 0.9, "#8a867e", "#5a5650");
@@ -803,12 +804,12 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "magic-orb", name: "Magic orb", category: "Light", w: 0.8, h: 0.8, layer: "object",
+    id: "magic-orb", name: "Magic orb", category: "Light", w: 0.8, h: 0.8, layer: "object", form: S.resting(S.solid([S.cbox(0.4, 0.4, 0, 0.9, "#6e6a64"), S.ball(0.14, 0.9, 1.22, "#8ab8ff", { n: 9, glow: true })], { note: "its glow is drawn round it" })),
     light: { radius: 6, color: "#7ab0ff", intensity: 0.9 },
     draw: (c) => { glow(c, 0, 0, 0.38, "120,170,255", 0.6); block(c, -0.2, -0.2, 0.4, 0.4, "#7a766e", "#4a4640"); circle(c, 0, 0, 0.14); fo(c, radial(c, -0.04, -0.04, 0.16, "#ffffff", "#3a6ad8"), 0.015); },
   },
   {
-    id: "glowing-crystals", name: "Glowing crystals", category: "Light", w: 1, h: 1, layer: "object",
+    id: "glowing-crystals", name: "Glowing crystals", category: "Light", w: 1, h: 1, layer: "object", form: S.solid([[[-0.12, 0.08, -0.5, 0.3], [0.1, 0.05, 0.4, 0.34], [0, -0.05, 0, 0.4], [0.2, 0.18, 0.9, 0.2]].map(([x, z, a, l]) => S.limb([x, 0, z], [x + Math.sin(a) * l * 0.5, l * 1.5, z - Math.cos(a) * l * 0.5], 0.07, 0.0, "#d8a8ff", { n: 5, glow: true })), S.ball(0.25, -0.1, 0.12, "#6a5a78", { lump: 0.3, n: 6 })], { note: "their glow is drawn round them" }),
     light: { radius: 5, color: "#c87aff", intensity: 0.8 },
     draw: (c) => {
       glow(c, 0, 0, 0.48, "200,120,255", 0.4);
@@ -816,12 +817,12 @@ export const MORE_PROPS: PropDef[] = [
     },
   },
   {
-    id: "street-lamp", name: "Street lamp", category: "Light", w: 0.8, h: 0.8, layer: "canopy",
+    id: "street-lamp", name: "Street lamp", category: "Light", w: 0.8, h: 0.8, layer: "canopy", form: S.solid([S.cyl(0.12, 0, 0.1, "#2a2a30", { n: 6 }), S.cyl(0.04, 0.1, 2.6, "#2a2a30", { n: 5 }), S.cbox(0.28, 0.28, 2.6, 2.95, "#fff0c0", 0, 0, { glow: true, top: 1.2 }), S.cone(0.22, 2.95, 3.1, "#2a2a30", { n: 4 })], { note: "a lamp on a post: you see under it" }),
     light: { radius: 7, color: "#ffd8a0", intensity: 0.9 },
     draw: (c) => { glow(c, 0, 0, 0.38, "255,220,150", 0.45); poly(c, [-0.2, 0, 0, -0.2, 0.2, 0, 0, 0.2]); fo(c, "#2a2a30", 0.02); circle(c, 0, 0, 0.09); fo(c, "#fff0c0", 0.012); },
   },
   {
-    id: "bonfire", name: "Bonfire", category: "Light", w: 2, h: 2, layer: "object",
+    id: "bonfire", name: "Bonfire", category: "Light", w: 2, h: 2, layer: "object", form: S.solid([Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2; return S.limb([Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75], [Math.cos(a) * 0.08, 1.1, Math.sin(a) * 0.08], 0.06, 0.04, "#3a2618", { n: 5 }); }), S.fire(0, 0, 0.1, 1.6, 0.45), S.fire(0.18, 0.12, 0.1, 0.8, 0.2), S.fire(-0.2, 0.05, 0.1, 0.7, 0.18)]),
     light: { radius: 12, color: "#ff8a3a", intensity: 1 },
     draw: (c) => {
       c.strokeStyle = "#3a2618"; c.lineCap = "round"; c.lineWidth = 0.12;

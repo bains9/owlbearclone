@@ -1,7 +1,8 @@
-// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon ddad06c. Change it there and run the script again.
+// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon db54e64. Change it there and run the script again.
 import { rng } from "./noise";
 import { hexToRgb, mix, rgbToHex } from "./color";
 import { LW, outline, rr, circle, radial, linear, board, flame, type PropCategory, type PropDef } from "./propkit";
+import type { FormSpec } from "./solid";
 
 // The kit behind the big library (27 October 2026): most designs come in several variants
 // (woods, stones, metals, cloths, glows, states), made by `family` from one drawing function.
@@ -102,7 +103,7 @@ export function cross<A extends Variant, B extends Variant>(a: A[], b: B[]): (Va
   return a.flatMap((x) => b.map((y) => ({ key: `${x.key}-${y.key}`, name: `${x.name}, ${y.name}`, a: x, b: y })));
 }
 
-export interface FamilySpec {
+export interface FamilySpec<V = Variant> {
   id: string;
   name: string;
   category: PropCategory;
@@ -111,11 +112,13 @@ export interface FamilySpec {
   h: number;
   layer: PropDef["layer"];
   light?: PropDef["light"];
+  /** How each variant stands up in 3D (solid.ts), next to its drawing: the variant's form, or a recipe for its size. */
+  form: (v: V) => FormSpec;
 }
 
 /** One design in every variant: ids "<id>-<variant>", names "<Name>, <variant>". */
 export function family<V extends Variant>(
-  spec: FamilySpec,
+  spec: FamilySpec<NoInfer<V>>,
   variants: V[],
   draw: (c: C, v: V) => void,
   more: { size?: (v: V) => [number, number]; light?: PropDef["light"] | ((v: V) => PropDef["light"]) } = {},
@@ -133,6 +136,7 @@ export function family<V extends Variant>(
       layer: spec.layer,
       ...(light ? { light } : {}),
       draw: (c: C) => draw(c, v),
+      form: spec.form(v),
     };
   });
 }
