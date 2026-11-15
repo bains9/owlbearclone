@@ -799,7 +799,7 @@ export class Board implements BoardApi {
   /** The picture with its standing trees taken off, being worked out or done, and what from. */
   private clearing3d: { img: CanvasImageSource; key: unknown; w: number; h: number; canvas: HTMLCanvasElement | null; stop: () => void } | null = null;
   /** A picture map's own trees, bushes and rocks, found in it (view3dFound.ts), and what from. */
-  private found3dOf: { scene: Scene; sum: number; list: Found[] } | null = null;
+  private found3dOf: { scene: Scene; sum: number; list: Found[]; cliffs: Cliff3d[] } | null = null;
   /** A picture map's rooms from its walls alone, as last worked out, and what from (its walls and grid). */
   private walledRooms3dOf: { vision: unknown; scene: Scene; list: { b: Building3d; keys: Set<string> }[] } | null = null;
   /** The built map's buildings as last worked out, and what from (they change only with the build). */
@@ -849,6 +849,8 @@ export class Board implements BoardApi {
       cliffs: () => {
         const scene = this.renderedScene;
         const md = scene ? this.mapData(scene) : null;
+        // A picture without map data: the cliffs found in it.
+        if (scene && !md && this.found3dOf?.scene === scene) return this.found3dOf.cliffs;
         if (!scene || !md?.data.cliffs?.length || !this.mapData3d) return [];
         if (this.mapData3d.cliffs?.scene !== scene) this.mapData3d.cliffs = { scene, list: mapCliffs(md.data.cliffs, md.place) };
         return this.mapData3d.cliffs.list;
@@ -1016,6 +1018,7 @@ export class Board implements BoardApi {
     if (was && was.scene === scene && was.sum === sum) return was.list;
     const picture = { w: scene.width, h: scene.height };
     let list: Found[] = [];
+    const cliffs: Cliff3d[] = [];
     if (!rockMask(paint, picture, scene.grid.size)) {
       // Looked at closer than the paint (about 20 pixels a square, at most 2048 across), so a bare tree's thin branches show.
       const area = sceneBounds(scene);
@@ -1035,7 +1038,7 @@ export class Board implements BoardApi {
         x.setTransform(1, 0, 0, 1, 0, 0);
         try {
           const detail: PaintMap = { x0: area.x0, y0: area.y0, k: dw / aw, w: dw, h: dh, rgba: x.getImageData(0, 0, dw, dh).data };
-          list = findThings(detail, picture, scene.grid.size);
+          list = findThings(detail, picture, scene.grid.size, cliffs);
           // What the built map covers is the built map's: a painted tree under a built floor doesn't stand.
           if (built && list.length) {
             x.clearRect(0, 0, dw, dh);
@@ -1051,7 +1054,7 @@ export class Board implements BoardApi {
         }
       }
     }
-    this.found3dOf = { scene, sum, list };
+    this.found3dOf = { scene, sum, list, cliffs };
     return list;
   }
 

@@ -8,7 +8,10 @@
 // - a green patch, round and outlined, a square or more across: a tree (an evergreen when dark or
 //   spiky, a leafy tree when not); smaller, a bush;
 // - a brown or dark tangle (thin, spread out): a bare tree;
-// - a grey lump, round: a rock.
+// - a grey lump, round: a rock;
+// - a long grey band with a dark outline, half a square to a square and a half wide and three or
+//   more long: a cliff (a ledge's rock face), standing up along its middle as Dungeondraft's do
+//   (view3dCliffs.ts).
 // Not found: anything bigger than three squares across (a building, a yard, a wood grown into one
 // patch), long and thin (a path, a cliff, a wall, a river), red or yellow (blood, hay, fire), and
 // what's the ground's own colour (snow on a snowy rock). Kept apart from three.js, so it's tested.
@@ -16,6 +19,7 @@
 import type { PaintMap } from "./view3dModel";
 import type { Object3d, Shape } from "./view3dObjects";
 import type { Hole } from "./view3dClearing";
+import type { Cliff3d } from "./view3dCliffs";
 
 /** A thing found in the picture: what it stands up as, and its painted footprint (for taking it off the floor). */
 export interface Found {
@@ -78,7 +82,7 @@ function nearestReach(a: number): number {
  * The trees, bushes, bare trees and rocks a picture paints, in scene units. `picture`: its
  * rectangle in scene units (0, 0, its width, its height); `cell`: a square in scene units.
  */
-export function findThings(paint: PaintMap | null, picture: { w: number; h: number }, cell: number): Found[] {
+export function findThings(paint: PaintMap | null, picture: { w: number; h: number }, cell: number, cliffs?: Cliff3d[]): Found[] {
   if (!paint || !(paint.k > 0) || !(cell > 0)) return [];
   const { w, h, k, rgba } = paint;
   const s = k * cell; // paint pixels a square
@@ -169,7 +173,131 @@ export function findThings(paint: PaintMap | null, picture: { w: number; h: numb
     for (let kk = 0; kk < 16; kk++) r[kk] /= k;
     out.push({ shape: f.shape, x: paint.x0 + cx / k, y: paint.y0 + cy / k, w: f.size, d: f.size, r });
   }
+  if (cliffs) findCliffs(rgba, inside, ground, w, h, s, (c) => {
+    const pts = new Float64Array(c.pts.length);
+    for (let i = 0; i < pts.length; i += 2) {
+      pts[i] = paint.x0 + c.pts[i] / k;
+      pts[i + 1] = paint.y0 + c.pts[i + 1] / k;
+    }
+    cliffs.push({ pts, halfWidth: c.halfWidth / k });
+  });
   return out;
+}
+
+/**
+ * Cliffs: a ledge's rock face is drawn blue-grey (cool, hardly coloured, neither dark nor white),
+ * apart from the ground; dirt and scree beside it are warmer, so they don't join it. Its pieces two
+ * pixels apart are one band; a band long and narrow enough is a cliff (cliffOf).
+ */
+function findCliffs(rgba: Uint8ClampedArray, inside: Uint8Array, ground: Float32Array, w: number, h: number, s: number, found: (c: { pts: number[]; halfWidth: number }) => void): void {
+  const rock = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    if (!inside[p]) continue;
+    const r = rgba[p * 4], g = rgba[p * 4 + 1], b = rgba[p * 4 + 2];
+    const d = Math.max(Math.abs(r - ground[p * 3]), Math.abs(g - ground[p * 3 + 1]), Math.abs(b - ground[p * 3 + 2]));
+    const lum = 0.3 * r + 0.59 * g + 0.11 * b;
+    if (d > 30 && b - r >= 4 && Math.max(r, g, b) - Math.min(r, g, b) < 60 && lum >= 70 && lum <= 215) rock[p] = 1;
+  }
+  const joined = grown(grown(rock, w, h), w, h);
+  const seen = new Uint8Array(w * h);
+  const stack: number[] = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!rock[start] || seen[start]) continue;
+    const members: number[] = [];
+    const path: number[] = [];
+    let edge = 0, pathEdge = 0;
+    stack.push(start);
+    seen[start] = 1;
+    while (stack.length) {
+      const p = stack.pop()!;
+      const x = p % w, y = (p - x) / w;
+      path.push(p);
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || !joined[p - 1] || !joined[p + 1] || !joined[p - w] || !joined[p + w]) pathEdge++;
+      if (rock[p]) {
+        members.push(p);
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || !rock[p - 1] || !rock[p + 1] || !rock[p - w] || !rock[p + w]) edge++;
+      }
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const q = ny * w + nx;
+          if (!joined[q] || seen[q]) continue;
+          seen[q] = 1;
+          stack.push(q);
+        }
+      }
+    }
+    // Its width from the joined band (its rock is broken by highlights and outlines), less the two pixels it was grown by each side.
+    const c = cliffOf(members, path, (2 * path.length) / Math.max(1, pathEdge) - 4, w, h, s);
+    if (c) found(c);
+  }
+}
+
+/** A cliff's band is this wide (squares), and at least this long. */
+const CLIFF_WIDEST = 1.6;
+const CLIFF_NARROWEST = 0.3;
+const CLIFF_SHORTEST = 3;
+
+/**
+ * A long band (a ledge's rock face) as a cliff: its middle line, from one end to the other (each
+ * pixel by how far it is from the far end, walking through the band and the gaps joining its
+ * pieces, and the middles of each half square of that), and half its `width` (paint pixels, a
+ * band L long having about 2L of rim). Null when too wide or narrow (a wall) or too short.
+ */
+function cliffOf(members: readonly number[], path: readonly number[], width: number, w: number, h: number, s: number): { pts: number[]; halfWidth: number } | null {
+  const n = members.length;
+  if (n < 8) return null;
+  if (width < CLIFF_NARROWEST * s || width > CLIFF_WIDEST * s) return null;
+  // How far each of its pixels is from one end, walking through it (and the gaps joining its pieces).
+  const index = new Map<number, number>();
+  path.forEach((p, i) => index.set(p, i));
+  const walkable = (np: number) => index.has(np);
+  const walk = (from: number): Int32Array => {
+    const d = new Int32Array(path.length).fill(-1);
+    const queue = [from];
+    d[index.get(from)!] = 0;
+    for (let q = 0; q < queue.length; q++) {
+      const p = queue[q], x = p % w, y = (p - x) / w, dp = d[index.get(p)!];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const np = ny * w + nx;
+          if (!walkable(np)) continue;
+          const i = index.get(np)!;
+          if (d[i] >= 0) continue;
+          d[i] = dp + 1;
+          queue.push(np);
+        }
+      }
+    }
+    return d;
+  };
+  const farthest = (d: Int32Array) => {
+    let best = 0;
+    for (let i = 1; i < d.length; i++) if (d[i] > d[best]) best = i;
+    return best;
+  };
+  const end = path[farthest(walk(members[0]))];
+  const d = walk(end);
+  const length = d[farthest(d)];
+  if (length < CLIFF_SHORTEST * s) return null;
+  // The middle of each half square along it.
+  const step = Math.max(2, s * 0.5);
+  const bins = Math.floor(length / step) + 1;
+  const sx = new Float64Array(bins), sy = new Float64Array(bins), cnt = new Float64Array(bins);
+  members.forEach((p) => {
+    const dp = d[index.get(p)!];
+    if (dp < 0) return;
+    const k = Math.min(bins - 1, Math.floor(dp / step));
+    sx[k] += (p % w) + 0.5;
+    sy[k] += Math.floor(p / w) + 0.5;
+    cnt[k]++;
+  });
+  const pts: number[] = [];
+  for (let k = 0; k < bins; k++) if (cnt[k]) pts.push(sx[k] / cnt[k], sy[k] / cnt[k]);
+  return pts.length >= 4 ? { pts, halfWidth: width / 2 } : null;
 }
 
 /** A mask grown by a pixel each way (8 neighbours). */

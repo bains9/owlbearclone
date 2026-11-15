@@ -107,3 +107,39 @@ describe("real-world scale", () => {
     expect(treeHeight("pine", 50)).toBe(20);
   });
 });
+
+describe("cliffs found in a picture", () => {
+  /** A band (squares) from x0 to x1 at row y, `half` squares each side, in a colour, its rim darker. */
+  function band(p: PaintMap, x0: number, x1: number, y: number, half: number, col: number[]): void {
+    for (let py = Math.floor((y - half) * S); py < (y + half) * S; py++) {
+      for (let px = x0 * S; px < x1 * S; px++) {
+        const rim = py < (y - half) * S + 1.5 || py >= (y + half) * S - 1.5;
+        p.rgba.set(rim ? col.map((v) => v * 0.6) : col, (py * W + px) * 4);
+      }
+    }
+  }
+
+  it("stands a long blue-grey ledge up as a cliff along its middle, as wide as it's drawn", () => {
+    const p = snowfield();
+    band(p, 4, 20, 10, 0.4, [150, 155, 168]);
+    const cliffs: { pts: Float64Array; halfWidth: number }[] = [];
+    findThings(p, picture, CELL, cliffs);
+    expect(cliffs).toHaveLength(1);
+    const xs = Array.from(cliffs[0].pts).filter((_, i) => i % 2 === 0).map((v) => v / CELL);
+    const ys = Array.from(cliffs[0].pts).filter((_, i) => i % 2 === 1).map((v) => v / CELL);
+    expect(Math.min(...xs)).toBeLessThan(5);
+    expect(Math.max(...xs)).toBeGreaterThan(19);
+    for (const y of ys) expect(Math.abs(y - 10)).toBeLessThan(0.3);
+    expect(cliffs[0].halfWidth / CELL).toBeGreaterThan(0.25);
+    expect(cliffs[0].halfWidth / CELL).toBeLessThan(0.6);
+  });
+
+  it("doesn't take a brown path, or a short grey stone, for a cliff", () => {
+    const p = snowfield();
+    band(p, 4, 20, 6, 0.4, [150, 120, 90]);
+    band(p, 4, 6, 14, 0.4, [150, 155, 168]);
+    const cliffs: { pts: Float64Array; halfWidth: number }[] = [];
+    findThings(p, picture, CELL, cliffs);
+    expect(cliffs).toEqual([]);
+  });
+});

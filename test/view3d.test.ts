@@ -520,6 +520,7 @@ describe("the guide", () => {
     expect(text).toContain("A cave or dungeon map drawn on black stands its black up as solid rock");
     expect(text).toContain("has its trees, bushes, bare trees and rocks found by their colour against the ground round them");
     expect(text).toContain("Everything stands at real-world size, a square being 1.5 m (5 ft)");
+    expect(text).toContain("A cliff drawn as a long band of cool grey rock stands up as rock along it");
     expect(text).toContain("what's found is a good guess, not the map maker's word");
     expect(text).not.toContain("like their shadows");
   });
