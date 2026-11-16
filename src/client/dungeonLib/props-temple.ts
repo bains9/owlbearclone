@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon 24c27e0. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon 0b1f460. Change it there and run the script again.
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, MASONRY, CLOTHS, GOLD, cross, vary, family, shade, ell, poly, fo, cbox, disc, plank, drape, glow, coloredFlame, stroke, scatter, GLOWS, type C, type Tone } from "./propvariants";
 import type { PropDef } from "./propkit";
@@ -369,9 +369,11 @@ export function thennFrameForm(f: ThennFrame): S.Solid {
   parts.push(S.limb([0, under, 0], [0, under - 0.45, 0], 0.008, 0.008, "#5a4630", { n: 3 }));
   parts.push(S.ball(0.06, under - 0.62, under - 0.42, f.look.bands ?? PEBBLE, { n: 6, rz: 0.04 }));
   if (f.stones) for (const s of [-1, 1]) for (const [x, z, k] of scatter(3, f.post + 0.2, 5111 + (s > 0 ? 7 : 0))) parts.push(S.ball(0.08 + k * 0.05, -0.04, 0.22 + k * 0.15, PEBBLE, { x: s * px + x, z, lump: 0.25, n: 5 }));
-  if (f.steps) for (const z of [-0.66, 0.02, 0.7]) parts.push(S.cyl(0.3, 0, 0.05, PEBBLE, { z, rz: 0.19, n: 7 }));
   const g = f.ground;
-  if (g?.kind === "dais") parts.push(S.cyl(g.r, 0, 0.14, "#d0c8b6", { n: 16 }), S.cyl(g.r * 0.9, 0.14, 0.16, GOLD, { n: 16 }));
+  // A dais is pale stone with a gold ring set in its top near the edge, as it's drawn; the stepping stones lie on it.
+  const floor = g?.kind === "dais" ? 0.16 : 0;
+  if (f.steps) for (const z of [-0.66, 0.02, 0.7]) parts.push(S.cyl(0.3, floor, floor + 0.05, PEBBLE, { z, rz: 0.19, n: 7 }));
+  if (g?.kind === "dais") parts.push(S.cyl(g.r, 0, 0.14, "#c4bca8", { n: 16 }), S.cyl(g.r * 0.88, 0.14, 0.15, GOLD, { n: 16 }), S.cyl(g.r * 0.84, 0.14, 0.16, "#dcd5c6", { n: 16 }));
   else if (g) {
     const n = 8;
     for (let k = 0; k < n; k++) {
