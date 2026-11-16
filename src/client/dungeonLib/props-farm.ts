@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-farm.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf7507e. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-farm.ts) by scripts/sync-dungeon-library.mjs, Dungeon e6fcd66. Change it there and run the script again.
 import { rng } from "./noise";
 import { rr, circle, radial, linear, canopy } from "./propkit";
 import { WOODS, METALS, MASONRY, cross, vary, family, shade, ell, poly, fo, box, cbox, disc, plank, stroke, scatter, type C, type Tone, type Variant } from "./propvariants";
@@ -245,7 +245,7 @@ const village: PropDef[] = [
   }),
 ];
 
-// ---- Farm animals (16 November 2026, Par: "can we add actual livestock....like cows..horses..oxe..chicken etc").
+// ---- Farm animals (16 November 2026): cows, horses, oxen, donkeys, pigs, sheep, goats and fowl.
 // Each faces up the map (the top of its drawing), at its real size (a square is 1.5 m) and height.
 // Drawn from above: the back, the head with its ears and horns, a tail over the rump. In 3D a
 // body on four legs, a neck and a head; lying down, the legs are folded under it.
