@@ -537,7 +537,7 @@ export const GUIDE: GuideSection[] = [
         "notes": [
           "Every map you've saved in Dungeon is listed, newest first. Dungeon saves a map by itself a few seconds after each change, so you get it as you left it.",
           "There's no file to export or upload, and nothing is saved twice: the map stays in Dungeon until you bring it in.",
-          "Dungeon draws it just as its Export does: the picture with its exact grid, and Dungeon's map data for exact seasons. **Detail** sets how many pixels each square gets (128 to begin with, remembered in this browser). A big map is drawn no more than 6144 pixels across, the most Tabletop keeps for a map, so it's never shrunk afterwards.",
+          "Dungeon draws it just as its Export does: the picture with its exact grid, and Dungeon's map data for exact seasons. **Detail** sets how many pixels each square gets (128 to begin with, remembered in this browser). A big map is drawn no more than 10,240 pixels across, the most Tabletop keeps for a map, so it's never shrunk afterwards: a Dungeon map up to 200 squares a side keeps at least 51 pixels a square.",
           "Tabletop has no lighting of its own: tick **Paint Dungeon's lighting into the picture** to keep the light and dark Dungeon shows.",
           "**Update from Dungeon** gives the scenes that came in with that one their new pictures, in place: tokens, fog, drawings and the grid stay as they are, and the old pictures are deleted once no scene uses them, so updating takes no more room than before. Levels are matched by name. If the map has gained, lost or moved levels, the window shows what will happen first, and you tick which new levels to bring in.",
           "A scene you've given a picture of your own (**Choose uploaded** or **Upload new**) isn't Dungeon's any more, and is left alone.",
@@ -2957,7 +2957,7 @@ export const GUIDE: GuideSection[] = [
           "You can choose several .ob2 files at once.",
           "You can also drop the .ob2 file straight onto the map in your room. That opens the same **New scene** window and starts right away. In that case **Done** opens the **Scenes** list instead of the scene editor, so open the editor yourself with the pencil button.",
           "New scenes go to the bottom of the scene list. Players can't see them until you show them one (see Scenes below).",
-          "Very large maps are shrunk to 6144 pixels on their longest side. Fog and tokens are scaled to match.",
+          "Very large maps are shrunk to 10,240 pixels on their longest side. Fog and tokens are scaled to match.",
           "Owlbear backups go in through **New scene**. The **Restore…** button in **Room settings** is only for Tabletop's own backups."
         ]
       },
@@ -3055,7 +3055,7 @@ export const GUIDE: GuideSection[] = [
           "If you add several images at once, each one gets its own scene named after its file. Underscores become spaces, and grid sizes and words like \"gridless\" are dropped. A name you type is only used when you add a single map.",
           "A message tells you how the grid was set, for example \"Grid guessed at 30 × 20 squares: check it with Edit scene.\" When you add several images, it says how many scenes were made and how many had their grid in the file, for example \"Created 3 scenes, one per map. 1 had their grid in the file.\"",
           "When nothing tells the app the grid size, it tries common map sizes (such as 70 or 140 pixels a square). If none fit, it guesses about 70 pixels a square.",
-          "Big images are shrunk to 6144 pixels on their longest side, and the grid is scaled to match.",
+          "Big images are shrunk to 10,240 pixels on their longest side, and the grid is scaled to match.",
           "If any file you chose can't be used (for example a file that isn't an image, or an old .owlbear file), the **Maps brought in** window appears. It lists the problems under **Left out:**. Click **Done** to carry on.",
           "If an upload fails, a message with a red border appears at the bottom-left of the map and tells you why. It disappears after a few seconds, or you can click it to close it.",
           "A room can hold up to 100 scenes."

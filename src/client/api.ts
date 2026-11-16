@@ -54,8 +54,10 @@ export function displayUrl(roomId: string, key: string): string {
 
 // Pictures only: a "mapdata" sidecar goes straight to uploadBlob, so it is never re-encoded.
 const LIMITS: Record<"map" | "token", { maxDim: number; maxBytes: number }> = {
-  // Big enough for detailed battle maps, small enough for a phone to hold in memory.
-  map: { maxDim: 6144, maxBytes: 12 * 1024 * 1024 },
+  // Big enough for detailed battle maps, small enough for a phone to hold in memory. 10240 since
+  // 16 November 2026 (it was 6144): Dungeon's maps can be 200 squares a side, and one that big
+  // still comes in at the 51 pixels a square a 120-square map always had (6144 / 120).
+  map: { maxDim: 10240, maxBytes: 12 * 1024 * 1024 },
   token: { maxDim: 1024, maxBytes: 1.5 * 1024 * 1024 },
 };
 /** The longest map picture kept as it is; a longer one is shrunk (prepareImage). */
