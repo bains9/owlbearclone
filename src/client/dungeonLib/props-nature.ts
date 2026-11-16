@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon 0f2dfd5. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-nature.ts) by scripts/sync-dungeon-library.mjs, Dungeon cf7507e. Change it there and run the script again.
 import { rng } from "./noise";
 import { radial, linear, canopy } from "./propkit";
 import { cross, vary, family, shade, ell, poly, fo, disc, stroke, scatter, type C, type Tone, type Variant } from "./propvariants";
