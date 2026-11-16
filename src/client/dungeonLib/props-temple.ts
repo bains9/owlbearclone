@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon e6fcd66. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon 24c27e0. Change it there and run the script again.
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, MASONRY, CLOTHS, GOLD, cross, vary, family, shade, ell, poly, fo, cbox, disc, plank, drape, glow, coloredFlame, stroke, scatter, GLOWS, type C, type Tone } from "./propvariants";
 import type { PropDef } from "./propkit";
@@ -182,4 +182,291 @@ const graves: PropDef[] = [
   }),
 ];
 
-export const TEMPLE_PROPS: PropDef[] = [...altars, ...worship, ...shrines, ...graves];
+// ---- Thenn, god of doorways, choice and fate (16 November 2026). His shrine is a doorway: two
+// posts, one carved with a spiral and one with chevrons, a lintel bearing a woven ring with his
+// tree-rune in it and a stone hung on a cord beneath, stones piled at the posts' feet and
+// stepping stones through. Here in a few versions, with the round stone carved with his sign, a
+// wayside shrine, and the frames Dungeon's Thenn doors and archways stand in (renderer.ts
+// drawPortal draws a portal's with thennFrame below; view3d/payload.ts and io/payload.ts stand it
+// up in 3D as the thenn-door-frame objects).
+
+interface ThennLook {
+  post: Tone;
+  lintel: Tone;
+  ring: Tone;
+  /** Squared, carved posts and lintel (round, barked logs otherwise). */
+  square: boolean;
+  /** Ivy (or moss, on stone) over posts and lintel. */
+  ivy: string | null;
+  /** Gold bands round carved posts. */
+  bands?: Tone;
+}
+const THENN_LOOKS = {
+  wild: { post: tone("#94704c", "#4a3220"), lintel: tone("#86643f", "#3e2a18"), ring: tone("#8a6a44", "#4e3820"), square: false, ivy: "#5e8e2a" },
+  carved: { post: tone("#5a3a24", "#24150a"), lintel: tone("#5a3a24", "#24150a"), ring: GOLD, square: true, ivy: null, bands: GOLD },
+  monolith: { post: tone("#aaa89e", "#5e5c56"), lintel: tone("#a09e94", "#56544e"), ring: tone("#5a5a60", "#262628"), square: true, ivy: "#5a7a3a" },
+} satisfies Record<string, ThennLook>;
+const PEBBLE = tone("#a6a49c", "#5a5852");
+/** The look of the frame Thenn's doors and archways stand in. */
+export const THENN_LOOK_WILD: ThennLook = THENN_LOOKS.wild;
+
+export interface ThennFrame {
+  /** The opening's width, in squares. */
+  open: number;
+  /** How thick a post is (half its width), in squares. */
+  post: number;
+  /** How tall the posts stand, in metres. */
+  height: number;
+  look: ThennLook;
+  /** A wooden door in it (a Thenn door), shown in front of the lintel. */
+  door?: boolean;
+  /** Stones piled at the posts' feet, stepping stones through. */
+  stones?: boolean;
+  steps?: boolean;
+  /** The ring's radius, in squares, when not the opening's own. */
+  ring?: number;
+  /** What the shrine stands on, out to this radius (squares): a ring of edging stones, a gilded dais, or small standing stones. */
+  ground?: { kind: "stones" | "dais" | "monoliths"; r: number };
+}
+
+/** The ring's radius, in squares, for an opening. */
+const ringR = (f: ThennFrame) => f.ring ?? Math.min(0.42, Math.max(0.24, f.open * 0.24));
+/** Where the lintel ends, either side. */
+const lintelEnd = (f: ThennFrame) => f.open / 2 + f.post * 2 + 0.12;
+
+/**
+ * Thenn's frame from above, its opening along x, centred on (0, 0). Battle-map fashion, the ring
+ * and its rune are shown tipped towards the viewer, standing over the lintel, so his sign reads
+ * from above; the posts' tops carry their carvings, a spiral and chevrons.
+ */
+export function thennFrame(c: C, f: ThennFrame, seed = 5101): void {
+  const half = f.open / 2, px = half + f.post;
+  const g = f.ground;
+  if (g?.kind === "dais") {
+    circle(c, 0, 0, g.r);
+    fo(c, radial(c, 0, 0, g.r, "#e2dccd", "#a49c88"), 0.025);
+    circle(c, 0, 0, g.r * 0.86);
+    c.strokeStyle = GOLD.dark;
+    c.lineWidth = 0.035;
+    c.stroke();
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      stroke(c, [Math.cos(a) * g.r * 0.86, Math.sin(a) * g.r * 0.86, Math.cos(a) * g.r * 0.97, Math.sin(a) * g.r * 0.97], 0.03, GOLD.light);
+    }
+  } else if (g) {
+    circle(c, 0, 0, g.r);
+    c.fillStyle = g.kind === "stones" ? "rgba(96,72,44,0.35)" : "rgba(70,84,52,0.3)";
+    c.fill();
+    const n = g.kind === "stones" ? 22 : 9;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + 0.1, r1 = g.r * 0.93;
+      if (g.kind === "stones") disc(c, Math.cos(a) * r1, Math.sin(a) * r1, 0.09 + ((k * 37) % 5) * 0.012, PEBBLE, 0.01);
+      else cbox(c, Math.cos(a) * r1, Math.sin(a) * r1, 0.2, 0.2, f.look.post, 0.015);
+    }
+  }
+  if (f.steps) for (const [y, k] of [[-0.66, 0.9], [0.02, 1.1], [0.7, 0.95]]) {
+    ell(c, 0, y, 0.32 * k, 0.2 * k);
+    fo(c, radial(c, 0, y, 0.3, shade(PEBBLE.light, 0.12), shade(PEBBLE.dark, 0.2)), 0.01);
+  }
+  if (f.stones) for (const s2 of [-1, 1]) for (const [x, y, r] of scatter(6, f.post + 0.22, seed + (s2 > 0 ? 7 : 0))) disc(c, s2 * px + x, y, 0.07 + r * 0.06, PEBBLE, 0.01);
+  if (f.door) {
+    c.fillStyle = "#7a5030";
+    c.fillRect(-half, 0.02, f.open, 0.1);
+    c.lineWidth = 0.02;
+    c.strokeStyle = "#16120e";
+    c.strokeRect(-half, 0.02, f.open, 0.1);
+  }
+  // The lintel, behind the door when there is one.
+  const ly = f.door ? -0.07 : 0, le = lintelEnd(f), lt = f.look.square ? 0.13 : 0.12;
+  if (f.look.square) {
+    rr(c, -le, ly - lt, le * 2, lt * 2, 0.02);
+    fo(c, linear(c, 0, ly - lt, 0, ly + lt, f.look.lintel.light, f.look.lintel.dark), 0.02);
+    if (f.look.bands) for (const x of [-le + 0.08, le - 0.08]) stroke(c, [x, ly - lt, x, ly + lt], 0.04, f.look.bands.light);
+  } else {
+    rr(c, -le, ly - lt, le * 2, lt * 2, lt);
+    fo(c, linear(c, 0, ly - lt, 0, ly + lt, f.look.lintel.light, f.look.lintel.dark), 0.02);
+    for (const x of [-le, le]) disc(c, x, ly, lt * 0.95, tone("#c8a070", "#7a5434"), 0.012);
+  }
+  // The posts over the lintel's ends, their tops carved: a spiral on the left, chevrons on the right.
+  const mark = f.look.bands ? f.look.bands.light : "rgba(30,18,8,0.7)";
+  for (const s2 of [-1, 1]) {
+    if (f.look.square) {
+      cbox(c, s2 * px, ly, f.post * 2, f.post * 2, f.look.post, 0.025);
+      if (f.look.bands) {
+        c.strokeStyle = f.look.bands.light;
+        c.lineWidth = 0.025;
+        c.strokeRect(s2 * px - f.post * 0.8, ly - f.post * 0.8, f.post * 1.6, f.post * 1.6);
+      }
+    } else disc(c, s2 * px, ly, f.post, f.look.post, 0.025);
+    c.beginPath();
+    if (s2 < 0) {
+      for (let t = 0; t < Math.PI * 4; t += 0.2) {
+        const r = f.post * 0.12 + (t / (Math.PI * 4)) * f.post * 0.6;
+        const x = s2 * px + Math.cos(t) * r, y = ly + Math.sin(t) * r;
+        if (t) c.lineTo(x, y);
+        else c.moveTo(x, y);
+      }
+    } else {
+      for (const dy of [-0.3, 0, 0.3]) {
+        c.moveTo(px - f.post * 0.5, ly + f.post * (dy + 0.25));
+        c.lineTo(px, ly + f.post * (dy - 0.15));
+        c.lineTo(px + f.post * 0.5, ly + f.post * (dy + 0.25));
+      }
+    }
+    c.strokeStyle = mark;
+    c.lineWidth = 0.018;
+    c.stroke();
+  }
+  // The woven ring, tipped towards the viewer over the lintel, the rune's stave and branches in it.
+  const r0 = ringR(f), cy = ly - r0 * 0.5;
+  ell(c, 0, cy, r0, r0 * 0.62);
+  c.strokeStyle = shade(f.look.ring.dark, -0.25);
+  c.lineWidth = 0.09;
+  c.stroke();
+  ell(c, 0, cy, r0, r0 * 0.62);
+  c.strokeStyle = f.look.ring.light;
+  c.lineWidth = 0.05;
+  c.stroke();
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    stroke(c, [Math.cos(a) * r0 * 0.95, cy + Math.sin(a) * r0 * 0.59, Math.cos(a + 0.18) * r0 * 1.04, cy + Math.sin(a + 0.18) * r0 * 0.64], 0.012, shade(f.look.ring.dark, -0.3));
+  }
+  const rh = r0 * 0.62 * 0.85;
+  stroke(c, [0, cy + rh, 0, cy - rh], 0.035, f.look.ring.dark);
+  for (const [y0, y1] of [[0.1, -0.35], [0.5, 0.05]]) for (const s2 of [-1, 1]) stroke(c, [0, cy + rh * y0, s2 * r0 * 0.38, cy + rh * y1], 0.025, f.look.ring.dark);
+  // The stone on its cord, below the ring.
+  disc(c, 0, ly + lt * 0.4, 0.05, f.look.bands ?? PEBBLE, 0.01);
+  if (f.look.ivy) for (const [x, y, r] of scatter(14, 1, seed + 3)) {
+    const along = x * le, across = y * 0.16;
+    ell(c, along, ly + across, 0.05 + r * 0.03, 0.035 + r * 0.02, r * 4);
+    fo(c, shade(f.look.ivy, (r - 0.5) * 0.3), 0.008);
+  }
+}
+
+/** Thenn's frame in 3D: posts, lintel, the ring with its rune, the hung stone (and stones and steps). */
+export function thennFrameForm(f: ThennFrame): S.Solid {
+  const half = f.open / 2, px = half + f.post, H = f.height, le = lintelEnd(f);
+  const parts: S.PartList[] = [];
+  for (const s of [-1, 1]) {
+    if (f.look.square) {
+      parts.push(S.cbox(f.post * 2, f.post * 2, 0, H, f.look.post, s * px));
+      if (f.look.bands) for (const y of [0.25, H * 0.55, H - 0.25]) parts.push(S.cbox(f.post * 2.08, f.post * 2.08, y - 0.05, y + 0.05, f.look.bands, s * px));
+    } else parts.push(S.limb([s * px, 0, 0], [s * px * 1.01, H, 0], f.post, f.post * 0.82, f.look.post, { n: 7 }));
+  }
+  const lt = f.look.square ? 0.13 : 0.11;
+  if (f.look.square) parts.push(S.box(-le, le, -lt, lt, H, H + 0.3, f.look.lintel));
+  else parts.push(S.limb([-le, H + 0.1, 0], [le, H + 0.06, 0], lt, lt * 0.9, f.look.lintel, { n: 6 }));
+  const top = H + (f.look.square ? 0.3 : 0.2), r = ringR(f), rm = r * S.SQUARE_M, cy = top + rm;
+  const ring = Array.from({ length: 9 }, (_, i) => {
+    const t = (i / 8) * Math.PI * 2;
+    return [Math.cos(t) * r, cy + Math.sin(t) * rm] as const;
+  });
+  for (let i = 0; i < 8; i++) parts.push(S.limb([ring[i][0], ring[i][1], 0], [ring[i + 1][0], ring[i + 1][1], 0], 0.03, 0.03, f.look.ring, { n: 3 }));
+  parts.push(S.limb([0, cy - rm * 0.85, 0], [0, cy + rm * 0.85, 0], 0.022, 0.018, f.look.ring, { n: 4 }));
+  for (const [y0, y1] of [[0.1, 0.45], [-0.25, 0.1]]) for (const s of [-1, 1]) parts.push(S.limb([0, cy + rm * y0, 0], [s * r * 0.4, cy + rm * y1, 0], 0.015, 0.012, f.look.ring, { n: 3 }));
+  // The stone on its cord.
+  const under = H - (f.look.square ? 0 : 0.05);
+  parts.push(S.limb([0, under, 0], [0, under - 0.45, 0], 0.008, 0.008, "#5a4630", { n: 3 }));
+  parts.push(S.ball(0.06, under - 0.62, under - 0.42, f.look.bands ?? PEBBLE, { n: 6, rz: 0.04 }));
+  if (f.stones) for (const s of [-1, 1]) for (const [x, z, k] of scatter(3, f.post + 0.2, 5111 + (s > 0 ? 7 : 0))) parts.push(S.ball(0.08 + k * 0.05, -0.04, 0.22 + k * 0.15, PEBBLE, { x: s * px + x, z, lump: 0.25, n: 5 }));
+  if (f.steps) for (const z of [-0.66, 0.02, 0.7]) parts.push(S.cyl(0.3, 0, 0.05, PEBBLE, { z, rz: 0.19, n: 7 }));
+  const g = f.ground;
+  if (g?.kind === "dais") parts.push(S.cyl(g.r, 0, 0.14, "#d0c8b6", { n: 16 }), S.cyl(g.r * 0.9, 0.14, 0.16, GOLD, { n: 16 }));
+  else if (g) {
+    const n = 8;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + 0.1, x = Math.cos(a) * g.r * 0.93, z = Math.sin(a) * g.r * 0.93;
+      parts.push(g.kind === "stones" ? S.ball(0.1, -0.03, 0.16, PEBBLE, { x, z, lump: 0.25, n: 4 }) : S.cbox(0.2, 0.2, 0, 0.75, f.look.post, x, z));
+    }
+  }
+  if (f.look.ivy) for (const [x, y] of scatter(6, 1, 5131)) {
+    const onPost = Math.abs(x) > 0.5;
+    parts.push(onPost ? S.ball(0.06, Math.abs(y) * H * 0.8, Math.abs(y) * H * 0.8 + 0.18, f.look.ivy, { x: Math.sign(x) * px + f.post * 0.8 * Math.sign(y), z: f.post * 0.6, n: 4 }) : S.ball(0.07, H + 0.08, H + 0.3, f.look.ivy, { x: x * le, z: lt * 0.8 * Math.sign(y || 1), n: 4 }));
+  }
+  // The ring is drawn tipped towards the viewer, so it reads from above: the drawing reaches further up the map than the frame.
+  return S.solid(parts, { note: "its ring is drawn tipped towards the viewer, to read from above" });
+}
+
+/** The frames a Thenn door or archway stands in, by the opening they fit: a door's frame is the one nearest its width, scaled to it. */
+export const THENN_FRAMES: { id: string; open: number }[] = [
+  { id: "thenn-door-frame-one", open: 1 },
+  { id: "thenn-door-frame-two", open: 2 },
+];
+const doorFrame = (open: number): ThennFrame => ({ open, post: open > 1.5 ? 0.16 : 0.13, height: open > 1.5 ? 2.5 : 2.3, look: THENN_LOOKS.wild });
+const frameSize = (f: ThennFrame, depth: number): [number, number] => [+(lintelEnd(f) * 2 + 0.06).toFixed(2), depth];
+
+const DOORWAYS = {
+  wild: { open: 1.6, post: 0.2, height: 2.7, look: THENN_LOOKS.wild, stones: true, steps: true, ground: { kind: "stones", r: 1.45 } },
+  carved: { open: 1.8, post: 0.18, height: 2.9, look: THENN_LOOKS.carved, stones: false, steps: true, ground: { kind: "dais", r: 1.5 } },
+  monolith: { open: 1.6, post: 0.22, height: 2.5, look: THENN_LOOKS.monolith, stones: true, steps: true, ground: { kind: "monoliths", r: 1.5 } },
+  // A temple's: wide and tall, carved and gilded, its ring under a hall's roof (5 m to its top).
+  great: { open: 3.2, post: 0.26, height: 3.38, look: THENN_LOOKS.carved, stones: false, steps: true, ring: 0.42, ground: { kind: "dais", r: 2.4 } },
+} satisfies Record<string, ThennFrame>;
+
+/** Thenn's sign: an arch under rays, a stave with two marks in it. */
+function thennSign(c: C, k: number, col: string): void {
+  c.save();
+  c.scale(k, k);
+  c.strokeStyle = col;
+  c.lineWidth = 0.06;
+  c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-0.32, 0.3);
+  c.lineTo(-0.32, -0.02);
+  c.arc(0, -0.02, 0.32, Math.PI, 0);
+  c.lineTo(0.32, 0.3);
+  c.moveTo(0, -0.18);
+  c.lineTo(0, 0.3);
+  for (const a of [-2.4, -1.9, -1.57, -1.24, -0.74]) {
+    c.moveTo(Math.cos(a) * 0.42, -0.02 + Math.sin(a) * 0.42);
+    c.lineTo(Math.cos(a) * 0.55, -0.02 + Math.sin(a) * 0.55);
+  }
+  c.stroke();
+  for (const y of [-0.06, 0.08]) {
+    circle(c, 0.08, y, 0.025);
+    c.fillStyle = col;
+    c.fill();
+  }
+  c.restore();
+}
+
+const thenn: PropDef[] = [
+  ...family({ id: "thenn-doorway", name: "Thenn's doorway", category: T, group: "Thenn", w: 1, h: 1, layer: "object", form: (v) => thennFrameForm(DOORWAYS[v.key as keyof typeof DOORWAYS]) }, [vary("wild", "wild wood and ivy"), vary("carved", "carved and gilded"), vary("monolith", "standing monoliths"), vary("great", "great, carved and gilded")], (c, v) => thennFrame(c, DOORWAYS[v.key as keyof typeof DOORWAYS]), { size: (v) => { const f = DOORWAYS[v.key as keyof typeof DOORWAYS]; const d = +(f.ground.r * 2).toFixed(2); return [Math.max(d, frameSize(f, d)[0]), d]; } }),
+  ...family({ id: "thenn-door-frame", name: "Thenn's door frame", category: T, group: "Thenn", w: 1, h: 0.4, layer: "object", form: (v) => thennFrameForm(doorFrame(v.key === "two" ? 2 : 1)) }, [vary("one", "one square"), vary("two", "two squares")], (c, v) => thennFrame(c, doorFrame(v.key === "two" ? 2 : 1)), { size: (v) => frameSize(doorFrame(v.key === "two" ? 2 : 1), 0.45) }),
+  ...family({ id: "thenn-wayshrine", name: "Thenn's wayside shrine", category: T, group: "Thenn", w: 1.1, h: 1.1, layer: "object", form: () => {
+    const r = 0.26, rm = r * S.SQUARE_M, cy = 1.55 + rm;
+    const ring = Array.from({ length: 9 }, (_, i) => [Math.cos((i / 8) * Math.PI * 2) * r, cy + Math.sin((i / 8) * Math.PI * 2) * rm] as const);
+    return S.solid([
+      S.limb([0, 0, 0], [0, 1.6, 0], 0.11, 0.09, THENN_LOOKS.wild.post, { n: 6 }),
+      ring.slice(0, 8).map((p, i) => S.limb([p[0], p[1], 0], [ring[i + 1][0], ring[i + 1][1], 0], 0.025, 0.025, THENN_LOOKS.wild.ring, { n: 4 })),
+      S.limb([0, cy - rm * 0.85, 0], [0, cy + rm * 0.85, 0], 0.018, 0.015, THENN_LOOKS.wild.ring, { n: 3 }),
+      S.limb([0, 1.5, 0.06], [0, 1.15, 0.12], 0.007, 0.007, "#5a4630", { n: 3 }),
+      S.ball(0.05, 0.98, 1.16, PEBBLE, { z: 0.12, n: 6 }),
+      scatter(5, 0.32, 5141).map(([x, z, k]) => S.ball(0.06 + k * 0.05, -0.03, 0.18 + k * 0.1, PEBBLE, { x, z, lump: 0.25, n: 5 })),
+      [-0.2, 0.25].map((x) => S.ball(0.04, 0, 0.07, "#f2efe6", { x, z: 0.38, n: 5 })),
+      S.ball(0.05, 0, 0.12, "#7a5432", { x: 0.05, z: 0.4, rz: 0.035, lump: 0.3, n: 5 }),
+      S.limb([-0.4, 0.04, 0.2], [-0.05, 0.05, 0.42], 0.025, 0.02, THENN_LOOKS.wild.lintel, { n: 4 }),
+    ]);
+  } }, [vary("wild")], (c) => {
+    for (const [x, y, r] of scatter(5, 0.32, 5141)) disc(c, x, y, 0.07 + r * 0.05, PEBBLE, 0.01);
+    stroke(c, [-0.4, 0.2, -0.05, 0.42], 0.05, THENN_LOOKS.wild.lintel.dark);
+    for (const x of [-0.2, 0.25]) disc(c, x, 0.38, 0.045, tone("#fbfaf4", "#c8c4b8"), 0.008);
+    disc(c, 0.05, 0.4, 0.05, tone("#9a6a3e", "#5a3a1e"), 0.01);
+    disc(c, 0, 0, 0.11, THENN_LOOKS.wild.post, 0.02);
+    ell(c, 0, 0, 0.26, 0.05);
+    fo(c, linear(c, -0.26, 0, 0.26, 0, THENN_LOOKS.wild.ring.light, THENN_LOOKS.wild.ring.dark), 0.012);
+    disc(c, 0, 0.12, 0.05, PEBBLE, 0.008);
+  }),
+  ...family({ id: "thenn-sign", name: "Thenn's sign, carved in a round slab", category: T, group: "Thenn", w: 1.8, h: 1.8, layer: "floor", form: () => S.flat("a round stone set in the ground, his sign carved in it") }, [vary("grey")], (c) => {
+    ell(c, 0, 0, 0.86, 0.8);
+    fo(c, radial(c, 0, 0, 0.86, "#a8a69c", "#6a6862"), 0.025);
+    for (const [x, y, r] of scatter(8, 0.6, 5151)) {
+      circle(c, x, y, 0.03 + r * 0.05);
+      c.fillStyle = "rgba(60,80,40,0.25)";
+      c.fill();
+    }
+    thennSign(c, 1.1, "rgba(40,36,30,0.75)");
+  }),
+];
+
+export const TEMPLE_PROPS: PropDef[] = [...altars, ...worship, ...shrines, ...graves, ...thenn];
