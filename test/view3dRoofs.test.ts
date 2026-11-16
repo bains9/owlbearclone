@@ -98,6 +98,16 @@ describe("the roof", () => {
     expect(Math.min(...zs)).toBeCloseTo(-OVERHANG);
   });
 
+  it("rises with its building's width at the same pitch, so a great hall's stands far above a cottage's", () => {
+    const top = (w: number) => Math.max(...verts(roofMesh([{ x0: 0, y0: 0, x1: w * CELL, y1: 3000 }], CELL, ROOF_COLOURS[0], 1)).map((q) => q[1]));
+    // A cottage 4 squares across: about 1.3 squares (2 m) over its walls, as before.
+    expect(top(4) - WALL_HEIGHT).toBeCloseTo((4 + 2 * OVERHANG) / 2 * 0.6, 5);
+    // A hall 24 squares across: over 7 squares (more than 10 m) over its walls, not cut down to 2.
+    expect(top(24) - WALL_HEIGHT).toBeGreaterThan(7);
+    // The very widest stop at MAX_RIDGE.
+    expect(top(60) - WALL_HEIGHT).toBeCloseTo(MAX_RIDGE, 5);
+  });
+
   it("turns its ridge for a building longer down the map than across", () => {
     const p = verts(roofMesh([{ x0: 0, y0: 0, x1: 200, y1: 500 }], CELL, ROOF_COLOURS[1], 1));
     for (const q of p) if (q[1] > WALL_HEIGHT + 0.5) expect(q[0]).toBeCloseTo(1);

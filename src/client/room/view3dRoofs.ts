@@ -227,8 +227,12 @@ export function roofColour(id: string): Rgb {
 export const OVERHANG = 0.18;
 /** A roof's pitch: its ridge rises this much for each square from the eaves in. */
 export const PITCH = 0.6;
-/** The highest a ridge stands above the eaves, in squares. */
-export const MAX_RIDGE = 2;
+/**
+ * The highest a ridge stands above the eaves, in squares (12 m). A roof keeps its pitch as its
+ * building widens, so a great hall's stands far taller than a cottage's (it was 2, which flattened
+ * every big building's roof to 3 m; raised for Dungeon's Town hall, "very tall roofs", 16 November 2026).
+ */
+export const MAX_RIDGE = 8;
 
 /**
  * A building's roof as triangles, in squares: on each rectangle, a gable roof from the top of the
