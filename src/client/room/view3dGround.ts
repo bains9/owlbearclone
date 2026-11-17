@@ -19,6 +19,18 @@ export interface Ground {
   h: number;
   low: Uint8Array;
   drop: number;
+  /**
+   * How far each cell's floor stands above the ground, in squares (17 November 2026: Dungeon's
+   * raised floors). It lifts the floor and what's on it (objects, figures, spells), not walls or
+   * roofs, which stand from the ground. Missing: none.
+   */
+  raise?: Float32Array;
+}
+
+/** A raised floor, as a source gives it: its polygon's rings (flat x, y lists in scene units: the outline, then holes) and how high it stands, in squares. */
+export interface RaisedFloor {
+  rings: readonly (readonly number[])[];
+  h: number;
 }
 
 /** Cells a square. */
@@ -148,4 +160,67 @@ export function heightAt(g: Ground | null, x: number, y: number): number {
 export function onGround(position: Float32Array, g: Ground | null, cell: number): void {
   if (!g) return;
   for (let i = 0; i < position.length; i += 3) position[i + 1] += heightAt(g, position[i] * cell, position[i + 2] * cell);
+}
+
+/** The floor's height at a scene point, in squares: the ground's, and a raised floor's on it. */
+export function floorAt(g: Ground | null, x: number, y: number): number {
+  if (!g) return 0;
+  const base = heightAt(g, x, y);
+  if (!g.raise) return base;
+  const i = Math.floor((x - g.x0) * g.k), j = Math.floor((y - g.y0) * g.k);
+  if (i < 0 || j < 0 || i >= g.w || j >= g.h) return base;
+  return base + g.raise[j * g.w + i];
+}
+
+/** Puts a mesh's corners (positions in squares) on the floor under each: the ground, and a raised floor. */
+export function onFloor(position: Float32Array, g: Ground | null, cell: number): void {
+  if (!g) return;
+  for (let i = 0; i < position.length; i += 3) position[i + 1] += floorAt(g, position[i] * cell, position[i + 2] * cell);
+}
+
+/**
+ * The ground with raised floors on it: a ground of its own (flat, its cells as groundOf's) when
+ * there are raised floors and no cliffs, the same ground when there are none. A cell stands as high
+ * as the raised floor its middle is in (the rings even-odd, so holes stay down).
+ */
+export function withRaised(g: Ground | null, raised: readonly RaisedFloor[], area: { x0: number; y0: number; x1: number; y1: number }, cell: number): Ground | null {
+  if (!raised.length || !(cell > 0)) return g;
+  const aw = area.x1 - area.x0, ah = area.y1 - area.y0;
+  const k = g ? g.k : Math.min(PER_SQUARE / cell, 512 / Math.max(aw, ah));
+  const w = g ? g.w : Math.max(1, Math.ceil(aw * k)), h = g ? g.h : Math.max(1, Math.ceil(ah * k));
+  const x0 = g ? g.x0 : area.x0, y0 = g ? g.y0 : area.y0;
+  const raise = new Float32Array(w * h);
+  let any = false;
+  for (const r of raised) {
+    if (!(r.h > 0) || !r.rings.length) continue;
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const ring of r.rings) for (let i = 0; i + 1 < ring.length; i += 2) {
+      bx0 = Math.min(bx0, ring[i]);
+      bx1 = Math.max(bx1, ring[i]);
+      by0 = Math.min(by0, ring[i + 1]);
+      by1 = Math.max(by1, ring[i + 1]);
+    }
+    const i0 = Math.max(0, Math.floor((bx0 - x0) * k)), i1 = Math.min(w - 1, Math.ceil((bx1 - x0) * k));
+    const j0 = Math.max(0, Math.floor((by0 - y0) * k)), j1 = Math.min(h - 1, Math.ceil((by1 - y0) * k));
+    for (let j = j0; j <= j1; j++) {
+      const py = y0 + (j + 0.5) / k;
+      for (let i = i0; i <= i1; i++) {
+        const px = x0 + (i + 0.5) / k;
+        let inside = false;
+        for (const ring of r.rings) {
+          const n = ring.length / 2;
+          for (let a = 0, b = n - 1; a < n; b = a++) {
+            const ax = ring[a * 2], ay = ring[a * 2 + 1], bx = ring[b * 2], by = ring[b * 2 + 1];
+            if (ay > py !== by > py && px < ((bx - ax) * (py - ay)) / (by - ay) + ax) inside = !inside;
+          }
+        }
+        if (inside) {
+          raise[j * w + i] = r.h;
+          any = true;
+        }
+      }
+    }
+  }
+  if (!any) return g;
+  return g ? { ...g, raise } : { x0, y0, k, w, h, low: new Uint8Array(w * h), drop: 0, raise };
 }

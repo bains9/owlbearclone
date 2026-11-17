@@ -13,6 +13,7 @@ import type { Object3d } from "./view3dObjects";
 import type { Building3d } from "./view3dRoofs";
 import type { Effect3d } from "./view3dEffects";
 import type { Cliff3d } from "./view3dCliffs";
+import type { RaisedFloor } from "./view3dGround";
 import type { Weather } from "../../shared/calendar";
 
 /** How tall walls stand, in squares: 3 m, at real-world scale (a square is 1.5 m, 5 ft). */
@@ -629,6 +630,8 @@ export interface Board3dSource {
   effects(): Effect3d[];
   /** A Dungeondraft map's cliffs, from its map data (view3dCliffs.ts). */
   cliffs(): Cliff3d[];
+  /** Floors standing above the ground (a Dungeon map's, view3dGround.ts withRaised), in scene units and squares. Missing: none. */
+  raised?(): RaisedFloor[];
   /** The GM, not looking as players: sees everything, the fog and the dark dimmed. */
   gmView(): boolean;
   /** The middle and size of the 2D view, in scene units (null: no scene). */

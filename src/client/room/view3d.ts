@@ -66,7 +66,7 @@ import { topAt, topsOf, type Tops } from "./view3dStand";
 import { dungeonObjects } from "./dungeonStamps";
 import { cliffMesh } from "./view3dCliffs";
 import { rockMask, rockSides, rockTop } from "./view3dRock";
-import { groundOf, heightAt, onGround, type Ground } from "./view3dGround";
+import { floorAt, groundOf, heightAt, onFloor, onGround, withRaised, type Ground } from "./view3dGround";
 import { edgeColour, groundMesh, rangeMesh, sceneryOf, skyMesh } from "./view3dScenery";
 import { roofColour, roofMesh, roofShown, buildingLight } from "./view3dRoofs";
 import { AFTER_IMAGES, AFTER_MS, EFFECT_STEP_MS, copiesAt, effectScale, meanColour, sameSize, sameVolume, sheetLayers, skinMesh, type Effect3d } from "./view3dEffects";
@@ -364,9 +364,10 @@ export class View3D implements View3dControls {
 
     // High and low ground, from the cliffs.
     const cliffs = this.src.cliffs();
-    const g = (this.ground = groundOf(cliffs, a, this.cell));
+    // And raised floors on it (Dungeon's): they lift the floor and what's on it, not walls or roofs.
+    const g = (this.ground = withRaised(groundOf(cliffs, a, this.cell), this.src.raised?.() ?? [], a, this.cell));
     let lowSum = 0;
-    if (g) for (let p = 0; p < g.low.length; p += 7) lowSum = (lowSum * 31 + g.low[p] * p) | 0;
+    if (g) for (let p = 0; p < g.low.length; p += 7) lowSum = (lowSum * 31 + g.low[p] * p + (g.raise ? Math.round(g.raise[p] * 100) * 7 : 0)) | 0;
 
     // The floor: a new texture when its size changes (WebGL keeps a texture's size), else the same one
     // drawn again; bent to the ground where cliffs make high and low ground.
@@ -382,7 +383,7 @@ export class View3D implements View3dControls {
         const pos = geo.getAttribute("position");
         const cx = (a.x0 + a.x1) / 2, cz = (a.y0 + a.y1) / 2;
         for (let i = 0; i < pos.count; i++) {
-          pos.array[i * 3 + 1] = heightAt(g, cx + pos.array[i * 3] * this.cell, cz + pos.array[i * 3 + 2] * this.cell);
+          pos.array[i * 3 + 1] = floorAt(g, cx + pos.array[i * 3] * this.cell, cz + pos.array[i * 3 + 2] * this.cell);
         }
         pos.needsUpdate = true;
       }
@@ -437,8 +438,9 @@ export class View3D implements View3dControls {
       this.topsKey = topsKey;
       this.tops = topsOf(standMesh(objs, this.cell, null, true).position);
     }
-    grounded(things);
-    grounded(things.glow);
+    // Objects stand on the floor: the ground, and a raised floor under them.
+    onFloor(things.position, g, this.cell);
+    onFloor(things.glow.position, g, this.cell);
     if (things.position.length) this.objects = this.lit(things);
     if (things.glow.position.length) this.glowing = this.unlit(things.glow);
     const rock = cliffMesh(cliffs, this.cell, f.cover, all, f.paint, g);
@@ -495,7 +497,7 @@ export class View3D implements View3dControls {
       const x = s.x / this.cell, z = s.y / this.cell;
       // On the ground where it stands (below a cliff, a cliff's height down), and on top of what's
       // under its middle that it can stand on (a pillar, a crate, a table, a rock); a prop lies on the floor.
-      const y = heightAt(this.ground, s.x, s.y) + (s.flat ? 0 : topAt(this.tops, s.x / this.cell, s.y / this.cell));
+      const y = floorAt(this.ground, s.x, s.y) + (s.flat ? 0 : topAt(this.tops, s.x / this.cell, s.y / this.cell));
       if (!f) {
         f = this.makeFig(s, look);
         f.group.position.set(x, y, z);
@@ -1108,7 +1110,7 @@ export class View3D implements View3dControls {
     const ax = (a.x0 + a.x1) / 2 / this.cell, az = (a.y0 + a.y1) / 2 / this.cell;
     const bx = (b.x0 + b.x1) / 2 / this.cell, bz = (b.y0 + b.y1) / 2 / this.cell;
     // A spell on a token goes up with its figure onto what it stands on.
-    const base = heightAt(this.ground, ax * this.cell, az * this.cell) + (s.e.key.startsWith("look:") ? topAt(this.tops, ax, az) : 0);
+    const base = floorAt(this.ground, ax * this.cell, az * this.cell) + (s.e.key.startsWith("look:") ? topAt(this.tops, ax, az) : 0);
     const layers = sheetLayers(s.e);
     s.meshes.forEach((m, i) => {
       const l = layers[i];

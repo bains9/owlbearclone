@@ -8,7 +8,8 @@
 // picture's rectangle in them; the picture spans the scene's width and height.
 
 import { OR, type ObjectRole } from "../dd/roles";
-import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, type ShapeLayer, type SidecarMeta, type TerrainGrid, type WallHeightLine } from "../dd/sidecar";
+import { NO_NAME, REACH_N, SIDECAR_UNITS, type BitmapLayer, type ObjectTable, type RaisedPoly, type ShapeLayer, type SidecarMeta, type TerrainGrid, type WallHeightLine } from "../dd/sidecar";
+import type { RaisedFloor } from "./view3dGround";
 import { AR, TR } from "../dd/roles";
 import { REACH_DIRS } from "../dd/raster";
 import { shapeOf, type Object3d, type Shape } from "./view3dObjects";
@@ -52,6 +53,21 @@ export function mapTallWalls(lines: readonly WallHeightLine[], place: MapPlaceme
     }
   }
   return out;
+}
+
+/** The map data's raised floors (FLRS) in scene units, each with its height in squares (a square is 1.5 m). */
+export function mapRaised(polys: readonly RaisedPoly[], place: MapPlacement): RaisedFloor[] {
+  return polys.map((p) => ({
+    rings: p.rings.map((ring) => {
+      const out: number[] = [];
+      for (let i = 0; i + 1 < ring.length; i += 2) {
+        const at = toScene(place, ring[i] / SIDECAR_UNITS.coord, ring[i + 1] / SIDECAR_UNITS.coord);
+        out.push(at.x, at.y);
+      }
+      return out;
+    }),
+    h: p.cm / 100 / 1.5,
+  }));
 }
 
 /** A scene point as a world point. */

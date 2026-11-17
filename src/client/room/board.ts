@@ -100,7 +100,8 @@ import { getImage, imageFailed, imageStatus, retryImage } from "./images";
 import { FLYING_LIFT, WALL_HEIGHT, cardSize, coverScale, floorScale, initialsOf, piecesWithHeights, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
 import { buildingsOf, eavesOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
-import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, mapTallWalls, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
+import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, mapRaised, mapTallWalls, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
+import type { RaisedFloor } from "./view3dGround";
 import type { ClearingMasks } from "./view3dClearing";
 import { findThings, foundHoles, foundObjects, type Found } from "./view3dFound";
 import { rockMask } from "./view3dRock";
@@ -812,6 +813,8 @@ export class Board implements BoardApi {
     cliffs?: { scene: Scene; list: Cliff3d[] };
     /** Its walls standing other than 3 m (a Dungeon map's), in scene units. */
     tall?: { scene: Scene; list: { line: Seg; h: number; lo?: number }[] };
+    /** Its raised floors (a Dungeon map's), in scene units. */
+    raised?: { scene: Scene; list: RaisedFloor[] };
   } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
@@ -849,6 +852,13 @@ export class Board implements BoardApi {
         if (!scene || !md?.data.cliffs?.length || !this.mapData3d) return [];
         if (this.mapData3d.cliffs?.scene !== scene) this.mapData3d.cliffs = { scene, list: mapCliffs(md.data.cliffs, md.place) };
         return this.mapData3d.cliffs.list;
+      },
+      raised: () => {
+        const scene = this.renderedScene;
+        const md = scene ? this.mapData(scene) : null;
+        if (!scene || !md?.data.raised?.length || !this.mapData3d) return [];
+        if (this.mapData3d.raised?.scene !== scene) this.mapData3d.raised = { scene, list: mapRaised(md.data.raised, md.place) };
+        return this.mapData3d.raised.list;
       },
       gmView: () => this.isGm && !this.room.state.fogOpts.preview,
       view: () => {

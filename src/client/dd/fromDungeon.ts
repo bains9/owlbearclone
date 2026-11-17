@@ -157,6 +157,8 @@ class Builder {
     level.portals = portals;
     const headers = this.headers();
     if (headers.length) level.headers = headers;
+    const raised = this.raised();
+    if (raised.length) level.raised = raised;
     return {
       header: {
         creationBuild: "dungeon",
@@ -305,6 +307,21 @@ class Builder {
         }
         if (rings.length) out.push(withHoles(rings[0], rings.slice(1)));
       }
+    }
+    return out;
+  }
+
+  /** Floor standing above the ground (shapes.raised, 17 November 2026), for the 3D view: rings in world units, heights in metres. */
+  private raised(): NonNullable<Level["raised"]> {
+    const out: NonNullable<Level["raised"]> = [];
+    for (const r of arr(this.shapes.raised)) {
+      if (!isObj(r) || !fin(r.m) || !(r.m > 0) || !Array.isArray(r.rings) || !this.item()) continue;
+      const rings: Float64Array[] = [];
+      for (const ring of r.rings) {
+        const pts = this.line(ring, 3);
+        if (pts) rings.push(pts);
+      }
+      if (rings.length) out.push({ rings, m: Math.min(30, r.m) });
     }
     return out;
   }

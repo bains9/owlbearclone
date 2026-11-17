@@ -38,8 +38,8 @@
 import { GRID, MS_EDGE_BUFFER, type BitGrid, type DDMap, type Level, type MapObject, type Wall, type WaterNode } from "./model";
 import { MEASURE, measureObjects, measureSummary, priorReach, type Measured, type SpriteSizes } from "./measure";
 import {
-  CLIFF_CAPS, DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, WALL_HEIGHT_CAPS, encodeSidecar,
-  type BitmapLayer, type CliffLine, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid, type WallHeightLine,
+  CLIFF_CAPS, DD_LAYER, NO_NAME, OBJ_FLAG, RAISED_CAPS, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, WALL_HEIGHT_CAPS, encodeSidecar,
+  type BitmapLayer, type CliffLine, type ObjectTable, type RaisedPoly, type SeasonSidecar, type ShapeLayer, type TerrainGrid, type WallHeightLine,
 } from "./sidecar";
 import {
   AR, NAMED_ROLES, OR, TR, defaultName, isCliffTexture, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
@@ -633,6 +633,21 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
       pts += t.pts.length / 2;
     }
     sc.wallHeights = kept;
+  }
+  // Raised floors (a Dungeon map's), for the 3D view: as many as the caps hold.
+  if (L.raised?.length) {
+    const kept: RaisedPoly[] = [];
+    let rings = 0, pts = 0;
+    for (const r of L.raised) {
+      const cm = Math.min(0xffff, Math.max(1, Math.round(r.m * 100)));
+      const rs = r.rings.map((ring) => Int32Array.from(ring, (v) => Math.round(v * SIDECAR_UNITS.coord)));
+      const n = rs.reduce((a, ring) => a + ring.length / 2, 0);
+      if (kept.length >= RAISED_CAPS.polys || rings + rs.length > RAISED_CAPS.rings || pts + n > RAISED_CAPS.points) break;
+      kept.push({ cm, rings: rs });
+      rings += rs.length;
+      pts += n;
+    }
+    if (kept.length) sc.raised = kept;
   }
   fitMeta(sc);
 

@@ -262,6 +262,8 @@ export interface Level {
    * 3D view only: across the doorway (world coords, two points), from `bottom` to `height` metres.
    */
   headers?: { points: Float64Array; bottom: number; height: number }[];
+  /** Floor standing above the ground (a Dungeon map's raised floors, 17 November 2026), for the 3D view: each polygon's rings (world coords) and its height in metres. */
+  raised?: { rings: Float64Array[]; m: number }[];
   /** Freestanding portals only; wall portals live in walls[].portals. */
   portals: Portal[];
   paths: Path[];

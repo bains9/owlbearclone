@@ -8,6 +8,7 @@ import type { Scene } from "../../shared/types";
 import { WALL_HEIGHT, type Board3dSource, type Change3d, type Floor3d, type PaintMap, type Walls3d } from "../room/view3dModel";
 import type { Object3d } from "../room/view3dObjects";
 import { buildingsOf, eavesOf, samplesOf, type Building3d } from "../room/view3dRoofs";
+import type { RaisedFloor } from "../room/view3dGround";
 import { SQUARE_M } from "../dungeonLib/solid";
 import { textureTile, whenTextureMade } from "../room/dungeonTextures";
 import type { Seg } from "../room/vision";
@@ -71,6 +72,11 @@ export function lookBuildings(m: Pick<LookMap, "roofed"> & Partial<Pick<LookMap,
       ...(eaves !== WALL_HEIGHT ? { eaves } : {}),
     };
   });
+}
+
+/** The level's raised floors, in scene units (rings) and squares (heights). */
+export function lookRaised(m: Pick<LookMap, "raised">, cell = LOOK_CELL): RaisedFloor[] {
+  return (m.raised ?? []).map((r) => ({ rings: r.rings.map((ring) => ring.map((v) => v * cell)), h: r.m / SQUARE_M }));
 }
 
 /** A small copy of the floor, to read the walls' and rocks' colours from. */
@@ -170,6 +176,11 @@ export class LookSource implements Board3dSource {
 
   cliffs() {
     return [];
+  }
+
+  /** The level's raised floors, as Dungeon sends them (cells, metres), in this page's units (scene units, squares). */
+  raised(): RaisedFloor[] {
+    return this.map ? lookRaised(this.map) : [];
   }
 
   /** Not the GM's dimmed look: nothing's hidden here, and roofs stand solid. */

@@ -39,6 +39,10 @@
 //           whose walls can be made taller or lower, 17 November 2026), and with a bottom over 0
 //           the wall over a doorway in one, for the 3D view's walls and roofs (at most once; only
 //           written when there are some, as CLIF)
+//   8 FLRS  u32 nPolys, then per polygon u16 height (centimetres), u16 nRings, then per ring u32
+//           nPts, nPts * (i32 x, i32 y) in 1/16 world unit: floor standing above the ground (a
+//           Dungeon map's raised floors, 17 November 2026), for the 3D view (at most once; only
+//           written when there are some, as CLIF)
 //
 // World units: 256 a square, x right, y down (Dungeondraft's own). Every count and length is
 // checked against SIDECAR_CAPS and the bytes left before anything is allocated, so a crafted
@@ -52,7 +56,7 @@ export const SIDECAR_MAGIC = "TTSD";
 export const SIDECAR_HEADER_BYTES = 16;
 
 /** Section tags. */
-export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6, WALH: 7 } as const;
+export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6, WALH: 7, FLRS: 8 } as const;
 
 /** A cliff's centre line and how wide it's drawn: one of the map's cliff paths (Dungeondraft's own or a pack's), cropped as the rest is. */
 export interface CliffLine {
@@ -77,6 +81,16 @@ export interface WallHeightLine {
 
 /** Limits on the walls' heights a sidecar carries. */
 export const WALL_HEIGHT_CAPS = { lines: 8000, points: 100_000 } as const;
+
+/** A raised floor: a polygon (its outline, then holes) standing `cm` centimetres above the ground. */
+export interface RaisedPoly {
+  cm: number;
+  /** Each ring's x, y pairs in 1/16 world unit. */
+  rings: Int32Array[];
+}
+
+/** Limits on the raised floors a sidecar carries. */
+export const RAISED_CAPS = { polys: 2000, rings: 8000, points: 100_000 } as const;
 
 /** A name index or object name meaning "none" (pack, embedded or unknown source, or a role that keeps no name). */
 export const NO_NAME = 0xffff;
@@ -186,6 +200,8 @@ export interface SeasonSidecar {
   cliffs?: CliffLine[];
   /** The map's walls that stand other than 3 m (WALH), for the 3D view; missing when every wall is 3 m (or it was made before heights were kept). */
   wallHeights?: WallHeightLine[];
+  /** The map's raised floors (FLRS), for the 3D view; missing when every floor is on the ground. */
+  raised?: RaisedPoly[];
 }
 
 /** Limits checked by decodeSidecar before it allocates, and by the extractor (design 3.3). */
@@ -400,6 +416,22 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
   }
   if (walhPts > WALL_HEIGHT_CAPS.points) fail("more than 100,000 points of walls' heights");
   if (tall.length) len += SECTION_HEAD + walhLen;
+  const raised = s.raised ?? [];
+  if (!Array.isArray(raised) || raised.length > RAISED_CAPS.polys) fail("more than 2,000 raised floors");
+  let flrsLen = 4, flrsRings = 0, flrsPts = 0;
+  for (const r of raised) {
+    if (!Number.isInteger(r.cm) || r.cm < 1 || r.cm > 0xffff) fail("a raised floor's height is out of range");
+    if (!Array.isArray(r.rings) || !r.rings.length || r.rings.length > 0xffff) fail("a raised floor has no rings");
+    flrsLen += 4;
+    for (const ring of r.rings) {
+      if (!(ring instanceof Int32Array) || ring.length % 2 || ring.length < 6) fail("a raised floor's ring is not three points or more");
+      flrsRings++;
+      flrsPts += ring.length / 2;
+      flrsLen += 4 + 4 * ring.length;
+    }
+  }
+  if (flrsRings > RAISED_CAPS.rings || flrsPts > RAISED_CAPS.points) fail("the raised floors are too big");
+  if (raised.length) len += SECTION_HEAD + flrsLen;
   if (len > SIDECAR_CAPS.bytes) fail("the sidecar is over 8 MiB");
 
   const out = new Uint8Array(SIDECAR_HEADER_BYTES + len);
@@ -473,6 +505,18 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
       for (let k = 0; k < t.pts.length; k++) i32(t.pts[k]);
     }
   }
+  if (raised.length) {
+    section(SECTION.FLRS, flrsLen);
+    u32(raised.length);
+    for (const r of raised) {
+      u16(r.cm);
+      u16(r.rings.length);
+      for (const ring of r.rings) {
+        u32(ring.length / 2);
+        for (let k = 0; k < ring.length; k++) i32(ring[k]);
+      }
+    }
+  }
 
   dv.setUint32(12, crc32(out.subarray(SIDECAR_HEADER_BYTES)), true);
   return out;
@@ -501,7 +545,7 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
 
   // Pass 1: every section's place, counts and values, read in place. Nothing big is allocated
   // until the whole payload has passed.
-  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0, clifAt = -1, clifLen = 0, walhAt = -1, walhLen = 0;
+  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0, clifAt = -1, clifLen = 0, walhAt = -1, walhLen = 0, flrsAt = -1, flrsLen = 0;
   const bitsAt: number[] = [], shapAt: number[] = [], shapLen: number[] = [];
   for (let p = SIDECAR_HEADER_BYTES; p < end;) {
     if (end - p < SECTION_HEAD) fail("a section header is cut off");
@@ -534,6 +578,9 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
     } else if (tag === SECTION.WALH) {
       if (walhAt >= 0) fail("two WALH sections");
       walhAt = body; walhLen = sl;
+    } else if (tag === SECTION.FLRS) {
+      if (flrsAt >= 0) fail("two FLRS sections");
+      flrsAt = body; flrsLen = sl;
     }
     p = body + sl;
   }
@@ -666,6 +713,42 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
   const out: SeasonSidecar = { meta, terrain, bitmaps, shapes, objects };
   if (clifAt >= 0) out.cliffs = readCliffs(dv, clifAt, clifLen);
   if (walhAt >= 0) out.wallHeights = readWallHeights(dv, walhAt, walhLen);
+  if (flrsAt >= 0) out.raised = readRaised(dv, flrsAt, flrsLen);
+  return out;
+}
+
+/** FLRS's polygons, every count checked against RAISED_CAPS and the section's length before it's allocated. */
+function readRaised(dv: DataView, at: number, len: number): RaisedPoly[] {
+  if (len < 4) fail("FLRS is cut off");
+  const end = at + len;
+  const n = dv.getUint32(at, true);
+  if (n > RAISED_CAPS.polys) fail("more than 2,000 raised floors");
+  const out: RaisedPoly[] = [];
+  let p = at + 4, ringsSeen = 0, pointsSeen = 0;
+  for (let i = 0; i < n; i++) {
+    if (end - p < 4) fail("a raised floor is cut off");
+    const cm = dv.getUint16(p, true);
+    const nr = dv.getUint16(p + 2, true);
+    p += 4;
+    if (cm < 1 || nr < 1) fail("a raised floor's height or rings are out of range");
+    ringsSeen += nr;
+    if (ringsSeen > RAISED_CAPS.rings) fail("the raised floors have too many rings");
+    const rings: Int32Array[] = [];
+    for (let r = 0; r < nr; r++) {
+      if (end - p < 4) fail("a raised floor's ring is cut off");
+      const pts = dv.getUint32(p, true);
+      p += 4;
+      pointsSeen += pts;
+      if (pts < 3 || pointsSeen > RAISED_CAPS.points) fail("a raised floor's points are out of range");
+      if (end - p < pts * 8) fail("a raised floor's points run past FLRS");
+      const xy = new Int32Array(pts * 2);
+      for (let k = 0; k < pts * 2; k++) xy[k] = dv.getInt32(p + 4 * k, true);
+      p += pts * 8;
+      rings.push(xy);
+    }
+    out.push({ cm, rings });
+  }
+  if (p !== end) fail("FLRS's length disagrees with its polygons");
   return out;
 }
 

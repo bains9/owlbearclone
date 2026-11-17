@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon c24bf6a. Change it there and run the script again.
+// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon b102367. Change it there and run the script again.
 // The builder's 3D view (14 November 2026): Dungeon shows the map being built in Table's own 3D
 // view, so there's one 3D view, not two. Dungeon frames Table's /look3d page and sends it the open
 // level as it changes; Table draws it as it draws a scene, with no fog and no tokens (a map maker
@@ -67,6 +67,12 @@ export interface LookMap {
   objects: LookObject[];
   /** Squares under a roof: room floors on open ground (an underground level has none). */
   roofed: [number, number][];
+  /**
+   * Floor standing above the ground (17 November 2026, Dungeon's model/floorHeights.ts): each
+   * polygon's rings (flat x, y lists in cells: its outline, then any holes) and its height in
+   * metres. What's on it stands on it. Missing: every floor on the ground.
+   */
+  raised?: { rings: number[][]; m: number }[];
 }
 
 const MAX_LINES = 40_000;
@@ -157,5 +163,28 @@ export function cleanLookMap(v: unknown, isBitmap: (b: unknown) => b is ImageBit
     if (!Array.isArray(cell) || cell.length !== 2 || !Number.isInteger(cell[0]) || !Number.isInteger(cell[1])) return null;
     roofed.push([cell[0], cell[1]]);
   }
-  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, ...(wallTextures ? { wallTextures } : {}), ...(wallHeights ? { wallHeights } : {}), ...(wallBottoms ? { wallBottoms } : {}), rock, doors, objects, roofed };
+  const raised = cleanRaised(m.raised);
+  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, ...(wallTextures ? { wallTextures } : {}), ...(wallHeights ? { wallHeights } : {}), ...(wallBottoms ? { wallBottoms } : {}), rock, doors, objects, roofed, ...(raised ? { raised } : {}) };
+}
+
+const MAX_RAISED = 2000;
+const MAX_RAISED_POINTS = 100_000;
+
+/** Raised floors as sent: polygons of rings of sane numbers, each with a height of 0 to 30 m; undefined when none is (or any is wrong). */
+function cleanRaised(v: unknown): { rings: number[][]; m: number }[] | undefined {
+  if (!Array.isArray(v) || !v.length || v.length > MAX_RAISED) return undefined;
+  const out: { rings: number[][]; m: number }[] = [];
+  let points = 0;
+  for (const p of v as { rings?: unknown; m?: unknown }[]) {
+    if (!p || !num(p.m, 0, 30) || !Array.isArray(p.rings) || !p.rings.length) return undefined;
+    const rings: number[][] = [];
+    for (const r of p.rings) {
+      if (!Array.isArray(r) || r.length < 6 || r.length % 2 || !r.every((n) => num(n))) return undefined;
+      points += r.length / 2;
+      if (points > MAX_RAISED_POINTS) return undefined;
+      rings.push(r.slice() as number[]);
+    }
+    out.push({ rings, m: p.m });
+  }
+  return out;
 }
