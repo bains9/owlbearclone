@@ -933,7 +933,7 @@ export class View3D implements View3dControls {
     for (const b of this.src.buildings()) {
       // Made while it's seen, lifted or not: lifting is only how far off it is.
       if (!roofShown({ ...b, inside: false }, this.cover, all)) continue;
-      const m = roofMesh(b.rects, this.cell, roofColour(b.id), buildingLight(b, this.cover));
+      const m = roofMesh(b.rects, this.cell, roofColour(b.id), buildingLight(b, this.cover), b.eaves);
       if (!m.position.length) continue;
       onGround(m.position, this.ground, this.cell);
       const geo = new BufferGeometry();

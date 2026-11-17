@@ -107,8 +107,9 @@ describe("sidecar (3.3, 7.1)", () => {
     expect(SIDECAR_FORMAT).toBe(1);
     expect(SIDECAR_MAGIC).toBe("TTSD");
     expect(SIDECAR_HEADER_BYTES).toBe(4 + 2 + 2 + 4 + 4);
-    // CLIF (cliffs, for the 3D view) came later: still format 1, as a reader before it skips an unknown section.
-    expect(SECTION).toEqual({ META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6 });
+    // CLIF (cliffs, for the 3D view) and WALH (walls' heights, 17 November 2026) came later: still
+    // format 1, as a reader before them skips an unknown section.
+    expect(SECTION).toEqual({ META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6, WALH: 7 });
     expect(OBJ_FLAG).toEqual({ MIRROR: 1, CAPPED: 2, TINTED: 4, MEASURED: 8 });
     expect(NO_NAME).toBe(0xffff);
     // role u8, layer i16, x i32, y i32, rot u8, flags u8, name u16, reach u16 x 16.

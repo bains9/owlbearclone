@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/scatter.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
+// Copied from Dungeon (src/render/scatter.ts) by scripts/sync-dungeon-library.mjs, Dungeon fed9df1. Change it there and run the script again.
 // The scatter brush: objects painted at random under a circle, for forests on the fly. Shared
 // by Dungeon's Object tool and Table's Build tool (Table copies this file with the rest of the
 // library), so the two scatter alike. Each dab tries random spots in the circle and keeps those

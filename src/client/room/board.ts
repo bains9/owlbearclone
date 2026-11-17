@@ -44,7 +44,7 @@ import type { CompassLook } from "./compass";
 import { voiceLink } from "./voiceLink";
 import { distanceSquares } from "../../shared/units";
 import { nightvisionOf } from "../../shared/characters";
-import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, segmentsOf, toggledDoor } from "./vision";
+import { WallIndex, doorNear, isOwnSightToken, isSightToken, lightNear, moveStop, segmentsOf, toggledDoor, type Seg } from "./vision";
 import { BoardSight, FOG_CACHE_MAX, drawGlows, type SceneArea, type SightGeometry } from "./boardSight";
 import { moonlightOf, weatherHere } from "../../shared/calendar";
 import type { Calendar } from "../../shared/calendar";
@@ -97,10 +97,10 @@ import {
 import type { Placed } from "./stampGeom";
 import type { FloorId } from "../../shared/terrain";
 import { getImage, imageFailed, imageStatus, retryImage } from "./images";
-import { FLYING_LIFT, cardSize, coverScale, floorScale, initialsOf, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
+import { FLYING_LIFT, WALL_HEIGHT, cardSize, coverScale, floorScale, initialsOf, piecesWithHeights, wallsOf, type Board3dSource, type Change3d, type CoverMap, type Floor3d, type PaintMap, type Standee, type Walls3d } from "./view3dModel";
 import { shapeOf, type Object3d } from "./view3dObjects";
-import { buildingsOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
-import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
+import { buildingsOf, eavesOf, enclosedCells, samplesOf, type Building3d } from "./view3dRoofs";
+import { WORLD_SQUARE, floorCells, mapHoles, mapLooksOutdoors, mapObjects, mapTallWalls, toScene, toWorld, withoutStanding, type MapPlacement } from "./view3dMapData";
 import type { ClearingMasks } from "./view3dClearing";
 import { findThings, foundHoles, foundObjects, type Found } from "./view3dFound";
 import { rockMask } from "./view3dRock";
@@ -810,6 +810,8 @@ export class Board implements BoardApi {
     objects?: { scene: Scene; list: Object3d[] };
     rooms?: { scene: Scene; list: { b: Building3d; keys: Set<string> }[] };
     cliffs?: { scene: Scene; list: Cliff3d[] };
+    /** Its walls standing other than 3 m (a Dungeon map's), in scene units. */
+    tall?: { scene: Scene; list: { line: Seg; h: number }[] };
   } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
@@ -1217,7 +1219,15 @@ export class Board implements BoardApi {
     return this.mapData3d.objects.list;
   }
 
-  /** The map data's rooms as buildings (worked out once a scene), in scene units. */
+  /** The map data's walls standing other than 3 m (worked out once a scene), in scene units, each with its height in squares. */
+  private mapTall3d(scene: Scene): { line: Seg; h: number }[] {
+    const md = this.mapData(scene);
+    if (!md || !this.mapData3d || !md.data.wallHeights?.length) return [];
+    if (this.mapData3d.tall?.scene !== scene) this.mapData3d.tall = { scene, list: mapTallWalls(md.data.wallHeights, md.place) };
+    return this.mapData3d.tall.list;
+  }
+
+  /** The map data's rooms as buildings (worked out once a scene), in scene units, each with its roof on top of its walls. */
   private mapRooms3d(scene: Scene): { b: Building3d; keys: Set<string> }[] {
     const md = this.mapData(scene);
     if (!md || !this.mapData3d) return [];
@@ -1225,15 +1235,22 @@ export class Board implements BoardApi {
       const X = (col: number) => toScene(md.place, col * WORLD_SQUARE, 0).x;
       const Y = (row: number) => toScene(md.place, 0, row * WORLD_SQUARE).y;
       const size = X(1) - X(0);
-      const list = buildingsOf(floorCells(md.data.bitmaps, md.data.shapes)).map((b) => ({
-        b: {
-          id: `map:${b.cells[0][0]},${b.cells[0][1]}`,
-          rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
-          samples: samplesOf(b, X, Y, size),
-          inside: false,
-        },
-        keys: new Set(b.cells.map(([c, r]) => `${c},${r}`)),
-      }));
+      // Only a map with walls other than 3 m has eaves to work out.
+      const tall = this.mapTall3d(scene);
+      const walls = tall.length ? piecesWithHeights(segmentsOf(scene.vision?.walls ?? []), tall, size) : null;
+      const list = buildingsOf(floorCells(md.data.bitmaps, md.data.shapes)).map((b) => {
+        const eaves = walls ? eavesOf(b, walls, (x) => (x - X(0)) / size, (y) => (y - Y(0)) / size, size) : WALL_HEIGHT;
+        return {
+          b: {
+            id: `map:${b.cells[0][0]},${b.cells[0][1]}`,
+            rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
+            samples: samplesOf(b, X, Y, size),
+            inside: false,
+            ...(eaves !== WALL_HEIGHT ? { eaves } : {}),
+          },
+          keys: new Set(b.cells.map(([c, r]) => `${c},${r}`)),
+        };
+      });
       this.mapData3d.rooms = { scene, list };
     }
     return this.mapData3d.rooms.list;
@@ -1500,7 +1517,11 @@ export class Board implements BoardApi {
       const id = t || sceneWallType(scene);
       return id === PLAIN_WALL ? "" : id;
     };
-    return wallsOf(scene.vision, { ...lines, wallTypes: lines.wallTypes.map(look), windowTypes: lines.windowTypes.map(look) }, scene.grid);
+    const out = wallsOf(scene.vision, { ...lines, wallTypes: lines.wallTypes.map(look), windowTypes: lines.windowTypes.map(look) }, scene.grid);
+    // A Dungeon map's walls made taller or lower stand at their height (its map data's WALH).
+    const tall = this.mapTall3d(scene);
+    if (tall.length) out.tall = tall;
+    return out;
   }
 
   destroy(): void {

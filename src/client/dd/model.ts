@@ -190,6 +190,11 @@ export interface Wall {
   shadow: boolean;
   nodeId: number | null;
   portals: Portal[];
+  /**
+   * How tall each segment stands in 3D, in metres, when some aren't 3 m: a Dungeon map's walls
+   * (17 November 2026, fromDungeon.ts). Missing: every segment 3 m.
+   */
+  heights?: number[];
 }
 
 export interface Pattern {

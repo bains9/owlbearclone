@@ -39,6 +39,9 @@ import type { SpriteSizes } from "./measure";
 import { ellipse } from "./spriteSizes";
 
 export const DUNGEON_FORMAT = "dungeon-map";
+
+/** How tall a Dungeon wall stands when it says nothing, in metres. */
+const WALL_M = 3;
 /** Payload versions this reads. 2 added the shapes as Dungeon draws them, which it needs. */
 const MIN_VERSION = 2;
 const MAX_VERSION = 2;
@@ -319,12 +322,18 @@ class Builder {
       const segments = loop ? n : n - 1;
       const own = this.ref("walls", w.style) ?? wallTexture;
       const styles = Array.isArray(w.styles) && w.styles.length === segments ? w.styles.map((st) => this.ref("walls", st) ?? own) : null;
-      const make = (pts: Float64Array, texture: AssetRef | null, closed: boolean): number => {
-        walls.push({ points: pts, texture, color: null, loop: closed, type: w.kind === "room" ? 0 : 1, joint: 0, shadow: true, nodeId: this.id(), portals: [] });
+      // How tall each segment stands, in metres (17 November 2026): `height` for all of it, or
+      // `heights`, one each. Neither (every wall 3 m, or a Dungeon from before): none kept.
+      const tall = (h: unknown) => (fin(h) ? Math.min(30, Math.max(0.5, h)) : WALL_M);
+      const heights = Array.isArray(w.heights) && w.heights.length === segments ? w.heights.map(tall) : fin(w.height) ? new Array<number>(segments).fill(tall(w.height)) : null;
+      const make = (pts: Float64Array, texture: AssetRef | null, closed: boolean, hs: number[] | null): number => {
+        const wall: Wall = { points: pts, texture, color: null, loop: closed, type: w.kind === "room" ? 0 : 1, joint: 0, shadow: true, nodeId: this.id(), portals: [] };
+        if (hs?.some((h) => h !== WALL_M)) wall.heights = hs;
+        walls.push(wall);
         return walls.length - 1;
       };
       if (!styles || styles.every((t) => t?.path === styles[0]?.path)) {
-        byShape.set(i, [{ from: 0, to: segments, wall: make(points, styles?.[0] ?? own, loop) }]);
+        byShape.set(i, [{ from: 0, to: segments, wall: make(points, styles?.[0] ?? own, loop, heights) }]);
         return;
       }
       // Its style changes along it: a wall for each run of one style, each open (a ring's runs
@@ -343,7 +352,8 @@ class Builder {
           pts[(j - from) * 2] = points[p * 2];
           pts[(j - from) * 2 + 1] = points[p * 2 + 1];
         }
-        runs.push({ from, to: k, wall: make(pts, styles[from % segments], false) });
+        const hs = heights ? Array.from({ length: k - from }, (_, j) => heights[(from + j) % segments]) : null;
+        runs.push({ from, to: k, wall: make(pts, styles[from % segments], false, hs) });
         from = k;
       }
       byShape.set(i, runs);

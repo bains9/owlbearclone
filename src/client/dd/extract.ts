@@ -35,11 +35,11 @@
 // that way moves the picture's rectangle by -best squares. AttachReport.shifted is that correction:
 // x < 0 means the map seems to have grown -x squares on the left since the export (y < 0: at the top).
 
-import { GRID, MS_EDGE_BUFFER, type BitGrid, type DDMap, type Level, type MapObject, type WaterNode } from "./model";
+import { GRID, MS_EDGE_BUFFER, type BitGrid, type DDMap, type Level, type MapObject, type Wall, type WaterNode } from "./model";
 import { MEASURE, measureObjects, measureSummary, priorReach, type Measured, type SpriteSizes } from "./measure";
 import {
-  CLIFF_CAPS, DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, encodeSidecar,
-  type BitmapLayer, type CliffLine, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid,
+  CLIFF_CAPS, DD_LAYER, NO_NAME, OBJ_FLAG, REACH_N, SIDECAR_CAPS, SIDECAR_UNITS, SidecarError, WALL_HEIGHT_CAPS, encodeSidecar,
+  type BitmapLayer, type CliffLine, type ObjectTable, type SeasonSidecar, type ShapeLayer, type TerrainGrid, type WallHeightLine,
 } from "./sidecar";
 import {
   AR, NAMED_ROLES, OR, TR, defaultName, isCliffTexture, materialRole, objectRole, pathDrawn, pathRole, patternRole, roofRole, terrainRole,
@@ -561,6 +561,9 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
   for (const w of L.walls) for (const r of ribbonRings(wallRibbon(w, EXTRACT.wallHalf), true, 1)) walls.ring(r);
   const ws = walls.build();
   if (ws) shapes.push(ws);
+  // The walls standing other than 3 m (a Dungeon map's), for the 3D view (wallHeightLines).
+  const tall: WallHeightLine[] = [];
+  for (const w of L.walls) if (w.heights) tall.push(...wallHeightLines(w, crop));
 
   // Roofs, one shape each (a roof's own colour is found per roof at run time).
   for (const r of L.roofs) {
@@ -614,6 +617,17 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
     terrain: tr.grid, bitmaps, shapes, objects,
   };
   if (cliffs.length) sc.cliffs = cliffs.slice(0, CLIFF_CAPS.lines);
+  if (tall.length) {
+    // As many as the caps hold.
+    const kept: WallHeightLine[] = [];
+    let pts = 0;
+    for (const t of tall) {
+      if (kept.length >= WALL_HEIGHT_CAPS.lines || pts + t.pts.length / 2 > WALL_HEIGHT_CAPS.points) break;
+      kept.push(t);
+      pts += t.pts.length / 2;
+    }
+    sc.wallHeights = kept;
+  }
   fitMeta(sc);
 
   // Snowy or green (4.2), then water by what the picture shows (2.6).
@@ -1021,6 +1035,49 @@ export function cliffLines(rb: Ribbon, b: Box): CliffLine[] {
     run.push(bx, by);
     // A stretch cut short at the box's edge ends there.
     if (bx !== rb.line[j * 2] || by !== rb.line[j * 2 + 1]) close();
+  }
+  close();
+  return out;
+}
+
+/**
+ * The stretches of a wall standing other than 3 m (a Dungeon map's, Wall.heights), cropped to
+ * the box as cliffLines' are: a line for each run of one height inside it, in sidecar units.
+ */
+export function wallHeightLines(w: Pick<Wall, "points" | "loop" | "heights">, b: Box): WallHeightLine[] {
+  const hs = w.heights;
+  const n = w.points.length / 2;
+  if (!hs || n < 2) return [];
+  const out: WallHeightLine[] = [];
+  let run: number[] = [];
+  let cm = 0;
+  const close = () => {
+    if (run.length >= 4) out.push({ cm, pts: Int32Array.from(run.map((v) => Math.round(v * SIDECAR_UNITS.coord))) });
+    run = [];
+  };
+  const count = w.loop ? n : n - 1;
+  for (let i = 0; i < count; i++) {
+    const h = hs[i] ?? 3;
+    if (!Number.isFinite(h) || h === 3) {
+      close();
+      continue;
+    }
+    const c = Math.min(0xffff, Math.max(1, Math.round(h * 100)));
+    const j = (i + 1) % n;
+    const seg = clipSegment(w.points[i * 2], w.points[i * 2 + 1], w.points[j * 2], w.points[j * 2 + 1], b);
+    if (!seg) {
+      close();
+      continue;
+    }
+    const [ax, ay, bx, by] = seg;
+    const last = run.length;
+    if (!last || c !== cm || run[last - 2] !== ax || run[last - 1] !== ay) {
+      close();
+      cm = c;
+      run.push(ax, ay);
+    }
+    run.push(bx, by);
+    if (bx !== w.points[j * 2] || by !== w.points[j * 2 + 1]) close();
   }
   close();
   return out;

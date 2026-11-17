@@ -172,6 +172,39 @@ export interface Building3d {
   samples: { x: number; y: number }[];
   /** A character the party plays (or a player's token) stands inside: its roof lifts off. */
   inside: boolean;
+  /** How high its roof starts, in squares: the top of its walls (eavesOf). Missing: WALL_HEIGHT. */
+  eaves?: number;
+}
+
+/** How far either side of a wall (in squares) it's looked for a building's square. */
+const EAVES_SIDE = 0.3;
+
+/**
+ * Where a building's roof starts, in squares: on top of its walls, at the height most of them
+ * stand (by length), so a building whose walls were all raised gets its roof raised with them,
+ * and a tower raised from a lower building stands up through the roof. `walls` are scene-unit
+ * lines (`toCol`, `toRow` turn a scene point into a square), each with its height in squares; a
+ * wall is the building's where a square of it lies just either side. WALL_HEIGHT when none is.
+ */
+export function eavesOf(b: BuildingCells, walls: readonly { line: readonly number[]; h: number }[], toCol: (x: number) => number, toRow: (y: number) => number, size: number): number {
+  const has = new Set(b.cells.map(([c, r]) => keyOf(c, r)));
+  const byHeight = new Map<number, number>();
+  for (const w of walls) {
+    const [ax, ay, bx, by] = w.line;
+    const len = Math.hypot(bx - ax, by - ay);
+    if (!(len > 1e-9) || !(size > 0)) continue;
+    const n = Math.max(1, Math.ceil(len / (0.5 * size)));
+    const nx = (-(by - ay) / len) * EAVES_SIDE * size, ny = ((bx - ax) / len) * EAVES_SIDE * size;
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const mx = ax + (bx - ax) * t, my = ay + (by - ay) * t;
+      const mine = [[mx + nx, my + ny], [mx - nx, my - ny]].some(([x, y]) => has.has(keyOf(Math.floor(toCol(x)), Math.floor(toRow(y)))));
+      if (mine) byHeight.set(w.h, (byHeight.get(w.h) ?? 0) + len / n);
+    }
+  }
+  let best = WALL_HEIGHT, most = 0;
+  for (const [h, l] of byHeight) if (l > most + 1e-9 || (Math.abs(l - most) <= 1e-9 && h > best)) [best, most] = [h, l];
+  return best;
 }
 
 /** The scene points that tell whether a building has been seen: each square's middle, and the ground half a square outside each outer edge. */
@@ -239,7 +272,7 @@ export const MAX_RIDGE = 8;
  * walls, its ridge along the rectangle's longer side, sloping down to eaves a little past the
  * walls, with a gable end at each end. Shaded by `light` (how lit the building is).
  */
-export function roofMesh(rects: readonly { x0: number; y0: number; x1: number; y1: number }[], cell: number, colour: Rgb, light: number): WallMesh {
+export function roofMesh(rects: readonly { x0: number; y0: number; x1: number; y1: number }[], cell: number, colour: Rgb, light: number, eaves = WALL_HEIGHT): WallMesh {
   const position: number[] = [], normal: number[] = [], color: number[] = [];
   const s = shadeOf(light);
   const slope: Rgb = [colour[0] * s, colour[1] * s, colour[2] * s];
@@ -263,7 +296,8 @@ export function roofMesh(rects: readonly { x0: number; y0: number; x1: number; y
       color.push(col[0], col[1], col[2]);
     }
   };
-  const h0 = WALL_HEIGHT;
+  // On top of its walls (eavesOf): 3 m unless they were made taller or lower.
+  const h0 = eaves > 0 ? eaves : WALL_HEIGHT;
   const up = [0, 1, 0];
   for (const r of rects) {
     const x0 = r.x0 / cell - OVERHANG, x1 = r.x1 / cell + OVERHANG;

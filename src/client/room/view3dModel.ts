@@ -84,6 +84,17 @@ export interface Walls3d {
    * as painted). Each wall keeps its own (build.ts BuildModel.wallType). Missing: all "".
    */
   builtTex?: string[];
+  /**
+   * Each of `built`'s height, in squares (17 November 2026: Dungeon's walls can stand at any
+   * height, its builder's view sends each one's). Missing, or a wall without: WALL_HEIGHT.
+   */
+  builtH?: number[];
+  /**
+   * The map file's walls that stand other than WALL_HEIGHT (a Dungeon map's, from its map data's
+   * WALH), in scene units, each with its height in squares: a piece of `walls` lying along one
+   * stands that tall.
+   */
+  tall?: { line: Seg; h: number }[];
   doors: { line: Seg; open: boolean }[];
   /** The Build tool's windows between their posts (the posts are in `built`): wall with a pane of glass in it. */
   windows?: Seg[];
@@ -156,6 +167,8 @@ export interface WallPiece {
   window?: boolean;
   /** Its colour as the map paints it (0 to 1 each), when that's known. */
   color?: readonly [number, number, number];
+  /** How tall it stands, in squares, when not WALL_HEIGHT (a Dungeon wall's own height). A door stands its own height whatever its wall's. */
+  h?: number;
 }
 
 /** The map as painted (picture, built map, before the dark and the fog), small, to read walls' colours from. */
@@ -195,6 +208,45 @@ export function wallTint(rgb: readonly [number, number, number]): [number, numbe
 /** Below this brightness a wall's painted colour is lifted towards grey stone. */
 const WALL_DARKEST = 0.24;
 
+/** How near (squares) a piece of wall must lie to a tall wall's line to stand as tall. */
+const TALL_NEAR = 0.15;
+
+/**
+ * Walls as pieces at most WALL_PIECE squares long, each with its height in squares (that of the
+ * tall wall it lies along, or WALL_HEIGHT): what eavesOf (view3dRoofs.ts) weighs a building's walls by.
+ */
+export function piecesWithHeights(segs: readonly Seg[], tall: readonly { line: Seg; h: number }[], cell: number): { line: Seg; h: number }[] {
+  const out: { line: Seg; h: number }[] = [];
+  for (const [ax, ay, bx, by] of segs) {
+    const len = Math.hypot(bx - ax, by - ay);
+    if (!(len > 1e-9) || !(cell > 0)) continue;
+    const n = Math.max(1, Math.ceil(len / (WALL_PIECE * cell)));
+    for (let i = 0; i < n; i++) {
+      const x0 = ax + ((bx - ax) * i) / n, y0 = ay + ((by - ay) * i) / n;
+      const x1 = ax + ((bx - ax) * (i + 1)) / n, y1 = ay + ((by - ay) * (i + 1)) / n;
+      out.push({ line: [x0, y0, x1, y1], h: tallAt(tall, (x0 + x1) / 2, (y0 + y1) / 2, cell) ?? WALL_HEIGHT });
+    }
+  }
+  return out;
+}
+
+/** The height (squares) of the tall wall whose line passes through (x, y), scene units, or undefined for none. */
+export function tallAt(tall: readonly { line: Seg; h: number }[], x: number, y: number, cell: number): number | undefined {
+  let best = TALL_NEAR * cell, h: number | undefined;
+  for (const t of tall) {
+    const [ax, ay, bx, by] = t.line;
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    const k = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+    const d = Math.hypot(ax + dx * k - x, ay + dy * k - y);
+    if (d <= best) {
+      best = d;
+      h = t.h;
+    }
+  }
+  return h;
+}
+
 /**
  * The walls and shut doors cut into pieces (at most WALL_PIECE squares long), each with how lit it is:
  * the brighter of the floor just either side of it, as this page sees it. `all` (the GM): every piece;
@@ -203,7 +255,8 @@ const WALL_DARKEST = 0.24;
  */
 export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallPiece[] {
   const out: WallPiece[] = [];
-  const add = (s: Seg, door: boolean, built = false, window = false, tex = "") => {
+  const tall = walls3d.tall ?? [];
+  const add = (s: Seg, door: boolean, built = false, window = false, tex = "", h?: number) => {
     const [ax, ay, bx, by] = s;
     const len = Math.hypot(bx - ax, by - ay);
     if (!(len > 1e-6) || !(cell > 0)) return;
@@ -226,11 +279,14 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
       if (tex && !door) piece.tex = tex;
       const painted = door ? null : window ? post : paintAt(paint, mx, my);
       if (painted) piece.color = wallTint(painted);
+      // Its own height: given (a built wall's), or that of the map's tall wall it lies along.
+      const own = door ? undefined : (h ?? (!built && tall.length ? tallAt(tall, mx, my, cell) : undefined));
+      if (own !== undefined && own > 0 && own !== WALL_HEIGHT) piece.h = own;
       out.push(piece);
     }
   };
   for (const w of walls3d.walls) add(w, false);
-  walls3d.built.forEach((w, i) => add(w, false, true, false, walls3d.builtTex?.[i]));
+  walls3d.built.forEach((w, i) => add(w, false, true, false, walls3d.builtTex?.[i], walls3d.builtH?.[i]));
   (walls3d.windows ?? []).forEach((w, i) => add(w, false, true, true, walls3d.windowTex?.[i]));
   for (const d of walls3d.doors) if (!d.open) add(d.line, true);
   return out;
@@ -319,7 +375,8 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = 
     const len = Math.hypot(bx - ax, bz - az) || 1;
     const dx = (bx - ax) / len, dz = (bz - az) / len;
     const t = ((p.door ? DOOR_THICK : 1) * WALL_THICK) / 2;
-    const h = (p.door ? DOOR_HEIGHT : 1) * WALL_HEIGHT;
+    // A door stands its own height (2.1 m) in a wall of any height; a wall its own, or WALL_HEIGHT.
+    const h = p.door ? DOOR_HEIGHT * WALL_HEIGHT : (p.h ?? WALL_HEIGHT);
     // Its two sides: the normal (-dz, dx) and its opposite.
     const ox = -dz * t, oz = dx * t;
     ux = dx;
@@ -343,8 +400,9 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = 
       if (lo > 0) quad(a1, b1, b2, a2, [0, -1, 0], side);
     };
     if (p.window) {
-      box(0, WINDOW_SILL * h);
-      box(WINDOW_TOP * h, h);
+      // The sill and lintel where a window's always are (0.9 m and 2.25 m), whatever the wall's height.
+      box(0, WINDOW_SILL * WALL_HEIGHT);
+      box(WINDOW_TOP * WALL_HEIGHT, h);
     } else box(0, h);
   }
   return { position, normal, color, uv };

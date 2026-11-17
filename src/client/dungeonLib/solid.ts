@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/solid.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
+// Copied from Dungeon (src/render/solid.ts) by scripts/sync-dungeon-library.mjs, Dungeon fed9df1. Change it there and run the script again.
 // Objects in 3D (14 November 2026): every object in the library has a form, next to its drawing,
 // that says how it stands up: a few low-poly parts (boxes, cylinders, lumps, gables, slabs and
 // limbs) with their heights and colours, or a considered "lies flat" (a rug, a stain, a trapdoor).

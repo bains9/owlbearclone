@@ -5,9 +5,10 @@
 // builder asks to see inside. What Dungeon says, and how it's checked, is dungeonLib/look3d.ts.
 
 import type { Scene } from "../../shared/types";
-import type { Board3dSource, Change3d, Floor3d, PaintMap, Walls3d } from "../room/view3dModel";
+import { WALL_HEIGHT, type Board3dSource, type Change3d, type Floor3d, type PaintMap, type Walls3d } from "../room/view3dModel";
 import type { Object3d } from "../room/view3dObjects";
-import { buildingsOf, samplesOf, type Building3d } from "../room/view3dRoofs";
+import { buildingsOf, eavesOf, samplesOf, type Building3d } from "../room/view3dRoofs";
+import { SQUARE_M } from "../dungeonLib/solid";
 import { textureTile, whenTextureMade } from "../room/dungeonTextures";
 import type { Seg } from "../room/vision";
 import type { LookMap } from "../dungeonLib/look3d";
@@ -19,13 +20,21 @@ const PAINT_PX = 8;
 
 const scaled = (l: readonly number[], cell: number): Seg => [l[0] * cell, l[1] * cell, l[2] * cell, l[3] * cell];
 
-/** The level's walls (each in its own wall texture: Dungeon's walls keep the style they're built in), its cave edges (as rock) and its doors, shut. */
-export function lookWalls(m: Pick<LookMap, "walls" | "wallTexture" | "wallTextures" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
+/** Each wall's height in squares (Dungeon sends metres), or undefined when Dungeon sent none (a Dungeon from before: every wall WALL_HEIGHT). */
+const heightsOf = (m: Pick<LookMap, "walls" | "wallHeights">): number[] | undefined => m.wallHeights?.map((h) => h / SQUARE_M);
+
+/**
+ * The level's walls (each in its own wall texture and height: Dungeon's walls keep the style and
+ * height they're built at), its cave edges (as rock) and its doors, shut.
+ */
+export function lookWalls(m: Pick<LookMap, "walls" | "wallTexture" | "wallTextures" | "wallHeights" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
+  const builtH = heightsOf(m);
   return {
     walls: m.rock.map((l) => scaled(l, cell)),
     built: m.walls.map((l) => scaled(l, cell)),
     // A Dungeon from before sends one texture for every wall.
     builtTex: m.wallTextures ?? m.walls.map(() => m.wallTexture),
+    ...(builtH ? { builtH } : {}),
     doors: m.doors.map((l) => ({ line: scaled(l, cell), open: false })),
   };
 }
@@ -43,15 +52,22 @@ export function lookObjects(m: Pick<LookMap, "objects">, cell = LOOK_CELL): Obje
   }));
 }
 
-/** The level's buildings, for roofs: lifted off (`inside`) while the builder wants to see in. */
-export function lookBuildings(m: Pick<LookMap, "roofed">, roofs: boolean, cell = LOOK_CELL): Building3d[] {
+/** The level's buildings, for roofs, each on top of its walls: lifted off (`inside`) while the builder wants to see in. */
+export function lookBuildings(m: Pick<LookMap, "roofed"> & Partial<Pick<LookMap, "walls" | "wallHeights">>, roofs: boolean, cell = LOOK_CELL): Building3d[] {
   const X = (c: number) => c * cell, Y = (r: number) => r * cell;
-  return buildingsOf(m.roofed).map((b) => ({
-    id: `${b.cells[0][0]},${b.cells[0][1]}`,
-    rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
-    samples: samplesOf(b, X, Y, cell),
-    inside: !roofs,
-  }));
+  const hs = m.walls ? heightsOf({ walls: m.walls, wallHeights: m.wallHeights }) : undefined;
+  // Only when some wall isn't WALL_HEIGHT is there anything to work out.
+  const walls = m.walls && hs?.some((h) => h !== WALL_HEIGHT) ? m.walls.map((l, i) => ({ line: scaled(l, cell), h: hs[i] })) : null;
+  return buildingsOf(m.roofed).map((b) => {
+    const eaves = walls ? eavesOf(b, walls, (x) => x / cell, (y) => y / cell, cell) : WALL_HEIGHT;
+    return {
+      id: `${b.cells[0][0]},${b.cells[0][1]}`,
+      rects: b.rects.map((r) => ({ x0: X(r.c0), y0: Y(r.r0), x1: X(r.c1 + 1), y1: Y(r.r1 + 1) })),
+      samples: samplesOf(b, X, Y, cell),
+      inside: !roofs,
+      ...(eaves !== WALL_HEIGHT ? { eaves } : {}),
+    };
+  });
 }
 
 /** A small copy of the floor, to read the walls' and rocks' colours from. */

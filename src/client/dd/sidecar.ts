@@ -34,6 +34,10 @@
 //           in 1/16 world unit: the map's cliff paths (Dungeondraft's own and packs'), their centre lines, for the 3D view's
 //           rock faces (at most once; only written when there are some, so a map without cliffs
 //           encodes as before, and a reader older than it skips it as an unknown section)
+//   7 WALH  u32 nLines, then per line u16 height (centimetres), u32 nPts, nPts * (i32 x, i32 y) in
+//           1/16 world unit: the map's walls that stand other than 3 m (a Dungeon map's, whose walls
+//           can be made taller or lower, 17 November 2026), for the 3D view's walls and roofs (at
+//           most once; only written when there are some, as CLIF)
 //
 // World units: 256 a square, x right, y down (Dungeondraft's own). Every count and length is
 // checked against SIDECAR_CAPS and the bytes left before anything is allocated, so a crafted
@@ -47,7 +51,7 @@ export const SIDECAR_MAGIC = "TTSD";
 export const SIDECAR_HEADER_BYTES = 16;
 
 /** Section tags. */
-export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6 } as const;
+export const SECTION = { META: 1, TERR: 2, BITS: 3, SHAP: 4, OBJS: 5, CLIF: 6, WALH: 7 } as const;
 
 /** A cliff's centre line and how wide it's drawn: one of the map's cliff paths (Dungeondraft's own or a pack's), cropped as the rest is. */
 export interface CliffLine {
@@ -59,6 +63,17 @@ export interface CliffLine {
 
 /** Limits on the cliffs a sidecar carries. */
 export const CLIFF_CAPS = { lines: 4000, points: 200_000 } as const;
+
+/** A stretch of wall that stands other than 3 m, and how tall: one of a Dungeon map's walls, cropped as the rest is. */
+export interface WallHeightLine {
+  /** How tall it stands, in centimetres. */
+  cm: number;
+  /** x, y pairs in 1/16 world unit. */
+  pts: Int32Array;
+}
+
+/** Limits on the walls' heights a sidecar carries. */
+export const WALL_HEIGHT_CAPS = { lines: 8000, points: 100_000 } as const;
 
 /** A name index or object name meaning "none" (pack, embedded or unknown source, or a role that keeps no name). */
 export const NO_NAME = 0xffff;
@@ -166,6 +181,8 @@ export interface SeasonSidecar {
   objects: ObjectTable;
   /** The map's cliffs (CLIF), for the 3D view; missing when it has none (or was made before cliffs were kept). */
   cliffs?: CliffLine[];
+  /** The map's walls that stand other than 3 m (WALH), for the 3D view; missing when every wall is 3 m (or it was made before heights were kept). */
+  wallHeights?: WallHeightLine[];
 }
 
 /** Limits checked by decodeSidecar before it allocates, and by the extractor (design 3.3). */
@@ -368,6 +385,17 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
   }
   if (clifPts > CLIFF_CAPS.points) fail("more than 200,000 cliff points");
   if (cliffs.length) len += SECTION_HEAD + clifLen;
+  const tall = s.wallHeights ?? [];
+  if (!Array.isArray(tall) || tall.length > WALL_HEIGHT_CAPS.lines) fail("more than 8,000 walls' heights");
+  let walhLen = 4, walhPts = 0;
+  for (const t of tall) {
+    if (!(t.pts instanceof Int32Array) || t.pts.length % 2 || t.pts.length < 4) fail("a wall's height's points are not pairs");
+    if (!Number.isInteger(t.cm) || t.cm < 1 || t.cm > 0xffff) fail("a wall's height is out of range");
+    walhPts += t.pts.length / 2;
+    walhLen += 6 + 4 * t.pts.length;
+  }
+  if (walhPts > WALL_HEIGHT_CAPS.points) fail("more than 100,000 points of walls' heights");
+  if (tall.length) len += SECTION_HEAD + walhLen;
   if (len > SIDECAR_CAPS.bytes) fail("the sidecar is over 8 MiB");
 
   const out = new Uint8Array(SIDECAR_HEADER_BYTES + len);
@@ -431,6 +459,15 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
       for (let k = 0; k < c.pts.length; k++) i32(c.pts[k]);
     }
   }
+  if (tall.length) {
+    section(SECTION.WALH, walhLen);
+    u32(tall.length);
+    for (const t of tall) {
+      u16(t.cm);
+      u32(t.pts.length / 2);
+      for (let k = 0; k < t.pts.length; k++) i32(t.pts[k]);
+    }
+  }
 
   dv.setUint32(12, crc32(out.subarray(SIDECAR_HEADER_BYTES)), true);
   return out;
@@ -459,7 +496,7 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
 
   // Pass 1: every section's place, counts and values, read in place. Nothing big is allocated
   // until the whole payload has passed.
-  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0, clifAt = -1, clifLen = 0;
+  let metaAt = -1, metaLen = 0, terrAt = -1, terrLen = 0, objsAt = -1, objsLen = 0, clifAt = -1, clifLen = 0, walhAt = -1, walhLen = 0;
   const bitsAt: number[] = [], shapAt: number[] = [], shapLen: number[] = [];
   for (let p = SIDECAR_HEADER_BYTES; p < end;) {
     if (end - p < SECTION_HEAD) fail("a section header is cut off");
@@ -489,6 +526,9 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
     } else if (tag === SECTION.CLIF) {
       if (clifAt >= 0) fail("two CLIF sections");
       clifAt = body; clifLen = sl;
+    } else if (tag === SECTION.WALH) {
+      if (walhAt >= 0) fail("two WALH sections");
+      walhAt = body; walhLen = sl;
     }
     p = body + sl;
   }
@@ -620,7 +660,33 @@ export function decodeSidecar(bytes: Uint8Array): SeasonSidecar {
   }
   const out: SeasonSidecar = { meta, terrain, bitmaps, shapes, objects };
   if (clifAt >= 0) out.cliffs = readCliffs(dv, clifAt, clifLen);
+  if (walhAt >= 0) out.wallHeights = readWallHeights(dv, walhAt, walhLen);
   return out;
+}
+
+/** WALH's lines, every count checked against WALL_HEIGHT_CAPS and the section's length before it's allocated. */
+function readWallHeights(dv: DataView, at: number, len: number): WallHeightLine[] {
+  if (len < 4) fail("WALH is cut off");
+  const end = at + len;
+  const n = dv.getUint32(at, true);
+  if (n > WALL_HEIGHT_CAPS.lines) fail("more than 8,000 walls' heights");
+  const lines: WallHeightLine[] = [];
+  let p = at + 4, total = 0;
+  for (let i = 0; i < n; i++) {
+    if (end - p < 6) fail("a wall's height is cut off");
+    const cm = dv.getUint16(p, true);
+    const pts = dv.getUint32(p + 2, true);
+    p += 6;
+    total += pts;
+    if (cm < 1 || pts < 2 || total > WALL_HEIGHT_CAPS.points) fail("a wall's height or its points are out of range");
+    if (end - p < pts * 8) fail("a wall's height's points run past WALH");
+    const xy = new Int32Array(pts * 2);
+    for (let k = 0; k < pts * 2; k++) xy[k] = dv.getInt32(p + 4 * k, true);
+    p += pts * 8;
+    lines.push({ cm, pts: xy });
+  }
+  if (p !== end) fail("WALH's length disagrees with its lines");
+  return lines;
 }
 
 /** CLIF's lines, every count checked against CLIFF_CAPS and the section's length before it's allocated. */

@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-smithy.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-smithy.ts) by scripts/sync-dungeon-library.mjs, Dungeon fed9df1. Change it there and run the script again.
 import { linear, radial, rr } from "./propkit";
 import { WOODS, METALS, MASONRY, cross, vary, family, shade, ell, poly, fo, box, cbox, disc, plank, glow, stroke, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
