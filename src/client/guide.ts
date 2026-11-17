@@ -566,8 +566,8 @@ export const GUIDE: GuideSection[] = [
       {
         "title": "Over 2,200 objects from Dungeon in the Build tool (27 October 2026)",
         "steps": [
-          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar to choose from all 2331: Tabletop's own sixteen and 2,315 from Dungeon, the map maker.",
-          "Open a category, then a group inside it (Furniture, then Tables), or type in **Search 2331 objects**: a name, a version (\"walnut\", \"open\", \"crimson\") or a group."
+          "GM: in the Build tool, pick **Objects**, then click the object shown in the bar to choose from all 2358: Tabletop's own sixteen and 2,342 from Dungeon, the map maker.",
+          "Open a category, then a group inside it (Furniture, then Tables), or type in **Search 2358 objects**: a name, a version (\"walnut\", \"open\", \"crimson\") or a group."
         ],
         "notes": [
           "Seven new categories: Washroom (toilets in porcelain, brass and more, privy seats, squat holes and latrines, clawfoot and other tubs, basins, the sauna, laundry and towels), Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour, and many more objects in the first seven. The baths and washstands that were in Furniture are in the Washroom now. Most come in several versions: woods, stones, metals, colours, open or shut.",
@@ -3307,7 +3307,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Place objects",
         "steps": [
           "Pick **Objects**.",
-          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 2331. Type in **Search 2331 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's fourteen categories (Furniture, Containers, Kitchen & tavern, Washroom, Nature, Camp & outdoors, Dungeon, Light, Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour), each folding into its groups. **Enter** picks the first match; **Esc** or a click outside closes it.",
+          "Pick an object. The bar shows the one you're placing, with the last few you picked beside it: click one of those, or click the object you're placing to choose from all 2358. Type in **Search 2358 objects**, or open a group: **Tabletop** (Tabletop's own sixteen: table, chair, bed, chest, barrel, crate, bookshelf, stairs, pillar, statue, well, tree, bush, rock, campfire and rubble), then Dungeon's fourteen categories (Furniture, Containers, Kitchen & tavern, Washroom, Nature, Camp & outdoors, Dungeon, Light, Library & magic, Workshop & smithy, Ship & dock, Farm & village, Temple & graveyard, Arms & armour), each folding into its groups. **Enter** picks the first match; **Esc** or a click outside closes it.",
           "Set its **Size** (½ to 3 squares) and **Turn** in the bar. With a mouse you can instead scroll the wheel to turn it 15° a notch (hold **Z** for 5°), hold **Alt** and scroll to change its size, or right-click to turn it 90°, as in Dungeondraft.",
           "Click the map where it goes. With a mouse, a faded copy shows exactly where it will land and how it's turned."
         ],

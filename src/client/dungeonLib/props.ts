@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon 23e95e5. Change it there and run the script again.
+// Copied from Dungeon (src/render/props.ts) by scripts/sync-dungeon-library.mjs, Dungeon 823dfd2. Change it there and run the script again.
 // Built-in props, drawn in code. Each draws itself centred on (0, 0) in cell units inside a
 // w-by-h box; sprites are cached at SPRITE_PX pixels per cell.
 

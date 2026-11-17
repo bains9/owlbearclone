@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/noise.ts) by scripts/sync-dungeon-library.mjs, Dungeon 23e95e5. Change it there and run the script again.
+// Copied from Dungeon (src/render/noise.ts) by scripts/sync-dungeon-library.mjs, Dungeon 823dfd2. Change it there and run the script again.
 // Tileable noise for textures that repeat without seams: every lattice wraps at its period.
 
 export function hash2(x: number, y: number, seed: number): number {
