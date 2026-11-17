@@ -370,8 +370,8 @@ class Builder {
         direction: { x: Math.cos(d.angle), y: Math.sin(d.angle) },
         texture: this.ref("portals", d.kind),
         radius: Math.min(DEFAULT_LIMITS.maxWidth, Math.max(0, (d.width / 2) * GRID)),
-        // Archways, and Thenn's archways (the shrine's frame, open), are open; every other opening shuts.
-        closed: d.kind !== "arch" && d.kind !== "thenn-arch",
+        // Archways, and Thenn's archways (the shrine's frame, open, full or small), are open; every other opening shuts.
+        closed: d.kind !== "arch" && d.kind !== "thenn-arch" && d.kind !== "thenn-small-arch",
         wallId: wall ? wall.nodeId : null,
         wallDistance: wall && run && fin(d.at) ? at - run.from : null,
         nodeId: this.id(),

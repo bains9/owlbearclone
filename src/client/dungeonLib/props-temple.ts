@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon 823dfd2. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-temple.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, MASONRY, CLOTHS, GOLD, cross, vary, family, shade, ell, poly, fo, cbox, disc, plank, drape, glow, coloredFlame, stroke, scatter, GLOWS, type C, type Tone } from "./propvariants";
 import type { PropDef } from "./propkit";
@@ -225,6 +225,11 @@ export interface ThennFrame {
   steps?: boolean;
   /** The ring's radius, in squares, when not the opening's own. */
   ring?: number;
+  /**
+   * The ring hung on the lintel, one on each face and centred on it, rather than standing on top
+   * of it: the small frames, which keep under a 3 m wall's top.
+   */
+  hung?: boolean;
   /** What the shrine stands on, out to this radius (squares): a ring of edging stones, a gilded dais, or small standing stones. */
   ground?: { kind: "stones" | "dais" | "monoliths"; r: number };
 }
@@ -356,18 +361,23 @@ export function thennFrameForm(f: ThennFrame): S.Solid {
   const lt = f.look.square ? 0.13 : 0.11;
   if (f.look.square) parts.push(S.box(-le, le, -lt, lt, H, H + 0.3, f.look.lintel));
   else parts.push(S.limb([-le, H + 0.1, 0], [le, H + 0.06, 0], lt, lt * 0.9, f.look.lintel, { n: 6 }));
-  const top = H + (f.look.square ? 0.3 : 0.2), r = ringR(f), rm = r * S.SQUARE_M, cy = top + rm;
-  const ring = Array.from({ length: 9 }, (_, i) => {
-    const t = (i / 8) * Math.PI * 2;
-    return [Math.cos(t) * r, cy + Math.sin(t) * rm] as const;
-  });
-  for (let i = 0; i < 8; i++) parts.push(S.limb([ring[i][0], ring[i][1], 0], [ring[i + 1][0], ring[i + 1][1], 0], 0.03, 0.03, f.look.ring, { n: 3 }));
-  parts.push(S.limb([0, cy - rm * 0.85, 0], [0, cy + rm * 0.85, 0], 0.022, 0.018, f.look.ring, { n: 4 }));
-  for (const [y0, y1] of [[0.1, 0.45], [-0.25, 0.1]]) for (const s of [-1, 1]) parts.push(S.limb([0, cy + rm * y0, 0], [s * r * 0.4, cy + rm * y1, 0], 0.015, 0.012, f.look.ring, { n: 3 }));
-  // The stone on its cord.
-  const under = H - (f.look.square ? 0 : 0.05);
-  parts.push(S.limb([0, under, 0], [0, under - 0.45, 0], 0.008, 0.008, "#5a4630", { n: 3 }));
-  parts.push(S.ball(0.06, under - 0.62, under - 0.42, f.look.bands ?? PEBBLE, { n: 6, rz: 0.04 }));
+  const top = H + (f.look.square ? 0.3 : 0.2), r = ringR(f), rm = r * S.SQUARE_M;
+  // Standing on the lintel, in the frame's own plane; or hung on it, one on each face, centred on the lintel.
+  const cy = f.hung ? H + (f.look.square ? 0.15 : 0.08) : top + rm;
+  for (const z of f.hung ? [-(lt + 0.035), lt + 0.035] : [0]) {
+    const ring = Array.from({ length: 9 }, (_, i) => {
+      const t = (i / 8) * Math.PI * 2;
+      return [Math.cos(t) * r, cy + Math.sin(t) * rm] as const;
+    });
+    for (let i = 0; i < 8; i++) parts.push(S.limb([ring[i][0], ring[i][1], z], [ring[i + 1][0], ring[i + 1][1], z], 0.03, 0.03, f.look.ring, { n: 3 }));
+    parts.push(S.limb([0, cy - rm * 0.85, z], [0, cy + rm * 0.85, z], 0.022, 0.018, f.look.ring, { n: 4 }));
+    for (const [y0, y1] of [[0.1, 0.45], [-0.25, 0.1]]) for (const s of [-1, 1]) parts.push(S.limb([0, cy + rm * y0, z], [s * r * 0.4, cy + rm * y1, z], 0.015, 0.012, f.look.ring, { n: 3 }));
+    // The stone on its cord: under the lintel, or under a hung ring.
+    const under = f.hung ? cy - rm : H - (f.look.square ? 0 : 0.05);
+    const cord = f.hung ? 0.12 : 0.45;
+    parts.push(S.limb([0, under, z], [0, under - cord, z], 0.008, 0.008, "#5a4630", { n: 3 }));
+    parts.push(S.ball(0.06, under - cord - 0.17, under - cord + 0.03, f.look.bands ?? PEBBLE, { n: 6, z, rz: 0.04 }));
+  }
   if (f.stones) for (const s of [-1, 1]) for (const [x, z, k] of scatter(3, f.post + 0.2, 5111 + (s > 0 ? 7 : 0))) parts.push(S.ball(0.08 + k * 0.05, -0.04, 0.22 + k * 0.15, PEBBLE, { x: s * px + x, z, lump: 0.25, n: 5 }));
   const g = f.ground;
   // A dais is pale stone with a gold ring set in its top near the edge, as it's drawn; the stepping stones lie on it.
@@ -395,6 +405,21 @@ export const THENN_FRAMES: { id: string; open: number }[] = [
   { id: "thenn-door-frame-two", open: 2 },
 ];
 const doorFrame = (open: number): ThennFrame => ({ open, post: open > 1.5 ? 0.16 : 0.13, height: open > 1.5 ? 2.5 : 2.3, look: THENN_LOOKS.wild });
+
+/**
+ * Thenn's small frame, for ordinary buildings (17 November 2026): the same height at every width,
+ * so it stays under a 3 m wall's top with room to spare (2.7 m to the top of its ring). Its posts
+ * stand 2.25 m, so the lintel clears a shut door (2.1 m in the 3D view), and its ring, 0.6 m
+ * across, hangs on the lintel's faces instead of standing on it.
+ */
+export const smallThennFrame = (open: number): ThennFrame => ({ open, post: open > 1.5 ? 0.14 : 0.12, height: 2.25, look: THENN_LOOKS.wild, ring: 0.2, hung: true });
+/** The small frames' widths: every one the Doors tool makes, a quarter square apart, so a small Thenn door's frame fits it exactly. */
+const SMALL_WIDTHS = Array.from({ length: 23 }, (_, i) => 0.5 + i * 0.25);
+const widthKey = (w: number) => String(w).replace(".", "-");
+const widthName = (w: number) => `${w} square${w === 1 ? "" : "s"}`;
+const widthOf = (key: string) => Number(key.replace("-", "."));
+/** The small frames, by the opening they fit (model/thenn.ts picks the one nearest an opening's width). */
+export const THENN_SMALL_FRAMES: { id: string; open: number }[] = SMALL_WIDTHS.map((open) => ({ id: `thenn-small-frame-${widthKey(open)}`, open }));
 const frameSize = (f: ThennFrame, depth: number): [number, number] => [+(lintelEnd(f) * 2 + 0.06).toFixed(2), depth];
 
 const DOORWAYS = {
@@ -435,6 +460,8 @@ function thennSign(c: C, k: number, col: string): void {
 const thenn: PropDef[] = [
   ...family({ id: "thenn-doorway", name: "Thenn's doorway", category: T, group: "Thenn", w: 1, h: 1, layer: "object", form: (v) => thennFrameForm(DOORWAYS[v.key as keyof typeof DOORWAYS]) }, [vary("wild", "wild wood and ivy"), vary("carved", "carved and gilded"), vary("monolith", "standing monoliths"), vary("great", "great, carved and gilded")], (c, v) => thennFrame(c, DOORWAYS[v.key as keyof typeof DOORWAYS]), { size: (v) => { const f = DOORWAYS[v.key as keyof typeof DOORWAYS]; const d = +(f.ground.r * 2).toFixed(2); return [Math.max(d, frameSize(f, d)[0]), d]; } }),
   ...family({ id: "thenn-door-frame", name: "Thenn's door frame", category: T, group: "Thenn", w: 1, h: 0.4, layer: "object", form: (v) => thennFrameForm(doorFrame(v.key === "two" ? 2 : 1)) }, [vary("one", "one square"), vary("two", "two squares")], (c, v) => thennFrame(c, doorFrame(v.key === "two" ? 2 : 1)), { size: (v) => frameSize(doorFrame(v.key === "two" ? 2 : 1), 0.45) }),
+  // The small frames, in their own group so the shrines stay easy to find: one for every width a small Thenn door can be.
+  ...family({ id: "thenn-small-frame", name: "Thenn's small door frame", category: T, group: "Thenn's small door frames", w: 1, h: 0.45, layer: "object", form: (v) => thennFrameForm(smallThennFrame(widthOf(v.key))) }, SMALL_WIDTHS.map((w) => vary(widthKey(w), widthName(w))), (c, v) => thennFrame(c, smallThennFrame(widthOf(v.key))), { size: (v) => frameSize(smallThennFrame(widthOf(v.key)), 0.45) }),
   ...family({ id: "thenn-wayshrine", name: "Thenn's wayside shrine", category: T, group: "Thenn", w: 1.1, h: 1.1, layer: "object", form: () => {
     const r = 0.26, rm = r * S.SQUARE_M, cy = 1.55 + rm;
     const ring = Array.from({ length: 9 }, (_, i) => [Math.cos((i / 8) * Math.PI * 2) * r, cy + Math.sin((i / 8) * Math.PI * 2) * rm] as const);

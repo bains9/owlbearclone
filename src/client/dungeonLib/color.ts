@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/color.ts) by scripts/sync-dungeon-library.mjs, Dungeon 823dfd2. Change it there and run the script again.
+// Copied from Dungeon (src/render/color.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
 export type RGB = [number, number, number];
 
 export function hexToRgb(hex: string): RGB {

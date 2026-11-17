@@ -27,7 +27,20 @@ describe("Thenn's doors and archways from Dungeon", () => {
     expect(byKind("thenn-arch").map((q) => q.closed)).toEqual([false]);
   });
 
+  it("shut a small Thenn door and leave a small Thenn archway open (17 November 2026)", () => {
+    const p = structuredClone(export0.dungeon);
+    const doors = p.shapes.doors as { kind: string }[];
+    doors[0].kind = "thenn-small";
+    doors[1].kind = "thenn-small-arch";
+    const { map } = parseDungeonPayload(JSON.stringify(p));
+    const L = map.world.levels[0];
+    const portals = [...L.walls.flatMap((w) => w.portals), ...L.portals];
+    const byKind = (k: string) => portals.filter((q) => q.texture?.path === `dungeon://portals/${k}`);
+    expect(byKind("thenn-small").map((q) => q.closed)).toEqual([true]);
+    expect(byKind("thenn-small-arch").map((q) => q.closed)).toEqual([false]);
+  });
+
   it("know the frames Dungeon sends with them, and Thenn's shrines", () => {
-    for (const id of ["thenn-door-frame-one", "thenn-door-frame-two", "thenn-doorway-great", "thenn-doorway-wild"]) expect(PROPS.some((q) => q.id === id), id).toBe(true);
+    for (const id of ["thenn-door-frame-one", "thenn-door-frame-two", "thenn-doorway-great", "thenn-doorway-wild", "thenn-small-frame-0-5", "thenn-small-frame-1", "thenn-small-frame-2", "thenn-small-frame-6"]) expect(PROPS.some((q) => q.id === id), id).toBe(true);
   });
 });

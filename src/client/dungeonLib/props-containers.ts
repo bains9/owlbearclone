@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-containers.ts) by scripts/sync-dungeon-library.mjs, Dungeon 823dfd2. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-containers.ts) by scripts/sync-dungeon-library.mjs, Dungeon fc0246c. Change it there and run the script again.
 import { rr, circle, radial, linear } from "./propkit";
 import { WOODS, METALS, CLAYS, GLASSES, GOLD, cross, vary, family, shade, ell, poly, fo, box, cbox, disc, stroke, studs, scatter, type C, type Tone, type Variant } from "./propvariants";
 import type { PropDef } from "./propkit";
