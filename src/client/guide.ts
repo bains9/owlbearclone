@@ -3284,7 +3284,7 @@ export const GUIDE: GuideSection[] = [
           "Hold **Alt** to remove walls instead of adding them.",
           "**Remove** also opens up a wall that was drawn automatically: an archway, or an opening into a cave.",
           "On a touch screen, drag along the lines, or tap a single grid line.",
-          "The walls' look: click **Plain walls** in the bar (it shows the look picked) to pick plain or one of Dungeon's 16 wall textures (brick, stone, logs, plaster, marble, iron, ice and more). Walls keep the look they're built in: what you pick is for the walls you build from then on, drawn here or round the rooms you paint in **Building**, and the walls already built stay as they are. **Undo** puts back a look picked by mistake.",
+          "The walls' look: click **Plain walls** in the bar (it shows the look picked) to pick plain or one of Dungeon's 17 wall textures (brick, stone, logs, plaster, half-timbered, marble, iron, ice and more). Walls keep the look they're built in: what you pick is for the walls you build from then on, drawn here or round the rooms you paint in **Building**, and the walls already built stay as they are. **Undo** puts back a look picked by mistake.",
           "**Repaint** changes walls already built: pick the look, pick **Repaint**, and drag along the walls (or click corners, as with **Add**). A wall round a room changes only where you drag. Doors and windows in it change with it; a secret door keeps the look of the wall it's in."
         ]
       },

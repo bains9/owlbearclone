@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon a237d73. Change it there and run the script again.
+// Copied from Dungeon (src/render/props-more.ts) by scripts/sync-dungeon-library.mjs, Dungeon c24bf6a. Change it there and run the script again.
 import { rng } from "./noise";
 import { OUT, LW, outline, rr, circle, radial, linear, board, flame, canopy, rockShape, type PropDef } from "./propkit";
 import * as S from "./solid";

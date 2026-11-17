@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon a237d73. Change it there and run the script again.
+// Copied from Dungeon (src/render/textures.ts) by scripts/sync-dungeon-library.mjs, Dungeon c24bf6a. Change it there and run the script again.
 import { fbm, hash2, ridged, rng, valueNoise, worley } from "./noise";
 import { css, mix, scale, type RGB } from "./color";
 
@@ -334,6 +334,72 @@ function wallWood(ctx: CanvasRenderingContext2D): void {
 
 function wallPlaster(ctx: CanvasRenderingContext2D): void {
   ground([196, 186, 166], [224, 216, 198], 231, 3, 0.8)(ctx);
+}
+
+/**
+ * A half-timbered wall (17 November 2026, for Town's goblin homes): cream plaster between dark
+ * oak beams, a brace across each upper panel, on a footing of mossy fieldstone. The tile is a 3 m
+ * wall's height (2 squares), and the 3D views lay its bottom at the ground, so the footing stands
+ * at the foot of the wall (0.8 m) and the top plate at its top.
+ */
+function wallHalfTimbered(ctx: CanvasRenderingContext2D): void {
+  const foot = Math.round(S * (1 - 0.8 / 3));
+  // The footing: fieldstone with moss, kept while the plaster goes on above it.
+  mossy(rows(241, 40, 44, 96, [[118, 112, 100], [100, 96, 88], [132, 124, 108], [92, 90, 84]], [44, 42, 38], 6, 3), 242)(ctx);
+  weather(ctx, 243, 0.35);
+  const footing = ctx.getImageData(0, foot, S, S - foot);
+  ground([206, 192, 162], [232, 222, 198], 244, 3, 0.7)(ctx);
+  ctx.putImageData(footing, 0, foot);
+  // The beams: dark oak with a little grain.
+  const r = rng(245);
+  const beam = (x: number, y: number, w: number, h: number) => {
+    ctx.fillStyle = css(scale([78, 54, 34], 0.9 + r() * 0.2));
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "rgba(20,12,6,0.35)";
+    const along = w > h;
+    for (let k = 0; k < 4; k++) {
+      const t = 0.15 + r() * 0.7;
+      if (along) ctx.fillRect(x, y + h * t, w, 1);
+      else ctx.fillRect(x + w * t, y, 1, h);
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    if (along) ctx.fillRect(x, y + h - 2, w, 2);
+    else ctx.fillRect(x + w - 2, y, 2, h);
+  };
+  const B = 18, plate = 0, rail = Math.round(S * 0.36), sill = foot - B;
+  const posts = [0, S / 3, (2 * S) / 3].map(Math.round);
+  // The braces first, so the posts and rails cover their ends: one across each upper panel, turning by turns.
+  ctx.lineCap = "butt";
+  posts.forEach((x0, i) => {
+    const x1 = i + 1 < posts.length ? posts[i + 1] : S;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, plate + B, x1 - x0, rail - plate - B);
+    ctx.clip();
+    ctx.strokeStyle = css([72, 50, 32]);
+    ctx.lineWidth = 15;
+    ctx.beginPath();
+    if (i % 2) {
+      ctx.moveTo(x0, plate + B);
+      ctx.lineTo(x1, rail);
+    } else {
+      ctx.moveTo(x0, rail);
+      ctx.lineTo(x1, plate + B);
+    }
+    ctx.stroke();
+    ctx.restore();
+  });
+  beam(0, plate, S, B);
+  beam(0, rail, S, B - 4);
+  beam(0, sill, S, B + 2);
+  for (const x of posts) {
+    // A post at the tile's edge is split across it, so it meets itself when the tile repeats.
+    if (x === 0) {
+      beam(0, plate, B / 2, sill - plate);
+      beam(S - B / 2, plate, B / 2, sill - plate);
+    } else beam(x - B / 2, plate, B, sill - plate);
+  }
+  weather(ctx, 246, 0.18, 6, 0.05);
 }
 
 function cracks(ctx: CanvasRenderingContext2D, seed: number, count: number, color: string): void {
@@ -780,6 +846,7 @@ export const MATERIALS: Material[] = [
   { id: "wall-brick", name: "Brick wall", group: "wall", swatch: "#8a4030", generate: wallBrick },
   { id: "wall-wood", name: "Wooden wall", group: "wall", swatch: "#684426", generate: wallWood },
   { id: "wall-plaster", name: "Plaster wall", group: "wall", swatch: "#d0c6b2", generate: wallPlaster },
+  { id: "wall-half-timbered", name: "Half-timbered wall", group: "wall", swatch: "#cbb48c", generate: wallHalfTimbered },
   { id: "water", name: "Water", group: "terrain", swatch: "#2c5f80", generate: water },
   ...MORE_MATERIALS,
 ];
