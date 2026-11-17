@@ -34,10 +34,11 @@
 //           in 1/16 world unit: the map's cliff paths (Dungeondraft's own and packs'), their centre lines, for the 3D view's
 //           rock faces (at most once; only written when there are some, so a map without cliffs
 //           encodes as before, and a reader older than it skips it as an unknown section)
-//   7 WALH  u32 nLines, then per line u16 height (centimetres), u32 nPts, nPts * (i32 x, i32 y) in
-//           1/16 world unit: the map's walls that stand other than 3 m (a Dungeon map's, whose walls
-//           can be made taller or lower, 17 November 2026), for the 3D view's walls and roofs (at
-//           most once; only written when there are some, as CLIF)
+//   7 WALH  u32 nLines, then per line u16 height, u16 bottom (centimetres), u32 nPts, nPts * (i32 x,
+//           i32 y) in 1/16 world unit: the map's walls that stand other than 3 m (a Dungeon map's,
+//           whose walls can be made taller or lower, 17 November 2026), and with a bottom over 0
+//           the wall over a doorway in one, for the 3D view's walls and roofs (at most once; only
+//           written when there are some, as CLIF)
 //
 // World units: 256 a square, x right, y down (Dungeondraft's own). Every count and length is
 // checked against SIDECAR_CAPS and the bytes left before anything is allocated, so a crafted
@@ -68,6 +69,8 @@ export const CLIFF_CAPS = { lines: 4000, points: 200_000 } as const;
 export interface WallHeightLine {
   /** How tall it stands, in centimetres. */
   cm: number;
+  /** Where it starts, in centimetres off the ground: the wall over a doorway (missing: on the ground). */
+  lo?: number;
   /** x, y pairs in 1/16 world unit. */
   pts: Int32Array;
 }
@@ -391,8 +394,9 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
   for (const t of tall) {
     if (!(t.pts instanceof Int32Array) || t.pts.length % 2 || t.pts.length < 4) fail("a wall's height's points are not pairs");
     if (!Number.isInteger(t.cm) || t.cm < 1 || t.cm > 0xffff) fail("a wall's height is out of range");
+    if (t.lo !== undefined && (!Number.isInteger(t.lo) || t.lo < 0 || t.lo >= t.cm)) fail("a wall's bottom is out of range");
     walhPts += t.pts.length / 2;
-    walhLen += 6 + 4 * t.pts.length;
+    walhLen += 8 + 4 * t.pts.length;
   }
   if (walhPts > WALL_HEIGHT_CAPS.points) fail("more than 100,000 points of walls' heights");
   if (tall.length) len += SECTION_HEAD + walhLen;
@@ -464,6 +468,7 @@ export function encodeSidecar(s: SeasonSidecar): Uint8Array {
     u32(tall.length);
     for (const t of tall) {
       u16(t.cm);
+      u16(t.lo ?? 0);
       u32(t.pts.length / 2);
       for (let k = 0; k < t.pts.length; k++) i32(t.pts[k]);
     }
@@ -673,17 +678,18 @@ function readWallHeights(dv: DataView, at: number, len: number): WallHeightLine[
   const lines: WallHeightLine[] = [];
   let p = at + 4, total = 0;
   for (let i = 0; i < n; i++) {
-    if (end - p < 6) fail("a wall's height is cut off");
+    if (end - p < 8) fail("a wall's height is cut off");
     const cm = dv.getUint16(p, true);
-    const pts = dv.getUint32(p + 2, true);
-    p += 6;
+    const lo = dv.getUint16(p + 2, true);
+    const pts = dv.getUint32(p + 4, true);
+    p += 8;
     total += pts;
-    if (cm < 1 || pts < 2 || total > WALL_HEIGHT_CAPS.points) fail("a wall's height or its points are out of range");
+    if (cm < 1 || lo >= cm || pts < 2 || total > WALL_HEIGHT_CAPS.points) fail("a wall's height or its points are out of range");
     if (end - p < pts * 8) fail("a wall's height's points run past WALH");
     const xy = new Int32Array(pts * 2);
     for (let k = 0; k < pts * 2; k++) xy[k] = dv.getInt32(p + 4 * k, true);
     p += pts * 8;
-    lines.push({ cm, pts: xy });
+    lines.push(lo ? { cm, lo, pts: xy } : { cm, pts: xy });
   }
   if (p !== end) fail("WALH's length disagrees with its lines");
   return lines;

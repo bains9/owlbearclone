@@ -89,12 +89,14 @@ export interface Walls3d {
    * height, its builder's view sends each one's). Missing, or a wall without: WALL_HEIGHT.
    */
   builtH?: number[];
+  /** Where each of `built` starts, in squares off the ground (the wall over a Dungeon doorway). Missing: all 0. */
+  builtLo?: number[];
   /**
    * The map file's walls that stand other than WALL_HEIGHT (a Dungeon map's, from its map data's
    * WALH), in scene units, each with its height in squares: a piece of `walls` lying along one
-   * stands that tall.
+   * stands that tall. One with `lo` is the wall over a doorway, from `lo` up: it stands by itself.
    */
-  tall?: { line: Seg; h: number }[];
+  tall?: { line: Seg; h: number; lo?: number }[];
   doors: { line: Seg; open: boolean }[];
   /** The Build tool's windows between their posts (the posts are in `built`): wall with a pane of glass in it. */
   windows?: Seg[];
@@ -169,6 +171,8 @@ export interface WallPiece {
   color?: readonly [number, number, number];
   /** How tall it stands, in squares, when not WALL_HEIGHT (a Dungeon wall's own height). A door stands its own height whatever its wall's. */
   h?: number;
+  /** Where it starts, in squares off the ground, when not on it: the wall over a doorway in a tall wall. */
+  lo?: number;
 }
 
 /** The map as painted (picture, built map, before the dark and the fog), small, to read walls' colours from. */
@@ -230,10 +234,11 @@ export function piecesWithHeights(segs: readonly Seg[], tall: readonly { line: S
   return out;
 }
 
-/** The height (squares) of the tall wall whose line passes through (x, y), scene units, or undefined for none. */
-export function tallAt(tall: readonly { line: Seg; h: number }[], x: number, y: number, cell: number): number | undefined {
+/** The height (squares) of the tall wall whose line passes through (x, y), scene units, or undefined for none (a wall over a doorway isn't one a wall lies along). */
+export function tallAt(tall: readonly { line: Seg; h: number; lo?: number }[], x: number, y: number, cell: number): number | undefined {
   let best = TALL_NEAR * cell, h: number | undefined;
   for (const t of tall) {
+    if (t.lo) continue;
     const [ax, ay, bx, by] = t.line;
     const dx = bx - ax, dy = by - ay;
     const l2 = dx * dx + dy * dy;
@@ -256,7 +261,7 @@ export function tallAt(tall: readonly { line: Seg; h: number }[], x: number, y: 
 export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | null, all: boolean, paint: PaintMap | null = null): WallPiece[] {
   const out: WallPiece[] = [];
   const tall = walls3d.tall ?? [];
-  const add = (s: Seg, door: boolean, built = false, window = false, tex = "", h?: number) => {
+  const add = (s: Seg, door: boolean, built = false, window = false, tex = "", h?: number, lo?: number) => {
     const [ax, ay, bx, by] = s;
     const len = Math.hypot(bx - ax, by - ay);
     if (!(len > 1e-6) || !(cell > 0)) return;
@@ -282,11 +287,14 @@ export function wallPieces(walls3d: Walls3d, cell: number, cover: CoverMap | nul
       // Its own height: given (a built wall's), or that of the map's tall wall it lies along.
       const own = door ? undefined : (h ?? (!built && tall.length ? tallAt(tall, mx, my, cell) : undefined));
       if (own !== undefined && own > 0 && own !== WALL_HEIGHT) piece.h = own;
+      if (lo !== undefined && lo > 0 && lo < (piece.h ?? WALL_HEIGHT)) piece.lo = lo;
       out.push(piece);
     }
   };
   for (const w of walls3d.walls) add(w, false);
-  walls3d.built.forEach((w, i) => add(w, false, true, false, walls3d.builtTex?.[i], walls3d.builtH?.[i]));
+  // The walls over a map's doorways in tall walls (they're in no sight line), each by itself.
+  for (const t of tall) if (t.lo) add(t.line, false, false, false, "", t.h, t.lo);
+  walls3d.built.forEach((w, i) => add(w, false, true, false, walls3d.builtTex?.[i], walls3d.builtH?.[i], walls3d.builtLo?.[i]));
   (walls3d.windows ?? []).forEach((w, i) => add(w, false, true, true, walls3d.windowTex?.[i]));
   for (const d of walls3d.doors) if (!d.open) add(d.line, true);
   return out;
@@ -403,7 +411,7 @@ export function wallMesh(pieces: readonly WallPiece[], cell: number, textured = 
       // The sill and lintel where a window's always are (0.9 m and 2.25 m), whatever the wall's height.
       box(0, WINDOW_SILL * WALL_HEIGHT);
       box(WINDOW_TOP * WALL_HEIGHT, h);
-    } else box(0, h);
+    } else box(p.lo ?? 0, h);
   }
   return { position, normal, color, uv };
 }

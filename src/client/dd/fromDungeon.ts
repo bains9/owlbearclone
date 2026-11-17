@@ -155,6 +155,8 @@ class Builder {
     const { walls, portals } = this.walls();
     level.walls = walls;
     level.portals = portals;
+    const headers = this.headers();
+    if (headers.length) level.headers = headers;
     return {
       header: {
         creationBuild: "dungeon",
@@ -303,6 +305,19 @@ class Builder {
         }
         if (rings.length) out.push(withHoles(rings[0], rings.slice(1)));
       }
+    }
+    return out;
+  }
+
+  /** The walls over doorways in walls taller than 3 m (shapes.headers, 17 November 2026), for the 3D view: world units, metres up. */
+  private headers(): NonNullable<Level["headers"]> {
+    const out: NonNullable<Level["headers"]> = [];
+    for (const h of arr(this.shapes.headers)) {
+      if (!isObj(h) || !fin(h.bottom) || !fin(h.height) || !this.item()) continue;
+      const points = this.line(h.points, 2);
+      if (!points || points.length !== 4) continue;
+      const height = Math.min(30, Math.max(0.5, h.height)), bottom = Math.max(0, h.bottom);
+      if (bottom < height) out.push({ points, bottom, height });
     }
     return out;
   }

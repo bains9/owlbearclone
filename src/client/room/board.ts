@@ -811,7 +811,7 @@ export class Board implements BoardApi {
     rooms?: { scene: Scene; list: { b: Building3d; keys: Set<string> }[] };
     cliffs?: { scene: Scene; list: Cliff3d[] };
     /** Its walls standing other than 3 m (a Dungeon map's), in scene units. */
-    tall?: { scene: Scene; list: { line: Seg; h: number }[] };
+    tall?: { scene: Scene; list: { line: Seg; h: number; lo?: number }[] };
   } | null = null;
   /** Counts the times the built map has had something ready to draw properly (a texture made). */
   private buildReady = 0;
@@ -1220,7 +1220,7 @@ export class Board implements BoardApi {
   }
 
   /** The map data's walls standing other than 3 m (worked out once a scene), in scene units, each with its height in squares. */
-  private mapTall3d(scene: Scene): { line: Seg; h: number }[] {
+  private mapTall3d(scene: Scene): { line: Seg; h: number; lo?: number }[] {
     const md = this.mapData(scene);
     if (!md || !this.mapData3d || !md.data.wallHeights?.length) return [];
     if (this.mapData3d.tall?.scene !== scene) this.mapData3d.tall = { scene, list: mapTallWalls(md.data.wallHeights, md.place) };

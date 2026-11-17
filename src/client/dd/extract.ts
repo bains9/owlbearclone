@@ -564,6 +564,12 @@ export function extractSidecar(map: DDMap, levelKey: string, rect: PictureRect, 
   // The walls standing other than 3 m (a Dungeon map's), for the 3D view (wallHeightLines).
   const tall: WallHeightLine[] = [];
   for (const w of L.walls) if (w.heights) tall.push(...wallHeightLines(w, crop));
+  // And the walls over its doorways in those, each from the top of its doorway up.
+  for (const h of L.headers ?? []) {
+    const cm = Math.min(0xffff, Math.max(1, Math.round(h.height * 100))), lo = Math.max(0, Math.round(h.bottom * 100));
+    if (lo >= cm) continue;
+    for (const t of wallHeightLines({ points: h.points, loop: false, heights: [h.height] }, crop)) tall.push({ ...t, lo });
+  }
 
   // Roofs, one shape each (a roof's own colour is found per roof at run time).
   for (const r of L.roofs) {

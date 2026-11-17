@@ -40,14 +40,15 @@ export function toScene(p: MapPlacement, wx: number, wy: number): { x: number; y
  * The map data's walls standing other than 3 m (a Dungeon map's, WALH), as scene-unit segments,
  * each with its height in squares (a square is 1.5 m): Walls3d.tall.
  */
-export function mapTallWalls(lines: readonly WallHeightLine[], place: MapPlacement): { line: [number, number, number, number]; h: number }[] {
-  const out: { line: [number, number, number, number]; h: number }[] = [];
+export function mapTallWalls(lines: readonly WallHeightLine[], place: MapPlacement): { line: [number, number, number, number]; h: number; lo?: number }[] {
+  const out: { line: [number, number, number, number]; h: number; lo?: number }[] = [];
   for (const t of lines) {
     const h = t.cm / 100 / 1.5;
+    const lo = t.lo ? t.lo / 100 / 1.5 : 0;
     for (let i = 0; i + 3 < t.pts.length; i += 2) {
       const a = toScene(place, t.pts[i] / SIDECAR_UNITS.coord, t.pts[i + 1] / SIDECAR_UNITS.coord);
       const b = toScene(place, t.pts[i + 2] / SIDECAR_UNITS.coord, t.pts[i + 3] / SIDECAR_UNITS.coord);
-      out.push({ line: [a.x, a.y, b.x, b.y], h });
+      out.push(lo ? { line: [a.x, a.y, b.x, b.y], h, lo } : { line: [a.x, a.y, b.x, b.y], h });
     }
   }
   return out;

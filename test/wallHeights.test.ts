@@ -50,6 +50,20 @@ describe("walls at their heights", () => {
     expect([...ys].sort((a, b) => a - b)).toEqual([0, WINDOW_SILL * WALL_HEIGHT, WINDOW_TOP * WALL_HEIGHT, 4].map((v) => Math.round(v * 1000) / 1000));
   });
 
+  it("build the wall over a doorway from the top of the doorway up, by itself", () => {
+    const built = wallPieces({ walls: [], built: [[0, 0, CELL, 0]], builtH: [10 / 3], builtLo: [1.4], doors: [] }, CELL, null, true);
+    expect(built.every((p) => p.lo === 1.4 && p.h === 10 / 3)).toBe(true);
+    const m = wallMesh(built, CELL);
+    expect(bottom(m)).toBeCloseTo(1.4);
+    expect(top(m)).toBeCloseTo(10 / 3);
+    // A map's: from its map data, standing where no sight line runs; not a wall others lie along.
+    const tall = [{ line: [0, 0, CELL, 0] as [number, number, number, number], h: 10 / 3, lo: 1.4 }];
+    const pieces = wallPieces({ walls: [], built: [], doors: [], tall }, CELL, null, true);
+    expect(pieces).toHaveLength(2);
+    expect(pieces.every((p) => p.lo === 1.4 && p.h === 10 / 3 && !p.built)).toBe(true);
+    expect(tallAt(tall, CELL / 2, 0, CELL)).toBeUndefined();
+  });
+
   it("stand a map's wall as tall as the tall wall it lies along", () => {
     const tall = [{ line: [0, 0, 4 * CELL, 0] as [number, number, number, number], h: 3 }];
     expect(tallAt(tall, 2 * CELL, 0.05 * CELL, CELL)).toBe(3);
@@ -100,6 +114,8 @@ describe("roofs on top of the walls", () => {
       roofed: cells,
     };
     expect(lookWalls(m).builtH).toEqual([10 / 3, 10 / 3, 10 / 3, 10 / 3]);
+    expect(lookWalls(m).builtLo).toBeUndefined();
+    expect(lookWalls({ ...m, wallBottoms: [0, 0, 0, 2.1] }).builtLo).toEqual([0, 0, 0, 2.1 / 1.5]);
     expect(lookBuildings(m, true)[0].eaves).toBeCloseTo(10 / 3);
     // A Dungeon from before sends no heights: 3 m, as ever.
     const { wallHeights: _h, ...before } = m;
@@ -128,6 +144,13 @@ describe("heights in a scene's map data", () => {
     // A payload from before has none.
     const plain = parseDungeonPayload(JSON.stringify(export0.dungeon)).map;
     expect(plain.world.levels[0].walls.every((w) => w.heights === undefined)).toBe(true);
+    expect(plain.world.levels[0].headers).toBeUndefined();
+    // The walls over its doorways in tall walls.
+    p.shapes.headers = [{ points: [3, 2, 4, 2], bottom: 2.1, height: 5, style: "wall-stone" }, { points: [1, 1, 2, 1], bottom: 6, height: 5 }];
+    const withHeaders = parseDungeonPayload(JSON.stringify(p)).map.world.levels[0].headers!;
+    expect(withHeaders).toHaveLength(1);
+    expect(withHeaders[0]).toMatchObject({ bottom: 2.1, height: 5 });
+    expect(Array.from(withHeaders[0].points)).toEqual([3 * 256, 2 * 256, 4 * 256, 2 * 256]);
   });
 
   it("are kept as lines of one height, other than 3 m, cut to the map", () => {
@@ -149,18 +172,21 @@ describe("heights in a scene's map data", () => {
       shapes: [],
       objects: { n: 0, role: new Uint8Array(0), layer: new Int16Array(0), x: new Int32Array(0), y: new Int32Array(0), rot: new Uint8Array(0), flags: new Uint8Array(0), name: new Uint16Array(0).fill(NO_NAME), reach: new Uint16Array(0 * REACH_N) },
     });
-    const s = { ...base(), wallHeights: [{ cm: 500, pts: Int32Array.from([0, 0, 4096, 0, 4096, 4096]) }] };
+    const s = { ...base(), wallHeights: [{ cm: 500, pts: Int32Array.from([0, 0, 4096, 0, 4096, 4096]) }, { cm: 500, lo: 210, pts: Int32Array.from([0, 0, 16, 0]) }] };
     const back = decodeSidecar(encodeSidecar(s));
     expect(back.wallHeights).toEqual(s.wallHeights);
+    expect(() => encodeSidecar({ ...base(), wallHeights: [{ cm: 500, lo: 500, pts: Int32Array.from([0, 0, 16, 0]) }] })).toThrow(SidecarError);
     expect(decodeSidecar(encodeSidecar(base())).wallHeights).toBeUndefined();
     // Without heights the bytes are what they always were: no WALH section.
     expect(encodeSidecar(base())).toEqual(encodeSidecar({ ...base(), wallHeights: [] }));
     // In the scene: scene units, heights in squares.
     const place = { rect: [0, 0, 2560, 2560] as [number, number, number, number], width: 1000, height: 1000 };
     const tall = mapTallWalls(back.wallHeights!, place);
-    expect(tall).toHaveLength(2);
+    expect(tall).toHaveLength(3);
     expect(tall[0].h).toBeCloseTo(10 / 3);
     expect(tall[0].line).toEqual([0, 0, 100, 0]);
+    expect(tall[0].lo).toBeUndefined();
+    expect(tall[2].lo).toBeCloseTo(1.4);
   });
 
   it("are refused when a WALH section is malformed", () => {

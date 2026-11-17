@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon fed9df1. Change it there and run the script again.
+// Copied from Dungeon (src/render/look3d.ts) by scripts/sync-dungeon-library.mjs, Dungeon a237d73. Change it there and run the script again.
 // The builder's 3D view (14 November 2026): Dungeon shows the map being built in Table's own 3D
 // view, so there's one 3D view, not two. Dungeon frames Table's /look3d page and sends it the open
 // level as it changes; Table draws it as it draws a scene, with no fog and no tokens (a map maker
@@ -55,6 +55,11 @@ export interface LookMap {
    * model/wallHeights.ts). Missing (a Dungeon from before), or not one for each: every wall 3 m.
    */
   wallHeights?: number[];
+  /**
+   * Where each of `walls` starts, in metres off the ground: 0 for a wall, more for the wall over a
+   * doorway in a wall taller than 3 m (Dungeon's model/headers.ts). Missing, or not one for each: all 0.
+   */
+  wallBottoms?: number[];
   /** Cave edges, standing as rock in the floor's own colour. */
   rock: number[][];
   /** Doors, shut, as their lines. */
@@ -133,6 +138,8 @@ export function cleanLookMap(v: unknown, isBitmap: (b: unknown) => b is ImageBit
   // Each wall's height (metres), the same way: one for each wall, every one a sane height.
   const tall = m.wallHeights;
   const wallHeights = Array.isArray(tall) && tall.length === walls.length && tall.every((h) => num(h, 0.5, 30)) ? (tall.slice() as number[]) : undefined;
+  const low = m.wallBottoms;
+  const wallBottoms = wallHeights && Array.isArray(low) && low.length === walls.length && low.every((b, i) => num(b, 0, 30) && b < wallHeights[i]) ? (low.slice() as number[]) : undefined;
   if (!Array.isArray(m.objects) || m.objects.length > MAX_OBJECTS) return null;
   const objects: LookObject[] = [];
   for (const o of m.objects as Record<string, unknown>[]) {
@@ -150,5 +157,5 @@ export function cleanLookMap(v: unknown, isBitmap: (b: unknown) => b is ImageBit
     if (!Array.isArray(cell) || cell.length !== 2 || !Number.isInteger(cell[0]) || !Number.isInteger(cell[1])) return null;
     roofed.push([cell[0], cell[1]]);
   }
-  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, ...(wallTextures ? { wallTextures } : {}), ...(wallHeights ? { wallHeights } : {}), rock, doors, objects, roofed };
+  return { key: m.key, width: m.width, height: m.height, floor: m.floor, walls, wallTexture: m.wallTexture, ...(wallTextures ? { wallTextures } : {}), ...(wallHeights ? { wallHeights } : {}), ...(wallBottoms ? { wallBottoms } : {}), rock, doors, objects, roofed };
 }

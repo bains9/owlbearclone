@@ -1,4 +1,4 @@
-// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon fed9df1. Change it there and run the script again.
+// Copied from Dungeon (src/render/propvariants.ts) by scripts/sync-dungeon-library.mjs, Dungeon a237d73. Change it there and run the script again.
 import { rng } from "./noise";
 import { hexToRgb, mix, rgbToHex } from "./color";
 import { LW, outline, rr, circle, radial, linear, board, flame, type PropCategory, type PropDef } from "./propkit";

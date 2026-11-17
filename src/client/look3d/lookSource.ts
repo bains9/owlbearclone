@@ -25,16 +25,19 @@ const heightsOf = (m: Pick<LookMap, "walls" | "wallHeights">): number[] | undefi
 
 /**
  * The level's walls (each in its own wall texture and height: Dungeon's walls keep the style and
- * height they're built at), its cave edges (as rock) and its doors, shut.
+ * height they're built at, the wall over a doorway in a tall wall from the top of the doorway
+ * up), its cave edges (as rock) and its doors, shut.
  */
-export function lookWalls(m: Pick<LookMap, "walls" | "wallTexture" | "wallTextures" | "wallHeights" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
+export function lookWalls(m: Pick<LookMap, "walls" | "wallTexture" | "wallTextures" | "wallHeights" | "wallBottoms" | "rock" | "doors">, cell = LOOK_CELL): Walls3d {
   const builtH = heightsOf(m);
+  const builtLo = m.wallBottoms?.map((b) => b / SQUARE_M);
   return {
     walls: m.rock.map((l) => scaled(l, cell)),
     built: m.walls.map((l) => scaled(l, cell)),
     // A Dungeon from before sends one texture for every wall.
     builtTex: m.wallTextures ?? m.walls.map(() => m.wallTexture),
     ...(builtH ? { builtH } : {}),
+    ...(builtLo ? { builtLo } : {}),
     doors: m.doors.map((l) => ({ line: scaled(l, cell), open: false })),
   };
 }

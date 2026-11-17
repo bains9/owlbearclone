@@ -257,6 +257,11 @@ export interface Level {
   materials: Material[];
   patterns: Pattern[];
   walls: Wall[];
+  /**
+   * The walls over doorways in walls taller than 3 m (a Dungeon map's, 17 November 2026), for the
+   * 3D view only: across the doorway (world coords, two points), from `bottom` to `height` metres.
+   */
+  headers?: { points: Float64Array; bottom: number; height: number }[];
   /** Freestanding portals only; wall portals live in walls[].portals. */
   portals: Portal[];
   paths: Path[];
