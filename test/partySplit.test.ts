@@ -321,6 +321,28 @@ describe("Send here, on the GM's page", () => {
     expect(playersOf(items[4], characters)).toEqual([{ userId: "ula", name: "" }]);
   });
 
+  it("lists the GM's NPCs marked Travel with the party, to go with them: nobody plays them, and nobody's sent for them", () => {
+    const items = [
+      token("torin", "party", { character: "sheetT", label: "Torin Vale" }),
+      token("mira", "party", { label: "Mira the guide", withParty: true }),
+      token("mule", "party", { label: "Mule", withParty: true, layer: "prop", hidden: true }),
+      token("goblin", "party", { label: "Goblin" }),
+      token("north", "party", { label: "", art: "compass", withParty: true }),
+      token("hound", "solo", { label: "Hound", withParty: true }),
+      token("ghost", "old", { label: "Ghost", withParty: true }),
+    ];
+    const list = sendables(state({}, items), "solo");
+    // Not the unmarked goblin, a compass, one already on the Cave, or one left on an old map.
+    expect(list.map((o) => o.token.id).sort()).toEqual(["mira", "mule", "torin"]);
+    expect(list.find((o) => o.token.id === "mira")).toMatchObject({ here: false, people: [], companion: true });
+    expect(list.find((o) => o.token.id === "torin")).toMatchObject({ companion: false });
+    // Sent to the Cave with Bram, Mira's listed to bring back to Town with him.
+    const after = [token("torin", "solo", { character: "sheetT", label: "Torin Vale" }), token("mira", "solo", { label: "Mira the guide", withParty: true })];
+    expect(sendables(state({ bram: "solo" }, after), "party").map((o) => o.token.id).sort()).toEqual(["mira", "torin"]);
+    // Sending only an NPC tells the GM nobody sees it.
+    expect(sentGone([{ label: "Mira the guide" }], "“Cave”", [])).toBe("Mira the guide to “Cave”: nobody plays them, so nobody else sees it.");
+  });
+
   it("lists a token already here whose player is elsewhere, first; and not once they're here", () => {
     const items = [token("torin", "solo", { character: "sheetT", label: "Torin Vale" }), token("nessa", "party", { character: "sheetN", label: "Nessa" })];
     const list = sendables(state({}, items), "solo");
@@ -368,6 +390,7 @@ describe("Send here, on the GM's page", () => {
       "Send here",
       "Send them here",
       "Click where they arrive.",
+      '"companion" in o && o.companion ? "travels with the party" : "nobody plays them"',
       "room.store.set({ partyTake: { sceneId: view.id, tokens: moving, users, characters }, lightAdd: null });",
       "room.sendToScene(view.id, users);",
       "the rest from one map at a time",
@@ -393,6 +416,6 @@ describe("Send here, on the GM's page", () => {
     const part = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Split the party: send some to another map");
     expect(part).toBeTruthy();
     const text = [...part!.steps, ...part!.notes].join("\n");
-    for (const words of ["**Send someone here**", "**Send here**", "**Send them here**", "put down where you click", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "A player with two characters", "They see one map at a time"]) expect(text).toContain(words);
+    for (const words of ["**Send someone here**", "**Send here**", "**Send them here**", "put down where you click", "**Show to players**", "nobody else is told", "Only you, the GM, see where everyone is", "A player with two characters", "They see one map at a time", "marked **Travel with the party**", "it goes only where you send it"]) expect(text).toContain(words);
   });
 });

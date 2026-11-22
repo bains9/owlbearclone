@@ -192,12 +192,18 @@ export interface Sendable {
   /** Already on the scene: only its people are sent (they're elsewhere). */
   here: boolean;
   people: CharacterPlayer[];
+  /**
+   * Not the party's own: one of the GM's (an NPC, say) marked Travel with the party (inParty). Nobody
+   * plays it, so sending it moves only its token (asked for on 2026-11-22: "add NPCs to Send someone here too").
+   */
+  companion: boolean;
 }
 
 /**
- * The party's tokens the GM can send to `to`: on another scene someone is on (the live one, or one
- * people were sent to: not tokens left on old maps), or on this one while someone who plays them is
- * elsewhere. This scene's first, then by the order of their scenes, then by name.
+ * The party's tokens the GM can send to `to`, and the GM's own marked Travel with the party (inParty):
+ * on another scene someone is on (the live one, or one people were sent to: not tokens left on old
+ * maps), or on this one while someone who plays them is elsewhere. This scene's first, then by the
+ * order of their scenes, then by name.
  */
 export function sendables(
   s: Pick<RoomState, "items" | "scenes" | "placed" | "activeSceneId" | "party">,
@@ -207,12 +213,12 @@ export function sendables(
   const occupied = new Set<string | null>([s.activeSceneId, ...Object.values(s.placed)]);
   const out: Sendable[] = [];
   for (const i of Object.values(s.items)) {
-    if (i.kind !== "token" || !isSightToken(i) || !s.scenes[i.sceneId]) continue;
+    if (i.kind !== "token" || !inParty(i) || !s.scenes[i.sceneId]) continue;
     const here = i.sceneId === to;
     if (!here && !occupied.has(i.sceneId)) continue;
     const people = playersOf(i, characters);
     if (here && !people.some((p) => sceneOfPerson(p.userId, s.placed, s.activeSceneId, s.scenes) !== to)) continue;
-    out.push({ token: i, here, people });
+    out.push({ token: i, here, people, companion: !isSightToken(i) });
   }
   const order = (x: Sendable) => s.scenes[x.token.sceneId]?.order ?? 0;
   return out.sort((a, b) => Number(b.here) - Number(a.here) || order(a) - order(b) || a.token.label.localeCompare(b.token.label));

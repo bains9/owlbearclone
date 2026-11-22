@@ -8,8 +8,9 @@
 // (from one map at a time) arrive where the map is clicked next, and the people who play them see
 // this scene from then on, apart from the party; nobody else is told. Sent to the live scene, they're
 // back with the party. Show to players puts everyone together again. A character with no token where
-// anyone is (a new character, say) is listed too, and put down where the map's clicked. The list also opens
-// from the Scenes panel (Send someone here), since nothing shows here until another map is open.
+// anyone is (a new character, say) is listed too, and put down where the map's clicked. So are the GM's
+// NPCs marked Travel with the party, to go with whoever's sent. The list also opens from the Scenes panel
+// (Send someone here), since nothing shows here until another map is open.
 
 import { useState } from "preact/hooks";
 import { Footprints, Split } from "lucide-preact";
@@ -90,7 +91,7 @@ export function PartyBar() {
       <label key={keyOf(o)} class="check party-pick-row">
         <input type="checkbox" checked={ticked.includes(keyOf(o))} onChange={(e) => tick(o, e.currentTarget.checked)} />
         <span class="party-pick-name">{name}</span>
-        <span class="party-pick-who">{people.length ? listNames(people) : "nobody plays them"}</span>
+        <span class="party-pick-who">{people.length ? listNames(people) : "companion" in o && o.companion ? "travels with the party" : "nobody plays them"}</span>
       </label>
     );
   };
