@@ -2,8 +2,9 @@ import { noteTitle, parseNoteRef } from "../../shared/vault";
 import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
-import { Armchair, BookOpen, HeartPulse, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
+import { Armchair, BookOpen, HeartPulse, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Footprints, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
 import { initEntryFor, isCreature } from "../initiative";
+import { canTravel } from "../levels";
 import { MonsterCard } from "./MonsterCard";
 import { canDelete } from "../../shared/permissions";
 import { roundsLeft } from "./spellChips";
@@ -362,6 +363,22 @@ export function SelectionBar() {
             </button>
             <TokenNoteButton id={t.id} />
             {isCreature(t) && <StatsButton id={t.id} />}
+            {canTravel(t) && (
+              <button
+                class={cx("icon-btn", t.withParty && "active")}
+                title={
+                  t.withParty
+                    ? "Travels with the party: comes along when you take the party to another map or level (click to leave it behind)"
+                    : "Travel with the party: take it along when you take the party to another map or level"
+                }
+                aria-label="Travel with the party"
+                data-short="Party"
+                aria-pressed={!!t.withParty}
+                onClick={() => patch({ withParty: !t.withParty })}
+              >
+                <Footprints size={18} />
+              </button>
+            )}
           </>
         )}
         {can && (
@@ -518,10 +535,35 @@ export function SelectionBar() {
           <button class="icon-btn" title="Lock or unlock (L)" aria-label="Lock or unlock" onClick={() => toggleLocked(room)}>
             <Lock size={18} />
           </button>
+          <TravelButton tokens={tokens} />
         </>
       )}
       {common}
     </div>
+  );
+}
+
+/**
+ * GM, with several tokens selected: those of them that aren't the party's (canTravel) all travel with the
+ * party, or, when they all do already, none of them.
+ */
+function TravelButton(props: { tokens: TokenItem[] }) {
+  const room = useRoom();
+  const them = props.tokens.filter(canTravel);
+  if (!them.length) return null;
+  const all = them.every((t) => t.withParty);
+  const n = them.length === 1 ? "it" : `these ${them.length}`;
+  return (
+    <button
+      class={cx("icon-btn", all && "active")}
+      title={all ? `Travel with the party: click to leave ${n} behind` : `Travel with the party: take ${n} along when you take the party to another map or level`}
+      aria-label="Travel with the party"
+      data-short="Party"
+      aria-pressed={all}
+      onClick={() => room.change({ patch: them.map((t) => ({ id: t.id, set: { withParty: !all } })) })}
+    >
+      <Footprints size={18} />
+    </button>
   );
 }
 

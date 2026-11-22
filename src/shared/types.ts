@@ -297,6 +297,12 @@ export interface TokenItem extends ItemBase {
   character?: string | null;
   /** Its picture mirrored left to right, so it faces the other way. Missing on tokens that aren't. */
   flipped?: boolean;
+  /**
+   * GM: an NPC (or anything else that isn't the party's) that goes with the party when the GM
+   * takes them to another map or level (client/levels.ts partyOn), as the characters' tokens do.
+   * Only the GM sets it. Missing on tokens that don't.
+   */
+  withParty?: boolean;
 }
 
 export type TokenLayer = "character" | "prop";
@@ -426,6 +432,7 @@ export interface MutableFields {
   layer: TokenLayer;
   character: string | null;
   flipped: boolean;
+  withParty: boolean;
   shape: DrawShape | FogShape;
   points: number[];
   width: number;

@@ -25,7 +25,7 @@ export function visibleToPlayer(item: Item, activeSceneId: string | null): boole
 
 export function canCreate(item: Item, actor: Actor, settings: RoomSettings): boolean {
   if (actor.role === "gm") return true;
-  if (item.kind === "token") return settings.playersCanAddTokens && !item.hidden && !item.locked && !item.art;
+  if (item.kind === "token") return settings.playersCanAddTokens && !item.hidden && !item.locked && !item.art && !item.withParty;
   if (item.kind === "drawing") return settings.playersCanDraw && !item.hidden;
   return false;
 }
@@ -42,7 +42,8 @@ export function canMove(item: Item, actor: Actor, settings: RoomSettings): boole
 
 export function canPatch(item: Item, set: Partial<MutableFields>, actor: Actor, settings: RoomSettings): boolean {
   if (actor.role === "gm") return true;
-  if ("hidden" in set || "locked" in set) return false;
+  // Hiding, locking, and who goes with the party are the GM's.
+  if ("hidden" in set || "locked" in set || "withParty" in set) return false;
   return canMove(item, actor, settings);
 }
 
@@ -52,6 +53,7 @@ export function canReplace(existing: Item, next: Item, actor: Actor, settings: R
   if (existing.kind !== next.kind) return false;
   if (existing.kind === "token" && next.kind === "token") {
     if (existing.hidden !== next.hidden || existing.locked !== next.locked) return false;
+    if (!!existing.withParty !== !!next.withParty) return false;
     // Built-in art (a compass) can't be put on a token, or taken off one.
     if ((existing.art ?? null) !== (next.art ?? null)) return false;
   }

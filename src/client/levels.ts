@@ -74,11 +74,27 @@ export function onLevel(p: Point, from: GridSettings, to: GridSettings): Point {
   };
 }
 
-/** The tokens taken from a level: the ones selected on it, or else the party's (characters, and players' tokens). */
+/**
+ * A token the GM can send along with the party (asked for on 2026-11-22: "the ability to add NPC tokens
+ * to the map moves"): one of theirs that isn't a character's, so not already the party's, and not a compass.
+ */
+export function canTravel(t: TokenItem): boolean {
+  return !t.art && !t.character && t.owner === GM_OWNER;
+}
+
+/**
+ * Who goes when the party moves: the characters' tokens and players' (vision.ts isSightToken), and
+ * any the GM has marked to travel with them (withParty), hidden or a prop as they may be.
+ */
+export function inParty(t: TokenItem): boolean {
+  return isSightToken(t) || (!!t.withParty && !t.art);
+}
+
+/** The tokens taken from a level: the ones selected on it, or else the party's (inParty). */
 export function partyOn(items: ItemMap, sceneId: string, selection: readonly string[]): TokenItem[] {
   const tokens = Object.values(items).filter((i): i is TokenItem => i.kind === "token" && i.sceneId === sceneId);
   const picked = tokens.filter((t) => selection.includes(t.id));
-  return picked.length ? picked : tokens.filter(isSightToken);
+  return picked.length ? picked : tokens.filter(inParty);
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

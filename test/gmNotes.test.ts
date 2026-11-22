@@ -261,12 +261,12 @@ describe("the guide", () => {
 
   it("says what's new, on top", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[5].title).toBe("Secret notes from Dungeon (15 November 2026)");
-    const entry = text(news.parts[5]);
+    expect(news.parts[6].title).toBe("Secret notes from Dungeon (15 November 2026)");
+    const entry = text(news.parts[6]);
     expect(entry).toContain('tick "Only the GM sees this" on a label');
     expect(entry).toContain("players never receive it");
     expect(entry).toContain("with no copies");
-    expect(news.intro).toContain("The latest updates came out on 15 November 2026.");
+    expect(news.intro).toContain("The latest updates came out on 22 November 2026.");
   });
 
   it("says where a label only the GM sees in Dungeon ends up, under Maps from Dungeon and secret notes", () => {

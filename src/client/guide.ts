@@ -16,8 +16,24 @@ export const GUIDE: GuideSection[] = [
     "id": "whats-new",
     "title": "What's new",
     "audience": "everyone",
-    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 15 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
+    "intro": "What's changed in Tabletop, newest first. The latest updates came out on 22 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
+      {
+        "title": "GM: NPCs that travel with the party (22 November 2026)",
+        "steps": [
+          "Select an NPC, a monster or anything else of yours on the map, and click **Travel with the party** on its bar (the footprints). It lights up.",
+          "From then on, **Take the party here** and the levels' **Take the party** ▲ **Up** and ▼ **Down** take it along with the characters: it stands where it stood beside them, with the spells on it.",
+          "Click the footprints again to leave it behind next time."
+        ],
+        "notes": [
+          "Until now only the characters' tokens, and the ones players put down, went with the party. Anything else stayed on the map it was on, to be put down again on the new one.",
+          "Select several tokens and click the footprints to mark them all at once. Only you see the button, and only you can mark a token.",
+          "A hidden token goes along hidden, and a prop goes too.",
+          "A marked token stays marked for every move after, until you click the footprints again. **Send here**, for sending some of the party off on their own, sends only the characters you tick.",
+          "With tokens selected, **Take the party** ▲ **Up** or ▼ **Down** still takes just those.",
+          "See **Take the party to another map** in **Scenes**."
+        ]
+      },
       {
         "title": "GM: your tokens are in every room (15 November 2026)",
         "steps": [
@@ -1079,6 +1095,7 @@ export const GUIDE: GuideSection[] = [
           "**Flip** (beside the rotate buttons, for a token with a picture) mirrors its picture so it faces the other way. Click it again to flip it back. Its name and rings stay as they are.",
           "Clicking **Add to initiative** for a token that's already in the turn order just opens the **Initiative** panel.",
           "GM only: the eye button hides a token from players or shows it again (H), and the padlock button locks it so players can't move it (L).",
+          "GM only: the footprints button, **Travel with the party**, on a token that isn't a character's (an NPC, a monster), takes it along whenever you take the party to another map or level. Click it again to leave it behind.",
           "For drawings and notes: a colour, **Edit note** for text notes, and (GM only) the eye button.",
           "Select several things and the bar shows how many, for example \"3 selected\" (or \"3 drawings\" when they're all drawings or notes), with the buttons that work on all of them.",
           "Shift+click adds something to the selection, or takes it out if it's already selected. Shift+drag on empty space draws a box to select everything inside it.",
@@ -3424,7 +3441,8 @@ export const GUIDE: GuideSection[] = [
           "Their tokens leave the scene players were on and stand there as they stood before, with the spells on them, and players see this map."
         ],
         "notes": [
-          "The party is the characters' tokens and the tokens players put down, on the scene players are on (not hidden ones or props). Monsters and NPCs stay where they were: put one down on the new map to bring it along.",
+          "The party is the characters' tokens and the tokens players put down, on the scene players are on (not hidden ones or props). Monsters and NPCs stay where they were, unless you mark them to travel with the party.",
+          "To take an NPC or a monster along: select it and click **Travel with the party** on its bar (the footprints), before you move. It goes with the party every time after, hidden or a prop as it may be, until you click the footprints again. Select several to mark them all.",
           "They keep the same number of squares between them, at the new map's squares, and land on its grid. Hold **Alt** as you click to put them down off the grid.",
           "They arrive selected, so you can drag them all together if they need to move.",
           "**Cancel**, or Escape, stops without moving anyone. On a phone or tablet there are no circles: tap where they arrive.",
@@ -3477,7 +3495,7 @@ export const GUIDE: GuideSection[] = [
           "When the party goes up or down the stairs, go to the level players see and click **Take the party** ▲ **Up** or ▼ **Down**. Their tokens go to the same squares on that level, with the spells on them, and players see that level."
         ],
         "notes": [
-          "The party is the characters' tokens and the tokens players put down (not hidden ones or props). Select tokens first to take just those, monsters too.",
+          "The party is the characters' tokens and the tokens players put down (not hidden ones or props), and any token you've marked **Travel with the party**. Select tokens first to take just those, monsters too.",
           "Each level keeps its own fog, drawings and lighting. Initiative carries on as it was.",
           "Show any level to players with **Show to players** on its row, as with any scene."
         ]
