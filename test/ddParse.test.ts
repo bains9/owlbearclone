@@ -688,10 +688,20 @@ describe("matchDd2vttLevel", () => {
   it("reads a bounded number of export points", () => {
     const map = parseSynthetic();
     const line = Array.from({ length: 20000 }, () => ({ x: 1, y: 1 }));
-    const vtt = { line_of_sight: new Array(5000).fill(line) };
+    // Counts the lines looked at. The first ten hold MAX_VTT_POINTS; the 4,990 after them aren't
+    // read or copied (copying them took 0.35 s here, and over 4 s on a busy computer).
+    let looked = 0;
+    const lines = new Proxy(new Array(5000).fill(line), {
+      get: (target, key, receiver) => {
+        if (typeof key === "string" && /^\d+$/.test(key)) looked++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const vtt = { line_of_sight: lines };
     const t0 = performance.now();
     const [m] = matchDd2vttLevel(map, vtt);
     expect(m.checked).toBe(MAX_VTT_POINTS);
+    expect(looked).toBe(MAX_VTT_POINTS / line.length);
     expect(performance.now() - t0).toBeLessThan(3000);
   });
 

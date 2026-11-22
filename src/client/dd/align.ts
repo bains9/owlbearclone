@@ -171,8 +171,11 @@ export class PointHash {
  * score 0 and checked 0, as an export with no clues would.
  */
 export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05, work = MATCH_WORK): LevelMatch[] {
-  const pts = (v: unknown[], out: Pt[], budget: number): void => {
-    for (let i = 0; i < v.length && out.length < budget; i++) {
+  // The first `limit` items of v, until out holds `budget` points. By index, not slice: a huge
+  // line isn't copied to read a few of its points, or none once the budget is spent.
+  const pts = (v: unknown[], out: Pt[], budget: number, limit = v.length): void => {
+    const n = Math.min(v.length, limit);
+    for (let i = 0; i < n && out.length < budget; i++) {
       const p = v[i];
       if (p && typeof p === "object" && fin((p as { x?: unknown }).x) && fin((p as { y?: unknown }).y)) {
         const { x, y } = p as Pt;
@@ -186,7 +189,12 @@ export function matchDd2vttLevel(map: DDMap, d: Dd2vttData, tol = 0.05, work = M
   pts(positions(d.portals), exPortals, MAX_VTT_POINTS);
   pts(positions(d.lights), exLights, MAX_VTT_POINTS);
   if (Array.isArray(d.line_of_sight)) {
-    for (const line of d.line_of_sight.slice(0, 5000)) if (Array.isArray(line)) pts(line.slice(0, 20000), exLos, MAX_VTT_POINTS);
+    // Up to 5000 lines of up to 20000 points each, and no further line once MAX_VTT_POINTS are read.
+    const lines: unknown[] = d.line_of_sight;
+    for (let i = 0; i < Math.min(lines.length, 5000) && exLos.length < MAX_VTT_POINTS; i++) {
+      const line = lines[i];
+      if (Array.isArray(line)) pts(line, exLos, MAX_VTT_POINTS, 20000);
+    }
   }
 
   const results: LevelMatch[] = [];
