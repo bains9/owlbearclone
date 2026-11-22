@@ -10,9 +10,17 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { createRequire } from "node:module";
+import { connect } from "node:net";
+import { dirname, join } from "node:path";
 import { chromium } from "playwright-core";
 
 const PORT = 5299;
+// How long the dev server may take to start, by the clock. It takes about 5 seconds on a quiet
+// computer, three to five times that while other work runs (mostly loading the Cloudflare
+// plugin and starting workerd), and once took 42 seconds on a deploy, after four deploys in a
+// row had given up at 60.
+const START_LIMIT_S = 180;
 // By number, not "localhost": a stale proxy for that name can answer when nothing listens.
 const BASE = `http://127.0.0.1:${PORT}`;
 const SIZES = [
@@ -22,6 +30,7 @@ const SIZES = [
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
 
 let password;
 let madeVars = false;
@@ -33,13 +42,20 @@ if (!password) {
 }
 
 await nothingOnPort();
-const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["vite", "dev", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
+// Vite's own command, run by this same node rather than through npx and a shell: those two
+// alone took 7 seconds on a busy computer.
+const viteBin = join(dirname(createRequire(import.meta.url).resolve("vite/package.json")), "bin", "vite.js");
+const startedAt = Date.now();
+const server = spawn(process.execPath, [viteBin, "dev", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "pipe", "pipe"] });
 let serverOut = "";
+let serverEnded = null;
 server.stdout.on("data", (d) => (serverOut += d));
 server.stderr.on("data", (d) => (serverOut += d));
+server.on("exit", (code, signal) => (serverEnded = signal ? `was stopped (${signal})` : `stopped with exit code ${code}`));
+server.on("error", (err) => (serverEnded = `couldn't be started (${err.message})`));
 
 const cleanup = () => {
-  // On Windows the shell is killed but not vite under it: the whole tree, or the next run talks to this one.
+  // On Windows workerd outlives the vite that started it: the whole tree, or the next run talks to this one.
   if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
   else server.kill();
   if (madeVars) unlinkSync(".dev.vars");
@@ -54,17 +70,42 @@ async function nothingOnPort() {
   throw new Error(`Something is already on :${PORT} (a dev server from an earlier run?): stop it first.`);
 }
 
+function portIsOpen() {
+  return new Promise((resolve) => {
+    const socket = connect(PORT, "127.0.0.1");
+    socket.setTimeout(2000);
+    socket.once("connect", () => (socket.destroy(), resolve(true)));
+    socket.once("timeout", () => (socket.destroy(), resolve(false)));
+    socket.once("error", () => resolve(false));
+  });
+}
+
 async function waitForServer() {
-  for (let i = 0; i < 120; i++) {
-    try {
-      const res = await fetch(`${BASE}/api/build`);
-      if (res.ok) return;
-    } catch {
-      // Not up yet.
+  const deadline = startedAt + START_LIMIT_S * 1000;
+  let openedAt = null;
+  let lastAnswer = null;
+  while (Date.now() < deadline && !serverEnded) {
+    if (openedAt === null && (await portIsOpen())) openedAt = Date.now();
+    if (openedAt !== null) {
+      try {
+        // A fetch can hang once the port is open, so each one has its own limit.
+        const res = await fetch(`${BASE}/api/build`, { signal: AbortSignal.timeout(15000) });
+        if (res.ok) {
+          console.log(`  The dev server was up in ${seconds(Date.now() - startedAt)} (port open at ${seconds(openedAt - startedAt)}).`);
+          return;
+        }
+        lastAnswer = `HTTP ${res.status}`;
+      } catch (err) {
+        lastAnswer = err?.name === "TimeoutError" ? "no answer in 15 s" : (err?.cause?.code ?? err?.message ?? String(err));
+      }
     }
     await sleep(500);
   }
-  throw new Error(`The dev server didn't come up on :${PORT}.\n${serverOut.slice(-800)}`);
+  const took = seconds(Date.now() - startedAt);
+  const what = serverEnded ? `The dev server ${serverEnded} after ${took}, before it was up on :${PORT}.` : `The dev server didn't come up on :${PORT} in ${START_LIMIT_S} s.`;
+  const port = openedAt === null ? `The port never opened.` : `The port opened at ${seconds(openedAt - startedAt)}, but /api/build never answered OK (last: ${lastAnswer ?? "not asked"}).`;
+  const out = serverOut.trim() ? serverOut.replace(/\x1b\[[0-9;]*m/g, "").trimEnd() : "(nothing)";
+  throw new Error(`${what}\n        ${port}\n        Everything the server printed:\n${out}`);
 }
 
 let failures = 0;
