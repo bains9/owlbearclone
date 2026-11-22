@@ -2922,6 +2922,22 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.party-pick-more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.party-pick-more:hover {
+  color: var(--text);
+}
 .party-pick-row {
   display: flex;
   align-items: center;

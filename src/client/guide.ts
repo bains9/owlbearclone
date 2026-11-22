@@ -29,7 +29,7 @@ export const GUIDE: GuideSection[] = [
           "Until now only the characters' tokens, and the ones players put down, went with the party. Anything else stayed on the map it was on, to be put down again on the new one.",
           "Select several tokens and click the footprints to mark them all at once. Only you see the button, and only you can mark a token.",
           "A hidden token goes along hidden, and a prop goes too.",
-          "A marked token stays marked for every move after, until you click the footprints again. **Send here**, for sending some of the party off on their own, lists it too, under the map it's on: tick it to send it with them.",
+          "A marked token stays marked for every move after, until you click the footprints again. **Send here**, for sending some of the party off on their own, lists it too, under the map it's on: tick it to send it with them. Your other NPCs and creatures are there as well, folded under **NPCs and creatures**, to send without marking them.",
           "With tokens selected, **Take the party** ▲ **Up** or ▼ **Down** still takes just those.",
           "See **Take the party to another map** in **Scenes**."
         ]
@@ -3455,7 +3455,7 @@ export const GUIDE: GuideSection[] = [
         "title": "Split the party: send some to another map",
         "steps": [
           "Open **Scenes** and, on the map they're going to, click **Send someone here** (the forked arrow). Or open that map and click **Send here** at its top right.",
-          "It lists the party's characters on the other maps, with who plays each one, and any NPCs you've marked **Travel with the party** (\"travels with the party\").",
+          "It lists the party's characters on the other maps, with who plays each one, and any NPCs you've marked **Travel with the party** (\"travels with the party\"). Your other NPCs and creatures on those maps are folded under **NPCs and creatures**: click it to see them.",
           "Tick who's going (from one map at a time), and click **Send them here**.",
           "Point where they arrive and click. Their tokens move there, and the people who play them see this map from now on. Everyone else stays where they were."
         ],
@@ -3465,7 +3465,7 @@ export const GUIDE: GuideSection[] = [
           "To bring them back, look at the party's map and use **Send here** again: tick them, click **Send them here**, then click where they arrive.",
           "A character whose token is already on this map, but whose player is elsewhere, is listed first: ticking them sends only the player.",
           "A character with no token on any map someone's on, such as a new one, is listed last: their token is put down where you click.",
-          "An NPC is listed once you've marked it: select it and click **Travel with the party** (the footprints) on its bar. Tick it with the characters it's going with; it goes only where you send it, and nobody's view changes because of it.",
+          "To send an NPC or creature, open **NPCs and creatures** under the map it's on and tick it, with the characters it's going with or on its own: it goes only where you send it, and nobody's view changes because of it. One marked **Travel with the party** (the footprints on its bar) is listed with the characters, without opening anything. Props aren't listed unless they're marked.",
           "**Send someone here** shows only on maps someone could be sent to. On the party's map it shows once someone is away, to bring them back.",
           "The **Scenes** panel says who's on each map: \"The party sees this\" on the party's, and who sees each of the others.",
           "**Show to players** on any map brings everyone together there again. **Take the party here**, and the levels' **Up** and **Down**, move the party only: anyone off on their own stays where they are.",

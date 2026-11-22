@@ -9,11 +9,12 @@
 // this scene from then on, apart from the party; nobody else is told. Sent to the live scene, they're
 // back with the party. Show to players puts everyone together again. A character with no token where
 // anyone is (a new character, say) is listed too, and put down where the map's clicked. So are the GM's
-// NPCs marked Travel with the party, to go with whoever's sent. The list also opens from the Scenes panel
-// (Send someone here), since nothing shows here until another map is open.
+// NPCs marked Travel with the party, to go with whoever's sent, and, folded under each map, the GM's other
+// NPCs and creatures there, to send on purpose. The list also opens from the Scenes panel (Send someone
+// here), since nothing shows here until another map is open.
 
 import { useState } from "preact/hooks";
-import { Footprints, Split } from "lucide-preact";
+import { ChevronDown, ChevronRight, Footprints, Split } from "lucide-preact";
 import { listNames, partyOn, sendables, sentGone, unplaced } from "../levels";
 import type { Sendable, Unplaced } from "../levels";
 import { useRoom, useRoomState } from "./common";
@@ -33,6 +34,8 @@ export function PartyBar() {
   // Open from here or from the Scenes panel; what's ticked is this scene's.
   const open = useRoomState((s) => !!s.viewSceneId && s.sendPick === s.viewSceneId);
   const [ticks, setTicks] = useState<{ sceneId: string; ids: string[] }>({ sceneId: "", ids: [] });
+  // The maps whose NPCs and creatures are unfolded.
+  const [unfolded, setUnfolded] = useState<string[]>([]);
   if (!gm || !view) return null;
   const ticked = ticks.sceneId === view.id ? ticks.ids : [];
   const setTicked = (ids: string[]) => setTicks({ sceneId: view.id, ids });
@@ -85,14 +88,41 @@ export function PartyBar() {
     if (g) g.list.push(o);
     else groups.push({ sceneId: o.token.sceneId, list: [o] });
   }
+  // A token nobody plays: one marked to travel with the party, or one of the GM's NPCs and creatures.
+  const whoElse = (o: Sendable | Unplaced) => {
+    if (!("token" in o)) return "nobody plays them";
+    if (o.companion) return "travels with the party";
+    if (o.npc) return o.token.hidden ? "NPC, hidden from players" : "NPC";
+    return "nobody plays them";
+  };
   const row = (o: Sendable | Unplaced, name: string) => {
     const people = room.namesOf(o.people.map((p) => p.userId));
     return (
       <label key={keyOf(o)} class="check party-pick-row">
         <input type="checkbox" checked={ticked.includes(keyOf(o))} onChange={(e) => tick(o, e.currentTarget.checked)} />
         <span class="party-pick-name">{name}</span>
-        <span class="party-pick-who">{people.length ? listNames(people) : "companion" in o && o.companion ? "travels with the party" : "nobody plays them"}</span>
+        <span class="party-pick-who">{people.length ? listNames(people) : whoElse(o)}</span>
       </label>
+    );
+  };
+  // A map's NPCs and creatures, folded until opened (or one of them is ticked), so a map full of
+  // monsters doesn't bury the party.
+  const npcsOf = (g: { sceneId: string; list: Sendable[] }) => {
+    const npcs = g.list.filter((o) => o.npc);
+    if (!npcs.length) return null;
+    const open = unfolded.includes(g.sceneId) || npcs.some((o) => ticked.includes(o.token.id));
+    return (
+      <>
+        <button
+          type="button"
+          class="party-pick-more"
+          aria-expanded={open}
+          onClick={() => setUnfolded(open ? unfolded.filter((id) => id !== g.sceneId) : [...unfolded, g.sceneId])}
+        >
+          {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />} NPCs and creatures ({npcs.length})
+        </button>
+        {open && npcs.map((o) => row(o, o.token.label || "A token"))}
+      </>
     );
   };
   return (
@@ -134,7 +164,8 @@ export function PartyBar() {
               {groups.map((g) => (
                 <div key={g.sceneId} class="party-pick-group">
                   <div class="party-pick-from">{g.sceneId === view.id ? "Here already, but their players are elsewhere" : `On “${scenes[g.sceneId]?.name ?? ""}”`}</div>
-                  {g.list.map((o) => row(o, o.token.label || "A token"))}
+                  {g.list.filter((o) => !o.npc).map((o) => row(o, o.token.label || "A token"))}
+                  {npcsOf(g)}
                 </div>
               ))}
               {loose.length > 0 && (
