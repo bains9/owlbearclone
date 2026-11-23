@@ -7,15 +7,24 @@ export function navigate(path: string): void {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-let arrival: string | null = null;
-
-/** A message for the next room page to show as it opens ("The GM moved the game to …"). */
-export function noteArrival(text: string): void {
-  arrival = text;
+/** A message for the next room page to show as it opens, and (GM) a scene of it to look at. */
+export interface Arrival {
+  text: string;
+  sceneId?: string;
 }
 
-export function takeArrival(): string | null {
-  const text = arrival;
+let arrival: Arrival | null = null;
+
+/**
+ * A message for the next room page to show as it opens ("The GM moved the game to …"); with
+ * `sceneId`, the GM looks at that scene of it (tokens just moved there, say).
+ */
+export function noteArrival(text: string, sceneId?: string): void {
+  arrival = { text, ...(sceneId ? { sceneId } : {}) };
+}
+
+export function takeArrival(): Arrival | null {
+  const a = arrival;
   arrival = null;
-  return text;
+  return a;
 }

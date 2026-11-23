@@ -458,8 +458,8 @@ describe("erasing what's built", () => {
   const all = (id: string) => JSON.stringify(GUIDE.find((s) => s.id === id));
 
   it("is in What's new under placing things anywhere, with the bar's word for it", () => {
-    expect(news.parts[35].title).toBe("Erasing what you built (31 October 2026)");
-    expect(news.parts[35].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
+    expect(news.parts[36].title).toBe("Erasing what you built (31 October 2026)");
+    expect(news.parts[36].steps.join(" ")).toContain("pick **Erase** (it was **Remove**)");
   });
 
   it("is in the guide where the eraser and objects are explained", () => {
@@ -541,8 +541,8 @@ describe("windows in the bars and the guide", () => {
   it("leads What's new, and the Doors part says how and what a window does", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
     expect(news.intro).toContain("The latest updates came out on 22 November 2026.");
-    expect(news.parts[7].title).toBe("Windows in the walls you build (15 November 2026)");
-    expect(news.parts[7].steps.join(" ")).toContain("pick **Doors**, then **Window**");
+    expect(news.parts[8].title).toBe("Windows in the walls you build (15 November 2026)");
+    expect(news.parts[8].steps.join(" ")).toContain("pick **Doors**, then **Window**");
     const doors = GUIDE.flatMap((s) => s.parts).find((p) => p.title === "Doors, secret doors, windows and openings")!;
     expect(doors.steps.join(" ")).toContain("**Window**");
     const text = doors.notes.join(" ");

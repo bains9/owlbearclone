@@ -8,6 +8,8 @@
 // gets back either the accepted change or a correction.
 
 import { canSeeMessage } from "../shared/chat";
+import { carried, partyLanding } from "../shared/landing";
+import { MAX_MOVE, MOVED_AWAY, canChangeRoom, samePicture, type MoveArrival, type MoveBundle, type RoomMap } from "../shared/roomMove";
 import { sanitizeTokenStats, type TokenStats } from "../shared/tokenStats";
 import { openJson, sealJson } from "./seal";
 import { pack, readTables, unpack, writeRows, type Packed } from "./snapshot";
@@ -51,6 +53,7 @@ import type {
   Asset,
   AssetKind,
   ChatMessage,
+  DrawingItem,
   InitEntry,
   Initiative,
   Item,
@@ -61,8 +64,9 @@ import type {
   RollResult,
   RoomInfo,
   Scene,
+  TokenItem,
 } from "../shared/types";
-import { bringsCompass, isCompass } from "../shared/types";
+import { bringsCompass, isCompass, sceneSnaps } from "../shared/types";
 import { canSeeAsset, helloScenes, playerScene, sceneFor } from "./playerView";
 import { tableSettings } from "./table";
 import { kindAllowed } from "./uploads";
@@ -624,6 +628,189 @@ export class Room extends DurableObject<Env> {
     this.saveAsset(asset);
     this.assets.set(asset.id, asset);
     this.broadcastAsset(asset);
+  }
+
+  // ------------------------------------------------ tokens moving to another room (shared/roomMove.ts)
+
+  /** This room's maps, in the order Scenes lists them, for the GM choosing where tokens go; null when there's no room here. */
+  mapList(): RoomMap[] | null {
+    if (!this.info) return null;
+    return [...this.scenes.values()]
+      .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt)
+      .map((s) => ({ id: s.id, name: s.name, live: s.id === this.activeSceneId }));
+  }
+
+  /**
+   * GM: tokens leaving for another room, and all that goes with them, read but not yet taken out
+   * (removeMoved does that, once the other room has them). Only the GM's own that aren't
+   * characters' (canChangeRoom), from one scene, the first one's; or why none can go.
+   */
+  exportTokens(ids: string[]): MoveBundle | { error: string } {
+    if (!this.info) return { error: "This room isn't there any more." };
+    const picked = ids.map((id) => this.items.get(id)).filter((i): i is TokenItem => i?.kind === "token");
+    const movable = picked.filter(canChangeRoom);
+    if (!movable.length) {
+      return { error: picked.length ? "Characters' tokens, players' own and compasses stay in their room." : "Those tokens aren't on the map any more." };
+    }
+    const scene = this.scenes.get(movable[0].sceneId);
+    if (!scene) return { error: "That map isn't there any more." };
+    const tokens = movable.filter((t) => t.sceneId === scene.id).slice(0, MAX_MOVE);
+    const going = new Set(tokens.map((t) => t.id));
+    const spells = [...this.items.values()].filter((i): i is DrawingItem => i.kind === "drawing" && !!i.on && going.has(i.on));
+    const stats: MoveBundle["stats"] = {};
+    const notes: MoveBundle["notes"] = {};
+    for (const t of tokens) {
+      const s = this.tokenStats.get(t.id);
+      if (s) stats[t.id] = s;
+      const n = this.tokenNotes[t.id];
+      if (n) notes[t.id] = n;
+    }
+    const assets = [...new Set(tokens.map((t) => t.assetId))].map((id) => (id ? this.assets.get(id) : undefined)).filter((a): a is Asset => !!a);
+    return { sceneId: scene.id, grid: scene.grid, tokens, spells, stats, notes, assets };
+  }
+
+  /**
+   * Which of another room's pictures (`assets`) this room has already, by their id there: its copy of
+   * the same library entry, or the same picture (samePicture). The rest are copied here.
+   */
+  picturesFor(assets: Asset[]): Record<string, string> {
+    const out: Record<string, string> = {};
+    const mine = [...this.assets.values()].sort((a, b) => a.createdAt - b.createdAt);
+    for (const a of assets) {
+      const have = (a.library ? this.libraryCopy(a.library) : null) ?? mine.find((b) => samePicture(a, b));
+      if (have) out[a.id] = have.id;
+    }
+    return out;
+  }
+
+  /**
+   * GM: tokens arriving from another room (moveRoutes.ts), with their pictures (copied here already),
+   * stats, notes' links and the spells on them, on scene `a.to`: around the middle of its picture,
+   * standing as they stood around each other, at its squares, and on its grid when they were on the
+   * old one's and it snaps (partyLanding), on top of what's there. All of it or none of it: the
+   * reason, if none.
+   */
+  importTokens(a: MoveArrival): { map: { id: string; name: string } } | { error: string } {
+    if (!this.info) return { error: "That room isn't there any more." };
+    const scene = this.scenes.get(a.to);
+    if (!scene) return { error: "That map isn't in that room any more." };
+    const made = new Map(a.made.map((x) => [x.id, x]));
+    if (a.made.some((x) => this.assets.has(x.id))) return { error: "Try again." };
+    // Each token's picture is this room's now: one it had, or one made for it. One whose picture had gone there has none here.
+    const pictureOf = (id: string | null): string | null | undefined => {
+      const mine = id ? a.pictures[id] : undefined;
+      if (!mine) return null;
+      return this.assets.has(mine) || made.has(mine) ? mine : undefined;
+    };
+    const tokens: TokenItem[] = [];
+    for (const t of a.tokens) {
+      const assetId = pictureOf(t.assetId);
+      // A picture this room had a moment ago has been deleted since.
+      if (assetId === undefined) return { error: "A picture they need was just deleted there. Try again." };
+      tokens.push({ ...t, assetId });
+    }
+    const snap = sceneSnaps(scene, this.info.settings);
+    const where = partyLanding(tokens, a.grid, scene.grid, { x: scene.width / 2, y: scene.height / 2 }, snap);
+    // A spread-out group on a smaller map: each one on the map all the same.
+    const [left, top, right, bottom] = scene.bounds ?? [0, 0, scene.width, scene.height];
+    for (const [id, p] of where) where.set(id, { x: Math.min(right, Math.max(left, p.x)), y: Math.min(bottom, Math.max(top, p.y)) });
+    const moved = carried(tokens, a.spells, where, scene.grid.size / a.grid.size, scene.id);
+    // On top of what's on the map, in the order they were.
+    const above = (kind: Item["kind"]) => {
+      let z = 0;
+      for (const i of this.items.values()) if (i.sceneId === scene.id && i.kind === kind && i.z >= z) z = i.z + 1;
+      return z;
+    };
+    const next = new Map<string, Item | null>();
+    for (const [list, kind] of [
+      [moved.tokens, "token"],
+      [moved.spells, "drawing"],
+    ] as const) {
+      let z = above(kind);
+      for (const raw of [...list].sort((x, y) => x.z - y.z)) {
+        const item = sanitizeItem({ ...raw, z: z++ }, raw.owner);
+        if (!item || item.kind !== kind) return { error: `${raw.kind === "token" ? raw.label || "A token" : "A spell on one of them"} couldn't be put there.` };
+        next.set(item.id, item);
+      }
+    }
+    if (this.countInScene(scene.id, next) > LIMITS.itemsPerScene) return { error: `“${scene.name}” has as many things on it as a map can hold.` };
+    let bytes = this.totalItemBytes;
+    for (const [id, item] of next) bytes += JSON.stringify(item).length - (this.itemBytes.get(id) ?? 0);
+    if (bytes > MAX_ROOM_ITEM_BYTES) return { error: "That room is full: delete some drawings or fog shapes (or old scenes) there first." };
+    const pictures = [...this.assets.values()];
+    if (pictures.length + made.size > MAX_ASSETS || pictures.reduce((n, x) => n + x.bytes, 0) + a.made.reduce((n, x) => n + x.bytes, 0) > MAX_ASSET_BYTES) {
+      return { error: "That room has as many images as it can hold. Delete some there first." };
+    }
+    const stats = new Map<string, TokenStats>();
+    for (const t of tokens) {
+      const s = a.stats[t.id] ? sanitizeTokenStats(a.stats[t.id]) : null;
+      if (s) stats.set(t.id, s);
+    }
+    const notes = { ...this.tokenNotes };
+    for (const t of tokens) {
+      const ref = a.notes[t.id];
+      if (parseNoteRef(ref) && (notes[t.id] || Object.keys(notes).length < VAULT_LIMITS.tokenNotes)) notes[t.id] = ref;
+    }
+    const notesChanged = tokens.some((t) => notes[t.id] !== this.tokenNotes[t.id]);
+    const changes = this.changesOf(next);
+    this.ctx.storage.transactionSync(() => {
+      for (const x of a.made) this.saveAsset(x);
+      this.storeItems(changes);
+      for (const [id, s] of stats) this.sql.exec(`INSERT OR REPLACE INTO token_stats (id, data) VALUES (?, ?)`, id, JSON.stringify(s));
+      if (notesChanged) this.setMeta("token_notes", notes);
+    });
+    // Pictures first, so the tokens have theirs as they arrive.
+    for (const x of a.made) {
+      this.assets.set(x.id, x);
+      this.broadcastAsset(x);
+    }
+    this.holdItems(changes);
+    for (const [id, s] of stats) {
+      this.tokenStats.set(id, s);
+      this.broadcast({ t: "tokenStats", id, stats: s }, (c) => c.role === "gm" && !c.display);
+    }
+    if (notesChanged) {
+      this.tokenNotes = notes;
+      this.broadcast({ t: "tokenNotes", notes }, (c) => c.role === "gm" && !c.display);
+    }
+    return { map: { id: scene.id, name: scene.name } };
+  }
+
+  /**
+   * GM: tokens that have arrived in another room, taken out of this one (exportTokens read them), with
+   * the spells on them, their stats, notes' links and initiative entries. Their ids stay taken
+   * (MOVED_AWAY), so Undo can't bring them back here as well. How many went.
+   */
+  removeMoved(ids: string[]): number {
+    if (!this.info) return 0;
+    const gone = new Set(ids.filter((id) => this.items.get(id)?.kind === "token"));
+    if (!gone.size) return 0;
+    const next = new Map<string, Item | null>();
+    for (const id of gone) next.set(id, null);
+    for (const i of this.items.values()) if (i.kind === "drawing" && i.on && gone.has(i.on)) next.set(i.id, null);
+    const notes = { ...this.tokenNotes };
+    for (const id of gone) delete notes[id];
+    const notesChanged = Object.keys(notes).length !== Object.keys(this.tokenNotes).length;
+    const stats = [...gone].filter((id) => this.tokenStats.has(id));
+    const changes = this.changesOf(next);
+    this.ctx.storage.transactionSync(() => {
+      this.storeItems(changes, MOVED_AWAY);
+      for (const id of stats) this.sql.exec(`DELETE FROM token_stats WHERE id = ?`, id);
+      if (notesChanged) this.setMeta("token_notes", notes);
+    });
+    this.holdItems(changes, MOVED_AWAY);
+    for (const id of stats) {
+      this.tokenStats.delete(id);
+      this.broadcast({ t: "tokenStats", id, stats: null }, (c) => c.role === "gm" && !c.display);
+    }
+    if (notesChanged) {
+      this.tokenNotes = notes;
+      this.broadcast({ t: "tokenNotes", notes }, (c) => c.role === "gm" && !c.display);
+    }
+    // They leave the initiative list here, as a token deleted does.
+    const leaving = this.initiative.entries.filter((e) => e.tokenId && gone.has(e.tokenId));
+    if (leaving.length) this.applyInitiative(leaving.map((e) => ({ op: "remove", id: e.id })));
+    return gone.size;
   }
 
   /**
@@ -1265,6 +1452,8 @@ export class Room extends DurableObject<Env> {
     // Ids the sender asked about that, as far as the sender may know, don't exist.
     const gone: string[] = [];
     let full = false;
+    /** Something the GM tried to put back is in another room now (MOVED_AWAY). */
+    let movedAway = false;
     // Several operations in one message may touch the same item; each sees the result of the previous one.
     const staged = new Map<string, Item | null>();
     const stagedBytes = new Map<string, number>();
@@ -1376,6 +1565,12 @@ export class Room extends DurableObject<Env> {
       // Someone else's deleted item: its id isn't free for a player to reuse. Answered
       // exactly like an item that's hidden from them.
       const tomb = this.tombstones.get(id);
+      // A token moved to another room (removeMoved) is there now: Undo can't bring it back here too.
+      if (!existing && isGm && tomb === MOVED_AWAY) {
+        refused.add(id);
+        movedAway = true;
+        continue;
+      }
       if (!existing && !isGm && tomb !== undefined && tomb !== conn.userId) {
         gone.push(id);
         continue;
@@ -1559,6 +1754,8 @@ export class Room extends DurableObject<Env> {
         t: "error",
         message: "This room is full. Delete some drawings or fog shapes (or old scenes) to make room.",
       });
+    } else if (movedAway) {
+      this.send(ws, { t: "error", message: "That token has moved to another room, so it can't come back here." });
     } else if (refused.size && !sceneInvalid) {
       this.send(ws, { t: "error", message: "Some of that wasn't allowed, so it was undone." });
     }
@@ -1833,23 +2030,48 @@ export class Room extends DurableObject<Env> {
    */
   private changeItems(next: Map<string, Item | null>): void {
     if (!next.size) return;
-    const changes = [...next].map(([id, after]) => ({ id, before: this.items.get(id) ?? null, after }));
-    this.ctx.storage.transactionSync(() => {
-      for (const { id, after } of changes) {
-        if (after) {
+    const changes = this.changesOf(next);
+    this.ctx.storage.transactionSync(() => this.storeItems(changes));
+    this.holdItems(changes);
+  }
+
+  private changesOf(next: Map<string, Item | null>): { id: string; before: Item | null; after: Item | null }[] {
+    return [...next].map(([id, after]) => ({ id, before: this.items.get(id) ?? null, after }));
+  }
+
+  /**
+   * Writes changes the Room makes itself (inside a transaction): items kept or deleted, a deleted
+   * one's id kept by who owned it (or by `tomb`), and a kept one's id free of any such mark.
+   */
+  private storeItems(changes: { id: string; before: Item | null; after: Item | null }[], tomb?: string): void {
+    const now = Date.now();
+    for (const { id, before, after } of changes) {
+      if (after) {
+        this.sql.exec(
+          `INSERT INTO items (id, scene_id, data) VALUES (?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET scene_id = excluded.scene_id, data = excluded.data`,
+          id,
+          after.sceneId,
+          JSON.stringify(after),
+        );
+        if (this.tombstones.has(id)) this.sql.exec(`DELETE FROM tombstones WHERE id = ?`, id);
+      } else {
+        this.sql.exec(`DELETE FROM items WHERE id = ?`, id);
+        if (before) {
           this.sql.exec(
-            `INSERT INTO items (id, scene_id, data) VALUES (?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET scene_id = excluded.scene_id, data = excluded.data`,
+            `INSERT INTO tombstones (id, owner, at) VALUES (?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET owner = excluded.owner, at = excluded.at`,
             id,
-            after.sceneId,
-            JSON.stringify(after),
+            tomb ?? before.owner,
+            now,
           );
-        } else {
-          this.sql.exec(`DELETE FROM items WHERE id = ?`, id);
         }
       }
-    });
-    const now = Date.now();
+    }
+  }
+
+  /** Changes stored by storeItems: held in memory, and sent to every page that sees them. */
+  private holdItems(changes: { id: string; before: Item | null; after: Item | null }[], tomb?: string): void {
     for (const { id, before, after } of changes) {
       if (before) this.countBytes(before.owner, -(this.itemBytes.get(id) ?? 0));
       if (after) {
@@ -1857,17 +2079,11 @@ export class Room extends DurableObject<Env> {
         this.items.set(id, after);
         this.itemBytes.set(id, bytes);
         this.countBytes(after.owner, bytes);
+        this.tombstones.delete(id);
       } else if (before) {
         this.items.delete(id);
         this.itemBytes.delete(id);
-        this.tombstones.set(id, before.owner);
-        this.sql.exec(
-          `INSERT INTO tombstones (id, owner, at) VALUES (?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET owner = excluded.owner, at = excluded.at`,
-          id,
-          before.owner,
-          now,
-        );
+        this.tombstones.set(id, tomb ?? before.owner);
       }
     }
     for (const target of this.ctx.getWebSockets()) {

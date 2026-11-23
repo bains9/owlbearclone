@@ -37,6 +37,7 @@ import { LevelBar } from "./LevelBar";
 import { PartyBar } from "./PartyBar";
 import { LightBar } from "./LightBar";
 import { CardDock, SelectionBar } from "./SelectionBar";
+import { MoveRoomDialog } from "./MoveRoom";
 import { SettingsPanel } from "./SettingsPanel";
 import { SoundHeldNotice, SoundHost, SoundPanel } from "./SoundPanel";
 import { TableDisplayDialog } from "./TableDisplay";
@@ -169,7 +170,10 @@ function openRoom(roomId: string, profile: Profile): RoomClient {
 /** A room now on screen: the "moved the game" message, if the GM's move brought it. */
 function arrived(room: RoomClient): void {
   const note = takeArrival();
-  if (note) room.toast(note);
+  if (!note) return;
+  // GM: tokens just moved here from another room, on the map they went to.
+  if (note.sceneId && room.isGm && room.state.scenes[note.sceneId]) room.viewSceneLocally(note.sceneId);
+  room.toast(note.text);
 }
 
 function closeRoom(room: RoomClient): void {
@@ -326,10 +330,11 @@ function RoomShell() {
             <SoundHost />
             <SoundHeldNotice />
           </Guard>
-          <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD}`}>
+          <Guard name="a dialog" retry={(s) => `${!!s.textPrompt} ${!!s.mapImport} ${!!s.attachDD} ${!!s.moveRoom}`}>
             <NoteDialog />
             <MapImportDialog />
             <AttachDDDialog />
+            <MoveRoomDialog />
           </Guard>
           {status === "reconnecting" && (
             <div class="reconnecting">

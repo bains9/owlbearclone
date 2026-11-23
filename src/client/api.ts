@@ -1,3 +1,4 @@
+import type { MoveResult, RoomMap } from "../shared/roomMove";
 import type { Asset, AssetKind, RoomInfo, RoomSummary } from "../shared/types";
 
 export class ApiError extends Error {
@@ -37,6 +38,11 @@ export const api = {
   listRooms: () => call<RoomSummary[]>("/api/rooms"),
   createRoom: (name: string) => call<RoomInfo>("/api/rooms", { method: "POST", body: JSON.stringify({ name }) }),
   deleteRoom: (id: string) => call<{ deleted: string }>(`/api/rooms/${id}`, { method: "DELETE" }),
+  /** GM only: a room's maps, for moving tokens there (shared/roomMove.ts). */
+  roomMaps: (id: string) => call<RoomMap[]>(`/api/rooms/${id}/maps`),
+  /** GM only: tokens from room `from` to map `scene` of room `to`, with their pictures, stats and spells. */
+  moveTokens: (from: string, to: string, scene: string, tokens: string[]) =>
+    call<MoveResult>(`/api/rooms/${from}/move`, { method: "POST", body: JSON.stringify({ to, scene, tokens }) }),
 };
 
 export function fileUrl(roomId: string, assetId: string): string {

@@ -147,8 +147,8 @@ describe("in the guide", () => {
 
   it("leads What's new, and says how in Scenes and on the selection bar", () => {
     expect(news.intro).toContain("The latest updates came out on 22 November 2026.");
-    expect(news.parts[0].title).toBe("GM: NPCs that travel with the party (22 November 2026)");
-    const entry = JSON.stringify(news.parts[0]);
+    expect(news.parts[1].title).toBe("GM: NPCs that travel with the party (22 November 2026)");
+    const entry = JSON.stringify(news.parts[1]);
     expect(entry).toContain("**Travel with the party**");
     expect(entry).toContain("A hidden token goes along hidden");
     const scenes = all("scenes");

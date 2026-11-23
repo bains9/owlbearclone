@@ -330,8 +330,8 @@ describe("a map from Dungeon", () => {
 describe("the guide", () => {
   it("says so in What's new and under Walls, with the bar's words", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[5].title).toBe("Walls keep the look they're built in (15 November 2026)");
-    expect(news.parts[5].steps.join(" ")).toContain("**Repaint**");
+    expect(news.parts[6].title).toBe("Walls keep the look they're built in (15 November 2026)");
+    expect(news.parts[6].steps.join(" ")).toContain("**Repaint**");
     const walls = JSON.stringify(GUIDE.find((s) => s.id === "building-maps"));
     expect(walls).toContain("Pick **Walls**, then **Add**, **Remove** or **Repaint**.");
     expect(walls).not.toContain("It's for the whole scene");

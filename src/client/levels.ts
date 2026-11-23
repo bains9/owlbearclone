@@ -5,10 +5,11 @@
 // that level shown to players.
 
 import type { Character, CharacterPlayer } from "../shared/characters";
-import { isOnGrid, snapTokenCenter, type Point } from "../shared/geometry";
+import type { Point } from "../shared/geometry";
+import { carried, partyLanding } from "../shared/landing";
 import type { ItemMap } from "../shared/ops";
 import { GM_OWNER } from "../shared/sanitize";
-import type { GridSettings, Item, Scene, TokenItem } from "../shared/types";
+import type { DrawingItem, GridSettings, Scene, TokenItem } from "../shared/types";
 import type { RoomClient, RoomState } from "./room/client";
 import { isSightToken } from "./room/vision";
 
@@ -97,28 +98,8 @@ export function partyOn(items: ItemMap, sceneId: string, selection: readonly str
   return picked.length ? picked : tokens.filter(inParty);
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/**
- * Where the party stands on another map, put down at `at` (Take the party here): the token nearest
- * their middle on that point (snapped as a token put down is), the rest around it as they stood,
- * the same number of squares away at that map's squares, and one that sat on the grid stays on it.
- */
-export function partyLanding(party: readonly TokenItem[], from: GridSettings, to: GridSettings, at: Point, snap: boolean): Map<string, Point> {
-  const out = new Map<string, Point>();
-  if (!party.length) return out;
-  const cx = party.reduce((n, t) => n + t.x, 0) / party.length;
-  const cy = party.reduce((n, t) => n + t.y, 0) / party.length;
-  const lead = party.reduce((a, t) => (Math.hypot(t.x - cx, t.y - cy) < Math.hypot(a.x - cx, a.y - cy) ? t : a));
-  const k = to.size / from.size;
-  const home = snap ? snapTokenCenter(at, lead.size, to) : at;
-  for (const t of party) {
-    let p = { x: home.x + (t.x - lead.x) * k, y: home.y + (t.y - lead.y) * k };
-    if (snap && t !== lead && isOnGrid(t, t.size, from)) p = snapTokenCenter(p, t.size, to);
-    out.set(t.id, p);
-  }
-  return out;
-}
+/** Where the party stands on another map (shared/landing.ts, so the Worker puts tokens down the same way). */
+export { partyLanding };
 
 /**
  * GM: the party (partyOn) to another scene, with the spells on them, and that scene shown to
@@ -145,21 +126,11 @@ function moveTokens(room: RoomClient, from: Scene, to: Scene, party: readonly To
   const where = place
     ? partyLanding(party, from.grid, to.grid, place.at, place.snap)
     : new Map(party.map((t) => [t.id, onLevel(t, from.grid, to.grid)]));
-  const k = to.grid.size / from.grid.size;
-  const upsert: Item[] = party.map((t) => {
-    const p = where.get(t.id)!;
-    return { ...t, sceneId: to.id, x: round2(p.x), y: round2(p.y) };
-  });
   // A spell on a token keeps its place on it: moved as the token was, and scaled to the new squares.
-  const tokens = new Map(party.map((t) => [t.id, t]));
-  for (const i of Object.values(s.items)) {
-    const t = i.kind === "drawing" && i.on ? tokens.get(i.on) : undefined;
-    if (i.kind !== "drawing" || !t) continue;
-    const p = where.get(t.id)!;
-    const points = i.points.map((v, n) => round2(n % 2 === 0 ? p.x + (v - t.x) * k : p.y + (v - t.y) * k));
-    upsert.push({ ...i, sceneId: to.id, points });
-  }
-  room.change({ upsert });
+  const ids = new Set(party.map((t) => t.id));
+  const spells = Object.values(s.items).filter((i): i is DrawingItem => i.kind === "drawing" && !!i.on && ids.has(i.on));
+  const moved = carried(party, spells, where, to.grid.size / from.grid.size, to.id);
+  room.change({ upsert: [...moved.tokens, ...moved.spells] });
 }
 
 /** What the GM's told when the party's gone: who, where, and that players see it. */

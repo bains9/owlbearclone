@@ -311,6 +311,8 @@ export interface RoomState {
   tokenStats: Record<string, TokenStats>;
   /** GM: the token whose stats are being filled in. */
   statsEditing: string | null;
+  /** GM: the tokens chosen to move to another room (ui/MoveRoom.tsx), while its window is open. */
+  moveRoom: string[] | null;
   /** GM: what each kind of creature starts with, in every room, or null before it's read. */
   creatureStats: Record<string, TokenStats> | null;
   /**
@@ -647,6 +649,7 @@ export class RoomClient {
       tokenNotes: {},
       tokenStats: {},
       statsEditing: null,
+      moveRoom: null,
       creatureStats: null,
       explored: {},
     });

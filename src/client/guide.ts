@@ -19,6 +19,23 @@ export const GUIDE: GuideSection[] = [
     "intro": "What's changed in Tabletop, newest first. The latest updates came out on 22 November 2026. If a Tabletop page shows **Update: Reload** in its top bar, click it to get the newest version.",
     "parts": [
       {
+        "title": "GM: move tokens to another room (22 November 2026)",
+        "steps": [
+          "Select an NPC, a monster or anything else of yours on the map, or several, and click **Move to another room** on the bar (the open door).",
+          "Choose the **Room**, then the **Map** in it, and click **Move**.",
+          "They arrive in the middle of that map, standing as they stood, with their pictures, their stats and HP, their campaign notes and the spells on them, and they leave this room.",
+          "The window says where they went, such as \"Goblin and 2 others moved to “Northreach” › “Coast”\". Click **Open** and the room's name to go there and see them."
+        ],
+        "notes": [
+          "Until now each room kept its own tokens, and nothing took one from one room to another.",
+          "Nothing leaves this room until the other room has all of it. If anything goes wrong on the way, nothing moves, and the window says why.",
+          "Characters' tokens stay: their players would be left here without them. Put characters in the other room from its **Party**, at the top of **Tokens & images**.",
+          "Tokens players put down stay theirs, in this room, and a compass stays with its map. Point at the button to see which of those you've selected stay.",
+          "Nobody's view changes: nobody goes with them. Anyone on that map sees them arrive, unless they're hidden.",
+          "See **GM: move tokens to another room** in **Tokens**."
+        ]
+      },
+      {
         "title": "GM: NPCs that travel with the party (22 November 2026)",
         "steps": [
           "Select an NPC, a monster or anything else of yours on the map, and click **Travel with the party** on its bar (the footprints). It lights up.",
@@ -1096,6 +1113,7 @@ export const GUIDE: GuideSection[] = [
           "Clicking **Add to initiative** for a token that's already in the turn order just opens the **Initiative** panel.",
           "GM only: the eye button hides a token from players or shows it again (H), and the padlock button locks it so players can't move it (L).",
           "GM only: the footprints button, **Travel with the party**, on a token that isn't a character's (an NPC, a monster), takes it along whenever you take the party to another map or level. Click it again to leave it behind.",
+          "GM only: the open door, **Move to another room**, on the same tokens, takes them to a map in another of your rooms, with their pictures, stats and HP (see **GM: move tokens to another room** in **Tokens**).",
           "For drawings and notes: a colour, **Edit note** for text notes, and (GM only) the eye button.",
           "Select several things and the bar shows how many, for example \"3 selected\" (or \"3 drawings\" when they're all drawings or notes), with the buttons that work on all of them.",
           "Shift+click adds something to the selection, or takes it out if it's already selected. Shift+drag on empty space draws a box to select everything inside it.",
@@ -1445,6 +1463,26 @@ export const GUIDE: GuideSection[] = [
           "When a player copies a GM's token, the copy is never hidden or locked.",
           "Props stay underneath characters even if you bring a prop to the front.",
           "If you delete something by mistake, press **Ctrl+Z** to undo it."
+        ]
+      },
+      {
+        "title": "GM: move tokens to another room",
+        "steps": [
+          "Select the tokens: an NPC, a monster, a prop, one or several.",
+          "Click **Move to another room** on the bar (the open door).",
+          "Under **Room**, choose one of your other rooms.",
+          "Under **Map**, choose the map they go to. The one that room's players see is chosen first, marked \"(players see this)\".",
+          "Click **Move**.",
+          "When the window says where they went, click **Open** and the room's name to go there, or **Close** to stay here."
+        ],
+        "notes": [
+          "They land in the middle of that map, standing around each other as they stand now: they keep the same number of squares between them, at that map's squares, and land on its grid. Drag them where they belong once you're there.",
+          "Each keeps its name, size, colour, rings, turn, flip, hidden or shown, lock, prop or character, and **Travel with the party**. Its picture comes too (the other room gets its own copy, unless it has that picture already), and so do its stats and HP, the campaign note it's linked to, and the spells on it, with the rounds they have left.",
+          "Nothing leaves this room until the other room has all of it. If something goes wrong on the way (that map has as much on it as a map can hold, say, or that room is full), nothing moves, and the window says why.",
+          "Once they're there, they leave this room: its map and its initiative list. **Undo** can't bring them back here; to bring them back, move them back the same way.",
+          "Only your own tokens move. Characters' tokens stay, because their players would be left here without them: put characters in the other room from its **Party**, at the top of **Tokens & images**. Tokens players put down stay theirs, in this room, and a compass stays with its map. With some of those selected too, the rest move and the window says who stays.",
+          "Nobody's view changes: nobody goes with them. Anyone on that map sees them arrive, unless they're hidden.",
+          "To take everyone, people and all, to another room instead, see **Move everyone to another room** in **Room settings**."
         ]
       },
       {
@@ -4380,7 +4418,8 @@ export const GUIDE: GuideSection[] = [
           "Everyone in this room, you too, goes there. Their pages switch to it without reloading, so voice chat carries on.",
           "Each person sees \"The GM moved the game to\" and the room's name.",
           "Table displays stay where they are: open the new room's display link on them.",
-          "The list shows your other rooms. If there aren't any, make one on the start page first."
+          "The list shows your other rooms. If there aren't any, make one on the start page first.",
+          "To move some tokens there and leave everyone here, see **GM: move tokens to another room** in **Tokens**."
         ]
       },
       {

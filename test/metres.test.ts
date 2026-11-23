@@ -601,18 +601,18 @@ describe("the guide", () => {
 
   it("has metres undefined in What's new, after the Build tool's library, maps from Dungeon, the rooms, the dice, the microphone fix, voice chat, the top bar notice, the update messages, the exact seasons and the NPCs, keeping the entries before it", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!.parts.map((p) => p.title);
-    expect(news[52]).toBe("Clearer messages after an update (5 October 2026)");
-    expect(news[53]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
-    expect(news[54]).toBe("NPC tokens by race and class (4 October 2026, later)");
-    expect(news[55]).toBe("Measure in metres (4 October 2026)");
+    expect(news[53]).toBe("Clearer messages after an update (5 October 2026)");
+    expect(news[54]).toBe("Exact seasons from Dungeondraft files (4 October 2026, evening)");
+    expect(news[55]).toBe("NPC tokens by race and class (4 October 2026, later)");
+    expect(news[56]).toBe("Measure in metres (4 October 2026)");
     expect(news).toContain("Monsters ready to use (3 October 2026, later)");
     expect(news).toContain("Pointing on the table display (29 September 2026, later)");
   });
 
   it("says first in What's new that every room measures in metres now, and how a GM gets feet back", () => {
     const news = GUIDE.find((s) => s.id === "whats-new")!;
-    expect(news.parts[18].title).toBe("Every room measures in metres (3 November 2026)");
-    const entry = [...news.parts[18].steps, ...news.parts[18].notes].join("\n");
+    expect(news.parts[19].title).toBe("Every room measures in metres (3 November 2026)");
+    const entry = [...news.parts[19].steps, ...news.parts[19].notes].join("\n");
     expect(entry).toContain("5 ft became 1.5 m");
     expect(entry).toContain("**Measure in metres (1.5 m a square)**");
     expect(entry).toContain("**Switch them too**");

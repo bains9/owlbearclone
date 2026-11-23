@@ -17,6 +17,7 @@ import { castList, highestLevel } from "../shared/spellfx";
 import { backupRoute } from "./backupRoutes";
 import { calendarRoute, roomCalendar, roomCalendarLog } from "./calendarRoutes";
 import { libraryRoute } from "./libraryRoutes";
+import { moveRoute } from "./moveRoutes";
 import { vaultRoute } from "./vaultRoutes";
 import { dungeonHop } from "./dungeon";
 import { finishGoogleSignIn, googleConfigured, startGoogleSignIn } from "./google";
@@ -229,6 +230,9 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
   // The GM's own monsters and NPCs, for every room (libraryRoutes.ts), and putting one in a room.
   const library = await libraryRoute(request, env, pathname, method);
   if (library) return library;
+  // The GM's tokens moved to another of their rooms, and that room's maps (moveRoutes.ts).
+  const moved = await moveRoute(request, env, pathname, method);
+  if (moved) return moved;
   // Backups in the GM's Google Drive (backupRoutes.ts).
   const backups = await backupRoute(request, env, url, method);
   if (backups) return backups;

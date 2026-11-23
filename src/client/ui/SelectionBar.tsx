@@ -2,9 +2,10 @@ import { noteTitle, parseNoteRef } from "../../shared/vault";
 import { useRef } from "preact/hooks";
 import { CharacterCard } from "./CharacterCard";
 import type { ComponentChildren } from "preact";
-import { Armchair, BookOpen, HeartPulse, BringToFront, Compass, Copy, Eye, EyeOff, FlipHorizontal2, Footprints, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
+import { Armchair, BookOpen, HeartPulse, BringToFront, Compass, Copy, DoorOpen, Eye, EyeOff, FlipHorizontal2, Footprints, Lock, LockOpen, Magnet, Pencil, RotateCcw, RotateCw, SendToBack, Swords, Trash, X } from "lucide-preact";
 import { initEntryFor, isCreature } from "../initiative";
-import { canTravel } from "../levels";
+import { canTravel, listNames } from "../levels";
+import { canChangeRoom } from "../../shared/roomMove";
 import { MonsterCard } from "./MonsterCard";
 import { canDelete } from "../../shared/permissions";
 import { roundsLeft } from "./spellChips";
@@ -379,6 +380,7 @@ export function SelectionBar() {
                 <Footprints size={18} />
               </button>
             )}
+            <MoveRoomButton tokens={[t]} />
           </>
         )}
         {can && (
@@ -536,10 +538,34 @@ export function SelectionBar() {
             <Lock size={18} />
           </button>
           <TravelButton tokens={tokens} />
+          <MoveRoomButton tokens={tokens} />
         </>
       )}
       {common}
     </div>
+  );
+}
+
+/**
+ * GM: **Move to another room…** (shared/roomMove.ts), for the selected tokens that can go
+ * (canChangeRoom: the GM's own, not characters', not compasses). Those that can't stay, and the
+ * button's title names them; the window it opens says why.
+ */
+function MoveRoomButton(props: { tokens: TokenItem[] }) {
+  const room = useRoom();
+  if (!props.tokens.some(canChangeRoom)) return null;
+  const staying = props.tokens.filter((t) => !canChangeRoom(t));
+  const names = staying.map((t) => (isCompass(t) ? "the compass" : t.label.trim() || "a token"));
+  return (
+    <button
+      class="icon-btn"
+      title={`Move to another room…${staying.length ? ` (${listNames([...new Set(names)])} ${staying.length === 1 ? "stays" : "stay"} here)` : ""}`}
+      aria-label="Move to another room"
+      data-short="Room"
+      onClick={() => room.store.set({ moveRoom: props.tokens.map((t) => t.id) })}
+    >
+      <DoorOpen size={18} />
+    </button>
   );
 }
 
